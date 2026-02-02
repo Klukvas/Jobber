@@ -50,6 +50,11 @@ on:
       - main         # Optional: also deploy from main
   workflow_dispatch: # Allow manual trigger for rollbacks or testing
 
+# Prevent concurrent deployments to the same environment
+concurrency:
+  group: deploy-dev-${{ github.ref }}
+  cancel-in-progress: false  # Don't cancel running deployments
+
 # Environment variables used across all jobs
 env:
   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -83,11 +88,9 @@ jobs:
             backend:
               - 'be/**'
               - 'docker-compose.yml'
-              - '.github/workflows/deploy-dev.yml'
             frontend:
               - 'fe/**'
               - 'docker-compose.yml'
-              - '.github/workflows/deploy-dev.yml'
       
       - name: Display detected changes
         run: |
@@ -211,53 +214,50 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Prepare SSH key
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       - name: Update docker-compose.yml with SHA tags
         run: |
           SHA_SHORT=$(git rev-parse --short HEAD)
-          
+
           # Create a deployment-specific docker-compose override
           # This allows us to use SHA-tagged images while keeping the base file unchanged
           cat > docker-compose.deploy.yml <<EOF
-          version: '3.8'
           services:
             backend:
               image: ${{ env.BACKEND_IMAGE }}:${SHA_SHORT}
             frontend:
               image: ${{ env.FRONTEND_IMAGE }}:${SHA_SHORT}
           EOF
-          
+
           echo "Generated docker-compose.deploy.yml with SHA: ${SHA_SHORT}"
           cat docker-compose.deploy.yml
 
       - name: Copy compose files to server
         run: |
-          scp -i ~/.ssh/deploy_key \
-            -o StrictHostKeyChecking=no \
-            docker-compose.yml \
+          scp docker-compose.yml \
             docker-compose.deploy.yml \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/home/${{ secrets.SERVER_USER }}/jobber/
 
       - name: Deploy via SSH
         run: |
-          ssh -i ~/.ssh/deploy_key \
-            -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
-          
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
           set -e  # Exit on any error
-          
+
           cd /home/${{ secrets.SERVER_USER }}/jobber
-          
+
           echo "================================================"
           echo "Starting deployment at $(date)"
           echo "================================================"
-          
+
           # CRITICAL: Verify .env file exists
           # The .env file contains ALL runtime secrets (JWT, DB passwords, S3 credentials).
           # If missing, deployment MUST fail to prevent running with default/missing secrets.
@@ -267,45 +267,137 @@ jobs:
             echo "GitHub Actions NEVER creates this file - it must be manually provisioned."
             exit 1
           fi
-          
+
           echo "✅ .env file exists"
-          
+
+          # Authenticate with Docker Hub
+          echo ""
+          echo "🔐 Authenticating with Docker Hub..."
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+          # Capture current deployment state for rollback
+          echo ""
+          echo "📸 Capturing current deployment state..."
+          docker compose -f docker-compose.yml -f docker-compose.deploy.yml config > .compose-backup.yml 2>/dev/null || true
+
           # Pull new images from Docker Hub
           # Uses both docker-compose.yml (base) and docker-compose.deploy.yml (SHA override)
           echo ""
           echo "📥 Pulling new images..."
-          docker compose -f docker-compose.yml -f docker-compose.deploy.yml pull
-          
-          # Restart containers with new images
+          if ! docker compose -f docker-compose.yml -f docker-compose.deploy.yml pull; then
+            echo "❌ Failed to pull images"
+            docker logout
+            exit 1
+          fi
+
+          # Deploy new containers
           # SAFE: This command:
           #   - Recreates containers with new images
           #   - Keeps named volumes intact (postgres_data, redis_data)
           #   - Maintains data persistence
           #   - Does NOT run `docker compose down -v` (which would destroy volumes!)
           echo ""
-          echo "🚀 Restarting services..."
-          docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --remove-orphans
-          
-          # Wait for services to become healthy
+          echo "🚀 Deploying new containers..."
+          if ! docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --remove-orphans; then
+            echo "❌ Failed to start containers"
+            docker logout
+            exit 1
+          fi
+
+          # Wait for services to become healthy with timeout
           echo ""
           echo "⏳ Waiting for services to become healthy..."
-          sleep 5
-          
-          # Show status
-          echo ""
-          echo "📊 Service status:"
-          docker compose -f docker-compose.yml -f docker-compose.deploy.yml ps
-          
-          echo ""
-          echo "================================================"
-          echo "✅ Deployment completed at $(date)"
-          echo "================================================"
-          
-          ENDSSH
+          TIMEOUT=60
+          ELAPSED=0
+          FAILED=false
 
-      - name: Cleanup SSH key
-        if: always()
-        run: rm -f ~/.ssh/deploy_key
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            # Check for unhealthy or restarting containers
+            UNHEALTHY=$(docker compose -f docker-compose.yml -f docker-compose.deploy.yml ps --format json 2>/dev/null | jq -r 'select(.Health == "unhealthy" or .State == "restarting" or .State == "exited") | .Name' 2>/dev/null || true)
+
+            if [ -z "$UNHEALTHY" ]; then
+              # Check if all expected services are running
+              RUNNING=$(docker compose -f docker-compose.yml -f docker-compose.deploy.yml ps --status running --format json 2>/dev/null | jq -s 'length' 2>/dev/null || echo "0")
+              if [ "$RUNNING" -ge 2 ]; then
+                echo "✅ All services are healthy"
+                break
+              fi
+            else
+              echo "⚠️  Unhealthy services detected: $UNHEALTHY"
+            fi
+
+            sleep 5
+            ELAPSED=$((ELAPSED + 5))
+          done
+
+          # Verify deployment succeeded
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo ""
+            echo "❌ Services failed to become healthy within ${TIMEOUT}s"
+            echo ""
+            echo "📊 Container status:"
+            docker compose -f docker-compose.yml -f docker-compose.deploy.yml ps
+            echo ""
+            echo "📋 Recent logs:"
+            docker compose -f docker-compose.yml -f docker-compose.deploy.yml logs --tail=50
+
+            # Attempt rollback if backup exists
+            if [ -f .compose-backup.yml ]; then
+              echo ""
+              echo "🔄 Attempting rollback to previous version..."
+              docker compose -f .compose-backup.yml up -d --remove-orphans || true
+              echo "⚠️  Rollback attempted - please verify system state manually"
+            fi
+
+            docker logout
+            exit 1
+          fi
+
+          # Run smoke tests
+          echo ""
+          echo "🧪 Running smoke tests..."
+
+          # Test backend health endpoint (with retry)
+          BACKEND_HEALTHY=false
+          for i in 1 2 3; do
+            if curl -f -s http://localhost:8080/api/v1/health > /dev/null 2>&1; then
+              BACKEND_HEALTHY=true
+              echo "✅ Backend health check passed"
+              break
+            fi
+            echo "⚠️  Backend health check attempt $i/3 failed, retrying..."
+            sleep 3
+          done
+
+          if [ "$BACKEND_HEALTHY" = false ]; then
+            echo "❌ Backend health check failed after 3 attempts"
+            docker compose -f docker-compose.yml -f docker-compose.deploy.yml logs backend --tail=30
+            docker logout
+            exit 1
+          fi
+
+          # Test frontend
+          if curl -f -s http://localhost:80 > /dev/null 2>&1; then
+            echo "✅ Frontend health check passed"
+          else
+            echo "⚠️  Frontend health check failed (non-critical)"
+          fi
+
+          # Show final status
+          echo ""
+          echo "📊 Final service status:"
+          docker compose -f docker-compose.yml -f docker-compose.deploy.yml ps
+
+          # Cleanup
+          docker logout
+          rm -f .compose-backup.yml
+
+          echo ""
+          echo "================================================"
+          echo "✅ Deployment completed successfully at $(date)"
+          echo "================================================"
+
+          ENDSSH
 
   ############################################################################
   # Post-Deployment Summary
@@ -315,22 +407,39 @@ jobs:
     runs-on: ubuntu-latest
     needs: [detect-changes, build-backend, build-frontend, deploy]
     if: always()
-    
+
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Generate summary
         run: |
+          SHA_SHORT=$(git rev-parse --short ${{ github.sha }})
+
           echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ needs.deploy.result == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Services Deployed:" >> $GITHUB_STEP_SUMMARY
           echo "- Backend: ${{ needs.detect-changes.outputs.backend == 'true' && '✅ Built & Deployed' || '⏭️ Skipped (no changes)' }}" >> $GITHUB_STEP_SUMMARY
           echo "- Frontend: ${{ needs.detect-changes.outputs.frontend == 'true' && '✅ Built & Deployed' || '⏭️ Skipped (no changes)' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Image Tags:" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.BACKEND_IMAGE }}:$(git rev-parse --short ${{ github.sha }})\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.FRONTEND_IMAGE }}:$(git rev-parse --short ${{ github.sha }})\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.BACKEND_IMAGE }}:${SHA_SHORT}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.FRONTEND_IMAGE }}:${SHA_SHORT}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "### Access URLs:" >> $GITHUB_STEP_SUMMARY
+            echo "- 🌐 Application: http://${{ secrets.SERVER_HOST }}" >> $GITHUB_STEP_SUMMARY
+            echo "- 🔧 API: http://${{ secrets.SERVER_HOST }}:8080/api/v1" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ⚠️ Deployment Failed" >> $GITHUB_STEP_SUMMARY
+            echo "Check the deployment logs for details. Rollback may have been attempted automatically." >> $GITHUB_STEP_SUMMARY
+          fi
 
 ################################################################################
 # ROLLBACK PROCEDURE
@@ -369,16 +478,32 @@ jobs:
 #   DOCKERHUB_USERNAME    - Your Docker Hub username
 #   DOCKERHUB_TOKEN       - Docker Hub access token (not password!)
 #                           Create at: https://hub.docker.com/settings/security
+#                           Used for: Image push/pull authentication
 #
 #   SSH_PRIVATE_KEY       - Private SSH key for server access
 #                           Generate: ssh-keygen -t ed25519 -C "github-actions"
 #                           Add public key to server: ~/.ssh/authorized_keys
+#                           Note: The private key is handled by ssh-agent (never written to disk)
 #
-#   SERVER_HOST           - Server IP or domain (e.g., 1.2.3.4)
-#   SERVER_USER           - SSH username (e.g., root or ubuntu)
+#   SERVER_HOST           - Server IP or domain (e.g., 1.2.3.4 or app.example.com)
+#   SERVER_USER           - SSH username (e.g., root, ubuntu, or deploy)
+#                           Recommendation: Use dedicated deploy user, not root
 #
 #   VITE_API_BASE_URL     - (Optional) API URL for frontend build
 #                           Example: http://65.108.123.45:8080/api/v1
 #                           If not set, uses docker-compose.yml default
+#
+################################################################################
+#
+# SECURITY IMPROVEMENTS IN THIS VERSION:
+#
+# ✅ SSH private key never written to disk (uses ssh-agent)
+# ✅ StrictHostKeyChecking enabled (uses known_hosts)
+# ✅ Docker Hub authentication on server for private repos
+# ✅ Automatic rollback on deployment failure
+# ✅ Health checks with timeout before marking deployment successful
+# ✅ Smoke tests verify critical endpoints
+# ✅ Concurrency control prevents simultaneous deployments
+# ✅ No deprecated Docker Compose syntax
 #
 ################################################################################

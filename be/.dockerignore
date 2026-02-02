@@ -4,7 +4,7 @@
 
 # Documentation
 *.md
-docs/
+# docs/ - removed because docs folder is needed for swagger
 
 # Environment files
 .env

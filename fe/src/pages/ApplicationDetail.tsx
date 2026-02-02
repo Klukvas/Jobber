@@ -103,16 +103,16 @@ export default function ApplicationDetail() {
           <div>
             <p className="text-sm text-muted-foreground">Application Name</p>
             <p className="font-semibold text-lg">
-              {application.name || application.job_title || 'Untitled Application'}
+              {application.name || 'Untitled Application'}
             </p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Job</p>
-            <p className="font-medium">{application.job_title || application.job_id}</p>
+            <p className="font-medium">{application.job?.title || 'Unknown Job'}</p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Resume</p>
-            <p className="font-medium">{application.resume_title || application.resume_id}</p>
+            <p className="font-medium">{application.resume?.name || 'Unknown Resume'}</p>
           </div>
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />

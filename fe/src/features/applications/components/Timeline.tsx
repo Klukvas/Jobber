@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ApplicationStageDTO, CommentDTO } from '@/shared/types/api';
 import { applicationsService } from '@/services/applicationsService';
-import { CheckCircle, Circle, Clock, Check, MoreVertical, Trash2, Edit, MessageSquare, Plus } from 'lucide-react';
+import { CheckCircle, Circle, Clock, Check, MoreVertical, Trash2, Edit, MessageSquare } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Button } from '@/shared/ui/Button';
 import { UpdateStageStatusModal } from '../modals/UpdateStageStatusModal';

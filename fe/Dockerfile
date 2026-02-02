@@ -8,14 +8,16 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm install
+
+# Build argument for API URL (baked into build)
+# IMPORTANT: Set this BEFORE copying source to ensure cache invalidation when it changes
+# Use relative path /api/v1 so nginx can proxy to backend
+ARG VITE_API_BASE_URL=/api/v1
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 # Copy source code
 COPY . .
-
-# Build argument for API URL (baked into build)
-ARG VITE_API_BASE_URL=http://localhost:8080/api/v1
-ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 # Build the application
 RUN npm run build
@@ -26,7 +28,7 @@ FROM nginx:alpine
 # Copy custom nginx config
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Create a simple nginx config for SPA
+# Create nginx config for SPA with API proxy
 RUN echo 'server { \
     listen 80; \
     server_name _; \
@@ -42,6 +44,19 @@ RUN echo 'server { \
     gzip on; \
     gzip_vary on; \
     gzip_types text/plain text/css text/xml text/javascript application/javascript application/xml+rss application/json; \
+    \
+    # Proxy API requests to backend \
+    location /api/ { \
+        proxy_pass http://backend:8080; \
+        proxy_http_version 1.1; \
+        proxy_set_header Host $host; \
+        proxy_set_header X-Real-IP $remote_addr; \
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+        proxy_set_header X-Forwarded-Proto $scheme; \
+        proxy_connect_timeout 30s; \
+        proxy_send_timeout 30s; \
+        proxy_read_timeout 30s; \
+    } \
     \
     # SPA routing - all routes go to index.html \
     location / { \

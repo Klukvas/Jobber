@@ -99,24 +99,21 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    ports:
-      # Expose backend for frontend to call (frontend runs in browser, not in container)
-      - "8080:8080"
+    # Port 8080 no longer exposed externally - accessed via nginx proxy
     networks:
       - jobber-network
 
   # Frontend (React/Vite)
-  # - Nginx serves static built files
+  # - Nginx serves static built files and proxies /api/ to backend
   # - Exposed on port 80
-  # - Backend exposed on port 8080 for frontend to call
+  # - Backend NOT exposed externally (accessed via nginx proxy)
   frontend:
     build:
       context: ./fe
       dockerfile: Dockerfile
       args:
-        # IMPORTANT: On production server, set this to http://<SERVER_IP>:8080/api/v1
-        # The frontend (running in browser) needs to reach the backend
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api/v1}
+        # Use relative path - nginx will proxy /api/ requests to backend
+        VITE_API_BASE_URL: /api/v1
     container_name: jobber-frontend
     restart: unless-stopped
     ports:

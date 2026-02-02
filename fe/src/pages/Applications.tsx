@@ -72,15 +72,7 @@ export default function Applications() {
     setOpenMenuId(null);
   };
 
-  const handleArchive = async (application: ApplicationDTO) => {
-    try {
-      await applicationsService.update(application.id, { status: 'archived' });
-      refetch();
-      setActiveQuickAction(null);
-    } catch (err) {
-      console.error('Failed to archive application:', err);
-    }
-  };
+  // Removed unused handleArchive function - status changes handled by UpdateApplicationStatusModal
 
   const toggleSort = (field: SortBy) => {
     if (sortBy === field) {
@@ -350,14 +342,13 @@ export default function Applications() {
         <UpdateApplicationStatusModal
           open={true}
           onOpenChange={(open) => {
-            if (!open) setActiveQuickAction(null);
+            if (!open) {
+              setActiveQuickAction(null);
+              refetch();
+            }
           }}
           applicationId={activeQuickAction.application.id}
           currentStatus={activeQuickAction.application.status}
-          onSuccess={() => {
-            refetch();
-            setActiveQuickAction(null);
-          }}
         />
       )}
     </div>
