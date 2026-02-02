@@ -1,0 +1,2 @@
+-- No rollback needed - this is a data migration that improves data quality
+-- Rolling back would just empty the names again, which is not useful

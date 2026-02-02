@@ -1,0 +1,44 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+docs/
+
+# Environment files (handled separately)
+.env
+.env.*
+!.env.example
+
+# Node modules (npm install in container)
+node_modules/
+npm-debug.log*
+
+# Build outputs
+dist/
+build/
+*.test
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Terraform
+terraform/
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+.dockerignore

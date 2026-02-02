@@ -1,0 +1,384 @@
+################################################################################
+# GitHub Actions Workflow: Deploy DEV Environment
+################################################################################
+#
+# Purpose:
+#   Build and deploy frontend/backend Docker images to a single Hetzner VM
+#   using Docker Hub as the container registry and Docker Compose for orchestration.
+#
+# Key Design Principles:
+#
+#   1. PATH-BASED DEPLOYMENT
+#      - Only build/push images for services that changed
+#      - Changes in `be/**` → build backend only
+#      - Changes in `fe/**` → build frontend only
+#      - Changes in shared files (docker-compose.yml) → build both
+#      - This reduces build time and Docker Hub bandwidth usage
+#
+#   2. RUNTIME SECRETS SAFETY
+#      - The `.env` file on the server contains ALL runtime secrets
+#      - GitHub Actions NEVER creates, modifies, or overwrites this file
+#      - No application secrets appear in GitHub Actions logs
+#      - No secrets are baked into Docker images
+#      - GitHub Secrets are ONLY used for CI/CD operations (Docker Hub, SSH)
+#
+#   3. DATA PERSISTENCE
+#      - Named volumes (postgres_data, redis_data) persist across deployments
+#      - `docker compose up -d` safely recreates containers WITHOUT removing volumes
+#      - NEVER run `docker compose down -v` in automation (destroys data!)
+#      - Volumes survive container removal and are reattached to new containers
+#
+#   4. IMMUTABLE IMAGE TAGGING
+#      - Every image is tagged with commit SHA (e.g., `andreypavlenko/jobber-backend:abc123`)
+#      - Optional `dev` tag for convenience (e.g., `andreypavlenko/jobber-backend:dev`)
+#      - Rollback: Re-run workflow on any previous commit to deploy that SHA
+#      - Never rely on `latest` tag only
+#
+#   5. PUSH-BASED DEPLOYMENT
+#      - GitHub Actions builds, pushes, then SSHs into server
+#      - Server pulls new images and restarts containers
+#      - Simple, auditable, works for single-server deployments
+#
+################################################################################
+
+name: Deploy DEV Environment
+
+on:
+  push:
+    branches:
+      - dev          # Trigger on push to dev branch
+      - main         # Optional: also deploy from main
+  workflow_dispatch: # Allow manual trigger for rollbacks or testing
+
+# Environment variables used across all jobs
+env:
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  REGISTRY: docker.io
+  BACKEND_IMAGE: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/jobber-backend
+  FRONTEND_IMAGE: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/jobber-frontend
+
+jobs:
+  ############################################################################
+  # Job 1: Detect Changes
+  # Uses path filters to determine which services need rebuilding
+  ############################################################################
+  detect-changes:
+    name: Detect Changed Services
+    runs-on: ubuntu-latest
+    
+    # Outputs used by downstream jobs to conditionally build/deploy
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for path-based changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'be/**'
+              - 'docker-compose.yml'
+              - '.github/workflows/deploy-dev.yml'
+            frontend:
+              - 'fe/**'
+              - 'docker-compose.yml'
+              - '.github/workflows/deploy-dev.yml'
+      
+      - name: Display detected changes
+        run: |
+          echo "Backend changed: ${{ steps.filter.outputs.backend }}"
+          echo "Frontend changed: ${{ steps.filter.outputs.frontend }}"
+
+  ############################################################################
+  # Job 2: Build & Push Backend Image
+  # Only runs if backend code changed
+  ############################################################################
+  build-backend:
+    name: Build & Push Backend
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.BACKEND_IMAGE }}
+          tags: |
+            type=sha,prefix=,format=short
+            type=raw,value=dev
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./be
+          file: ./be/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.BACKEND_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.BACKEND_IMAGE }}:buildcache,mode=max
+          
+          # SECURITY NOTE:
+          # No secrets are passed as build args. Runtime secrets come from
+          # the `.env` file on the server, loaded at container startup.
+
+  ############################################################################
+  # Job 3: Build & Push Frontend Image
+  # Only runs if frontend code changed
+  ############################################################################
+  build-frontend:
+    name: Build & Push Frontend
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.FRONTEND_IMAGE }}
+          tags: |
+            type=sha,prefix=,format=short
+            type=raw,value=dev
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./fe
+          file: ./fe/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.FRONTEND_IMAGE }}:buildcache,mode=max
+          
+          # IMPORTANT: VITE_API_BASE_URL build arg
+          # This should match the server's public IP/domain.
+          # If not set, docker-compose.yml will use the default.
+          # For production deploys, consider making this configurable via GitHub Secret.
+          build-args: |
+            VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL || 'http://localhost:8080/api/v1' }}
+
+  ############################################################################
+  # Job 4: Deploy to Server
+  # Always runs after builds complete (or are skipped)
+  # Updates docker-compose.yml image tags and restarts containers
+  ############################################################################
+  deploy:
+    name: Deploy to Hetzner Server
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-backend, build-frontend]
+    
+    # Run even if build jobs were skipped (e.g., no changes)
+    # This allows manual re-deploys via workflow_dispatch
+    if: always() && 
+        (needs.build-backend.result == 'success' || needs.build-backend.result == 'skipped') &&
+        (needs.build-frontend.result == 'success' || needs.build-frontend.result == 'skipped')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Update docker-compose.yml with SHA tags
+        run: |
+          SHA_SHORT=$(git rev-parse --short HEAD)
+          
+          # Create a deployment-specific docker-compose override
+          # This allows us to use SHA-tagged images while keeping the base file unchanged
+          cat > docker-compose.deploy.yml <<EOF
+          version: '3.8'
+          services:
+            backend:
+              image: ${{ env.BACKEND_IMAGE }}:${SHA_SHORT}
+            frontend:
+              image: ${{ env.FRONTEND_IMAGE }}:${SHA_SHORT}
+          EOF
+          
+          echo "Generated docker-compose.deploy.yml with SHA: ${SHA_SHORT}"
+          cat docker-compose.deploy.yml
+
+      - name: Copy compose files to server
+        run: |
+          scp -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            docker-compose.yml \
+            docker-compose.deploy.yml \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/home/${{ secrets.SERVER_USER }}/jobber/
+
+      - name: Deploy via SSH
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
+          
+          set -e  # Exit on any error
+          
+          cd /home/${{ secrets.SERVER_USER }}/jobber
+          
+          echo "================================================"
+          echo "Starting deployment at $(date)"
+          echo "================================================"
+          
+          # CRITICAL: Verify .env file exists
+          # The .env file contains ALL runtime secrets (JWT, DB passwords, S3 credentials).
+          # If missing, deployment MUST fail to prevent running with default/missing secrets.
+          if [ ! -f .env ]; then
+            echo "❌ ERROR: .env file not found!"
+            echo "The .env file must exist on the server with all runtime secrets."
+            echo "GitHub Actions NEVER creates this file - it must be manually provisioned."
+            exit 1
+          fi
+          
+          echo "✅ .env file exists"
+          
+          # Pull new images from Docker Hub
+          # Uses both docker-compose.yml (base) and docker-compose.deploy.yml (SHA override)
+          echo ""
+          echo "📥 Pulling new images..."
+          docker compose -f docker-compose.yml -f docker-compose.deploy.yml pull
+          
+          # Restart containers with new images
+          # SAFE: This command:
+          #   - Recreates containers with new images
+          #   - Keeps named volumes intact (postgres_data, redis_data)
+          #   - Maintains data persistence
+          #   - Does NOT run `docker compose down -v` (which would destroy volumes!)
+          echo ""
+          echo "🚀 Restarting services..."
+          docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --remove-orphans
+          
+          # Wait for services to become healthy
+          echo ""
+          echo "⏳ Waiting for services to become healthy..."
+          sleep 5
+          
+          # Show status
+          echo ""
+          echo "📊 Service status:"
+          docker compose -f docker-compose.yml -f docker-compose.deploy.yml ps
+          
+          echo ""
+          echo "================================================"
+          echo "✅ Deployment completed at $(date)"
+          echo "================================================"
+          
+          ENDSSH
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
+
+  ############################################################################
+  # Post-Deployment Summary
+  ############################################################################
+  summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-backend, build-frontend, deploy]
+    if: always()
+    
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Services Deployed:" >> $GITHUB_STEP_SUMMARY
+          echo "- Backend: ${{ needs.detect-changes.outputs.backend == 'true' && '✅ Built & Deployed' || '⏭️ Skipped (no changes)' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Frontend: ${{ needs.detect-changes.outputs.frontend == 'true' && '✅ Built & Deployed' || '⏭️ Skipped (no changes)' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Image Tags:" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.BACKEND_IMAGE }}:$(git rev-parse --short ${{ github.sha }})\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.FRONTEND_IMAGE }}:$(git rev-parse --short ${{ github.sha }})\`" >> $GITHUB_STEP_SUMMARY
+
+################################################################################
+# ROLLBACK PROCEDURE
+################################################################################
+#
+# To rollback to a previous version:
+#
+#   1. Go to Actions tab in GitHub
+#   2. Select "Deploy DEV Environment" workflow
+#   3. Click "Run workflow"
+#   4. Select the branch and choose the commit you want to rollback to
+#      (or manually checkout the old commit locally and push)
+#   5. The workflow will rebuild images with that commit's SHA
+#   6. Server will pull and restart with the old version
+#
+# Alternative (manual rollback on server):
+#
+#   ssh into server and run:
+#   
+#   docker compose -f docker-compose.yml -f docker-compose.deploy.yml pull
+#   
+#   # Edit docker-compose.deploy.yml to use the old SHA
+#   # Then restart:
+#   
+#   docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d
+#
+################################################################################
+
+################################################################################
+# REQUIRED GITHUB SECRETS
+################################################################################
+#
+# You must configure these secrets in your GitHub repository:
+# Settings → Secrets and variables → Actions → New repository secret
+#
+#   DOCKERHUB_USERNAME    - Your Docker Hub username
+#   DOCKERHUB_TOKEN       - Docker Hub access token (not password!)
+#                           Create at: https://hub.docker.com/settings/security
+#
+#   SSH_PRIVATE_KEY       - Private SSH key for server access
+#                           Generate: ssh-keygen -t ed25519 -C "github-actions"
+#                           Add public key to server: ~/.ssh/authorized_keys
+#
+#   SERVER_HOST           - Server IP or domain (e.g., 1.2.3.4)
+#   SERVER_USER           - SSH username (e.g., root or ubuntu)
+#
+#   VITE_API_BASE_URL     - (Optional) API URL for frontend build
+#                           Example: http://65.108.123.45:8080/api/v1
+#                           If not set, uses docker-compose.yml default
+#
+################################################################################

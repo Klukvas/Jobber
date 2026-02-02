@@ -1,0 +1,14 @@
+# Copy this file to terraform.tfvars and fill in your values
+# terraform.tfvars is gitignored for security
+
+# Get your Hetzner Cloud API token from: https://console.hetzner.cloud/
+hcloud_token = "your-hetzner-cloud-api-token-here"
+
+# Your SSH public key (typically from ~/.ssh/id_rsa.pub or ~/.ssh/id_ed25519.pub)
+# Example: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB... user@hostname
+ssh_public_key = "ssh-rsa AAAAB3NzaC1... your-email@example.com"
+
+# Optional: Override defaults
+# project_name = "jobber"
+# server_type = "cx22"
+# server_location = "nbg1"

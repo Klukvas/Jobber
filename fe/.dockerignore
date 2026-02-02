@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Dependencies (will be installed in container)
+node_modules/
+package-lock.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+
+# Build outputs
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Docker
+Dockerfile*
+.dockerignore
+
+# Testing
+coverage/

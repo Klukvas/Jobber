@@ -1,0 +1,53 @@
+# Docker Compose Override for Local Development
+# Copy this file to docker-compose.override.yml for local dev
+# This file is automatically merged with docker-compose.yml
+
+version: '3.8'
+
+services:
+  # Backend - override for local development with hot reload
+  backend:
+    build:
+      context: ./be
+      dockerfile: Dockerfile.dev  # Create this for hot reload with Air
+    volumes:
+      # Mount source code for hot reload
+      - ./be:/app
+    ports:
+      # Expose backend port for direct access during dev
+      - "8080:8080"
+    environment:
+      # Override for local development
+      SERVER_ENV: development
+      LOG_LEVEL: debug
+
+  # Frontend - override for local development
+  frontend:
+    build:
+      context: ./fe
+      dockerfile: Dockerfile.dev  # Create this for hot reload with Vite
+    volumes:
+      # Mount source code for hot reload
+      - ./fe:/app
+      - /app/node_modules  # Prevent overwriting node_modules
+    ports:
+      - "5173:5173"  # Vite dev server
+    command: npm run dev
+    environment:
+      VITE_API_BASE_URL: http://localhost:8080/api/v1
+
+  # Postgres - expose for database tools
+  postgres:
+    ports:
+      - "5434:5432"
+
+  # Redis - expose for Redis clients
+  redis:
+    ports:
+      - "6379:6379"
+
+# Notes:
+# - docker-compose.override.yml is automatically loaded by Docker Compose
+# - It merges with docker-compose.yml (production config)
+# - This is gitignored, so each developer can customize locally
+# - For hot reload, you need to create Dockerfile.dev for BE and FE

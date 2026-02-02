@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+
+# Build artifacts
+*.exe
+*.test
+api
+jobber-api
+
+# Logs
+*.log
+
+# Docker
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+
+# Air (hot reload tool)
+.air.toml
+tmp/

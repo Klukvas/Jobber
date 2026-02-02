@@ -1,0 +1,147 @@
+version: '3.8'
+
+# DEV environment docker-compose configuration
+# This file defines all services needed to run the Jobber application
+
+services:
+  # PostgreSQL Database
+  # - Persistent storage via named volume
+  # - Data survives container restart/removal
+  postgres:
+    image: postgres:15-alpine
+    container_name: jobber-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-jobber}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-jobber}
+      POSTGRES_DB: ${DB_NAME:-jobber}
+    volumes:
+      # PERSISTENT: Database files stored here - survives container removal
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - jobber-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-jobber}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  # - Appendonly persistence enabled for cache durability
+  # - Useful for preserving sessions across restarts
+  redis:
+    image: redis:7-alpine
+    container_name: jobber-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      # PERSISTENT: Redis AOF persistence - survives container removal
+      # Note: For pure cache use, this volume could be removed
+      - redis_data:/data
+    networks:
+      - jobber-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API (Go)
+  # - Connects to Postgres and Redis
+  # - Uses external S3 storage (Hetzner Object Storage)
+  backend:
+    build:
+      context: ./be
+      dockerfile: Dockerfile
+    container_name: jobber-backend
+    restart: unless-stopped
+    environment:
+      # Server config
+      SERVER_PORT: 8080
+      SERVER_ENV: ${SERVER_ENV:-development}
+      
+      # Database - uses service names as hostnames
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-jobber}
+      DB_PASSWORD: ${DB_PASSWORD:-jobber}
+      DB_NAME: ${DB_NAME:-jobber}
+      DB_SSL_MODE: disable
+      DB_MAX_CONNS: 25
+      DB_MAX_IDLE_CONNS: 5
+      DB_CONN_MAX_LIFETIME: 5m
+      
+      # Redis - uses service name as hostname
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: 0
+      
+      # JWT secrets - MUST be set via .env file
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_ACCESS_EXPIRY: 15m
+      JWT_REFRESH_EXPIRY: 168h
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      LOG_FORMAT: json
+      
+      # S3 Storage - External (Hetzner Object Storage)
+      # These are NOT managed by Terraform/Docker
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_REGION: ${S3_REGION:-eu-central}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      # Expose backend for frontend to call (frontend runs in browser, not in container)
+      - "8080:8080"
+    networks:
+      - jobber-network
+
+  # Frontend (React/Vite)
+  # - Nginx serves static built files
+  # - Exposed on port 80
+  # - Backend exposed on port 8080 for frontend to call
+  frontend:
+    build:
+      context: ./fe
+      dockerfile: Dockerfile
+      args:
+        # IMPORTANT: On production server, set this to http://<SERVER_IP>:8080/api/v1
+        # The frontend (running in browser) needs to reach the backend
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api/v1}
+    container_name: jobber-frontend
+    restart: unless-stopped
+    ports:
+      # Exposed to host - this is the main entry point
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - jobber-network
+
+# Named volumes for data persistence
+# These volumes survive `docker compose down` and persist data across restarts
+volumes:
+  postgres_data:
+    name: jobber-postgres-data
+    # PERSISTENT: All application data (users, companies, jobs, applications)
+  
+  redis_data:
+    name: jobber-redis-data
+    # PERSISTENT: Redis AOF for session/cache persistence
+    # Could be removed if you prefer ephemeral cache
+
+# Single network for all services
+# Services communicate using service names as hostnames
+networks:
+  jobber-network:
+    name: jobber-network
+    driver: bridge
