@@ -1,12 +1,43 @@
-import { Link } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/shared/ui/Button';
 import { Briefcase, CheckCircle, Clock, TrendingUp } from 'lucide-react';
 import { usePageTitle } from '@/shared/lib/usePageTitle';
+import { LoginModal } from '@/features/auth/modals/LoginModal';
+import { RegisterModal } from '@/features/auth/modals/RegisterModal';
+
+type AuthModal = 'login' | 'register' | null;
 
 export default function Home() {
   const { t } = useTranslation();
+  const location = useLocation();
+  const navigate = useNavigate();
   usePageTitle();
+  
+  // Derive modal state directly from URL - no useState needed
+  const activeModal: AuthModal = 
+    location.pathname === '/login' ? 'login' :
+    location.pathname === '/register' ? 'register' : null;
+
+  const openLogin = () => {
+    navigate('/login');
+  };
+
+  const openRegister = () => {
+    navigate('/register');
+  };
+
+  const closeModal = () => {
+    navigate('/');
+  };
+
+  const switchToRegister = () => {
+    navigate('/register');
+  };
+
+  const switchToLogin = () => {
+    navigate('/login');
+  };
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -24,11 +55,11 @@ export default function Home() {
             Keep track of every stage, stay on top of deadlines, and never miss an opportunity.
           </p>
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
-            <Button asChild size="lg">
-              <Link to="/register">{t('auth.register')}</Link>
+            <Button size="lg" onClick={openRegister}>
+              {t('auth.register')}
             </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link to="/login">{t('auth.login')}</Link>
+            <Button variant="outline" size="lg" onClick={openLogin}>
+              {t('auth.login')}
             </Button>
           </div>
         </div>
@@ -69,6 +100,18 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Auth Modals */}
+      <LoginModal
+        open={activeModal === 'login'}
+        onOpenChange={(open) => !open && closeModal()}
+        onSwitchToRegister={switchToRegister}
+      />
+      <RegisterModal
+        open={activeModal === 'register'}
+        onOpenChange={(open) => !open && closeModal()}
+        onSwitchToLogin={switchToLogin}
+      />
     </div>
   );
 }

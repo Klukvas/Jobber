@@ -40,7 +40,7 @@ export function CreateResumeModal({ open, onOpenChange }: CreateResumeModalProps
       showSuccessNotification('Resume created successfully');
       resetAndClose();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       showErrorNotification(error?.message || 'Failed to create resume');
     },
   });
@@ -60,7 +60,7 @@ export function CreateResumeModal({ open, onOpenChange }: CreateResumeModalProps
       showSuccessNotification('Resume uploaded successfully');
       resetAndClose();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       showErrorNotification(error?.message || 'Failed to upload resume');
       setUploadProgress(0);
     },

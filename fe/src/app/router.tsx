@@ -8,8 +8,6 @@ import { lazy } from 'react';
 
 // Public pages
 const HomePage = lazy(() => import('@/pages/Home'));
-const LoginPage = lazy(() => import('@/pages/Login'));
-const RegisterPage = lazy(() => import('@/pages/Register'));
 
 // Protected pages
 const ApplicationsPage = lazy(() => import('@/pages/Applications'));
@@ -35,12 +33,14 @@ export const router = createBrowserRouter([
             element: <HomePage />,
           },
           {
+            // Login modal is shown on Home page based on URL
             path: 'login',
-            element: <LoginPage />,
+            element: <HomePage />,
           },
           {
+            // Register modal is shown on Home page based on URL
             path: 'register',
-            element: <RegisterPage />,
+            element: <HomePage />,
           },
         ],
       },

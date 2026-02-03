@@ -89,7 +89,7 @@ export default function Resumes() {
       // Open download URL in new tab
       window.open(data.download_url, '_blank');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       showErrorNotification(error?.message || 'Failed to generate download link');
     },
   });

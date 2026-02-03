@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-globals */
 // Service Worker for Push Notifications
 
 self.addEventListener('install', (event) => {
