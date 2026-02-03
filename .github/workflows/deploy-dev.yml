@@ -277,6 +277,12 @@ jobs:
           echo "Starting deployment at $(date)"
           echo "================================================"
 
+          # Ensure jq is available (used for parsing docker compose health status)
+          if ! command -v jq >/dev/null 2>&1; then
+            echo "📦 jq not found — installing..."
+            apt-get update -qq && apt-get install -y -qq jq
+          fi
+
           # CRITICAL: Verify .env file exists
           # The .env file contains ALL runtime secrets (JWT, DB passwords, S3 credentials).
           # If missing, deployment MUST fail to prevent running with default/missing secrets.
@@ -382,10 +388,10 @@ jobs:
           echo ""
           echo "🧪 Running smoke tests..."
 
-          # Test backend health endpoint (with retry)
+          # Test backend health (port not exposed to host, so use docker exec)
           BACKEND_HEALTHY=false
           for i in 1 2 3; do
-            if curl -f -s http://localhost:8080/health > /dev/null 2>&1; then
+            if docker exec jobber-backend wget -q --spider http://localhost:8080/health 2>/dev/null; then
               BACKEND_HEALTHY=true
               echo "✅ Backend health check passed"
               break
