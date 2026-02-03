@@ -6,10 +6,11 @@ import { authService } from '@/services/authService';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/Card';
 import { Button } from '@/shared/ui/Button';
-import { Label } from '@/shared/ui/Label';
+import { usePageTitle } from '@/shared/lib/usePageTitle';
 
 export default function Settings() {
   const { t, i18n } = useTranslation();
+  usePageTitle('settings.title');
   const { theme, setTheme } = useThemeStore();
   const clearAuth = useAuthStore((state) => state.clearAuth);
   const navigate = useNavigate();
@@ -55,11 +56,19 @@ export default function Settings() {
           <CardDescription>Select your preferred language</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            <Label>Current Language</Label>
-            <p className="text-sm text-muted-foreground">
-              {i18n.language === 'en' ? 'English' : i18n.language}
-            </p>
+          <div className="flex gap-4">
+            <Button
+              variant={i18n.language === 'en' ? 'default' : 'outline'}
+              onClick={() => i18n.changeLanguage('en')}
+            >
+              English
+            </Button>
+            <Button
+              variant={i18n.language === 'ua' ? 'default' : 'outline'}
+              onClick={() => i18n.changeLanguage('ua')}
+            >
+              Українська
+            </Button>
           </div>
         </CardContent>
       </Card>

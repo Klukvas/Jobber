@@ -9,17 +9,17 @@ import { Input } from '@/shared/ui/Input';
 import { Label } from '@/shared/ui/Label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/shared/ui/Card';
 import { ApiError } from '@/services/api';
+import { usePageTitle } from '@/shared/lib/usePageTitle';
 
 export default function Register() {
   const { t } = useTranslation();
+  usePageTitle('auth.register');
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState<{
-    name?: string;
     email?: string;
     password?: string;
     confirmPassword?: string;
@@ -38,18 +38,11 @@ export default function Register() {
 
   const validate = () => {
     const newErrors: {
-      name?: string;
       email?: string;
       password?: string;
       confirmPassword?: string;
     } = {};
-    
-    if (!name) {
-      newErrors.name = t('errors.required');
-    } else if (name.length < 2) {
-      newErrors.name = 'Name must be at least 2 characters';
-    }
-    
+
     if (!email) {
       newErrors.email = t('errors.required');
     } else if (!/\S+@\S+\.\S+/.test(email)) {
@@ -73,7 +66,7 @@ export default function Register() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validate()) {
-      registerMutation.mutate({ name, email, password });
+      registerMutation.mutate({ email, password });
     }
   };
 
@@ -88,23 +81,6 @@ export default function Register() {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">{t('auth.name')}</Label>
-              <Input
-                id="name"
-                type="text"
-                placeholder="John Doe"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                aria-invalid={!!errors.name}
-                aria-describedby={errors.name ? 'name-error' : undefined}
-              />
-              {errors.name && (
-                <p id="name-error" className="text-sm text-destructive">
-                  {errors.name}
-                </p>
-              )}
-            </div>
             <div className="space-y-2">
               <Label htmlFor="email">{t('auth.email')}</Label>
               <Input

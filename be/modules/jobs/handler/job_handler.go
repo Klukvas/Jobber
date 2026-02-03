@@ -202,7 +202,7 @@ func (h *JobHandler) Update(c *gin.Context) {
 		statusCode := http.StatusInternalServerError
 		if errorCode == model.CodeJobNotFound {
 			statusCode = http.StatusNotFound
-		} else if errorCode == model.CodeJobTitleRequired {
+		} else if errorCode == model.CodeJobTitleRequired || errorCode == model.CodeInvalidJobStatus {
 			statusCode = http.StatusBadRequest
 		}
 		

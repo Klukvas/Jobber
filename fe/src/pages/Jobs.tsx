@@ -10,6 +10,7 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { ErrorState } from '@/shared/ui/ErrorState';
 import { Plus, Briefcase, ExternalLink, Building2, MoreVertical, Edit, Archive, Calendar, FileText, ArrowUpDown } from 'lucide-react';
 import { CreateJobModal } from '@/features/jobs/modals/CreateJobModal';
+import { usePageTitle } from '@/shared/lib/usePageTitle';
 import type { JobDTO } from '@/shared/types/api';
 import { showSuccessNotification, showErrorNotification } from '@/shared/lib/notifications';
 
@@ -18,6 +19,7 @@ type SortDir = 'asc' | 'desc';
 
 export default function Jobs() {
   const { t } = useTranslation();
+  usePageTitle('jobs.title');
   const queryClient = useQueryClient();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<JobDTO | undefined>(undefined);

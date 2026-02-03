@@ -8,6 +8,6 @@ import (
 
 type CommentRepository interface {
 	Create(ctx context.Context, comment *model.Comment) error
-	ListByApplication(ctx context.Context, appID string) ([]*model.Comment, error)
+	ListByApplication(ctx context.Context, appID string, userID ...string) ([]*model.Comment, error)
 	Delete(ctx context.Context, userID, commentID string) error
 }

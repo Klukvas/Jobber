@@ -6,6 +6,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 class ApiClient {
   private client: KyInstance;
+  private refreshPromise: Promise<boolean> | null = null;
 
   constructor() {
     this.client = ky.create({
@@ -56,9 +57,23 @@ class ApiClient {
   }
 
   private async tryRefreshToken(): Promise<boolean> {
+    // Deduplicate concurrent refresh attempts
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.refreshPromise = this.doRefreshToken();
+    try {
+      return await this.refreshPromise;
+    } finally {
+      this.refreshPromise = null;
+    }
+  }
+
+  private async doRefreshToken(): Promise<boolean> {
     try {
       const { refreshToken, user } = useAuthStore.getState();
-      
+
       if (!refreshToken || !user) {
         return false;
       }
@@ -75,19 +90,32 @@ class ApiClient {
     }
   }
 
-  async get<T>(url: string): Promise<T> {
-    try {
-      return await this.client.get(url).json<T>();
-    } catch (error) {
-      if (error instanceof HTTPError) {
+  private async handleError(error: unknown): Promise<never> {
+    if (error instanceof HTTPError) {
+      try {
         const errorResponse = await error.response.json<ErrorResponse>();
         throw new ApiError(
           errorResponse.error_message,
           errorResponse.error_code,
           error.response.status
         );
+      } catch (parseError) {
+        if (parseError instanceof ApiError) throw parseError;
+        throw new ApiError(
+          error.message || 'Request failed',
+          'UNKNOWN_ERROR',
+          error.response.status
+        );
       }
-      throw error;
+    }
+    throw error;
+  }
+
+  async get<T>(url: string): Promise<T> {
+    try {
+      return await this.client.get(url).json<T>();
+    } catch (error) {
+      return this.handleError(error);
     }
   }
 
@@ -95,15 +123,7 @@ class ApiClient {
     try {
       return await this.client.post(url, { json: data }).json<T>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorResponse = await error.response.json<ErrorResponse>();
-        throw new ApiError(
-          errorResponse.error_message,
-          errorResponse.error_code,
-          error.response.status
-        );
-      }
-      throw error;
+      return this.handleError(error);
     }
   }
 
@@ -111,15 +131,7 @@ class ApiClient {
     try {
       return await this.client.patch(url, { json: data }).json<T>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorResponse = await error.response.json<ErrorResponse>();
-        throw new ApiError(
-          errorResponse.error_message,
-          errorResponse.error_code,
-          error.response.status
-        );
-      }
-      throw error;
+      return this.handleError(error);
     }
   }
 
@@ -127,15 +139,7 @@ class ApiClient {
     try {
       return await this.client.delete(url).json<T>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorResponse = await error.response.json<ErrorResponse>();
-        throw new ApiError(
-          errorResponse.error_message,
-          errorResponse.error_code,
-          error.response.status
-        );
-      }
-      throw error;
+      return this.handleError(error);
     }
   }
 }

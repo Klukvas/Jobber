@@ -28,6 +28,7 @@ import { CreateResumeModal } from '@/features/resumes/modals/CreateResumeModal';
 import { EditResumeModal } from '@/features/resumes/modals/EditResumeModal';
 import { DeleteResumeModal } from '@/features/resumes/modals/DeleteResumeModal';
 import { showErrorNotification } from '@/shared/lib/notifications';
+import { usePageTitle } from '@/shared/lib/usePageTitle';
 import type { ResumeDTO } from '@/shared/types/api';
 
 type SortBy = 'created_at' | 'title' | 'is_active';
@@ -35,6 +36,7 @@ type SortDir = 'asc' | 'desc';
 
 export default function Resumes() {
   const { t } = useTranslation();
+  usePageTitle('resumes.title');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [sortBy, setSortBy] = useState<SortBy>('created_at');
   const [sortDir, setSortDir] = useState<SortDir>('desc');

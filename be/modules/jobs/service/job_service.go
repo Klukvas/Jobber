@@ -86,7 +86,7 @@ func (s *JobService) Update(ctx context.Context, userID, jobID string, req *mode
 	if req.Status != nil {
 		// Validate status
 		if *req.Status != "active" && *req.Status != "archived" {
-			return nil, model.ErrJobTitleRequired // TODO: Add proper status validation error
+			return nil, model.ErrInvalidJobStatus
 		}
 		job.Status = *req.Status
 	}

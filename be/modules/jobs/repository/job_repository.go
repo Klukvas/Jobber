@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/andreypavlenko/jobber/modules/jobs/model"
@@ -89,16 +90,21 @@ func (r *JobRepository) List(ctx context.Context, userID string, limit, offset i
 		status = "active"
 	}
 
-	// Build WHERE clause
+	// Build WHERE clause with parameterized queries
 	whereClause := "j.user_id = $1"
+	args := []interface{}{userID}
+	argIndex := 2
+
 	if status != "all" {
-		whereClause += " AND j.status = '" + status + "'"
+		whereClause += " AND j.status = $" + fmt.Sprintf("%d", argIndex)
+		args = append(args, status)
+		argIndex++
 	}
 
 	// Get total count
 	countQuery := `SELECT COUNT(*) FROM jobs j WHERE ` + whereClause
 	var total int
-	if err := r.pool.QueryRow(ctx, countQuery, userID).Scan(&total); err != nil {
+	if err := r.pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
@@ -134,17 +140,19 @@ func (r *JobRepository) List(ctx context.Context, userID string, limit, offset i
 	}
 
 	// Get paginated results with enriched data
+	limitPlaceholder := fmt.Sprintf("$%d", argIndex)
+	offsetPlaceholder := fmt.Sprintf("$%d", argIndex+1)
 	query := `
-		SELECT 
-			j.id, 
-			j.user_id, 
-			j.company_id, 
-			j.title, 
-			j.source, 
-			j.url, 
-			j.notes, 
+		SELECT
+			j.id,
+			j.user_id,
+			j.company_id,
+			j.title,
+			j.source,
+			j.url,
+			j.notes,
 			j.status,
-			j.created_at, 
+			j.created_at,
 			j.updated_at,
 			c.name as company_name,
 			COALESCE(COUNT(a.id), 0) as applications_count
@@ -154,10 +162,11 @@ func (r *JobRepository) List(ctx context.Context, userID string, limit, offset i
 		WHERE ` + whereClause + `
 		GROUP BY j.id, j.user_id, j.company_id, j.title, j.source, j.url, j.notes, j.status, j.created_at, j.updated_at, c.name
 		ORDER BY ` + orderBy + `
-		LIMIT $2 OFFSET $3
+		LIMIT ` + limitPlaceholder + ` OFFSET ` + offsetPlaceholder + `
 	`
 
-	rows, err := r.pool.Query(ctx, query, userID, limit, offset)
+	queryArgs := append(args, limit, offset)
+	rows, err := r.pool.Query(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, 0, err
 	}

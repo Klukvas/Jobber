@@ -46,3 +46,14 @@ func GetUserID(c *gin.Context) (string, bool) {
 	}
 	return userID.(string), true
 }
+
+// MustGetUserID extracts user ID from context and responds with 401 if not found.
+// Returns the user ID and true if successful, or empty string and false if unauthorized.
+func MustGetUserID(c *gin.Context) (string, bool) {
+	userID, exists := GetUserID(c)
+	if !exists {
+		httpPlatform.RespondWithError(c, 401, "UNAUTHORIZED", "Unauthorized")
+		return "", false
+	}
+	return userID, true
+}

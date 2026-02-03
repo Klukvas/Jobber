@@ -32,7 +32,10 @@ func NewCommentHandler(service *service.CommentService) *CommentHandler {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /comments [post]
 func (h *CommentHandler) Create(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	var req model.CreateCommentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request payload")
@@ -69,9 +72,13 @@ func (h *CommentHandler) Create(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /applications/{id}/comments [get]
 func (h *CommentHandler) ListByApplication(c *gin.Context) {
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	appID := c.Param("id")
 
-	comments, err := h.service.ListByApplication(c.Request.Context(), appID)
+	comments, err := h.service.ListByApplication(c.Request.Context(), appID, userID)
 	if err != nil {
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, string(model.CodeInternalError), "Failed to list comments")
 		return
@@ -92,7 +99,10 @@ func (h *CommentHandler) ListByApplication(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /comments/{id} [delete]
 func (h *CommentHandler) Delete(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	commentID := c.Param("id")
 
 	if err := h.service.Delete(c.Request.Context(), userID, commentID); err != nil {

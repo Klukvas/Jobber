@@ -34,8 +34,8 @@ func (s *CommentService) Create(ctx context.Context, userID string, req *model.C
 	return comment.ToDTO(), nil
 }
 
-func (s *CommentService) ListByApplication(ctx context.Context, appID string) ([]*model.CommentDTO, error) {
-	comments, err := s.repo.ListByApplication(ctx, appID)
+func (s *CommentService) ListByApplication(ctx context.Context, appID string, userID ...string) ([]*model.CommentDTO, error) {
+	comments, err := s.repo.ListByApplication(ctx, appID, userID...)
 	if err != nil {
 		return nil, err
 	}

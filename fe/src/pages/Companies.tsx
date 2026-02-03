@@ -22,6 +22,7 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import { CreateCompanyModal } from '@/features/companies/modals/CreateCompanyModal';
 import { DeleteCompanyDialog } from '@/features/companies/modals/DeleteCompanyDialog';
+import { usePageTitle } from '@/shared/lib/usePageTitle';
 import type { CompanyDTO } from '@/shared/types/api';
 
 type SortBy = 'name' | 'last_activity' | 'applications_count';
@@ -29,6 +30,7 @@ type SortDir = 'asc' | 'desc';
 
 export default function Companies() {
   const { t } = useTranslation();
+  usePageTitle('companies.title');
   const navigate = useNavigate();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<CompanyDTO | null>(null);

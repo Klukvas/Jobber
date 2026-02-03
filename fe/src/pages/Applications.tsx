@@ -26,6 +26,7 @@ import { CreateApplicationModal } from '@/features/applications/modals/CreateApp
 import { AddCommentModal } from '@/features/applications/modals/AddCommentModal';
 import { AddStageModal } from '@/features/applications/modals/AddStageModal';
 import { UpdateApplicationStatusModal } from '@/features/applications/modals/UpdateApplicationStatusModal';
+import { usePageTitle } from '@/shared/lib/usePageTitle';
 import type { ApplicationDTO } from '@/shared/types/api';
 
 type SortBy = 'last_activity' | 'status' | 'applied_at';
@@ -33,6 +34,7 @@ type SortDir = 'asc' | 'desc';
 
 export default function Applications() {
   const { t } = useTranslation();
+  usePageTitle('applications.title');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [sortBy, setSortBy] = useState<SortBy>('last_activity');

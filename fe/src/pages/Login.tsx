@@ -9,9 +9,11 @@ import { Input } from '@/shared/ui/Input';
 import { Label } from '@/shared/ui/Label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/shared/ui/Card';
 import { ApiError } from '@/services/api';
+import { usePageTitle } from '@/shared/lib/usePageTitle';
 
 export default function Login() {
   const { t } = useTranslation();
+  usePageTitle('auth.login');
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
   const [email, setEmail] = useState('');

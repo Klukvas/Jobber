@@ -28,7 +28,10 @@ func NewAnalyticsHandler(service *service.AnalyticsService) *AnalyticsHandler {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /analytics/overview [get]
 func (h *AnalyticsHandler) GetOverview(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 
 	analytics, err := h.service.GetOverview(c.Request.Context(), userID)
 	if err != nil {
@@ -49,7 +52,10 @@ func (h *AnalyticsHandler) GetOverview(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /analytics/funnel [get]
 func (h *AnalyticsHandler) GetFunnel(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 
 	analytics, err := h.service.GetFunnel(c.Request.Context(), userID)
 	if err != nil {
@@ -70,7 +76,10 @@ func (h *AnalyticsHandler) GetFunnel(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /analytics/stages [get]
 func (h *AnalyticsHandler) GetStageTime(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 
 	analytics, err := h.service.GetStageTime(c.Request.Context(), userID)
 	if err != nil {
@@ -91,7 +100,10 @@ func (h *AnalyticsHandler) GetStageTime(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /analytics/resumes [get]
 func (h *AnalyticsHandler) GetResumeEffectiveness(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 
 	analytics, err := h.service.GetResumeEffectiveness(c.Request.Context(), userID)
 	if err != nil {
@@ -112,7 +124,10 @@ func (h *AnalyticsHandler) GetResumeEffectiveness(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /analytics/sources [get]
 func (h *AnalyticsHandler) GetSourceAnalytics(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 
 	analytics, err := h.service.GetSourceAnalytics(c.Request.Context(), userID)
 	if err != nil {

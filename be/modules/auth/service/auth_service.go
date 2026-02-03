@@ -73,8 +73,11 @@ func (s *AuthService) Register(ctx context.Context, req *authModel.RegisterReque
 		locale = "en"
 	}
 
+	// Default name to email prefix
+	name := strings.Split(email, "@")[0]
+
 	// Create user
-	user := userModel.NewUser(email, req.Name, passwordHash, locale)
+	user := userModel.NewUser(email, name, passwordHash, locale)
 	if err := s.userRepo.Create(ctx, user); err != nil {
 		return nil, nil, err
 	}

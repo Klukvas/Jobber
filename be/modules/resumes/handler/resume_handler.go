@@ -32,7 +32,10 @@ func NewResumeHandler(service *service.ResumeService) *ResumeHandler {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /resumes [post]
 func (h *ResumeHandler) Create(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	var req model.CreateResumeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request payload")
@@ -60,7 +63,10 @@ func (h *ResumeHandler) Create(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /resumes/{id} [get]
 func (h *ResumeHandler) Get(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	resumeID := c.Param("id")
 
 	resume, err := h.service.GetByID(c.Request.Context(), userID, resumeID)
@@ -89,7 +95,10 @@ func (h *ResumeHandler) Get(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /resumes [get]
 func (h *ResumeHandler) List(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	
 	// Parse pagination parameters
 	pagination, err := httpPlatform.ParsePaginationParams(c)
@@ -126,7 +135,10 @@ func (h *ResumeHandler) List(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /resumes/{id} [patch]
 func (h *ResumeHandler) Update(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	resumeID := c.Param("id")
 	var req model.UpdateResumeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -159,7 +171,10 @@ func (h *ResumeHandler) Update(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /resumes/{id} [delete]
 func (h *ResumeHandler) Delete(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	resumeID := c.Param("id")
 
 	if err := h.service.Delete(c.Request.Context(), userID, resumeID); err != nil {
@@ -194,7 +209,10 @@ func (h *ResumeHandler) Delete(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /resumes/upload-url [post]
 func (h *ResumeHandler) GenerateUploadURL(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	var req model.GenerateUploadURLRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request payload")
@@ -223,7 +241,10 @@ func (h *ResumeHandler) GenerateUploadURL(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /resumes/{id}/download [get]
 func (h *ResumeHandler) DownloadResume(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	resumeID := c.Param("id")
 
 	response, err := h.service.GenerateDownloadURL(c.Request.Context(), userID, resumeID)

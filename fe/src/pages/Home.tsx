@@ -2,9 +2,11 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/shared/ui/Button';
 import { Briefcase, CheckCircle, Clock, TrendingUp } from 'lucide-react';
+import { usePageTitle } from '@/shared/lib/usePageTitle';
 
 export default function Home() {
   const { t } = useTranslation();
+  usePageTitle();
 
   return (
     <div className="flex min-h-screen flex-col">

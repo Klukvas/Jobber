@@ -99,14 +99,98 @@ jobs:
           echo "Frontend changed: ${{ steps.filter.outputs.frontend }}"
 
   ############################################################################
-  # Job 2: Build & Push Backend Image
+  # Job 2: Run Backend Unit Tests
   # Only runs if backend code changed
+  ############################################################################
+  test-backend:
+    name: Run Backend Tests
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: be/go.sum
+
+      - name: Download dependencies
+        working-directory: ./be
+        run: go mod download
+
+      - name: Run unit tests
+        working-directory: ./be
+        run: |
+          echo "🧪 Running unit tests..."
+          go test -v -race -coverprofile=coverage.out ./...
+          
+          echo ""
+          echo "📊 Coverage Summary:"
+          go tool cover -func=coverage.out | tail -1
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: be/coverage.out
+          retention-days: 7
+
+  ############################################################################
+  # Job 3: Lint & Build Frontend
+  # Only runs if frontend code changed
+  ############################################################################
+  test-frontend:
+    name: Lint & Build Frontend
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: fe/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./fe
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: ./fe
+        run: |
+          echo "🔍 Running ESLint..."
+          npm run lint
+
+      - name: Run TypeScript check
+        working-directory: ./fe
+        run: |
+          echo "📝 Running TypeScript type check..."
+          npx tsc --noEmit
+
+      - name: Build frontend
+        working-directory: ./fe
+        run: |
+          echo "🏗️ Building frontend..."
+          npm run build
+
+  ############################################################################
+  # Job 4: Build & Push Backend Image
+  # Only runs if backend code changed AND tests pass
   ############################################################################
   build-backend:
     name: Build & Push Backend
     runs-on: ubuntu-latest
-    needs: detect-changes
-    if: needs.detect-changes.outputs.backend == 'true'
+    needs: [detect-changes, test-backend]
+    if: needs.detect-changes.outputs.backend == 'true' && needs.test-backend.result == 'success'
     outputs:
       image_tag: ${{ steps.set_tag.outputs.tag }}
 
@@ -148,14 +232,14 @@ jobs:
         run: echo "tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
   ############################################################################
-  # Job 3: Build & Push Frontend Image
-  # Only runs if frontend code changed
+  # Job 5: Build & Push Frontend Image
+  # Only runs if frontend code changed AND lint/build pass
   ############################################################################
   build-frontend:
     name: Build & Push Frontend
     runs-on: ubuntu-latest
-    needs: detect-changes
-    if: needs.detect-changes.outputs.frontend == 'true'
+    needs: [detect-changes, test-frontend]
+    if: needs.detect-changes.outputs.frontend == 'true' && needs.test-frontend.result == 'success'
     outputs:
       image_tag: ${{ steps.set_tag.outputs.tag }}
 
@@ -204,18 +288,22 @@ jobs:
         run: echo "tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
   ############################################################################
-  # Job 4: Deploy to Server
+  # Job 6: Deploy to Server
   # Always runs after builds complete (or are skipped)
   # Updates docker-compose.yml image tags and restarts containers
+  # WILL NOT RUN if any test job fails (backend tests or frontend lint/build)
   ############################################################################
   deploy:
     name: Deploy to Hetzner Server
     runs-on: ubuntu-latest
-    needs: [detect-changes, build-backend, build-frontend]
+    needs: [detect-changes, test-backend, test-frontend, build-backend, build-frontend]
     
     # Run even if build jobs were skipped (e.g., no changes)
     # This allows manual re-deploys via workflow_dispatch
+    # Tests must pass if they ran - if any test fails, NO DEPLOYMENT
     if: always() && 
+        (needs.test-backend.result == 'success' || needs.test-backend.result == 'skipped') &&
+        (needs.test-frontend.result == 'success' || needs.test-frontend.result == 'skipped') &&
         (needs.build-backend.result == 'success' || needs.build-backend.result == 'skipped') &&
         (needs.build-frontend.result == 'success' || needs.build-frontend.result == 'skipped')
     
@@ -438,7 +526,7 @@ jobs:
   summary:
     name: Deployment Summary
     runs-on: ubuntu-latest
-    needs: [detect-changes, build-backend, build-frontend, deploy]
+    needs: [detect-changes, test-backend, test-frontend, build-backend, build-frontend, deploy]
     if: always()
 
     steps:
@@ -451,14 +539,22 @@ jobs:
 
           echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Status:** ${{ needs.deploy.result == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ needs.deploy.result == 'success' && '✅ Success' || (needs.deploy.result == 'skipped' && '⏭️ Skipped' || '❌ Failed') }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Triggered by:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Services Deployed:" >> $GITHUB_STEP_SUMMARY
-          echo "- Backend: ${{ needs.detect-changes.outputs.backend == 'true' && '✅ Built & Deployed' || '⏭️ Skipped (no changes)' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Frontend: ${{ needs.detect-changes.outputs.frontend == 'true' && '✅ Built & Deployed' || '⏭️ Skipped (no changes)' }}" >> $GITHUB_STEP_SUMMARY
+          echo "### Quality Gates:" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend Unit Tests | ${{ needs.test-backend.result == 'success' && '✅ Passed' || (needs.test-backend.result == 'skipped' && '⏭️ Skipped' || '❌ Failed') }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend Lint & Build | ${{ needs.test-frontend.result == 'success' && '✅ Passed' || (needs.test-frontend.result == 'skipped' && '⏭️ Skipped' || '❌ Failed') }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build & Deploy:" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend | ${{ needs.build-backend.result == 'success' && '✅ Built & Deployed' || (needs.build-backend.result == 'skipped' && '⏭️ Skipped' || '❌ Failed') }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | ${{ needs.build-frontend.result == 'success' && '✅ Built & Deployed' || (needs.build-frontend.result == 'skipped' && '⏭️ Skipped' || '❌ Failed') }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Image Tags:" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.BACKEND_IMAGE }}:${SHA_SHORT}\`" >> $GITHUB_STEP_SUMMARY
@@ -469,6 +565,9 @@ jobs:
             echo "### Access URLs:" >> $GITHUB_STEP_SUMMARY
             echo "- 🌐 Application: http://${{ secrets.SERVER_HOST }}" >> $GITHUB_STEP_SUMMARY
             echo "- 🔧 API: http://${{ secrets.SERVER_HOST }}:8080/api/v1" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.test-backend.result }}" == "failure" ] || [ "${{ needs.test-frontend.result }}" == "failure" ]; then
+            echo "### 🚫 Deployment Blocked" >> $GITHUB_STEP_SUMMARY
+            echo "Quality gates failed. Deployment was prevented to protect production." >> $GITHUB_STEP_SUMMARY
           else
             echo "### ⚠️ Deployment Failed" >> $GITHUB_STEP_SUMMARY
             echo "Check the deployment logs for details. Rollback may have been attempted automatically." >> $GITHUB_STEP_SUMMARY

@@ -8,14 +8,18 @@ var (
 
 	// ErrJobTitleRequired is returned when job title is empty
 	ErrJobTitleRequired = errors.New("job title is required")
+
+	// ErrInvalidJobStatus is returned when an invalid job status is provided
+	ErrInvalidJobStatus = errors.New("invalid job status")
 )
 
 // ErrorCode represents error codes
 type ErrorCode string
 
 const (
-	CodeJobNotFound     ErrorCode = "JOB_NOT_FOUND"
+	CodeJobNotFound      ErrorCode = "JOB_NOT_FOUND"
 	CodeJobTitleRequired ErrorCode = "JOB_TITLE_REQUIRED"
+	CodeInvalidJobStatus ErrorCode = "INVALID_JOB_STATUS"
 	CodeInternalError    ErrorCode = "INTERNAL_ERROR"
 )
 
@@ -26,6 +30,8 @@ func GetErrorCode(err error) ErrorCode {
 		return CodeJobNotFound
 	case errors.Is(err, ErrJobTitleRequired):
 		return CodeJobTitleRequired
+	case errors.Is(err, ErrInvalidJobStatus):
+		return CodeInvalidJobStatus
 	default:
 		return CodeInternalError
 	}
@@ -38,6 +44,8 @@ func GetErrorMessage(err error) string {
 		return "Job not found"
 	case errors.Is(err, ErrJobTitleRequired):
 		return "Job title is required"
+	case errors.Is(err, ErrInvalidJobStatus):
+		return "Invalid job status"
 	default:
 		return "Internal server error"
 	}

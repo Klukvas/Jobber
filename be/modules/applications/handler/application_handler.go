@@ -32,7 +32,10 @@ func NewApplicationHandler(service *service.ApplicationService) *ApplicationHand
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /applications [post]
 func (h *ApplicationHandler) Create(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	var req model.CreateApplicationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request payload")
@@ -60,7 +63,10 @@ func (h *ApplicationHandler) Create(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /applications/{id} [get]
 func (h *ApplicationHandler) Get(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	appID := c.Param("id")
 
 	app, err := h.service.GetByID(c.Request.Context(), userID, appID)
@@ -91,7 +97,10 @@ func (h *ApplicationHandler) Get(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /applications [get]
 func (h *ApplicationHandler) List(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	
 	// Parse pagination parameters
 	pagination, err := httpPlatform.ParsePaginationParams(c)
@@ -128,7 +137,10 @@ func (h *ApplicationHandler) List(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /applications/{id} [patch]
 func (h *ApplicationHandler) Update(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	appID := c.Param("id")
 	var req model.UpdateApplicationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -161,7 +173,10 @@ func (h *ApplicationHandler) Update(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /applications/{id} [delete]
 func (h *ApplicationHandler) Delete(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	appID := c.Param("id")
 
 	if err := h.service.Delete(c.Request.Context(), userID, appID); err != nil {
@@ -191,7 +206,10 @@ func (h *ApplicationHandler) Delete(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /applications/{id}/stages [post]
 func (h *ApplicationHandler) AddStage(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	appID := c.Param("id")
 	var req model.AddStageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -224,7 +242,10 @@ func (h *ApplicationHandler) AddStage(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /applications/{id}/stages/{stageId} [patch]
 func (h *ApplicationHandler) UpdateStage(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	appID := c.Param("id")
 	stageID := c.Param("stageId")
 	var req model.UpdateStageRequest
@@ -264,11 +285,18 @@ func (h *ApplicationHandler) UpdateStage(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /applications/{id}/stages/{stageId}/complete [patch]
 func (h *ApplicationHandler) CompleteStage(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	appID := c.Param("id")
 	stageID := c.Param("stageId")
 	var req model.CompleteStageRequest
-	_ = c.ShouldBindJSON(&req)
+	// Body is optional; ignore EOF/empty body errors but reject malformed JSON
+	if err := c.ShouldBindJSON(&req); err != nil && c.Request.ContentLength > 0 {
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request payload")
+		return
+	}
 
 	stage, err := h.service.CompleteStage(c.Request.Context(), userID, appID, stageID, &req)
 	if err != nil {
@@ -291,7 +319,10 @@ func (h *ApplicationHandler) CompleteStage(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /applications/{id}/stages [get]
 func (h *ApplicationHandler) ListStages(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	appID := c.Param("id")
 
 	stages, err := h.service.ListStages(c.Request.Context(), userID, appID)
@@ -316,7 +347,10 @@ func (h *ApplicationHandler) ListStages(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /applications/{id}/stages/{stageId} [delete]
 func (h *ApplicationHandler) DeleteStage(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	appID := c.Param("id")
 	stageID := c.Param("stageId")
 
@@ -345,7 +379,10 @@ func (h *ApplicationHandler) DeleteStage(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /stage-templates [post]
 func (h *ApplicationHandler) CreateStageTemplate(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	var req model.CreateStageTemplateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request payload")
@@ -374,7 +411,10 @@ func (h *ApplicationHandler) CreateStageTemplate(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /stage-templates [get]
 func (h *ApplicationHandler) ListStageTemplates(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	
 	// Parse pagination parameters
 	pagination, err := httpPlatform.ParsePaginationParams(c)
@@ -407,7 +447,10 @@ func (h *ApplicationHandler) ListStageTemplates(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /stage-templates/{templateId} [patch]
 func (h *ApplicationHandler) UpdateStageTemplate(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	templateID := c.Param("templateId")
 	var req model.UpdateStageTemplateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -436,7 +479,10 @@ func (h *ApplicationHandler) UpdateStageTemplate(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /stage-templates/{templateId} [delete]
 func (h *ApplicationHandler) DeleteStageTemplate(c *gin.Context) {
-	userID, _ := auth.GetUserID(c)
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
 	templateID := c.Param("templateId")
 
 	if err := h.service.DeleteStageTemplate(c.Request.Context(), userID, templateID); err != nil {

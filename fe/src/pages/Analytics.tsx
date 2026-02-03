@@ -24,6 +24,7 @@ import {
   Briefcase,
 } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
+import { usePageTitle } from '@/shared/lib/usePageTitle';
 
 // Overview Cards Component
 function OverviewCards({ data, isLoading }: { data?: OverviewAnalytics; isLoading: boolean }) {
@@ -519,6 +520,7 @@ function SourceAnalyticsTable({ data, isLoading }: { data?: SourceAnalytics; isL
 // Main Analytics Page Component
 export default function Analytics() {
   const { t } = useTranslation();
+  usePageTitle('analytics.title');
 
   const overviewQuery = useQuery({
     queryKey: ['analytics', 'overview'],

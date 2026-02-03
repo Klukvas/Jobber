@@ -31,13 +31,23 @@ func (r *CommentRepository) Create(ctx context.Context, comment *model.Comment) 
 	return err
 }
 
-func (r *CommentRepository) ListByApplication(ctx context.Context, appID string) ([]*model.Comment, error) {
+func (r *CommentRepository) ListByApplication(ctx context.Context, appID string, userID ...string) ([]*model.Comment, error) {
 	query := `
-		SELECT id, user_id, application_id, stage_id, content, created_at, updated_at
-		FROM comments WHERE application_id = $1 ORDER BY created_at ASC
+		SELECT c.id, c.user_id, c.application_id, c.stage_id, c.content, c.created_at, c.updated_at
+		FROM comments c
 	`
+	var args []interface{}
 
-	rows, err := r.pool.Query(ctx, query, appID)
+	if len(userID) > 0 && userID[0] != "" {
+		query += ` JOIN applications a ON c.application_id = a.id AND a.user_id = $1
+		WHERE c.application_id = $2 ORDER BY c.created_at ASC`
+		args = append(args, userID[0], appID)
+	} else {
+		query += ` WHERE c.application_id = $1 ORDER BY c.created_at ASC`
+		args = append(args, appID)
+	}
+
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

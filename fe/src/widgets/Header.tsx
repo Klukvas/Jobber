@@ -74,7 +74,15 @@ export function Header() {
               >
                 English
               </button>
-              {/* Add more languages as needed */}
+              <button
+                onClick={() => changeLanguage('ua')}
+                className={cn(
+                  'w-full rounded-sm px-3 py-2 text-left text-sm hover:bg-accent',
+                  i18n.language === 'ua' && 'bg-accent'
+                )}
+              >
+                Українська
+              </button>
             </div>
           </>
         )}
