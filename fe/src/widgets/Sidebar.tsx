@@ -25,7 +25,7 @@ const navItems = [
 
 export function Sidebar() {
   const { t } = useTranslation();
-  const { isExpanded, isMobileOpen, toggleExpanded, toggleMobile, closeMobile } =
+  const { isExpanded, isMobileOpen, toggleExpanded, closeMobile } =
     useSidebarStore();
 
   return (
