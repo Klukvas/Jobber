@@ -1,13 +1,15 @@
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '@/stores/themeStore';
+import { useSidebarStore } from '@/stores/sidebarStore';
 import { Button } from '@/shared/ui/Button';
-import { Sun, Moon, Languages } from 'lucide-react';
+import { Sun, Moon, Languages, Menu } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { useState } from 'react';
 
 export function Header() {
   const { i18n } = useTranslation();
   const { theme, toggleTheme } = useThemeStore();
+  const toggleMobile = useSidebarStore((state) => state.toggleMobile);
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
 
   const changeLanguage = (lng: string) => {
@@ -16,7 +18,20 @@ export function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-end gap-2 border-b bg-background px-4">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-2 border-b bg-background px-4">
+      {/* Mobile Menu Button */}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={toggleMobile}
+        className="md:hidden"
+        aria-label="Open menu"
+      >
+        <Menu className="h-5 w-5" />
+      </Button>
+      <div className="hidden md:block" />
+
+      <div className="flex items-center gap-2">
       {/* Theme Toggle */}
       <Button
         variant="ghost"
@@ -63,6 +78,7 @@ export function Header() {
             </div>
           </>
         )}
+      </div>
       </div>
     </header>
   );

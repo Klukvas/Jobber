@@ -113,14 +113,7 @@ export function Sidebar() {
         </div>
       </aside>
 
-      {/* Mobile Menu Button */}
-      <button
-        onClick={toggleMobile}
-        className="fixed bottom-4 right-4 z-40 rounded-full bg-primary p-4 text-primary-foreground shadow-lg md:hidden"
-        aria-label="Open menu"
-      >
-        <Briefcase className="h-6 w-6" />
-      </button>
+      {/* Mobile Menu Button - rendered in Header */}
     </>
   );
 }
