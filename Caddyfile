@@ -1,0 +1,3 @@
+jobber-app.com {
+	reverse_proxy frontend:80
+}

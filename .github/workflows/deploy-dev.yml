@@ -91,6 +91,7 @@ jobs:
             frontend:
               - 'fe/**'
               - 'docker-compose.yml'
+              - 'Caddyfile'
       
       - name: Display detected changes
         run: |
@@ -264,6 +265,7 @@ jobs:
         run: |
           scp docker-compose.yml \
             docker-compose.deploy.yml \
+            Caddyfile \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:~/jobber/
 
       - name: Deploy via SSH
@@ -347,9 +349,9 @@ jobs:
               # Check services with healthchecks (postgres, redis, backend)
               HEALTHY=$(docker compose -f docker-compose.yml -f docker-compose.deploy.yml ps --format json 2>/dev/null | jq -r 'select(.Health == "healthy") | .Name' 2>/dev/null | wc -l | tr -d ' ')
 
-              echo "Status: $RUNNING/4 running, $HEALTHY/3 healthy"
+              echo "Status: $RUNNING/5 running, $HEALTHY/3 healthy"
 
-              if [ "$RUNNING" -ge 4 ] && [ "$HEALTHY" -ge 3 ]; then
+              if [ "$RUNNING" -ge 5 ] && [ "$HEALTHY" -ge 3 ]; then
                 echo "✅ All services are healthy"
                 break
               fi
@@ -407,9 +409,9 @@ jobs:
             exit 1
           fi
 
-          # Test frontend
-          if curl -f -s http://localhost:80 > /dev/null 2>&1; then
-            echo "✅ Frontend health check passed"
+          # Test frontend via Caddy (HTTPS)
+          if curl -f -s -k https://localhost > /dev/null 2>&1; then
+            echo "✅ Frontend health check passed (HTTPS)"
           else
             echo "⚠️  Frontend health check failed (non-critical)"
           fi

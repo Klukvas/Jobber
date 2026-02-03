@@ -111,8 +111,7 @@ services:
 
   # Frontend (React/Vite)
   # - Nginx serves static built files and proxies /api/ to backend
-  # - Exposed on port 80
-  # - Backend NOT exposed externally (accessed via nginx proxy)
+  # - Internal only - accessed via Caddy reverse proxy
   frontend:
     build:
       context: ./fe
@@ -122,11 +121,31 @@ services:
         VITE_API_BASE_URL: /api/v1
     container_name: jobber-frontend
     restart: unless-stopped
-    ports:
-      # Exposed to host - this is the main entry point
-      - "80:80"
+    expose:
+      - "80"
     depends_on:
       - backend
+    networks:
+      - jobber-network
+
+  # Caddy Reverse Proxy
+  # - Automatic HTTPS via Let's Encrypt
+  # - Redirects HTTP to HTTPS
+  # - Proxies all traffic to frontend container
+  caddy:
+    image: caddy:2-alpine
+    container_name: jobber-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
     networks:
       - jobber-network
 
@@ -141,6 +160,13 @@ volumes:
     name: jobber-redis-data
     # PERSISTENT: Redis AOF for session/cache persistence
     # Could be removed if you prefer ephemeral cache
+
+  caddy_data:
+    name: jobber-caddy-data
+    # PERSISTENT: Let's Encrypt certificates
+
+  caddy_config:
+    name: jobber-caddy-config
 
 # Single network for all services
 # Services communicate using service names as hostnames
