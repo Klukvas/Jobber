@@ -245,14 +245,14 @@ jobs:
         run: |
           scp docker-compose.yml \
             docker-compose.deploy.yml \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/home/${{ secrets.SERVER_USER }}/jobber/
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:~/jobber/
 
       - name: Deploy via SSH
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
           set -e  # Exit on any error
 
-          cd /home/${{ secrets.SERVER_USER }}/jobber
+          cd ~/jobber
 
           echo "================================================"
           echo "Starting deployment at $(date)"
