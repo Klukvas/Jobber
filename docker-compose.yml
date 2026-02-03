@@ -59,7 +59,7 @@ services:
       # Server config
       SERVER_PORT: 8080
       SERVER_ENV: ${SERVER_ENV:-development}
-      
+
       # Database - uses service names as hostnames
       DB_HOST: postgres
       DB_PORT: 5432
@@ -70,23 +70,23 @@ services:
       DB_MAX_CONNS: 25
       DB_MAX_IDLE_CONNS: 5
       DB_CONN_MAX_LIFETIME: 5m
-      
+
       # Redis - uses service name as hostname
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       REDIS_DB: 0
-      
+
       # JWT secrets - MUST be set via .env file
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_ACCESS_EXPIRY: 15m
       JWT_REFRESH_EXPIRY: 168h
-      
+
       # Logging
       LOG_LEVEL: ${LOG_LEVEL:-debug}
       LOG_FORMAT: json
-      
+
       # S3 Storage - External (Hetzner Object Storage)
       # These are NOT managed by Terraform/Docker
       S3_ENDPOINT: ${S3_ENDPOINT}
@@ -102,6 +102,12 @@ services:
     # Port 8080 no longer exposed externally - accessed via nginx proxy
     networks:
       - jobber-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Frontend (React/Vite)
   # - Nginx serves static built files and proxies /api/ to backend

@@ -307,7 +307,7 @@ jobs:
           # Wait for services to become healthy with timeout
           echo ""
           echo "⏳ Waiting for services to become healthy..."
-          TIMEOUT=60
+          TIMEOUT=120
           ELAPSED=0
           FAILED=false
 
@@ -316,9 +316,15 @@ jobs:
             UNHEALTHY=$(docker compose -f docker-compose.yml -f docker-compose.deploy.yml ps --format json 2>/dev/null | jq -r 'select(.Health == "unhealthy" or .State == "restarting" or .State == "exited") | .Name' 2>/dev/null || true)
 
             if [ -z "$UNHEALTHY" ]; then
-              # Check if all expected services are running
+              # Check if all expected services are running (4 total)
               RUNNING=$(docker compose -f docker-compose.yml -f docker-compose.deploy.yml ps --status running --format json 2>/dev/null | jq -s 'length' 2>/dev/null || echo "0")
-              if [ "$RUNNING" -ge 2 ]; then
+
+              # Check services with healthchecks (postgres, redis, backend)
+              HEALTHY=$(docker compose -f docker-compose.yml -f docker-compose.deploy.yml ps --format json 2>/dev/null | jq -r 'select(.Health == "healthy") | .Name' 2>/dev/null | wc -l | tr -d ' ')
+
+              echo "Status: $RUNNING/4 running, $HEALTHY/3 healthy"
+
+              if [ "$RUNNING" -ge 4 ] && [ "$HEALTHY" -ge 3 ]; then
                 echo "✅ All services are healthy"
                 break
               fi
@@ -360,7 +366,7 @@ jobs:
           # Test backend health endpoint (with retry)
           BACKEND_HEALTHY=false
           for i in 1 2 3; do
-            if curl -f -s http://localhost:8080/api/v1/health > /dev/null 2>&1; then
+            if curl -f -s http://localhost:8080/health > /dev/null 2>&1; then
               BACKEND_HEALTHY=true
               echo "✅ Backend health check passed"
               break
