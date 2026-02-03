@@ -1,4 +1,4 @@
-.PHONY: help run dev build test lint clean migrate-up migrate-down migrate-create sqlc docker-up docker-down
+.PHONY: help run dev build test lint clean migrate-up migrate-down migrate-create sqlc docker-up docker-down seed
 
 # Variables
 APP_NAME=jobber
@@ -16,7 +16,7 @@ help: ## Show this help message
 run: ## Run the application
 	go run $(MAIN_PATH)
 
-dev: ## Run with hot reload (requires air: go install github.com/cosmtrek/air@latest)
+dev: ## Run with hot reload (requires air: go install github.com/air-verse/air@latest)
 	air
 
 build: ## Build the application
@@ -73,6 +73,9 @@ docker-down: ## Stop Docker services
 
 docker-logs: ## Show Docker logs
 	docker-compose logs -f
+
+seed: ## Seed database with sample data (user: seed@jobber.dev / password123)
+	go run cmd/seed/main.go
 
 setup: deps docker-up ## Setup project (install deps and start services)
 	@echo "Waiting for database to be ready..."

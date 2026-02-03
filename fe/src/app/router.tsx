@@ -18,6 +18,7 @@ const ResumesPage = lazy(() => import('@/pages/Resumes'));
 const CompaniesPage = lazy(() => import('@/pages/Companies'));
 const JobsPage = lazy(() => import('@/pages/Jobs'));
 const StageTemplatesPage = lazy(() => import('@/pages/StageTemplates'));
+const AnalyticsPage = lazy(() => import('@/pages/Analytics'));
 const SettingsPage = lazy(() => import('@/pages/Settings'));
 
 export const router = createBrowserRouter([
@@ -74,6 +75,10 @@ export const router = createBrowserRouter([
           {
             path: 'stages',
             element: <StageTemplatesPage />,
+          },
+          {
+            path: 'analytics',
+            element: <AnalyticsPage />,
           },
           {
             path: 'settings',

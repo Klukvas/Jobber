@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  BarChart3,
 } from 'lucide-react';
 
 const navItems = [
@@ -20,6 +21,7 @@ const navItems = [
   { path: '/app/companies', icon: Building2, labelKey: 'nav.companies' },
   { path: '/app/jobs', icon: Search, labelKey: 'nav.jobs' },
   { path: '/app/stages', icon: ListOrdered, labelKey: 'nav.stages' },
+  { path: '/app/analytics', icon: BarChart3, labelKey: 'nav.analytics' },
   { path: '/app/settings', icon: Settings, labelKey: 'nav.settings' },
 ];
 

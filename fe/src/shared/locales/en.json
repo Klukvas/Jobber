@@ -40,6 +40,7 @@
     "companies": "Companies",
     "jobs": "Jobs",
     "stages": "Stages",
+    "analytics": "Analytics",
     "settings": "Settings"
   },
   "applications": {
@@ -128,5 +129,61 @@
     "notFound": "Not found",
     "unauthorized": "Unauthorized",
     "forbidden": "Forbidden"
+  },
+  "analytics": {
+    "title": "Analytics",
+    "description": "Insights and statistics about your job search",
+    "noData": "No data yet",
+    "noDataDescription": "Add your first application to see analytics",
+    "error": "Failed to load analytics",
+    "days": "days",
+    "applications": "applications",
+    "overview": {
+      "totalApplications": "Total Applications",
+      "activeApplications": "Active",
+      "closedApplications": "Closed",
+      "responseRate": "Response Rate",
+      "avgResponseTime": "Avg. Response Time"
+    },
+    "funnel": {
+      "title": "Application Funnel",
+      "description": "Track your progress through application stages",
+      "noData": "No funnel data",
+      "noDataDescription": "Create stage templates and add stages to applications",
+      "converted": "converted",
+      "dropOff": "drop-off"
+    },
+    "stageTime": {
+      "title": "Time in Stages",
+      "description": "Average time spent in each stage",
+      "noData": "No stage time data",
+      "noDataDescription": "Add stages to your applications to see timing metrics",
+      "stage": "Stage",
+      "avgDays": "Avg Days",
+      "minDays": "Min",
+      "maxDays": "Max",
+      "applications": "Applications"
+    },
+    "resumes": {
+      "title": "Resume Effectiveness",
+      "description": "Compare how different resumes perform",
+      "noData": "No resume data",
+      "noDataDescription": "Create resumes and link them to applications",
+      "resume": "Resume",
+      "applications": "Applications",
+      "responses": "Responses",
+      "interviews": "Interviews",
+      "responseRate": "Response Rate"
+    },
+    "sources": {
+      "title": "Application Sources",
+      "description": "Which job sources are most effective",
+      "noData": "No source data",
+      "noDataDescription": "Add job sources when creating jobs",
+      "source": "Source",
+      "applications": "Applications",
+      "responses": "Responses",
+      "conversionRate": "Conversion Rate"
+    }
   }
 }

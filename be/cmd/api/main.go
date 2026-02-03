@@ -45,6 +45,10 @@ import (
 	commentRepo "github.com/andreypavlenko/jobber/modules/comments/repository"
 	commentService "github.com/andreypavlenko/jobber/modules/comments/service"
 
+	analyticsHandler "github.com/andreypavlenko/jobber/modules/analytics/handler"
+	analyticsRepo "github.com/andreypavlenko/jobber/modules/analytics/repository"
+	analyticsService "github.com/andreypavlenko/jobber/modules/analytics/service"
+
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	swaggerFiles "github.com/swaggo/files"
@@ -180,6 +184,7 @@ func main() {
 	stageTemplateRepository := appRepo.NewStageTemplateRepository(pgClient.Pool)
 	applicationStageRepository := appRepo.NewApplicationStageRepository(pgClient.Pool)
 	commentRepository := commentRepo.NewCommentRepository(pgClient.Pool)
+	analyticsRepository := analyticsRepo.NewAnalyticsRepository(pgClient.Pool)
 
 	// Initialize services
 	authSvc := authService.NewAuthService(
@@ -202,6 +207,7 @@ func main() {
 		commentRepository,
 	)
 	commentSvc := commentService.NewCommentService(commentRepository)
+	analyticsSvc := analyticsService.NewAnalyticsService(analyticsRepository)
 
 	// Initialize handlers
 	authHdl := authHandler.NewAuthHandler(authSvc)
@@ -210,6 +216,7 @@ func main() {
 	resumeHdl := resumeHandler.NewResumeHandler(resumeSvc)
 	applicationHdl := appHandler.NewApplicationHandler(applicationSvc)
 	commentHdl := commentHandler.NewCommentHandler(commentSvc)
+	analyticsHdl := analyticsHandler.NewAnalyticsHandler(analyticsSvc)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -221,6 +228,7 @@ func main() {
 		resumeHdl.RegisterRoutes(v1, authMiddleware)
 		applicationHdl.RegisterRoutes(v1, authMiddleware)
 		commentHdl.RegisterRoutes(v1, authMiddleware)
+		analyticsHdl.RegisterRoutes(v1, authMiddleware)
 	}
 
 	// Create HTTP server
