@@ -149,7 +149,7 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(httpPlatform.RequestIDMiddleware())
 	router.Use(httpPlatform.LoggerMiddleware(logger))
-	router.Use(httpPlatform.CORSMiddleware())
+	router.Use(httpPlatform.CORSMiddleware(cfg.Server.AllowedOrigins))
 
 	// Swagger documentation (available in development)
 	if cfg.Server.Env != "production" {
@@ -195,9 +195,10 @@ func main() {
 		cfg.JWT.RefreshExpiry,
 	)
 	companySvc := companyService.NewCompanyService(companyRepository)
-	jobSvc := jobService.NewJobService(jobRepository)
+	jobSvc := jobService.NewJobService(jobRepository, companyRepository)
 	resumeSvc := resumeService.NewResumeService(resumeRepository, s3Client)
 	applicationSvc := appService.NewApplicationService(
+		pgClient.Pool,
 		applicationRepository,
 		applicationStageRepository,
 		stageTemplateRepository,
@@ -205,6 +206,7 @@ func main() {
 		companyRepository,
 		resumeRepository,
 		commentRepository,
+		logger,
 	)
 	commentSvc := commentService.NewCommentService(commentRepository)
 	analyticsSvc := analyticsService.NewAnalyticsService(analyticsRepository)
@@ -218,11 +220,18 @@ func main() {
 	commentHdl := commentHandler.NewCommentHandler(commentSvc)
 	analyticsHdl := analyticsHandler.NewAnalyticsHandler(analyticsSvc)
 
+	// Rate limiting for auth endpoints (10 requests per minute per IP)
+	authRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
+		MaxRequests: 10,
+		Window:      1 * time.Minute,
+		KeyPrefix:   "auth",
+	})
+
 	// API v1 routes
 	v1 := router.Group("/api/v1")
 	{
 		// Register module routes
-		authHdl.RegisterRoutes(v1)
+		authHdl.RegisterRoutes(v1, authRateLimiter)
 		companyHdl.RegisterRoutes(v1, authMiddleware)
 		jobHdl.RegisterRoutes(v1, authMiddleware)
 		resumeHdl.RegisterRoutes(v1, authMiddleware)
@@ -230,6 +239,19 @@ func main() {
 		commentHdl.RegisterRoutes(v1, authMiddleware)
 		analyticsHdl.RegisterRoutes(v1, authMiddleware)
 	}
+
+	// Start background job: clean up expired refresh tokens every hour
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			if err := tokenRepository.DeleteExpired(context.Background()); err != nil {
+				logger.Error("Failed to clean up expired tokens", zap.Error(err))
+			} else {
+				logger.Debug("Expired refresh tokens cleaned up")
+			}
+		}
+	}()
 
 	// Create HTTP server
 	srv := &http.Server{

@@ -9,12 +9,41 @@ import (
 	"testing"
 	"time"
 
+	companyModel "github.com/andreypavlenko/jobber/modules/companies/model"
+	companyPorts "github.com/andreypavlenko/jobber/modules/companies/ports"
 	"github.com/andreypavlenko/jobber/modules/jobs/model"
 	"github.com/andreypavlenko/jobber/modules/jobs/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// MockCompanyRepository implements companyPorts.CompanyRepository for handler tests
+type MockCompanyRepository struct{}
+
+func (m *MockCompanyRepository) Create(ctx context.Context, company *companyModel.Company) error {
+	return nil
+}
+func (m *MockCompanyRepository) GetByID(ctx context.Context, userID, companyID string) (*companyModel.Company, error) {
+	return &companyModel.Company{ID: companyID, UserID: userID}, nil
+}
+func (m *MockCompanyRepository) GetByIDEnriched(ctx context.Context, userID, companyID string) (*companyModel.CompanyDTO, error) {
+	return nil, nil
+}
+func (m *MockCompanyRepository) List(ctx context.Context, userID string, opts *companyPorts.ListOptions) ([]*companyModel.CompanyDTO, int, error) {
+	return nil, 0, nil
+}
+func (m *MockCompanyRepository) Update(ctx context.Context, company *companyModel.Company) error {
+	return nil
+}
+func (m *MockCompanyRepository) Delete(ctx context.Context, userID, companyID string) error {
+	return nil
+}
+func (m *MockCompanyRepository) GetRelatedJobsAndApplicationsCount(ctx context.Context, userID, companyID string) (int, int, error) {
+	return 0, 0, nil
+}
+
+var defaultMockCompanyRepo = &MockCompanyRepository{}
 
 // MockJobRepository implements ports.JobRepository
 type MockJobRepository struct {
@@ -86,7 +115,7 @@ func TestJobHandler_Create(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -108,7 +137,7 @@ func TestJobHandler_Create(t *testing.T) {
 
 	t.Run("returns 401 when not authenticated", func(t *testing.T) {
 		mockRepo := &MockJobRepository{}
-		svc := service.NewJobService(mockRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -125,7 +154,7 @@ func TestJobHandler_Create(t *testing.T) {
 
 	t.Run("returns 400 for invalid request", func(t *testing.T) {
 		mockRepo := &MockJobRepository{}
-		svc := service.NewJobService(mockRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -142,7 +171,7 @@ func TestJobHandler_Create(t *testing.T) {
 
 	t.Run("returns 400 for empty title", func(t *testing.T) {
 		mockRepo := &MockJobRepository{}
-		svc := service.NewJobService(mockRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -178,7 +207,7 @@ func TestJobHandler_Get(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -203,7 +232,7 @@ func TestJobHandler_Get(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -232,7 +261,7 @@ func TestJobHandler_List(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -254,7 +283,7 @@ func TestJobHandler_List(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -291,7 +320,7 @@ func TestJobHandler_Update(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -313,7 +342,7 @@ func TestJobHandler_Update(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -342,7 +371,7 @@ func TestJobHandler_Update(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -369,7 +398,7 @@ func TestJobHandler_Delete(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -389,7 +418,7 @@ func TestJobHandler_Delete(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -440,7 +469,7 @@ func TestJobHandler_RegisterRoutes(t *testing.T) {
 		},
 	}
 
-	svc := service.NewJobService(mockRepo)
+	svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 	handler := NewJobHandler(svc)
 
 	router := setupTestRouter()

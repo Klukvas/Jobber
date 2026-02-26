@@ -1,8 +1,12 @@
-import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { companiesService } from '@/services/companiesService';
-import type { CompanyDTO, UpdateCompanyRequest } from '@/shared/types/api';
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { companiesService } from "@/services/companiesService";
+import {
+  showSuccessNotification,
+  showErrorNotification,
+} from "@/shared/lib/notifications";
+import type { CompanyDTO, UpdateCompanyRequest } from "@/shared/types/api";
 import {
   Dialog,
   DialogContent,
@@ -10,10 +14,10 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from '@/shared/ui/Dialog';
-import { Button } from '@/shared/ui/Button';
-import { Input } from '@/shared/ui/Input';
-import { Label } from '@/shared/ui/Label';
+} from "@/shared/ui/Dialog";
+import { Button } from "@/shared/ui/Button";
+import { Input } from "@/shared/ui/Input";
+import { Label } from "@/shared/ui/Label";
 
 interface CreateCompanyModalProps {
   open: boolean;
@@ -22,21 +26,28 @@ interface CreateCompanyModalProps {
 }
 
 // Inner content component that resets state when key changes
-function ModalContent({ company, onOpenChange }: Omit<CreateCompanyModalProps, 'open'>) {
+function ModalContent({
+  company,
+  onOpenChange,
+}: Omit<CreateCompanyModalProps, "open">) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  
-  const [name, setName] = useState(company?.name || '');
-  const [location, setLocation] = useState(company?.location || '');
-  const [notes, setNotes] = useState(company?.notes || '');
+
+  const [name, setName] = useState(company?.name || "");
+  const [location, setLocation] = useState(company?.location || "");
+  const [notes, setNotes] = useState(company?.notes || "");
 
   const isEditMode = !!company;
 
   const createMutation = useMutation({
     mutationFn: companiesService.create,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['companies'] });
+      queryClient.invalidateQueries({ queryKey: ["companies"] });
+      showSuccessNotification("Company created successfully");
       onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      showErrorNotification(error.message || "Failed to create company");
     },
   });
 
@@ -44,8 +55,12 @@ function ModalContent({ company, onOpenChange }: Omit<CreateCompanyModalProps, '
     mutationFn: ({ id, data }: { id: string; data: UpdateCompanyRequest }) =>
       companiesService.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['companies'] });
+      queryClient.invalidateQueries({ queryKey: ["companies"] });
+      showSuccessNotification("Company updated successfully");
       onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      showErrorNotification(error.message || "Failed to update company");
     },
   });
 
@@ -77,18 +92,18 @@ function ModalContent({ company, onOpenChange }: Omit<CreateCompanyModalProps, '
     <>
       <DialogHeader>
         <DialogTitle>
-          {isEditMode ? t('companies.edit') : t('companies.create')}
+          {isEditMode ? t("companies.edit") : t("companies.create")}
         </DialogTitle>
         <DialogDescription>
           {isEditMode
-            ? 'Update company information'
-            : 'Add a new company to your database'}
+            ? "Update company information"
+            : "Add a new company to your database"}
         </DialogDescription>
       </DialogHeader>
       <form onSubmit={handleSubmit}>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="name">{t('companies.name')} *</Label>
+            <Label htmlFor="name">{t("companies.name")} *</Label>
             <Input
               id="name"
               value={name}
@@ -98,7 +113,7 @@ function ModalContent({ company, onOpenChange }: Omit<CreateCompanyModalProps, '
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="location">{t('companies.location')}</Label>
+            <Label htmlFor="location">{t("companies.location")}</Label>
             <Input
               id="location"
               value={location}
@@ -107,7 +122,7 @@ function ModalContent({ company, onOpenChange }: Omit<CreateCompanyModalProps, '
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="notes">{t('companies.notes')}</Label>
+            <Label htmlFor="notes">{t("companies.notes")}</Label>
             <textarea
               id="notes"
               value={notes}
@@ -123,14 +138,14 @@ function ModalContent({ company, onOpenChange }: Omit<CreateCompanyModalProps, '
             variant="outline"
             onClick={() => onOpenChange(false)}
           >
-            {t('common.cancel')}
+            {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={isPending || !name}>
             {isPending
-              ? t('common.loading')
+              ? t("common.loading")
               : isEditMode
-              ? t('common.save')
-              : t('common.create')}
+                ? t("common.save")
+                : t("common.create")}
           </Button>
         </DialogFooter>
       </form>
@@ -138,15 +153,19 @@ function ModalContent({ company, onOpenChange }: Omit<CreateCompanyModalProps, '
   );
 }
 
-export function CreateCompanyModal({ open, onOpenChange, company }: CreateCompanyModalProps) {
+export function CreateCompanyModal({
+  open,
+  onOpenChange,
+  company,
+}: CreateCompanyModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent onClose={() => onOpenChange(false)}>
         {/* Key prop resets the form state when company changes or modal reopens */}
-        <ModalContent 
-          key={`${company?.id || 'new'}-${open}`}
-          company={company} 
-          onOpenChange={onOpenChange} 
+        <ModalContent
+          key={`${company?.id || "new"}-${open}`}
+          company={company}
+          onOpenChange={onOpenChange}
         />
       </DialogContent>
     </Dialog>

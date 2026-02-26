@@ -81,6 +81,23 @@ func (r *RefreshTokenRepository) Revoke(ctx context.Context, tokenHash string) e
 	return err
 }
 
+// RevokeIfValid atomically revokes a token only if it hasn't been revoked yet.
+// Returns true if this call performed the revocation, false if already revoked/expired.
+func (r *RefreshTokenRepository) RevokeIfValid(ctx context.Context, tokenHash string) (bool, error) {
+	query := `
+		UPDATE refresh_tokens
+		SET revoked_at = $2
+		WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > $2
+	`
+
+	now := time.Now().UTC()
+	result, err := r.pool.Exec(ctx, query, tokenHash, now)
+	if err != nil {
+		return false, err
+	}
+	return result.RowsAffected() > 0, nil
+}
+
 // RevokeAllForUser revokes all refresh tokens for a user
 func (r *RefreshTokenRepository) RevokeAllForUser(ctx context.Context, userID string) error {
 	query := `

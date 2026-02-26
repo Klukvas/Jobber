@@ -1,7 +1,11 @@
-import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { applicationsService } from '@/services/applicationsService';
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { applicationsService } from "@/services/applicationsService";
+import {
+  showSuccessNotification,
+  showErrorNotification,
+} from "@/shared/lib/notifications";
 import {
   Dialog,
   DialogContent,
@@ -9,10 +13,10 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from '@/shared/ui/Dialog';
-import { Button } from '@/shared/ui/Button';
-import { Label } from '@/shared/ui/Label';
-import type { ApplicationStageDTO } from '@/shared/types/api';
+} from "@/shared/ui/Dialog";
+import { Button } from "@/shared/ui/Button";
+import { Label } from "@/shared/ui/Label";
+import type { ApplicationStageDTO } from "@/shared/types/api";
 
 interface UpdateStageStatusModalProps {
   open: boolean;
@@ -21,13 +25,13 @@ interface UpdateStageStatusModalProps {
   stage: ApplicationStageDTO;
 }
 
-const STAGE_STATUSES = [
-  { value: 'pending', label: 'Pending', description: 'Not yet started' },
-  { value: 'active', label: 'Active', description: 'Currently in progress' },
-  { value: 'completed', label: 'Completed', description: 'Successfully finished' },
-  { value: 'skipped', label: 'Skipped', description: 'Stage was skipped' },
-  { value: 'cancelled', label: 'Cancelled', description: 'Stage was cancelled' },
-];
+const STAGE_STATUS_VALUES = [
+  "pending",
+  "active",
+  "completed",
+  "skipped",
+  "cancelled",
+] as const;
 
 export function UpdateStageStatusModal({
   open,
@@ -43,9 +47,19 @@ export function UpdateStageStatusModal({
     mutationFn: (status: string) =>
       applicationsService.updateStage(applicationId, stage.id, { status }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['application-stages', applicationId] });
-      queryClient.invalidateQueries({ queryKey: ['application', applicationId] });
+      queryClient.invalidateQueries({
+        queryKey: ["application-stages", applicationId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["application", applicationId],
+      });
+      showSuccessNotification(t("applications.stageStatusUpdateSuccess"));
       onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      showErrorNotification(
+        error.message || t("applications.stageStatusUpdateError"),
+      );
     },
   });
 
@@ -62,21 +76,23 @@ export function UpdateStageStatusModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent onClose={() => onOpenChange(false)}>
         <DialogHeader>
-          <DialogTitle>Change Stage Status</DialogTitle>
+          <DialogTitle>{t("applications.changeStageStatus")}</DialogTitle>
           <DialogDescription>
-            Update the status of "{stage.stage_name}"
+            {t("applications.stageStatusDescription", {
+              stageName: stage.stage_name,
+            })}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Current Status</Label>
+              <Label>{t("applications.currentStatus")}</Label>
               <div className="rounded-md bg-muted px-3 py-2 text-sm">
                 {stage.status.charAt(0).toUpperCase() + stage.status.slice(1)}
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="status">New Status *</Label>
+              <Label htmlFor="status">{`${t("applications.newStatus")} *`}</Label>
               <select
                 id="status"
                 value={newStatus}
@@ -84,16 +100,22 @@ export function UpdateStageStatusModal({
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 required
               >
-                {STAGE_STATUSES.map((status) => (
-                  <option key={status.value} value={status.value}>
-                    {status.label} - {status.description}
+                {STAGE_STATUS_VALUES.map((value) => (
+                  <option key={value} value={value}>
+                    {t(
+                      `applications.stageStatus${value.charAt(0).toUpperCase() + value.slice(1)}`,
+                    )}{" "}
+                    -{" "}
+                    {t(
+                      `applications.stageStatus${value.charAt(0).toUpperCase() + value.slice(1)}Desc`,
+                    )}
                   </option>
                 ))}
               </select>
             </div>
             {updateStatusMutation.isError && (
               <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                Failed to update status. Please try again.
+                {t("applications.stageStatusUpdateFailed")}
               </div>
             )}
           </div>
@@ -103,13 +125,17 @@ export function UpdateStageStatusModal({
               variant="outline"
               onClick={() => onOpenChange(false)}
             >
-              {t('common.cancel')}
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
-              disabled={updateStatusMutation.isPending || newStatus === stage.status}
+              disabled={
+                updateStatusMutation.isPending || newStatus === stage.status
+              }
             >
-              {updateStatusMutation.isPending ? t('common.loading') : 'Update Status'}
+              {updateStatusMutation.isPending
+                ? t("common.loading")
+                : t("applications.updateStatus")}
             </Button>
           </DialogFooter>
         </form>

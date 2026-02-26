@@ -8,6 +8,7 @@ import (
 	"github.com/andreypavlenko/jobber/modules/applications/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -107,6 +108,10 @@ func (r *StageTemplateRepository) Delete(ctx context.Context, userID, templateID
 	query := `DELETE FROM stage_templates WHERE id = $1 AND user_id = $2`
 	result, err := r.pool.Exec(ctx, query, templateID, userID)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			return model.ErrStageTemplateInUse
+		}
 		return err
 	}
 	if result.RowsAffected() == 0 {

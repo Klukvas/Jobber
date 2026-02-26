@@ -54,8 +54,10 @@ func (h *JobHandler) Create(c *gin.Context) {
 		statusCode := http.StatusInternalServerError
 		if errorCode == model.CodeJobTitleRequired {
 			statusCode = http.StatusBadRequest
+		} else if errorCode == model.CodeCompanyNotFound {
+			statusCode = http.StatusNotFound
 		}
-		
+
 		httpPlatform.RespondWithError(c, statusCode, string(errorCode), errorMessage)
 		return
 	}
@@ -200,7 +202,7 @@ func (h *JobHandler) Update(c *gin.Context) {
 		errorMessage := model.GetErrorMessage(err)
 		
 		statusCode := http.StatusInternalServerError
-		if errorCode == model.CodeJobNotFound {
+		if errorCode == model.CodeJobNotFound || errorCode == model.CodeCompanyNotFound {
 			statusCode = http.StatusNotFound
 		} else if errorCode == model.CodeJobTitleRequired || errorCode == model.CodeInvalidJobStatus {
 			statusCode = http.StatusBadRequest

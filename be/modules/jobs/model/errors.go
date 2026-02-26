@@ -11,6 +11,9 @@ var (
 
 	// ErrInvalidJobStatus is returned when an invalid job status is provided
 	ErrInvalidJobStatus = errors.New("invalid job status")
+
+	// ErrCompanyNotFound is returned when a referenced company does not exist or does not belong to the user
+	ErrCompanyNotFound = errors.New("company not found")
 )
 
 // ErrorCode represents error codes
@@ -20,6 +23,7 @@ const (
 	CodeJobNotFound      ErrorCode = "JOB_NOT_FOUND"
 	CodeJobTitleRequired ErrorCode = "JOB_TITLE_REQUIRED"
 	CodeInvalidJobStatus ErrorCode = "INVALID_JOB_STATUS"
+	CodeCompanyNotFound  ErrorCode = "COMPANY_NOT_FOUND"
 	CodeInternalError    ErrorCode = "INTERNAL_ERROR"
 )
 
@@ -32,6 +36,8 @@ func GetErrorCode(err error) ErrorCode {
 		return CodeJobTitleRequired
 	case errors.Is(err, ErrInvalidJobStatus):
 		return CodeInvalidJobStatus
+	case errors.Is(err, ErrCompanyNotFound):
+		return CodeCompanyNotFound
 	default:
 		return CodeInternalError
 	}
@@ -46,6 +52,8 @@ func GetErrorMessage(err error) string {
 		return "Job title is required"
 	case errors.Is(err, ErrInvalidJobStatus):
 		return "Invalid job status"
+	case errors.Is(err, ErrCompanyNotFound):
+		return "Company not found"
 	default:
 		return "Internal server error"
 	}

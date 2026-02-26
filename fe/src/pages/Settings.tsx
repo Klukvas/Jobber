@@ -1,16 +1,22 @@
-import { useTranslation } from 'react-i18next';
-import { useThemeStore } from '@/stores/themeStore';
-import { useAuthStore } from '@/stores/authStore';
-import { useMutation } from '@tanstack/react-query';
-import { authService } from '@/services/authService';
-import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/Card';
-import { Button } from '@/shared/ui/Button';
-import { usePageTitle } from '@/shared/lib/usePageTitle';
+import { useTranslation } from "react-i18next";
+import { useThemeStore } from "@/stores/themeStore";
+import { useAuthStore } from "@/stores/authStore";
+import { useMutation } from "@tanstack/react-query";
+import { authService } from "@/services/authService";
+import { useNavigate } from "react-router-dom";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/shared/ui/Card";
+import { Button } from "@/shared/ui/Button";
+import { usePageTitle } from "@/shared/lib/usePageTitle";
 
 export default function Settings() {
   const { t, i18n } = useTranslation();
-  usePageTitle('settings.title');
+  usePageTitle("settings.title");
   const { theme, setTheme } = useThemeStore();
   const clearAuth = useAuthStore((state) => state.clearAuth);
   const navigate = useNavigate();
@@ -19,32 +25,32 @@ export default function Settings() {
     mutationFn: authService.logout,
     onSettled: () => {
       clearAuth();
-      navigate('/login');
+      navigate("/");
     },
   });
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">{t('settings.title')}</h1>
+      <h1 className="text-3xl font-bold">{t("settings.title")}</h1>
 
       <Card>
         <CardHeader>
-          <CardTitle>{t('settings.theme')}</CardTitle>
-          <CardDescription>Choose your preferred color scheme</CardDescription>
+          <CardTitle>{t("settings.theme")}</CardTitle>
+          <CardDescription>{t("settings.themeDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-4">
             <Button
-              variant={theme === 'light' ? 'default' : 'outline'}
-              onClick={() => setTheme('light')}
+              variant={theme === "light" ? "default" : "outline"}
+              onClick={() => setTheme("light")}
             >
-              {t('settings.light')}
+              {t("settings.light")}
             </Button>
             <Button
-              variant={theme === 'dark' ? 'default' : 'outline'}
-              onClick={() => setTheme('dark')}
+              variant={theme === "dark" ? "default" : "outline"}
+              onClick={() => setTheme("dark")}
             >
-              {t('settings.dark')}
+              {t("settings.dark")}
             </Button>
           </div>
         </CardContent>
@@ -52,22 +58,22 @@ export default function Settings() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{t('settings.language')}</CardTitle>
-          <CardDescription>Select your preferred language</CardDescription>
+          <CardTitle>{t("settings.language")}</CardTitle>
+          <CardDescription>{t("settings.languageDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex gap-4">
             <Button
-              variant={i18n.language === 'en' ? 'default' : 'outline'}
-              onClick={() => i18n.changeLanguage('en')}
+              variant={i18n.language === "en" ? "default" : "outline"}
+              onClick={() => i18n.changeLanguage("en")}
             >
-              English
+              {t("settings.english")}
             </Button>
             <Button
-              variant={i18n.language === 'ua' ? 'default' : 'outline'}
-              onClick={() => i18n.changeLanguage('ua')}
+              variant={i18n.language === "ua" ? "default" : "outline"}
+              onClick={() => i18n.changeLanguage("ua")}
             >
-              Українська
+              {t("settings.ukrainian")}
             </Button>
           </div>
         </CardContent>
@@ -75,8 +81,8 @@ export default function Settings() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Account</CardTitle>
-          <CardDescription>Manage your account settings</CardDescription>
+          <CardTitle>{t("settings.account")}</CardTitle>
+          <CardDescription>{t("settings.accountDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           <Button
@@ -84,7 +90,7 @@ export default function Settings() {
             onClick={() => logoutMutation.mutate()}
             disabled={logoutMutation.isPending}
           >
-            {logoutMutation.isPending ? t('common.loading') : t('auth.logout')}
+            {logoutMutation.isPending ? t("common.loading") : t("auth.logout")}
           </Button>
         </CardContent>
       </Card>

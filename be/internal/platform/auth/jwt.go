@@ -91,8 +91,8 @@ func (m *JWTManager) ValidateRefreshToken(tokenString string) (*Claims, error) {
 
 func (m *JWTManager) validateToken(tokenString, secret string, expectedType TokenType) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		if token.Method.Alg() != "HS256" {
+			return nil, fmt.Errorf("unexpected signing method: %v, expected HS256", token.Header["alg"])
 		}
 		return []byte(secret), nil
 	})

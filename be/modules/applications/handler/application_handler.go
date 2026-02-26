@@ -219,7 +219,12 @@ func (h *ApplicationHandler) AddStage(c *gin.Context) {
 
 	stage, err := h.service.AddStage(c.Request.Context(), userID, appID, &req)
 	if err != nil {
-		httpPlatform.RespondWithError(c, http.StatusInternalServerError, string(model.GetErrorCode(err)), model.GetErrorMessage(err))
+		statusCode := http.StatusInternalServerError
+		errCode := model.GetErrorCode(err)
+		if errCode == model.CodeApplicationNotFound || errCode == model.CodeStageTemplateNotFound {
+			statusCode = http.StatusNotFound
+		}
+		httpPlatform.RespondWithError(c, statusCode, string(errCode), model.GetErrorMessage(err))
 		return
 	}
 	httpPlatform.RespondWithData(c, http.StatusCreated, stage)
@@ -300,7 +305,12 @@ func (h *ApplicationHandler) CompleteStage(c *gin.Context) {
 
 	stage, err := h.service.CompleteStage(c.Request.Context(), userID, appID, stageID, &req)
 	if err != nil {
-		httpPlatform.RespondWithError(c, http.StatusInternalServerError, string(model.GetErrorCode(err)), model.GetErrorMessage(err))
+		statusCode := http.StatusInternalServerError
+		errCode := model.GetErrorCode(err)
+		if errCode == model.CodeApplicationNotFound || errCode == model.CodeApplicationStageNotFound {
+			statusCode = http.StatusNotFound
+		}
+		httpPlatform.RespondWithError(c, statusCode, string(errCode), model.GetErrorMessage(err))
 		return
 	}
 	httpPlatform.RespondWithData(c, http.StatusOK, stage)
@@ -327,7 +337,11 @@ func (h *ApplicationHandler) ListStages(c *gin.Context) {
 
 	stages, err := h.service.ListStages(c.Request.Context(), userID, appID)
 	if err != nil {
-		httpPlatform.RespondWithError(c, http.StatusInternalServerError, string(model.GetErrorCode(err)), model.GetErrorMessage(err))
+		statusCode := http.StatusInternalServerError
+		if model.GetErrorCode(err) == model.CodeApplicationNotFound {
+			statusCode = http.StatusNotFound
+		}
+		httpPlatform.RespondWithError(c, statusCode, string(model.GetErrorCode(err)), model.GetErrorMessage(err))
 		return
 	}
 	httpPlatform.RespondWithData(c, http.StatusOK, stages)
@@ -356,10 +370,11 @@ func (h *ApplicationHandler) DeleteStage(c *gin.Context) {
 
 	if err := h.service.DeleteStage(c.Request.Context(), userID, appID, stageID); err != nil {
 		statusCode := http.StatusInternalServerError
-		if model.GetErrorCode(err) == model.CodeApplicationStageNotFound {
+		errCode := model.GetErrorCode(err)
+		if errCode == model.CodeApplicationNotFound || errCode == model.CodeApplicationStageNotFound {
 			statusCode = http.StatusNotFound
 		}
-		httpPlatform.RespondWithError(c, statusCode, string(model.GetErrorCode(err)), model.GetErrorMessage(err))
+		httpPlatform.RespondWithError(c, statusCode, string(errCode), model.GetErrorMessage(err))
 		return
 	}
 	httpPlatform.RespondWithData(c, http.StatusOK, gin.H{"message": "Stage deleted successfully"})
@@ -391,7 +406,11 @@ func (h *ApplicationHandler) CreateStageTemplate(c *gin.Context) {
 
 	template, err := h.service.CreateStageTemplate(c.Request.Context(), userID, &req)
 	if err != nil {
-		httpPlatform.RespondWithError(c, http.StatusInternalServerError, string(model.GetErrorCode(err)), model.GetErrorMessage(err))
+		statusCode := http.StatusInternalServerError
+		if model.GetErrorCode(err) == model.CodeStageNameRequired {
+			statusCode = http.StatusBadRequest
+		}
+		httpPlatform.RespondWithError(c, statusCode, string(model.GetErrorCode(err)), model.GetErrorMessage(err))
 		return
 	}
 	httpPlatform.RespondWithData(c, http.StatusCreated, template)
@@ -460,7 +479,14 @@ func (h *ApplicationHandler) UpdateStageTemplate(c *gin.Context) {
 
 	template, err := h.service.UpdateStageTemplate(c.Request.Context(), userID, templateID, &req)
 	if err != nil {
-		httpPlatform.RespondWithError(c, http.StatusInternalServerError, string(model.GetErrorCode(err)), model.GetErrorMessage(err))
+		statusCode := http.StatusInternalServerError
+		errCode := model.GetErrorCode(err)
+		if errCode == model.CodeStageTemplateNotFound {
+			statusCode = http.StatusNotFound
+		} else if errCode == model.CodeStageNameRequired {
+			statusCode = http.StatusBadRequest
+		}
+		httpPlatform.RespondWithError(c, statusCode, string(errCode), model.GetErrorMessage(err))
 		return
 	}
 	httpPlatform.RespondWithData(c, http.StatusOK, template)
@@ -486,7 +512,14 @@ func (h *ApplicationHandler) DeleteStageTemplate(c *gin.Context) {
 	templateID := c.Param("templateId")
 
 	if err := h.service.DeleteStageTemplate(c.Request.Context(), userID, templateID); err != nil {
-		httpPlatform.RespondWithError(c, http.StatusInternalServerError, string(model.GetErrorCode(err)), model.GetErrorMessage(err))
+		statusCode := http.StatusInternalServerError
+		errCode := model.GetErrorCode(err)
+		if errCode == model.CodeStageTemplateNotFound {
+			statusCode = http.StatusNotFound
+		} else if errCode == model.CodeStageTemplateInUse {
+			statusCode = http.StatusConflict
+		}
+		httpPlatform.RespondWithError(c, statusCode, string(errCode), model.GetErrorMessage(err))
 		return
 	}
 	httpPlatform.RespondWithData(c, http.StatusOK, gin.H{"message": "Stage template deleted successfully"})

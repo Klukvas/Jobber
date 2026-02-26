@@ -168,13 +168,20 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	httpPlatform.RespondWithData(c, http.StatusOK, gin.H{"message": "Logged out successfully"})
 }
 
-// RegisterRoutes registers auth routes
-func (h *AuthHandler) RegisterRoutes(router *gin.RouterGroup) {
-	auth := router.Group("/auth")
+// RegisterRoutes registers auth routes.
+// Optional rateLimiter middleware is applied to login, register, and refresh endpoints.
+func (h *AuthHandler) RegisterRoutes(router *gin.RouterGroup, rateLimiter ...gin.HandlerFunc) {
+	authGroup := router.Group("/auth")
 	{
-		auth.POST("/register", h.Register)
-		auth.POST("/login", h.Login)
-		auth.POST("/refresh", h.Refresh)
-		auth.POST("/logout", h.Logout)
+		if len(rateLimiter) > 0 {
+			authGroup.POST("/register", rateLimiter[0], h.Register)
+			authGroup.POST("/login", rateLimiter[0], h.Login)
+			authGroup.POST("/refresh", rateLimiter[0], h.Refresh)
+		} else {
+			authGroup.POST("/register", h.Register)
+			authGroup.POST("/login", h.Login)
+			authGroup.POST("/refresh", h.Refresh)
+		}
+		authGroup.POST("/logout", h.Logout)
 	}
 }

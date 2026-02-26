@@ -2,10 +2,11 @@ package service
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"strings"
 	"time"
 
+	"github.com/andreypavlenko/jobber/internal/platform/logger"
 	"github.com/andreypavlenko/jobber/modules/applications/model"
 	"github.com/andreypavlenko/jobber/modules/applications/ports"
 	commentModel "github.com/andreypavlenko/jobber/modules/comments/model"
@@ -14,9 +15,13 @@ import (
 	companyPorts "github.com/andreypavlenko/jobber/modules/companies/ports"
 	jobPorts "github.com/andreypavlenko/jobber/modules/jobs/ports"
 	resumePorts "github.com/andreypavlenko/jobber/modules/resumes/ports"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 )
 
 type ApplicationService struct {
+	pool         *pgxpool.Pool
 	appRepo      ports.ApplicationRepository
 	stageRepo    ports.ApplicationStageRepository
 	templateRepo ports.StageTemplateRepository
@@ -24,9 +29,11 @@ type ApplicationService struct {
 	companyRepo  companyPorts.CompanyRepository
 	resumeRepo   resumePorts.ResumeRepository
 	commentRepo  commentPorts.CommentRepository
+	log          *logger.Logger
 }
 
 func NewApplicationService(
+	pool *pgxpool.Pool,
 	appRepo ports.ApplicationRepository,
 	stageRepo ports.ApplicationStageRepository,
 	templateRepo ports.StageTemplateRepository,
@@ -34,8 +41,13 @@ func NewApplicationService(
 	companyRepo companyPorts.CompanyRepository,
 	resumeRepo resumePorts.ResumeRepository,
 	commentRepo commentPorts.CommentRepository,
+	log *logger.Logger,
 ) *ApplicationService {
+	if log == nil {
+		log = &logger.Logger{Logger: zap.NewNop()}
+	}
 	return &ApplicationService{
+		pool:         pool,
 		appRepo:      appRepo,
 		stageRepo:    stageRepo,
 		templateRepo: templateRepo,
@@ -43,6 +55,7 @@ func NewApplicationService(
 		companyRepo:  companyRepo,
 		resumeRepo:   resumeRepo,
 		commentRepo:  commentRepo,
+		log:          log,
 	}
 }
 
@@ -96,7 +109,7 @@ func (s *ApplicationService) GetByID(ctx context.Context, userID, appID string) 
 	comments, err := s.commentRepo.ListByApplication(ctx, appID)
 	if err != nil {
 		// Log error but don't fail the request
-		log.Printf("[WARN] Failed to fetch comments for application %s: %v", appID, err)
+		s.log.Warn("failed to fetch comments for application", zap.String("application_id", appID), zap.Error(err))
 	} else {
 		// Split comments: application-level (stage_id == nil) vs stage-level (stage_id != nil)
 		var applicationComments []*commentModel.CommentDTO
@@ -123,7 +136,7 @@ func (s *ApplicationService) buildApplicationDTO(ctx context.Context, userID str
 	// Fetch job
 	job, err := s.jobRepo.GetByID(ctx, userID, app.JobID)
 	if err != nil {
-		log.Printf("[WARN] Failed to fetch job %s: %v", app.JobID, err)
+		s.log.Warn("failed to fetch job", zap.String("job_id", app.JobID), zap.Error(err))
 		job = nil
 	}
 
@@ -133,25 +146,25 @@ func (s *ApplicationService) buildApplicationDTO(ctx context.Context, userID str
 		if job.CompanyID != nil {
 			company, err = s.companyRepo.GetByID(ctx, userID, *job.CompanyID)
 			if err != nil {
-				log.Printf("[WARN] Failed to fetch company %s: %v", *job.CompanyID, err)
+				s.log.Warn("failed to fetch company", zap.String("company_id", *job.CompanyID), zap.Error(err))
 				company = nil
 			}
 		} else {
-			log.Printf("[DEBUG] Job %s has no company_id", job.ID)
+			s.log.Debug("job has no company_id", zap.String("job_id", job.ID))
 		}
 	}
 
 	// Fetch resume
 	resume, err := s.resumeRepo.GetByID(ctx, userID, app.ResumeID)
 	if err != nil {
-		log.Printf("[WARN] Failed to fetch resume %s: %v", app.ResumeID, err)
+		s.log.Warn("failed to fetch resume", zap.String("resume_id", app.ResumeID), zap.Error(err))
 		resume = nil
 	}
 
 	// Get last activity
 	lastActivity, err := s.appRepo.GetLastActivityAt(ctx, app.ID)
 	if err != nil {
-		log.Printf("[WARN] Failed to get last activity for %s: %v", app.ID, err)
+		s.log.Warn("failed to get last activity", zap.String("application_id", app.ID), zap.Error(err))
 		lastActivity = app.UpdatedAt
 	}
 
@@ -171,15 +184,15 @@ func (s *ApplicationService) List(ctx context.Context, userID string, sortBy, so
 		return nil, 0, err
 	}
 
-	dtos := make([]*model.ApplicationDTO, len(apps))
-	for i, app := range apps {
+	dtos := make([]*model.ApplicationDTO, 0, len(apps))
+	for _, app := range apps {
 		// Build DTO with nested entities
 		dto, err := s.buildApplicationDTO(ctx, userID, app)
 		if err != nil {
-			log.Printf("[ERROR] Failed to build DTO for application %s: %v", app.ID, err)
+			s.log.Error("failed to build DTO for application", zap.String("application_id", app.ID), zap.Error(err))
 			continue
 		}
-		dtos[i] = dto
+		dtos = append(dtos, dto)
 	}
 	return dtos, total, nil
 }
@@ -219,26 +232,22 @@ func (s *ApplicationService) Delete(ctx context.Context, userID, appID string) e
 
 // Stage management
 
-// AddStage adds a new stage to an application following append-only semantics
-// This method:
-// 1. Completes the current active stage (if any)
-// 2. Creates a new stage with "active" status
-// 3. Updates the application's current_stage_id
-// Note: Ideally this should be wrapped in a database transaction for atomicity
+// AddStage adds a new stage to an application following append-only semantics.
+// All write operations are wrapped in a database transaction for atomicity.
 func (s *ApplicationService) AddStage(ctx context.Context, userID, appID string, req *model.AddStageRequest) (*model.ApplicationStageDTO, error) {
-	// Verify application belongs to user
+	// Verify application belongs to user (read, outside tx)
 	app, err := s.appRepo.GetByID(ctx, userID, appID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Verify stage template exists and belongs to user
+	// Verify stage template exists and belongs to user (read, outside tx)
 	template, err := s.templateRepo.GetByID(ctx, userID, req.StageTemplateID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Get existing stages to determine order
+	// Get existing stages to determine order (read, outside tx)
 	existingStages, err := s.stageRepo.ListByApplication(ctx, appID)
 	if err != nil {
 		return nil, err
@@ -246,73 +255,99 @@ func (s *ApplicationService) AddStage(ctx context.Context, userID, appID string,
 
 	now := time.Now().UTC()
 	order := len(existingStages)
-	var previousStageID string
 	var previousStageName string
 
+	// Begin transaction for all write operations
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback is a no-op after commit
+
 	// Complete the current active stage (if any)
-	// Following append-only semantics: we complete the old stage before adding new
 	if app.CurrentStageID != nil && *app.CurrentStageID != "" {
 		currentStage, err := s.stageRepo.GetByID(ctx, *app.CurrentStageID)
 		if err != nil {
 			return nil, err
 		}
 
-		// Only complete if not already completed
 		if currentStage.Status != "completed" {
-			previousStageID = currentStage.ID
-			// Get previous stage name for logging
 			prevTemplate, err := s.templateRepo.GetByID(ctx, userID, currentStage.StageTemplateID)
 			if err == nil {
 				previousStageName = prevTemplate.Name
 			}
-			currentStage.Status = "completed"
-			currentStage.CompletedAt = &now
-			if err := s.stageRepo.Update(ctx, currentStage); err != nil {
-				return nil, err
+			_, err = tx.Exec(ctx,
+				`UPDATE application_stages SET status = $2, completed_at = $3 WHERE id = $1`,
+				currentStage.ID, "completed", now,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("failed to complete current stage: %w", err)
 			}
 		}
 	}
 
-	// Create new stage with "active" status (it's the current stage now)
+	// Create new stage with "active" status
+	newStageID := uuid.New().String()
+	createdAt := time.Now().UTC()
+	_, err = tx.Exec(ctx,
+		`INSERT INTO application_stages (id, application_id, stage_template_id, status, "order", started_at, completed_at, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		newStageID, appID, req.StageTemplateID, "active", order, now, nil, createdAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stage: %w", err)
+	}
+
+	// Update application's current stage
+	_, err = tx.Exec(ctx,
+		`UPDATE applications SET current_stage_id = $2, updated_at = $3 WHERE id = $1`,
+		app.ID, newStageID, now,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update application current stage: %w", err)
+	}
+
+	// Commit transaction
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Create comment if provided (outside tx — non-critical)
+	if req.Comment != nil && strings.TrimSpace(*req.Comment) != "" {
+		comment := &commentModel.Comment{
+			UserID:        userID,
+			ApplicationID: appID,
+			StageID:       &newStageID,
+			Content:       strings.TrimSpace(*req.Comment),
+		}
+		if err := s.commentRepo.Create(ctx, comment); err != nil {
+			s.log.Error("failed to create comment for stage", zap.Error(err))
+		}
+	}
+
+	// Log the stage change
+	if previousStageName != "" {
+		s.log.Info("stage changed",
+			zap.String("application_id", appID),
+			zap.String("previous_stage", previousStageName),
+			zap.String("new_stage", template.Name),
+			zap.String("user_id", userID))
+	} else {
+		s.log.Info("stage added",
+			zap.String("application_id", appID),
+			zap.String("stage", template.Name),
+			zap.String("user_id", userID))
+	}
+
+	// Build the stage DTO for the response
 	stage := &model.ApplicationStage{
+		ID:              newStageID,
 		ApplicationID:   appID,
 		StageTemplateID: req.StageTemplateID,
 		Status:          "active",
 		Order:           order,
 		StartedAt:       now,
-	}
-
-	if err := s.stageRepo.Create(ctx, stage); err != nil {
-		return nil, err
-	}
-
-	// Update application's current stage
-	app.CurrentStageID = &stage.ID
-	if err := s.appRepo.Update(ctx, app); err != nil {
-		return nil, err
-	}
-
-	// Create comment if provided
-	if req.Comment != nil && strings.TrimSpace(*req.Comment) != "" {
-		comment := &commentModel.Comment{
-			UserID:        userID,
-			ApplicationID: appID,
-			StageID:       &stage.ID,
-			Content:       strings.TrimSpace(*req.Comment),
-		}
-		if err := s.commentRepo.Create(ctx, comment); err != nil {
-			// Log error but don't fail the stage creation
-			log.Printf("[ERROR] Failed to create comment for stage: %v", err)
-		}
-	}
-
-	// Log the stage change for audit trail
-	if previousStageID != "" {
-		log.Printf("[INFO] action=change_stage application_id=%s previous_stage=%s new_stage=%s user_id=%s",
-			appID, previousStageName, template.Name, userID)
-	} else {
-		log.Printf("[INFO] action=add_stage application_id=%s stage=%s user_id=%s",
-			appID, template.Name, userID)
+		CreatedAt:       createdAt,
 	}
 
 	return stage.ToDTO(template.Name), nil
@@ -447,29 +482,29 @@ func (s *ApplicationService) DeleteStageTemplate(ctx context.Context, userID, te
 
 // UpdateStage updates a stage's status and other fields
 func (s *ApplicationService) UpdateStage(ctx context.Context, userID, appID, stageID string, req *model.UpdateStageRequest) (*model.ApplicationStageDTO, error) {
-	log.Printf("[DEBUG] UpdateStage called: userID=%s appID=%s stageID=%s", userID, appID, stageID)
+	s.log.Debug("UpdateStage called", zap.String("user_id", userID), zap.String("application_id", appID), zap.String("stage_id", stageID))
 	
 	// Verify application belongs to user
 	_, err := s.appRepo.GetByID(ctx, userID, appID)
 	if err != nil {
-		log.Printf("[ERROR] Failed to get application: %v", err)
+		s.log.Error("failed to get application", zap.Error(err))
 		return nil, err
 	}
 
 	// Get the stage
 	stage, err := s.stageRepo.GetByID(ctx, stageID)
 	if err != nil {
-		log.Printf("[ERROR] Failed to get stage: %v", err)
+		s.log.Error("failed to get stage", zap.Error(err))
 		return nil, err
 	}
 
 	// Verify stage belongs to the application
 	if stage.ApplicationID != appID {
-		log.Printf("[ERROR] Stage does not belong to application")
+		s.log.Error("stage does not belong to application", zap.String("stage_id", stageID), zap.String("application_id", appID))
 		return nil, model.ErrApplicationStageNotFound
 	}
 
-	log.Printf("[DEBUG] Current stage status: %s, requested status: %v", stage.Status, req.Status)
+	s.log.Debug("current stage status", zap.String("status", stage.Status), zap.Any("requested_status", req.Status))
 
 	// Update status if provided
 	if req.Status != nil {
@@ -481,7 +516,7 @@ func (s *ApplicationService) UpdateStage(ctx context.Context, userID, appID, sta
 			"cancelled": true,
 		}
 		if !validStatuses[*req.Status] {
-			log.Printf("[ERROR] Invalid status: %s", *req.Status)
+			s.log.Error("invalid status", zap.String("status", *req.Status))
 			return nil, model.ErrInvalidStatus
 		}
 		stage.Status = *req.Status
@@ -500,40 +535,44 @@ func (s *ApplicationService) UpdateStage(ctx context.Context, userID, appID, sta
 		stage.CompletedAt = nil
 	}
 
-	log.Printf("[DEBUG] About to update stage in DB with status: %s", stage.Status)
+	s.log.Debug("about to update stage in DB", zap.String("status", stage.Status))
 
 	// Update in database
 	if err := s.stageRepo.Update(ctx, stage); err != nil {
-		log.Printf("[ERROR] Failed to update stage in DB: %v", err)
+		s.log.Error("failed to update stage in DB", zap.Error(err))
 		return nil, err
 	}
 
-	log.Printf("[DEBUG] Stage updated, fetching template: %s", stage.StageTemplateID)
+	s.log.Debug("stage updated, fetching template", zap.String("stage_template_id", stage.StageTemplateID))
 
 	// Get template for DTO
 	template, err := s.templateRepo.GetByID(ctx, userID, stage.StageTemplateID)
 	if err != nil {
-		log.Printf("[ERROR] Failed to get template: %v", err)
+		s.log.Error("failed to get template", zap.String("stage_template_id", stage.StageTemplateID), zap.Error(err))
 		return nil, err
 	}
 
 	// Log the status change
-	log.Printf("[INFO] action=update_stage_status application_id=%s stage_id=%s new_status=%s user_id=%s",
-		appID, stageID, stage.Status, userID)
+	s.log.Info("stage status updated",
+		zap.String("application_id", appID),
+		zap.String("stage_id", stageID),
+		zap.String("new_status", stage.Status),
+		zap.String("user_id", userID))
 
 	return stage.ToDTO(template.Name), nil
 }
 
-// DeleteStage deletes a stage from an application with validation
-// If the deleted stage is the current active stage, it updates the application's current_stage_id
+// DeleteStage deletes a stage from an application with validation.
+// If the deleted stage is the current active stage, it recalculates current_stage_id.
+// All write operations are wrapped in a database transaction for atomicity.
 func (s *ApplicationService) DeleteStage(ctx context.Context, userID, appID, stageID string) error {
-	// Verify application belongs to user
+	// Verify application belongs to user (read, outside tx)
 	app, err := s.appRepo.GetByID(ctx, userID, appID)
 	if err != nil {
 		return err
 	}
 
-	// Get the stage to be deleted
+	// Get the stage to be deleted (read, outside tx)
 	stage, err := s.stageRepo.GetByID(ctx, stageID)
 	if err != nil {
 		return err
@@ -547,35 +586,61 @@ func (s *ApplicationService) DeleteStage(ctx context.Context, userID, appID, sta
 	// Check if this stage is the current active stage
 	isCurrentStage := app.CurrentStageID != nil && *app.CurrentStageID == stageID
 
-	// Delete the stage
-	if err := s.stageRepo.Delete(ctx, stageID); err != nil {
-		return err
+	// Begin transaction for all write operations
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback is a no-op after commit
 
-	// If deleted stage was the current stage, recalculate current stage
+	// If this is the current stage, update application's current_stage_id first
+	// (must happen before DELETE due to FK constraint)
 	if isCurrentStage {
-		// Get all remaining stages
+		// Get all stages except the one being deleted to find a replacement
 		stages, err := s.stageRepo.ListByApplication(ctx, appID)
 		if err != nil {
 			return err
 		}
 
-		// Find the most recent active or completed stage
+		// Find the most recent active or completed stage (excluding the one being deleted)
 		var newCurrentStageID *string
 		for i := len(stages) - 1; i >= 0; i-- {
+			if stages[i].ID == stageID {
+				continue
+			}
 			if stages[i].Status == "active" || stages[i].Status == "completed" {
 				newCurrentStageID = &stages[i].ID
 				break
 			}
 		}
 
-		// Update application's current stage
-		app.CurrentStageID = newCurrentStageID
-		if err := s.appRepo.Update(ctx, app); err != nil {
-			return err
+		// Update application's current stage within the transaction
+		_, err = tx.Exec(ctx,
+			`UPDATE applications SET current_stage_id = $2, updated_at = $3 WHERE id = $1`,
+			app.ID, newCurrentStageID, time.Now().UTC(),
+		)
+		if err != nil {
+			return fmt.Errorf("failed to update application current stage: %w", err)
 		}
 	}
 
-	log.Printf("[INFO] action=delete_stage application_id=%s stage_id=%s user_id=%s", appID, stageID, userID)
+	// Delete the stage within the transaction
+	_, err = tx.Exec(ctx,
+		`DELETE FROM application_stages WHERE id = $1`,
+		stageID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to delete stage: %w", err)
+	}
+
+	// Commit transaction
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	s.log.Info("stage deleted",
+		zap.String("application_id", appID),
+		zap.String("stage_id", stageID),
+		zap.String("user_id", userID))
 	return nil
 }

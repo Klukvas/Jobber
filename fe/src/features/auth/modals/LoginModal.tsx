@@ -1,21 +1,21 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { useMutation } from '@tanstack/react-query';
-import { authService } from '@/services/authService';
-import { useAuthStore } from '@/stores/authStore';
-import { Button } from '@/shared/ui/Button';
-import { Input } from '@/shared/ui/Input';
-import { PasswordInput } from '@/shared/ui/PasswordInput';
-import { Label } from '@/shared/ui/Label';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { useMutation } from "@tanstack/react-query";
+import { authService } from "@/services/authService";
+import { useAuthStore } from "@/stores/authStore";
+import { Button } from "@/shared/ui/Button";
+import { Input } from "@/shared/ui/Input";
+import { PasswordInput } from "@/shared/ui/PasswordInput";
+import { Label } from "@/shared/ui/Label";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@/shared/ui/Dialog';
-import { ApiError } from '@/services/api';
+} from "@/shared/ui/Dialog";
+import { ApiError } from "@/services/api";
 
 interface LoginModalProps {
   open: boolean;
@@ -23,20 +23,25 @@ interface LoginModalProps {
   onSwitchToRegister: () => void;
 }
 
-function ModalContent({ onOpenChange, onSwitchToRegister }: Omit<LoginModalProps, 'open'>) {
+function ModalContent({
+  onOpenChange,
+  onSwitchToRegister,
+}: Omit<LoginModalProps, "open">) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {},
+  );
 
   const loginMutation = useMutation({
     mutationFn: authService.login,
     onSuccess: (data) => {
       setAuth(data.tokens.access_token, data.tokens.refresh_token, data.user);
       onOpenChange(false);
-      navigate('/app');
+      navigate("/app");
     },
     onError: (error: ApiError) => {
       setErrors({ password: error.message });
@@ -45,19 +50,19 @@ function ModalContent({ onOpenChange, onSwitchToRegister }: Omit<LoginModalProps
 
   const validate = () => {
     const newErrors: { email?: string; password?: string } = {};
-    
+
     if (!email) {
-      newErrors.email = t('errors.required');
+      newErrors.email = t("errors.required");
     } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = t('errors.invalidEmail');
+      newErrors.email = t("errors.invalidEmail");
     }
-    
+
     if (!password) {
-      newErrors.password = t('errors.required');
+      newErrors.password = t("errors.required");
     } else if (password.length < 8) {
-      newErrors.password = t('errors.passwordTooShort');
+      newErrors.password = t("errors.passwordTooShort");
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -72,15 +77,15 @@ function ModalContent({ onOpenChange, onSwitchToRegister }: Omit<LoginModalProps
   return (
     <>
       <DialogHeader>
-        <DialogTitle className="text-2xl font-bold">{t('auth.login')}</DialogTitle>
-        <DialogDescription>
-          Enter your email and password to access your account
-        </DialogDescription>
+        <DialogTitle className="text-2xl font-bold">
+          {t("auth.login")}
+        </DialogTitle>
+        <DialogDescription>{t("auth.loginDescription")}</DialogDescription>
       </DialogHeader>
       <form onSubmit={handleSubmit} className="mt-4">
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="login-email">{t('auth.email')}</Label>
+            <Label htmlFor="login-email">{t("auth.email")}</Label>
             <Input
               id="login-email"
               type="email"
@@ -88,7 +93,7 @@ function ModalContent({ onOpenChange, onSwitchToRegister }: Omit<LoginModalProps
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               aria-invalid={!!errors.email}
-              aria-describedby={errors.email ? 'login-email-error' : undefined}
+              aria-describedby={errors.email ? "login-email-error" : undefined}
             />
             {errors.email && (
               <p id="login-email-error" className="text-sm text-destructive">
@@ -97,13 +102,15 @@ function ModalContent({ onOpenChange, onSwitchToRegister }: Omit<LoginModalProps
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="login-password">{t('auth.password')}</Label>
+            <Label htmlFor="login-password">{t("auth.password")}</Label>
             <PasswordInput
               id="login-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               aria-invalid={!!errors.password}
-              aria-describedby={errors.password ? 'login-password-error' : undefined}
+              aria-describedby={
+                errors.password ? "login-password-error" : undefined
+              }
             />
             {errors.password && (
               <p id="login-password-error" className="text-sm text-destructive">
@@ -118,16 +125,16 @@ function ModalContent({ onOpenChange, onSwitchToRegister }: Omit<LoginModalProps
             className="w-full"
             disabled={loginMutation.isPending}
           >
-            {loginMutation.isPending ? t('common.loading') : t('auth.login')}
+            {loginMutation.isPending ? t("common.loading") : t("auth.login")}
           </Button>
           <p className="text-center text-sm text-muted-foreground">
-            {t('auth.dontHaveAccount')}{' '}
+            {t("auth.dontHaveAccount")}{" "}
             <button
               type="button"
               onClick={onSwitchToRegister}
               className="font-medium text-primary hover:underline"
             >
-              {t('auth.register')}
+              {t("auth.register")}
             </button>
           </p>
         </div>
@@ -136,12 +143,16 @@ function ModalContent({ onOpenChange, onSwitchToRegister }: Omit<LoginModalProps
   );
 }
 
-export function LoginModal({ open, onOpenChange, onSwitchToRegister }: LoginModalProps) {
+export function LoginModal({
+  open,
+  onOpenChange,
+  onSwitchToRegister,
+}: LoginModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent onClose={() => onOpenChange(false)}>
         <ModalContent
-          key={open ? 'open' : 'closed'}
+          key={open ? "open" : "closed"}
           onOpenChange={onOpenChange}
           onSwitchToRegister={onSwitchToRegister}
         />

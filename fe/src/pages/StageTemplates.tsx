@@ -1,53 +1,77 @@
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
-import { stageTemplatesService } from '@/services/stageTemplatesService';
-import { Button } from '@/shared/ui/Button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/Card';
-import { SkeletonList } from '@/shared/ui/Skeleton';
-import { EmptyState } from '@/shared/ui/EmptyState';
-import { ErrorState } from '@/shared/ui/ErrorState';
-import { Plus, ListOrdered, Trash2, Edit2, Check, Sparkles } from 'lucide-react';
-import { CreateStageTemplateModal } from '@/features/stages/modals/CreateStageTemplateModal';
-import { usePageTitle } from '@/shared/lib/usePageTitle';
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { stageTemplatesService } from "@/services/stageTemplatesService";
+import { Button } from "@/shared/ui/Button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/shared/ui/Card";
+import { SkeletonList } from "@/shared/ui/Skeleton";
+import { EmptyState } from "@/shared/ui/EmptyState";
+import { ErrorState } from "@/shared/ui/ErrorState";
+import {
+  Plus,
+  ListOrdered,
+  Trash2,
+  Edit2,
+  Check,
+  Sparkles,
+} from "lucide-react";
+import { CreateStageTemplateModal } from "@/features/stages/modals/CreateStageTemplateModal";
+import { EditStageTemplateModal } from "@/features/stages/modals/EditStageTemplateModal";
+import { usePageTitle } from "@/shared/lib/usePageTitle";
+import { showErrorNotification } from "@/shared/lib/notifications";
+import type { StageTemplateDTO } from "@/shared/types/api";
 
 const RECOMMENDED_STAGES = [
-  { nameKey: 'stages.applied', order: 0 },
-  { nameKey: 'stages.phoneScreen', order: 1 },
-  { nameKey: 'stages.technicalInterview', order: 2 },
-  { nameKey: 'stages.onsiteInterview', order: 3 },
-  { nameKey: 'stages.hrInterview', order: 4 },
-  { nameKey: 'stages.offer', order: 5 },
-  { nameKey: 'stages.rejected', order: 6 },
+  { nameKey: "stages.applied", order: 0 },
+  { nameKey: "stages.phoneScreen", order: 1 },
+  { nameKey: "stages.technicalInterview", order: 2 },
+  { nameKey: "stages.onsiteInterview", order: 3 },
+  { nameKey: "stages.hrInterview", order: 4 },
+  { nameKey: "stages.offer", order: 5 },
+  { nameKey: "stages.rejected", order: 6 },
 ];
 
 export default function StageTemplates() {
-  usePageTitle('nav.stages');
+  usePageTitle("nav.stages");
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] =
+    useState<StageTemplateDTO | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['stage-templates'],
+    queryKey: ["stage-templates"],
     queryFn: () => stageTemplatesService.list({ limit: 100, offset: 0 }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: stageTemplatesService.delete,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['stage-templates'] });
+      queryClient.invalidateQueries({ queryKey: ["stage-templates"] });
+    },
+    onError: () => {
+      showErrorNotification(t("stages.deleteError"));
     },
   });
 
   const createMutation = useMutation({
     mutationFn: stageTemplatesService.create,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['stage-templates'] });
+      queryClient.invalidateQueries({ queryKey: ["stage-templates"] });
+    },
+    onError: () => {
+      showErrorNotification(t("stages.createError"));
     },
   });
 
   const handleDelete = (id: string, name: string) => {
-    if (window.confirm(`Are you sure you want to delete the stage "${name}"?`)) {
+    if (window.confirm(t("stages.deleteConfirm", { name }))) {
       deleteMutation.mutate(id);
     }
   };
@@ -78,7 +102,7 @@ export default function StageTemplates() {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">{t('stages.title')}</h1>
+          <h1 className="text-3xl font-bold">{t("stages.title")}</h1>
         </div>
         <SkeletonList count={3} />
       </div>
@@ -88,7 +112,7 @@ export default function StageTemplates() {
   if (isError) {
     return (
       <div className="space-y-4">
-        <h1 className="text-3xl font-bold">{t('stages.title')}</h1>
+        <h1 className="text-3xl font-bold">{t("stages.title")}</h1>
         <ErrorState message={error.message} onRetry={() => refetch()} />
       </div>
     );
@@ -96,20 +120,22 @@ export default function StageTemplates() {
 
   const stages = data?.items || [];
   const sortedStages = [...stages].sort((a, b) => a.order - b.order);
-  const allRecommendedAdded = RECOMMENDED_STAGES.every((rec) => isRecommendedAdded(rec.nameKey));
+  const allRecommendedAdded = RECOMMENDED_STAGES.every((rec) =>
+    isRecommendedAdded(rec.nameKey),
+  );
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">{t('stages.title')}</h1>
+          <h1 className="text-3xl font-bold">{t("stages.title")}</h1>
           <p className="text-muted-foreground mt-1">
-            {t('stages.description')}
+            {t("stages.description")}
           </p>
         </div>
         <Button onClick={() => setIsCreateModalOpen(true)}>
           <Plus className="h-4 w-4" />
-          {t('stages.create')}
+          {t("stages.create")}
         </Button>
       </div>
 
@@ -119,7 +145,7 @@ export default function StageTemplates() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              <CardTitle>{t('stages.recommended')}</CardTitle>
+              <CardTitle>{t("stages.recommended")}</CardTitle>
             </div>
             {!allRecommendedAdded && (
               <Button
@@ -129,11 +155,13 @@ export default function StageTemplates() {
                 disabled={createMutation.isPending}
               >
                 <Plus className="h-4 w-4" />
-                {t('stages.addAll')}
+                {t("stages.addAll")}
               </Button>
             )}
           </div>
-          <CardDescription>{t('stages.recommendedDescription')}</CardDescription>
+          <CardDescription>
+            {t("stages.recommendedDescription")}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
@@ -142,7 +170,7 @@ export default function StageTemplates() {
               return (
                 <Button
                   key={rec.nameKey}
-                  variant={added ? 'secondary' : 'outline'}
+                  variant={added ? "secondary" : "outline"}
                   size="sm"
                   disabled={added || createMutation.isPending}
                   onClick={() => handleAddRecommended(rec.nameKey, rec.order)}
@@ -164,12 +192,12 @@ export default function StageTemplates() {
       {sortedStages.length === 0 ? (
         <EmptyState
           icon={<ListOrdered className="h-12 w-12" />}
-          title={t('stages.noStages')}
-          description={t('stages.noStagesDescription')}
+          title={t("stages.noStages")}
+          description={t("stages.noStagesDescription")}
           action={
             <Button onClick={() => setIsCreateModalOpen(true)}>
               <Plus className="h-4 w-4" />
-              {t('stages.create')}
+              {t("stages.create")}
             </Button>
           }
         />
@@ -188,10 +216,7 @@ export default function StageTemplates() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => {
-                      // TODO: Implement edit modal
-                      alert('Edit functionality coming soon');
-                    }}
+                    onClick={() => setEditingTemplate(stage)}
                   >
                     <Edit2 className="h-4 w-4" />
                   </Button>
@@ -207,7 +232,9 @@ export default function StageTemplates() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Created {new Date(stage.created_at).toLocaleDateString()}
+                  {t("stages.created", {
+                    date: new Date(stage.created_at).toLocaleDateString(),
+                  })}
                 </p>
               </CardContent>
             </Card>
@@ -218,6 +245,14 @@ export default function StageTemplates() {
       <CreateStageTemplateModal
         open={isCreateModalOpen}
         onOpenChange={setIsCreateModalOpen}
+      />
+
+      <EditStageTemplateModal
+        open={editingTemplate !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditingTemplate(null);
+        }}
+        template={editingTemplate}
       />
     </div>
   );

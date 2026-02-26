@@ -67,6 +67,7 @@ type MockRefreshTokenRepository struct {
 	CreateFunc           func(ctx context.Context, token *authModel.RefreshToken) error
 	GetByTokenHashFunc   func(ctx context.Context, tokenHash string) (*authModel.RefreshToken, error)
 	RevokeFunc           func(ctx context.Context, tokenHash string) error
+	RevokeIfValidFunc    func(ctx context.Context, tokenHash string) (bool, error)
 	RevokeAllForUserFunc func(ctx context.Context, userID string) error
 	DeleteExpiredFunc    func(ctx context.Context) error
 }
@@ -90,6 +91,13 @@ func (m *MockRefreshTokenRepository) Revoke(ctx context.Context, tokenHash strin
 		return m.RevokeFunc(ctx, tokenHash)
 	}
 	return nil
+}
+
+func (m *MockRefreshTokenRepository) RevokeIfValid(ctx context.Context, tokenHash string) (bool, error) {
+	if m.RevokeIfValidFunc != nil {
+		return m.RevokeIfValidFunc(ctx, tokenHash)
+	}
+	return true, nil
 }
 
 func (m *MockRefreshTokenRepository) RevokeAllForUser(ctx context.Context, userID string) error {
@@ -326,25 +334,13 @@ func TestAuthHandler_Refresh(t *testing.T) {
 	t.Run("successfully refreshes tokens", func(t *testing.T) {
 		jwtManager := createTestJWTManager()
 		refreshToken, _ := jwtManager.GenerateRefreshToken("user-123")
-		tokenHash := auth.HashToken(refreshToken)
-
-		dbToken := &authModel.RefreshToken{
-			ID:        "token-1",
-			UserID:    "user-123",
-			TokenHash: tokenHash,
-			ExpiresAt: time.Now().Add(24 * time.Hour),
-			CreatedAt: time.Now(),
-		}
 
 		mockUserRepo := &MockUserRepository{}
 		mockTokenRepo := &MockRefreshTokenRepository{
-			GetByTokenHashFunc: func(ctx context.Context, hash string) (*authModel.RefreshToken, error) {
-				return dbToken, nil
+			RevokeIfValidFunc: func(ctx context.Context, hash string) (bool, error) {
+				return true, nil
 			},
 			CreateFunc: func(ctx context.Context, token *authModel.RefreshToken) error {
-				return nil
-			},
-			RevokeFunc: func(ctx context.Context, hash string) error {
 				return nil
 			},
 		}

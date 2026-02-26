@@ -1,11 +1,12 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { RouterProvider } from 'react-router-dom';
-import { router } from './router';
-import { I18nextProvider } from 'react-i18next';
-import i18n from '@/shared/lib/i18n';
-import { useEffect } from 'react';
-import { useThemeStore } from '@/stores/themeStore';
-import { AuthProvider } from './providers/AuthProvider';
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { RouterProvider } from "react-router-dom";
+import { router } from "./router";
+import { I18nextProvider } from "react-i18next";
+import i18n from "@/shared/lib/i18n";
+import { useEffect } from "react";
+import { useThemeStore } from "@/stores/themeStore";
+import { AuthProvider } from "./providers/AuthProvider";
+import { Toaster } from "sonner";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,7 +23,7 @@ export function Providers() {
 
   useEffect(() => {
     const root = window.document.documentElement;
-    root.classList.remove('light', 'dark');
+    root.classList.remove("light", "dark");
     root.classList.add(theme);
   }, [theme]);
 
@@ -31,6 +32,7 @@ export function Providers() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <RouterProvider router={router} />
+          <Toaster position="top-right" richColors closeButton />
         </AuthProvider>
       </QueryClientProvider>
     </I18nextProvider>

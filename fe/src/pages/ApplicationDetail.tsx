@@ -1,39 +1,51 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { applicationsService } from '@/services/applicationsService';
-import { commentsService } from '@/services/commentsService';
-import { Button } from '@/shared/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/Card';
-import { SkeletonDetail } from '@/shared/ui/Skeleton';
-import { ErrorState } from '@/shared/ui/ErrorState';
-import { ArrowLeft, Calendar, Plus, MessageSquarePlus, Edit } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { Timeline } from '@/features/applications/components/Timeline';
-import { AddStageModal } from '@/features/applications/modals/AddStageModal';
-import { UpdateApplicationStatusModal } from '@/features/applications/modals/UpdateApplicationStatusModal';
-import { Textarea } from '@/shared/ui/Textarea';
-import { usePageTitle } from '@/shared/lib/usePageTitle';
+import { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { applicationsService } from "@/services/applicationsService";
+import { commentsService } from "@/services/commentsService";
+import { Button } from "@/shared/ui/Button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
+import { SkeletonDetail } from "@/shared/ui/Skeleton";
+import { ErrorState } from "@/shared/ui/ErrorState";
+import {
+  ArrowLeft,
+  Calendar,
+  Plus,
+  MessageSquarePlus,
+  Edit,
+} from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { Timeline } from "@/features/applications/components/Timeline";
+import { AddStageModal } from "@/features/applications/modals/AddStageModal";
+import { UpdateApplicationStatusModal } from "@/features/applications/modals/UpdateApplicationStatusModal";
+import { Textarea } from "@/shared/ui/Textarea";
+import { usePageTitle } from "@/shared/lib/usePageTitle";
 
 export default function ApplicationDetail() {
-  usePageTitle('applications.details');
+  usePageTitle("applications.details");
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddStageModalOpen, setIsAddStageModalOpen] = useState(false);
   const [isUpdateStatusModalOpen, setIsUpdateStatusModalOpen] = useState(false);
-  const [newComment, setNewComment] = useState('');
+  const [newComment, setNewComment] = useState("");
 
-  const { data: application, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['application', id],
+  const {
+    data: application,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["application", id],
     queryFn: () => applicationsService.getById(id!),
     enabled: !!id,
   });
 
   const { data: stages } = useQuery({
-    queryKey: ['application-stages', id],
+    queryKey: ["application-stages", id],
     queryFn: () => applicationsService.listStages(id!),
     enabled: !!id,
   });
@@ -49,8 +61,8 @@ export default function ApplicationDetail() {
       }),
     onSuccess: () => {
       // Invalidate application query to refresh embedded comments
-      queryClient.invalidateQueries({ queryKey: ['application', id] });
-      setNewComment('');
+      queryClient.invalidateQueries({ queryKey: ["application", id] });
+      setNewComment("");
     },
   });
 
@@ -64,9 +76,9 @@ export default function ApplicationDetail() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <Button variant="ghost" onClick={() => navigate('/app/applications')}>
+        <Button variant="ghost" onClick={() => navigate("/app/applications")}>
           <ArrowLeft className="h-4 w-4" />
-          {t('common.back')}
+          {t("common.back")}
         </Button>
         <SkeletonDetail />
       </div>
@@ -76,12 +88,12 @@ export default function ApplicationDetail() {
   if (isError || !application) {
     return (
       <div className="space-y-4">
-        <Button variant="ghost" onClick={() => navigate('/app/applications')}>
+        <Button variant="ghost" onClick={() => navigate("/app/applications")}>
           <ArrowLeft className="h-4 w-4" />
-          {t('common.back')}
+          {t("common.back")}
         </Button>
         <ErrorState
-          message={error?.message || 'Application not found'}
+          message={error?.message || t("applications.notFound")}
           onRetry={() => refetch()}
         />
       </div>
@@ -91,35 +103,45 @@ export default function ApplicationDetail() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={() => navigate('/app/applications')}>
+        <Button variant="ghost" onClick={() => navigate("/app/applications")}>
           <ArrowLeft className="h-4 w-4" />
-          {t('common.back')}
+          {t("common.back")}
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>{t('applications.details')}</CardTitle>
+          <CardTitle>{t("applications.details")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <p className="text-sm text-muted-foreground">Application Name</p>
+            <p className="text-sm text-muted-foreground">
+              {t("applications.applicationName")}
+            </p>
             <p className="font-semibold text-lg">
-              {application.name || 'Untitled Application'}
+              {application.name || t("applications.untitled")}
             </p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Job</p>
-            <p className="font-medium">{application.job?.title || 'Unknown Job'}</p>
+            <p className="text-sm text-muted-foreground">
+              {t("applications.job")}
+            </p>
+            <p className="font-medium">
+              {application.job?.title || t("applications.unknownJob")}
+            </p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Resume</p>
-            <p className="font-medium">{application.resume?.name || 'Unknown Resume'}</p>
+            <p className="text-sm text-muted-foreground">
+              {t("applications.resume")}
+            </p>
+            <p className="font-medium">
+              {application.resume?.name || t("applications.unknownResume")}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm">
-              Applied{' '}
+              {t("applications.applied")}{" "}
               {formatDistanceToNow(new Date(application.applied_at), {
                 addSuffix: true,
               })}
@@ -128,15 +150,18 @@ export default function ApplicationDetail() {
           <div>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Status</p>
+                <p className="text-sm text-muted-foreground">
+                  {t("applications.status")}
+                </p>
                 <p
                   className={`font-medium ${
-                    application.status === 'active'
-                      ? 'text-green-600'
-                      : 'text-muted-foreground'
+                    application.status === "active"
+                      ? "text-green-600"
+                      : "text-muted-foreground"
                   }`}
                 >
-                  {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
+                  {application.status.charAt(0).toUpperCase() +
+                    application.status.slice(1)}
                 </p>
               </div>
               <Button
@@ -145,16 +170,18 @@ export default function ApplicationDetail() {
                 onClick={() => setIsUpdateStatusModalOpen(true)}
               >
                 <Edit className="h-4 w-4 mr-2" />
-                Change Status
+                {t("applications.changeStatus")}
               </Button>
             </div>
           </div>
 
           <div className="mt-6 border-t pt-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold">Comments</h3>
+              <h3 className="text-sm font-semibold">
+                {t("applications.comments")}
+              </h3>
             </div>
-            
+
             {applicationComments.length > 0 && (
               <div className="space-y-3 mb-4">
                 {applicationComments.map((comment) => (
@@ -162,7 +189,9 @@ export default function ApplicationDetail() {
                     key={comment.id}
                     className="rounded-lg border bg-muted/50 p-3"
                   >
-                    <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
+                    <p className="text-sm whitespace-pre-wrap">
+                      {comment.content}
+                    </p>
                     <p className="text-xs text-muted-foreground mt-2">
                       {formatDistanceToNow(new Date(comment.created_at), {
                         addSuffix: true,
@@ -177,7 +206,7 @@ export default function ApplicationDetail() {
               <Textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Add a comment..."
+                placeholder={t("applications.commentPlaceholder")}
                 className="flex-1"
                 rows={3}
               />
@@ -187,7 +216,7 @@ export default function ApplicationDetail() {
                 disabled={!newComment.trim() || addCommentMutation.isPending}
               >
                 <MessageSquarePlus className="h-4 w-4 mr-2" />
-                Add Comment
+                {t("applications.addComment")}
               </Button>
             </form>
           </div>
@@ -196,19 +225,16 @@ export default function ApplicationDetail() {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <CardTitle>{t('applications.timeline')}</CardTitle>
-          <Button
-            size="sm"
-            onClick={() => setIsAddStageModalOpen(true)}
-          >
+          <CardTitle>{t("applications.timeline")}</CardTitle>
+          <Button size="sm" onClick={() => setIsAddStageModalOpen(true)}>
             <Plus className="h-4 w-4" />
-            Add new stage
+            {t("applications.addNewStage")}
           </Button>
         </CardHeader>
         <CardContent>
-          <Timeline 
-            stages={stages || []} 
-            applicationId={id!} 
+          <Timeline
+            stages={stages || []}
+            applicationId={id!}
             stageComments={application?.stage_comments || []}
           />
         </CardContent>

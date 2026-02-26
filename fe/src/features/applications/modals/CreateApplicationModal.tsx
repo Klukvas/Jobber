@@ -1,9 +1,13 @@
-import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { applicationsService } from '@/services/applicationsService';
-import { resumesService } from '@/services/resumesService';
-import { jobsService } from '@/services/jobsService';
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { applicationsService } from "@/services/applicationsService";
+import {
+  showSuccessNotification,
+  showErrorNotification,
+} from "@/shared/lib/notifications";
+import { resumesService } from "@/services/resumesService";
+import { jobsService } from "@/services/jobsService";
 import {
   Dialog,
   DialogContent,
@@ -11,9 +15,9 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from '@/shared/ui/Dialog';
-import { Button } from '@/shared/ui/Button';
-import { Label } from '@/shared/ui/Label';
+} from "@/shared/ui/Dialog";
+import { Button } from "@/shared/ui/Button";
+import { Label } from "@/shared/ui/Label";
 
 interface CreateApplicationModalProps {
   open: boolean;
@@ -26,18 +30,18 @@ export function CreateApplicationModal({
 }: CreateApplicationModalProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [name, setName] = useState('');
-  const [jobId, setJobId] = useState('');
-  const [resumeId, setResumeId] = useState('');
+  const [name, setName] = useState("");
+  const [jobId, setJobId] = useState("");
+  const [resumeId, setResumeId] = useState("");
 
   const { data: jobsData } = useQuery({
-    queryKey: ['jobs'],
+    queryKey: ["jobs"],
     queryFn: () => jobsService.list({ limit: 100, offset: 0 }),
     enabled: open,
   });
 
   const { data: resumesData } = useQuery({
-    queryKey: ['resumes'],
+    queryKey: ["resumes"],
     queryFn: () => resumesService.list({ limit: 100, offset: 0 }),
     enabled: open,
   });
@@ -45,11 +49,15 @@ export function CreateApplicationModal({
   const createMutation = useMutation({
     mutationFn: applicationsService.create,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['applications'] });
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      showSuccessNotification(t("applications.createSuccess"));
       onOpenChange(false);
-      setName('');
-      setJobId('');
-      setResumeId('');
+      setName("");
+      setJobId("");
+      setResumeId("");
+    },
+    onError: (error: Error) => {
+      showErrorNotification(error.message || t("applications.createError"));
     },
   });
 
@@ -69,27 +77,27 @@ export function CreateApplicationModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent onClose={() => onOpenChange(false)}>
         <DialogHeader>
-          <DialogTitle>{t('applications.create')}</DialogTitle>
+          <DialogTitle>{t("applications.create")}</DialogTitle>
           <DialogDescription>
-            Create a new job application by selecting a job and resume
+            {t("applications.createDescription")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Application Name *</Label>
+              <Label htmlFor="name">{`${t("applications.applicationName")} *`}</Label>
               <input
                 id="name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Backend Developer @ Acme Corp"
+                placeholder={t("applications.applicationNamePlaceholder")}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="job">Job *</Label>
+              <Label htmlFor="job">{`${t("applications.job")} *`}</Label>
               <select
                 id="job"
                 value={jobId}
@@ -97,16 +105,17 @@ export function CreateApplicationModal({
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 required
               >
-                <option value="">Select a job</option>
+                <option value="">{t("applications.selectJob")}</option>
                 {jobsData?.items?.map((job) => (
                   <option key={job.id} value={job.id}>
-                    {job.title}{job.company_name ? ` (${job.company_name})` : ''}
+                    {job.title}
+                    {job.company_name ? ` (${job.company_name})` : ""}
                   </option>
                 ))}
               </select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="resume">Resume *</Label>
+              <Label htmlFor="resume">{`${t("applications.resumeLabel")} *`}</Label>
               <select
                 id="resume"
                 value={resumeId}
@@ -114,7 +123,7 @@ export function CreateApplicationModal({
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 required
               >
-                <option value="">Select a resume</option>
+                <option value="">{t("applications.selectResume")}</option>
                 {resumesData?.items?.map((resume) => (
                   <option key={resume.id} value={resume.id}>
                     {resume.title}
@@ -129,10 +138,12 @@ export function CreateApplicationModal({
               variant="outline"
               onClick={() => onOpenChange(false)}
             >
-              {t('common.cancel')}
+              {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? t('common.loading') : t('common.create')}
+              {createMutation.isPending
+                ? t("common.loading")
+                : t("common.create")}
             </Button>
           </DialogFooter>
         </form>

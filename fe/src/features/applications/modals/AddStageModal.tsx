@@ -1,8 +1,12 @@
-import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { applicationsService } from '@/services/applicationsService';
-import { stageTemplatesService } from '@/services/stageTemplatesService';
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { applicationsService } from "@/services/applicationsService";
+import {
+  showSuccessNotification,
+  showErrorNotification,
+} from "@/shared/lib/notifications";
+import { stageTemplatesService } from "@/services/stageTemplatesService";
 import {
   Dialog,
   DialogContent,
@@ -10,10 +14,10 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from '@/shared/ui/Dialog';
-import { Button } from '@/shared/ui/Button';
-import { Label } from '@/shared/ui/Label';
-import { Input } from '@/shared/ui/Input';
+} from "@/shared/ui/Dialog";
+import { Button } from "@/shared/ui/Button";
+import { Label } from "@/shared/ui/Label";
+import { Input } from "@/shared/ui/Input";
 
 interface AddStageModalProps {
   open: boolean;
@@ -28,11 +32,11 @@ export function AddStageModal({
 }: AddStageModalProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [stageTemplateId, setStageTemplateId] = useState('');
-  const [comment, setComment] = useState('');
+  const [stageTemplateId, setStageTemplateId] = useState("");
+  const [comment, setComment] = useState("");
 
   const { data: stageTemplates } = useQuery({
-    queryKey: ['stage-templates'],
+    queryKey: ["stage-templates"],
     queryFn: () => stageTemplatesService.list({ limit: 100, offset: 0 }),
     enabled: open,
   });
@@ -41,12 +45,20 @@ export function AddStageModal({
     mutationFn: (data: { stage_template_id: string; comment?: string }) =>
       applicationsService.addStage(applicationId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['application-stages', applicationId] });
+      queryClient.invalidateQueries({
+        queryKey: ["application-stages", applicationId],
+      });
       // Application query now includes embedded comments, so this refreshes everything
-      queryClient.invalidateQueries({ queryKey: ['application', applicationId] });
+      queryClient.invalidateQueries({
+        queryKey: ["application", applicationId],
+      });
+      showSuccessNotification(t("applications.stageAddedSuccess"));
       onOpenChange(false);
-      setStageTemplateId('');
-      setComment('');
+      setStageTemplateId("");
+      setComment("");
+    },
+    onError: (error: Error) => {
+      showErrorNotification(error.message || t("applications.stageAddedError"));
     },
   });
 
@@ -64,22 +76,22 @@ export function AddStageModal({
   };
 
   const sortedTemplates = [...(stageTemplates?.items || [])].sort(
-    (a, b) => a.order - b.order
+    (a, b) => a.order - b.order,
   );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent onClose={() => onOpenChange(false)}>
         <DialogHeader>
-          <DialogTitle>Add New Stage</DialogTitle>
+          <DialogTitle>{t("applications.addStageTitle")}</DialogTitle>
           <DialogDescription>
-            Add a new stage to the application timeline
+            {t("applications.addStageDescription")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="stage">Select Stage *</Label>
+              <Label htmlFor="stage">{`${t("applications.selectStage")} *`}</Label>
               <select
                 id="stage"
                 value={stageTemplateId}
@@ -87,7 +99,7 @@ export function AddStageModal({
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 required
               >
-                <option value="">Select a stage</option>
+                <option value="">{t("applications.selectStageOption")}</option>
                 {sortedTemplates.map((template) => (
                   <option key={template.id} value={template.id}>
                     {template.order}. {template.name}
@@ -96,17 +108,19 @@ export function AddStageModal({
               </select>
               {sortedTemplates.length === 0 && (
                 <p className="text-xs text-muted-foreground">
-                  No stage templates found. Create them in the Stages section first.
+                  {t("applications.noStageTemplates")}
                 </p>
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="comment">Comment (optional)</Label>
+              <Label htmlFor="comment">
+                {t("applications.commentOptional")}
+              </Label>
               <Input
                 id="comment"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                placeholder="Add a note about this stage..."
+                placeholder={t("applications.stagePlaceholder")}
                 className="w-full"
               />
             </div>
@@ -117,13 +131,15 @@ export function AddStageModal({
               variant="outline"
               onClick={() => onOpenChange(false)}
             >
-              {t('common.cancel')}
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
               disabled={addStageMutation.isPending || !stageTemplateId}
             >
-              {addStageMutation.isPending ? t('common.loading') : 'Add Stage'}
+              {addStageMutation.isPending
+                ? t("common.loading")
+                : t("applications.addStage")}
             </Button>
           </DialogFooter>
         </form>

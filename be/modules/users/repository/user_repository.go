@@ -6,6 +6,7 @@ import (
 
 	"github.com/andreypavlenko/jobber/modules/users/model"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -40,8 +41,9 @@ func (r *UserRepository) Create(ctx context.Context, user *model.User) error {
 	)
 
 	if err != nil {
-		// Check for unique constraint violation
-		if errors.Is(err, pgx.ErrNoRows) || containsString(err.Error(), "duplicate key") {
+		// Check for unique constraint violation (PostgreSQL error code 23505)
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return model.ErrUserAlreadyExists
 		}
 		return err
@@ -144,16 +146,3 @@ func (r *UserRepository) Delete(ctx context.Context, userID string) error {
 	return nil
 }
 
-// Helper function
-func containsString(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || contains(s, substr)))
-}
-
-func contains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}

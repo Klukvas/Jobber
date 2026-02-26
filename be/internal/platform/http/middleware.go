@@ -1,6 +1,7 @@
 package http
 
 import (
+	"strings"
 	"time"
 
 	"github.com/andreypavlenko/jobber/internal/platform/logger"
@@ -56,11 +57,23 @@ func LoggerMiddleware(log *logger.Logger) gin.HandlerFunc {
 	}
 }
 
-// CORSMiddleware handles CORS
-func CORSMiddleware() gin.HandlerFunc {
+// CORSMiddleware handles CORS with configurable allowed origins.
+// allowedOrigins is a comma-separated list of origins (e.g. "https://jobber-app.com,https://www.jobber-app.com").
+// Pass "*" to allow all origins (development only).
+func CORSMiddleware(allowedOrigins string) gin.HandlerFunc {
+	origins := parseOrigins(allowedOrigins)
+
 	return func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		origin := c.GetHeader("Origin")
+
+		if allowedOrigins == "*" {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+			// Do NOT set Allow-Credentials with wildcard origin — browsers reject this combination
+		} else if isOriginAllowed(origin, origins) {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			c.Writer.Header().Set("Vary", "Origin")
+			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-Request-ID")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, PATCH, DELETE")
 
@@ -71,4 +84,27 @@ func CORSMiddleware() gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func parseOrigins(raw string) []string {
+	if raw == "" || raw == "*" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	origins := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			origins = append(origins, trimmed)
+		}
+	}
+	return origins
+}
+
+func isOriginAllowed(origin string, allowed []string) bool {
+	for _, a := range allowed {
+		if strings.EqualFold(a, origin) {
+			return true
+		}
+	}
+	return false
 }

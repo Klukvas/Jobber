@@ -47,8 +47,8 @@ func (s *AuthService) Register(ctx context.Context, req *authModel.RegisterReque
 		return nil, nil, userModel.ErrInvalidEmail
 	}
 
-	// Validate password
-	if len(req.Password) < 8 {
+	// Validate password (min 8, max 72 — bcrypt silently truncates beyond 72 bytes)
+	if len(req.Password) < 8 || len(req.Password) > 72 {
 		return nil, nil, userModel.ErrInvalidPassword
 	}
 
@@ -119,33 +119,32 @@ func (s *AuthService) Login(ctx context.Context, req *authModel.LoginRequest) (*
 	return user.ToDTO(), tokens, nil
 }
 
-// RefreshTokens refreshes access token using refresh token
+// RefreshTokens refreshes access token using refresh token.
+// Uses atomic revocation to prevent race conditions: the old token is revoked
+// first, and only the request that successfully revokes it gets new tokens.
 func (s *AuthService) RefreshTokens(ctx context.Context, refreshTokenString string) (*authModel.AuthTokens, error) {
-	// Validate refresh token
+	// Validate refresh token JWT signature and expiry
 	claims, err := s.jwtManager.ValidateRefreshToken(refreshTokenString)
 	if err != nil {
 		return nil, errors.New("invalid refresh token")
 	}
 
-	// Check if token exists in database and is valid
+	// Atomically revoke the old token — only one concurrent request wins
 	tokenHash := auth.HashToken(refreshTokenString)
-	dbToken, err := s.tokenRepo.GetByTokenHash(ctx, tokenHash)
+	revoked, err := s.tokenRepo.RevokeIfValid(ctx, tokenHash)
 	if err != nil {
 		return nil, errors.New("invalid refresh token")
 	}
-
-	if !dbToken.IsValid() {
+	if !revoked {
+		// Token was already revoked (by another request) or expired
 		return nil, errors.New("refresh token expired or revoked")
 	}
 
-	// Generate new tokens
+	// Only the winning request reaches here — generate new tokens
 	tokens, err := s.generateTokens(ctx, claims.UserID)
 	if err != nil {
 		return nil, err
 	}
-
-	// Revoke old refresh token
-	_ = s.tokenRepo.Revoke(ctx, tokenHash)
 
 	return tokens, nil
 }

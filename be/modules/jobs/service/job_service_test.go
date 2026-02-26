@@ -6,10 +6,44 @@ import (
 	"testing"
 	"time"
 
+	companyModel "github.com/andreypavlenko/jobber/modules/companies/model"
+	companyPorts "github.com/andreypavlenko/jobber/modules/companies/ports"
 	"github.com/andreypavlenko/jobber/modules/jobs/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// MockCompanyRepository implements companyPorts.CompanyRepository for testing
+type MockCompanyRepository struct {
+	GetByIDFunc func(ctx context.Context, userID, companyID string) (*companyModel.Company, error)
+}
+
+func (m *MockCompanyRepository) Create(ctx context.Context, company *companyModel.Company) error {
+	return nil
+}
+func (m *MockCompanyRepository) GetByID(ctx context.Context, userID, companyID string) (*companyModel.Company, error) {
+	if m.GetByIDFunc != nil {
+		return m.GetByIDFunc(ctx, userID, companyID)
+	}
+	return &companyModel.Company{ID: companyID, UserID: userID}, nil
+}
+func (m *MockCompanyRepository) GetByIDEnriched(ctx context.Context, userID, companyID string) (*companyModel.CompanyDTO, error) {
+	return nil, nil
+}
+func (m *MockCompanyRepository) List(ctx context.Context, userID string, opts *companyPorts.ListOptions) ([]*companyModel.CompanyDTO, int, error) {
+	return nil, 0, nil
+}
+func (m *MockCompanyRepository) Update(ctx context.Context, company *companyModel.Company) error {
+	return nil
+}
+func (m *MockCompanyRepository) Delete(ctx context.Context, userID, companyID string) error {
+	return nil
+}
+func (m *MockCompanyRepository) GetRelatedJobsAndApplicationsCount(ctx context.Context, userID, companyID string) (int, int, error) {
+	return 0, 0, nil
+}
+
+var defaultMockCompanyRepo = &MockCompanyRepository{}
 
 // MockJobRepository implements ports.JobRepository
 type MockJobRepository struct {
@@ -69,7 +103,7 @@ func TestJobService_Create(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		req := &model.CreateJobRequest{
 			Title: "Software Engineer",
 		}
@@ -83,7 +117,7 @@ func TestJobService_Create(t *testing.T) {
 
 	t.Run("returns error for empty title", func(t *testing.T) {
 		mockRepo := &MockJobRepository{}
-		svc := NewJobService(mockRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		req := &model.CreateJobRequest{Title: "   "}
 
 		result, err := svc.Create(context.Background(), userID, req)
@@ -103,7 +137,7 @@ func TestJobService_Create(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		req := &model.CreateJobRequest{Title: "  Software Engineer  "}
 
 		_, err := svc.Create(context.Background(), userID, req)
@@ -127,7 +161,7 @@ func TestJobService_Create(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		req := &model.CreateJobRequest{
 			Title:     "Software Engineer",
 			CompanyID: &companyID,
@@ -154,7 +188,7 @@ func TestJobService_Create(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		req := &model.CreateJobRequest{Title: "Software Engineer"}
 
 		result, err := svc.Create(context.Background(), userID, req)
@@ -186,7 +220,7 @@ func TestJobService_GetByID(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		result, err := svc.GetByID(context.Background(), userID, jobID)
 
 		require.NoError(t, err)
@@ -201,7 +235,7 @@ func TestJobService_GetByID(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		result, err := svc.GetByID(context.Background(), userID, jobID)
 
 		assert.Nil(t, result)
@@ -227,7 +261,7 @@ func TestJobService_List(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		result, total, err := svc.List(context.Background(), userID, 20, 0, "active", "", "")
 
 		require.NoError(t, err)
@@ -242,7 +276,7 @@ func TestJobService_List(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		result, total, err := svc.List(context.Background(), userID, 20, 0, "active", "", "")
 
 		require.NoError(t, err)
@@ -259,7 +293,7 @@ func TestJobService_List(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		_, _, err := svc.List(context.Background(), userID, 20, 0, "active", "title", "asc")
 
 		require.NoError(t, err)
@@ -289,7 +323,7 @@ func TestJobService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		newTitle := "New Title"
 		req := &model.UpdateJobRequest{Title: &newTitle}
 
@@ -313,7 +347,7 @@ func TestJobService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		emptyTitle := "   "
 		req := &model.UpdateJobRequest{Title: &emptyTitle}
 
@@ -337,7 +371,7 @@ func TestJobService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		invalidStatus := "invalid-status"
 		req := &model.UpdateJobRequest{Status: &invalidStatus}
 
@@ -364,7 +398,7 @@ func TestJobService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		newStatus := "archived"
 		req := &model.UpdateJobRequest{Status: &newStatus}
 
@@ -381,7 +415,7 @@ func TestJobService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		newTitle := "New Title"
 		req := &model.UpdateJobRequest{Title: &newTitle}
 
@@ -406,7 +440,7 @@ func TestJobService_Delete(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		err := svc.Delete(context.Background(), userID, jobID)
 
 		require.NoError(t, err)
@@ -420,7 +454,7 @@ func TestJobService_Delete(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		err := svc.Delete(context.Background(), userID, jobID)
 
 		assert.Equal(t, model.ErrJobNotFound, err)

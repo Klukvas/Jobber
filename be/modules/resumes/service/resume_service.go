@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -141,7 +142,7 @@ func (s *ResumeService) Delete(ctx context.Context, userID, resumeID string) err
 			//     zap.Error(err))
 			
 			// For now, just print to stderr (will appear in server logs)
-			fmt.Printf("Warning: Failed to delete S3 object for resume %s: %v\n", resumeID, err)
+			log.Printf("[WARN] Failed to delete S3 object for resume %s: %v", resumeID, err)
 		}
 	}
 

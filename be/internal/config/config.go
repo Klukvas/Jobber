@@ -19,8 +19,9 @@ type Config struct {
 
 // ServerConfig holds server configuration
 type ServerConfig struct {
-	Port string
-	Env  string
+	Port           string
+	Env            string
+	AllowedOrigins string
 }
 
 // DatabaseConfig holds database configuration
@@ -71,8 +72,9 @@ type S3Config struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		Server: ServerConfig{
-			Port: getEnv("SERVER_PORT", "8080"),
-			Env:  getEnv("SERVER_ENV", "development"),
+			Port:           getEnv("SERVER_PORT", "8080"),
+			Env:            getEnv("SERVER_ENV", "development"),
+			AllowedOrigins: getEnv("ALLOWED_ORIGINS", "*"),
 		},
 		Database: DatabaseConfig{
 			Host:            getEnv("DB_HOST", "localhost"),

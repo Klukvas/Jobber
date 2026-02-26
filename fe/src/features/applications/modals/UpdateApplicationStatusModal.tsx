@@ -1,7 +1,11 @@
-import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { applicationsService } from '@/services/applicationsService';
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { applicationsService } from "@/services/applicationsService";
+import {
+  showSuccessNotification,
+  showErrorNotification,
+} from "@/shared/lib/notifications";
 import {
   Dialog,
   DialogContent,
@@ -9,9 +13,9 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from '@/shared/ui/Dialog';
-import { Button } from '@/shared/ui/Button';
-import { Label } from '@/shared/ui/Label';
+} from "@/shared/ui/Dialog";
+import { Button } from "@/shared/ui/Button";
+import { Label } from "@/shared/ui/Label";
 
 interface UpdateApplicationStatusModalProps {
   open: boolean;
@@ -20,10 +24,7 @@ interface UpdateApplicationStatusModalProps {
   currentStatus: string;
 }
 
-const APPLICATION_STATUSES = [
-  { value: 'active', label: 'Active', description: 'Application is active' },
-  { value: 'closed', label: 'Closed', description: 'Application is closed' },
-];
+const APPLICATION_STATUS_VALUES = ["active", "closed"] as const;
 
 export function UpdateApplicationStatusModal({
   open,
@@ -39,9 +40,17 @@ export function UpdateApplicationStatusModal({
     mutationFn: (status: string) =>
       applicationsService.update(applicationId, { status }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['application', applicationId] });
-      queryClient.invalidateQueries({ queryKey: ['applications'] });
+      queryClient.invalidateQueries({
+        queryKey: ["application", applicationId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      showSuccessNotification(t("applications.statusUpdateSuccess"));
       onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      showErrorNotification(
+        error.message || t("applications.statusUpdateError"),
+      );
     },
   });
 
@@ -58,21 +67,21 @@ export function UpdateApplicationStatusModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent onClose={() => onOpenChange(false)}>
         <DialogHeader>
-          <DialogTitle>Change Application Status</DialogTitle>
+          <DialogTitle>{t("applications.changeStatusTitle")}</DialogTitle>
           <DialogDescription>
-            Update the status of this application
+            {t("applications.changeStatusDescription")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Current Status</Label>
+              <Label>{t("applications.currentStatus")}</Label>
               <div className="rounded-md bg-muted px-3 py-2 text-sm">
                 {currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)}
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="status">New Status *</Label>
+              <Label htmlFor="status">{`${t("applications.newStatus")} *`}</Label>
               <select
                 id="status"
                 value={newStatus}
@@ -80,16 +89,22 @@ export function UpdateApplicationStatusModal({
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 required
               >
-                {APPLICATION_STATUSES.map((status) => (
-                  <option key={status.value} value={status.value}>
-                    {status.label} - {status.description}
+                {APPLICATION_STATUS_VALUES.map((value) => (
+                  <option key={value} value={value}>
+                    {t(
+                      `applications.status${value.charAt(0).toUpperCase() + value.slice(1)}`,
+                    )}{" "}
+                    -{" "}
+                    {t(
+                      `applications.status${value.charAt(0).toUpperCase() + value.slice(1)}Desc`,
+                    )}
                   </option>
                 ))}
               </select>
             </div>
             {updateStatusMutation.isError && (
               <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                Failed to update status. Please try again.
+                {t("applications.statusUpdateFailed")}
               </div>
             )}
           </div>
@@ -99,13 +114,17 @@ export function UpdateApplicationStatusModal({
               variant="outline"
               onClick={() => onOpenChange(false)}
             >
-              {t('common.cancel')}
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
-              disabled={updateStatusMutation.isPending || newStatus === currentStatus}
+              disabled={
+                updateStatusMutation.isPending || newStatus === currentStatus
+              }
             >
-              {updateStatusMutation.isPending ? t('common.loading') : 'Update Status'}
+              {updateStatusMutation.isPending
+                ? t("common.loading")
+                : t("applications.updateStatus")}
             </Button>
           </DialogFooter>
         </form>

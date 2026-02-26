@@ -1,12 +1,23 @@
-import { useState, useRef, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { ApplicationStageDTO, CommentDTO } from '@/shared/types/api';
-import { applicationsService } from '@/services/applicationsService';
-import { CheckCircle, Circle, Clock, Check, MoreVertical, Trash2, Edit, MessageSquare } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { Button } from '@/shared/ui/Button';
-import { UpdateStageStatusModal } from '../modals/UpdateStageStatusModal';
-import { AddCommentModal } from '../modals/AddCommentModal';
+import { useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { ApplicationStageDTO, CommentDTO } from "@/shared/types/api";
+import { applicationsService } from "@/services/applicationsService";
+import { showErrorNotification } from "@/shared/lib/notifications";
+import {
+  CheckCircle,
+  Circle,
+  Clock,
+  Check,
+  MoreVertical,
+  Trash2,
+  Edit,
+  MessageSquare,
+} from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { Button } from "@/shared/ui/Button";
+import { UpdateStageStatusModal } from "../modals/UpdateStageStatusModal";
+import { AddCommentModal } from "../modals/AddCommentModal";
 
 interface TimelineProps {
   stages: ApplicationStageDTO[];
@@ -14,13 +25,23 @@ interface TimelineProps {
   stageComments: CommentDTO[];
 }
 
-export function Timeline({ stages, applicationId, stageComments }: TimelineProps) {
+export function Timeline({
+  stages,
+  applicationId,
+  stageComments,
+}: TimelineProps) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [selectedStage, setSelectedStage] = useState<ApplicationStageDTO | null>(null);
+  const [selectedStage, setSelectedStage] =
+    useState<ApplicationStageDTO | null>(null);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
-  const [confirmDeleteStage, setConfirmDeleteStage] = useState<ApplicationStageDTO | null>(null);
+  const [confirmDeleteStage, setConfirmDeleteStage] =
+    useState<ApplicationStageDTO | null>(null);
   const [commentModalOpen, setCommentModalOpen] = useState(false);
-  const [commentStage, setCommentStage] = useState<{ id: string; name: string } | null>(null);
+  const [commentStage, setCommentStage] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const completeStage = useMutation({
@@ -29,8 +50,12 @@ export function Timeline({ stages, applicationId, stageComments }: TimelineProps
         completed_at: new Date().toISOString(),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['application-stages', applicationId] });
-      queryClient.invalidateQueries({ queryKey: ['application', applicationId] });
+      queryClient.invalidateQueries({
+        queryKey: ["application-stages", applicationId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["application", applicationId],
+      });
     },
   });
 
@@ -38,12 +63,16 @@ export function Timeline({ stages, applicationId, stageComments }: TimelineProps
     mutationFn: (stageId: string) =>
       applicationsService.deleteStage(applicationId, stageId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['application-stages', applicationId] });
-      queryClient.invalidateQueries({ queryKey: ['application', applicationId] });
+      queryClient.invalidateQueries({
+        queryKey: ["application-stages", applicationId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["application", applicationId],
+      });
       setConfirmDeleteStage(null);
     },
-    onError: (error) => {
-      console.error('Failed to delete stage:', error);
+    onError: () => {
+      showErrorNotification(t("applications.deleteStageError"));
     },
   });
 
@@ -55,9 +84,9 @@ export function Timeline({ stages, applicationId, stageComments }: TimelineProps
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
@@ -88,23 +117,33 @@ export function Timeline({ stages, applicationId, stageComments }: TimelineProps
 
   // Merge stages and stage comments into a single timeline
   const timelineItems = [
-    ...stages.map(stage => ({ type: 'stage' as const, data: stage, timestamp: stage.started_at })),
-    ...stageComments.map(comment => ({ type: 'comment' as const, data: comment, timestamp: comment.created_at }))
-  ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    ...stages.map((stage) => ({
+      type: "stage" as const,
+      data: stage,
+      timestamp: stage.started_at,
+    })),
+    ...stageComments.map((comment) => ({
+      type: "comment" as const,
+      data: comment,
+      timestamp: comment.created_at,
+    })),
+  ].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+  );
   return (
     <div className="relative space-y-6">
       {timelineItems.length === 0 && (
         <p className="text-center text-sm text-muted-foreground">
-          No stages yet. Click "Add new stage" to get started.
+          {t("applications.noStagesYet")}
         </p>
       )}
 
       {timelineItems.map((item, index) => {
-        if (item.type === 'comment') {
+        if (item.type === "comment") {
           const comment = item.data as CommentDTO;
           const isLast = index === timelineItems.length - 1;
-          const relatedStage = comment.stage_id 
-            ? stages.find(s => s.id === comment.stage_id)
+          const relatedStage = comment.stage_id
+            ? stages.find((s) => s.id === comment.stage_id)
             : null;
 
           return (
@@ -121,10 +160,14 @@ export function Timeline({ stages, applicationId, stageComments }: TimelineProps
                 <div className="rounded-lg border bg-muted/50 p-4">
                   {relatedStage && (
                     <p className="text-xs text-muted-foreground mb-2">
-                      Comment on: {relatedStage.stage_name}
+                      {t("applications.commentOn", {
+                        stageName: relatedStage.stage_name,
+                      })}
                     </p>
                   )}
-                  <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
+                  <p className="text-sm whitespace-pre-wrap">
+                    {comment.content}
+                  </p>
                   <p className="text-xs text-muted-foreground mt-2">
                     {formatDistanceToNow(new Date(comment.created_at), {
                       addSuffix: true,
@@ -137,8 +180,8 @@ export function Timeline({ stages, applicationId, stageComments }: TimelineProps
         }
 
         const stage = item.data as ApplicationStageDTO;
-        const isCompleted = stage.status === 'completed';
-        const isActive = stage.status === 'active';
+        const isCompleted = stage.status === "completed";
+        const isActive = stage.status === "active";
         const isLast = index === timelineItems.length - 1;
 
         return (
@@ -172,14 +215,16 @@ export function Timeline({ stages, applicationId, stageComments }: TimelineProps
                       disabled={completeStage.isPending}
                     >
                       <Check className="h-4 w-4" />
-                      Complete
+                      {t("applications.complete")}
                     </Button>
                   )}
                   <div className="relative">
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => setMenuOpen(menuOpen === stage.id ? null : stage.id)}
+                      onClick={() =>
+                        setMenuOpen(menuOpen === stage.id ? null : stage.id)
+                      }
                       title="Stage options"
                     >
                       <MoreVertical className="h-4 w-4" />
@@ -195,21 +240,23 @@ export function Timeline({ stages, applicationId, stageComments }: TimelineProps
                             className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-accent"
                           >
                             <Edit className="h-4 w-4" />
-                            Change status
+                            {t("applications.changeStatus")}
                           </button>
                           <button
-                            onClick={() => handleAddComment(stage.id, stage.stage_name)}
+                            onClick={() =>
+                              handleAddComment(stage.id, stage.stage_name)
+                            }
                             className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-accent"
                           >
                             <MessageSquare className="h-4 w-4" />
-                            Add comment
+                            {t("applications.addComment")}
                           </button>
                           <button
                             onClick={() => handleDeleteClick(stage)}
                             className="flex w-full items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-accent"
                           >
                             <Trash2 className="h-4 w-4" />
-                            Delete
+                            {t("common.delete")}
                           </button>
                         </div>
                       </div>
@@ -218,14 +265,14 @@ export function Timeline({ stages, applicationId, stageComments }: TimelineProps
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">
-                Started{' '}
+                {t("applications.started")}{" "}
                 {formatDistanceToNow(new Date(stage.started_at), {
                   addSuffix: true,
                 })}
               </p>
               {stage.completed_at && (
                 <p className="text-sm text-muted-foreground">
-                  Completed{' '}
+                  {t("applications.completed")}{" "}
                   {formatDistanceToNow(new Date(stage.completed_at), {
                     addSuffix: true,
                   })}
@@ -234,10 +281,10 @@ export function Timeline({ stages, applicationId, stageComments }: TimelineProps
               <span
                 className={`mt-2 inline-block rounded-full px-2 py-1 text-xs font-medium ${
                   isCompleted
-                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100'
+                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
                     : isActive
-                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100'
-                    : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100'
+                      ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
+                      : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
                 }`}
               >
                 {stage.status}
@@ -268,10 +315,13 @@ export function Timeline({ stages, applicationId, stageComments }: TimelineProps
       {confirmDeleteStage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-lg">
-            <h2 className="text-xl font-semibold mb-4">Delete Stage</h2>
+            <h2 className="text-xl font-semibold mb-4">
+              {t("applications.deleteStage")}
+            </h2>
             <p className="text-sm text-muted-foreground mb-6">
-              Are you sure you want to delete the stage "{confirmDeleteStage.stage_name}"? 
-              This action cannot be undone.
+              {t("applications.deleteStageConfirm", {
+                stageName: confirmDeleteStage.stage_name,
+              })}
             </p>
             <div className="flex justify-end gap-2">
               <Button
@@ -279,14 +329,16 @@ export function Timeline({ stages, applicationId, stageComments }: TimelineProps
                 onClick={() => setConfirmDeleteStage(null)}
                 disabled={deleteStage.isPending}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="destructive"
                 onClick={handleConfirmDelete}
                 disabled={deleteStage.isPending}
               >
-                {deleteStage.isPending ? 'Deleting...' : 'Delete'}
+                {deleteStage.isPending
+                  ? t("common.loading")
+                  : t("common.delete")}
               </Button>
             </div>
           </div>

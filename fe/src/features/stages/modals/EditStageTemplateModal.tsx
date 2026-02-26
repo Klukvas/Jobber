@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { stageTemplatesService } from "@/services/stageTemplatesService";
@@ -17,39 +17,48 @@ import {
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { Label } from "@/shared/ui/Label";
+import type { StageTemplateDTO } from "@/shared/types/api";
 
-interface CreateStageTemplateModalProps {
+interface EditStageTemplateModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  template: StageTemplateDTO | null;
 }
 
-export function CreateStageTemplateModal({
+export function EditStageTemplateModal({
   open,
   onOpenChange,
-}: CreateStageTemplateModalProps) {
+  template,
+}: EditStageTemplateModalProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [order, setOrder] = useState("");
 
-  const createMutation = useMutation({
-    mutationFn: stageTemplatesService.create,
+  useEffect(() => {
+    if (template) {
+      setName(template.name);
+      setOrder(String(template.order));
+    }
+  }, [template]);
+
+  const updateMutation = useMutation({
+    mutationFn: (data: { name: string; order: number }) =>
+      stageTemplatesService.update(template!.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stage-templates"] });
-      showSuccessNotification(t("stages.createSuccess"));
+      showSuccessNotification("Stage template updated successfully");
       onOpenChange(false);
-      setName("");
-      setOrder("");
     },
     onError: (error: Error) => {
-      showErrorNotification(error.message || t("stages.createError"));
+      showErrorNotification(error.message || "Failed to update stage template");
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name && order) {
-      createMutation.mutate({
+    if (name && order && template) {
+      updateMutation.mutate({
         name,
         order: parseInt(order),
       });
@@ -60,35 +69,30 @@ export function CreateStageTemplateModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent onClose={() => onOpenChange(false)}>
         <DialogHeader>
-          <DialogTitle>{t("stages.createTitle")}</DialogTitle>
-          <DialogDescription>{t("stages.createDescription")}</DialogDescription>
+          <DialogTitle>{t("stages.edit")}</DialogTitle>
+          <DialogDescription>{t("stages.editDescription")}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name">{`${t("stages.stageName")} *`}</Label>
+              <Label htmlFor="edit-name">{t("stages.name")} *</Label>
               <Input
-                id="name"
+                id="edit-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder={t("stages.stageNamePlaceholder")}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="order">{`${t("stages.order")} *`}</Label>
+              <Label htmlFor="edit-order">{t("stages.order")} *</Label>
               <Input
-                id="order"
+                id="edit-order"
                 type="number"
                 min="0"
                 value={order}
                 onChange={(e) => setOrder(e.target.value)}
-                placeholder={t("stages.orderPlaceholder")}
                 required
               />
-              <p className="text-xs text-muted-foreground">
-                {t("stages.orderDescription")}
-              </p>
             </div>
           </div>
           <DialogFooter>
@@ -101,11 +105,11 @@ export function CreateStageTemplateModal({
             </Button>
             <Button
               type="submit"
-              disabled={createMutation.isPending || !name || !order}
+              disabled={updateMutation.isPending || !name || !order}
             >
-              {createMutation.isPending
+              {updateMutation.isPending
                 ? t("common.loading")
-                : t("common.create")}
+                : t("common.save")}
             </Button>
           </DialogFooter>
         </form>

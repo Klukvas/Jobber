@@ -53,6 +53,7 @@ func MustGetUserID(c *gin.Context) (string, bool) {
 	userID, exists := GetUserID(c)
 	if !exists {
 		httpPlatform.RespondWithError(c, 401, "UNAUTHORIZED", "Unauthorized")
+		c.Abort()
 		return "", false
 	}
 	return userID, true

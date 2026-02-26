@@ -3,12 +3,12 @@ package repository
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/andreypavlenko/jobber/modules/resumes/model"
 	"github.com/andreypavlenko/jobber/modules/resumes/ports"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -167,8 +167,8 @@ func (r *ResumeRepository) Delete(ctx context.Context, userID, resumeID string) 
 	result, err := r.pool.Exec(ctx, query, resumeID, userID)
 	if err != nil {
 		// Check if error is foreign key constraint violation (resume used in applications)
-		// PostgreSQL error code 23503 = foreign_key_violation
-		if strings.Contains(err.Error(), "foreign key") || strings.Contains(err.Error(), "23503") {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
 			return model.ErrResumeInUse
 		}
 		return err

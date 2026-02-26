@@ -4,18 +4,20 @@ import (
 	"context"
 	"strings"
 
+	companyPorts "github.com/andreypavlenko/jobber/modules/companies/ports"
 	"github.com/andreypavlenko/jobber/modules/jobs/model"
 	"github.com/andreypavlenko/jobber/modules/jobs/ports"
 )
 
 // JobService handles job business logic
 type JobService struct {
-	repo ports.JobRepository
+	repo        ports.JobRepository
+	companyRepo companyPorts.CompanyRepository
 }
 
 // NewJobService creates a new job service
-func NewJobService(repo ports.JobRepository) *JobService {
-	return &JobService{repo: repo}
+func NewJobService(repo ports.JobRepository, companyRepo companyPorts.CompanyRepository) *JobService {
+	return &JobService{repo: repo, companyRepo: companyRepo}
 }
 
 // Create creates a new job
@@ -23,6 +25,13 @@ func (s *JobService) Create(ctx context.Context, userID string, req *model.Creat
 	// Validate
 	if strings.TrimSpace(req.Title) == "" {
 		return nil, model.ErrJobTitleRequired
+	}
+
+	// Validate company ownership if provided
+	if req.CompanyID != nil && *req.CompanyID != "" {
+		if _, err := s.companyRepo.GetByID(ctx, userID, *req.CompanyID); err != nil {
+			return nil, model.ErrCompanyNotFound
+		}
 	}
 
 	job := &model.Job{
@@ -66,6 +75,12 @@ func (s *JobService) Update(ctx context.Context, userID, jobID string, req *mode
 
 	// Update fields
 	if req.CompanyID != nil {
+		// Validate company ownership if a non-empty company ID is provided
+		if *req.CompanyID != "" {
+			if _, err := s.companyRepo.GetByID(ctx, userID, *req.CompanyID); err != nil {
+				return nil, model.ErrCompanyNotFound
+			}
+		}
 		job.CompanyID = req.CompanyID
 	}
 	if req.Title != nil {
