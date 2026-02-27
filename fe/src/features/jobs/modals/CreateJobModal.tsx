@@ -7,7 +7,7 @@ import {
   showErrorNotification,
 } from "@/shared/lib/notifications";
 import { companiesService } from "@/services/companiesService";
-import type { JobDTO, UpdateJobRequest } from "@/shared/types/api";
+import type { JobDTO, UpdateJobRequest, BoardColumn } from "@/shared/types/api";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +37,9 @@ function ModalContent({ job, onOpenChange, open }: CreateJobModalProps) {
   const [url, setUrl] = useState(job?.url || "");
   const [source, setSource] = useState(job?.source || "");
   const [notes, setNotes] = useState(job?.notes || "");
+  const [boardColumn, setBoardColumn] = useState<BoardColumn>(
+    job?.board_column || "wishlist",
+  );
 
   const { data: companiesData } = useQuery({
     queryKey: ["companies"],
@@ -72,18 +75,27 @@ function ModalContent({ job, onOpenChange, open }: CreateJobModalProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (title) {
-      const data = {
-        title,
-        company_id: companyId || undefined,
-        url: url || undefined,
-        source: source || undefined,
-        notes: notes || undefined,
-      };
-
       if (isEditMode && job) {
-        updateMutation.mutate({ id: job.id, data });
+        updateMutation.mutate({
+          id: job.id,
+          data: {
+            title,
+            company_id: companyId || undefined,
+            url: url || undefined,
+            source: source || undefined,
+            notes: notes || undefined,
+            board_column: boardColumn,
+          },
+        });
       } else {
-        createMutation.mutate(data);
+        createMutation.mutate({
+          title,
+          company_id: companyId || undefined,
+          url: url || undefined,
+          source: source || undefined,
+          notes: notes || undefined,
+          board_column: boardColumn,
+        });
       }
     }
   };
@@ -156,6 +168,21 @@ function ModalContent({ job, onOpenChange, open }: CreateJobModalProps) {
               placeholder={t("jobs.notesPlaceholder")}
               className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="board_column">{t("jobs.board.columnLabel")}</Label>
+            <select
+              id="board_column"
+              value={boardColumn}
+              onChange={(e) => setBoardColumn(e.target.value as BoardColumn)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="wishlist">{t("jobs.board.wishlist")}</option>
+              <option value="applied">{t("jobs.board.applied")}</option>
+              <option value="interview">{t("jobs.board.interview")}</option>
+              <option value="offer">{t("jobs.board.offer")}</option>
+              <option value="rejected">{t("jobs.board.rejected")}</option>
+            </select>
           </div>
         </div>
         <DialogFooter>

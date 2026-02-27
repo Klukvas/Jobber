@@ -2,22 +2,63 @@ package service
 
 import (
 	"context"
+	"errors"
+	"net/url"
 	"strings"
 
 	companyPorts "github.com/andreypavlenko/jobber/modules/companies/ports"
 	"github.com/andreypavlenko/jobber/modules/jobs/model"
 	"github.com/andreypavlenko/jobber/modules/jobs/ports"
+	"github.com/andreypavlenko/jobber/modules/jobs/service/parser"
 )
 
 // JobService handles job business logic
 type JobService struct {
-	repo        ports.JobRepository
-	companyRepo companyPorts.CompanyRepository
+	repo           ports.JobRepository
+	companyRepo    companyPorts.CompanyRepository
+	parserRegistry *parser.Registry
 }
 
 // NewJobService creates a new job service
-func NewJobService(repo ports.JobRepository, companyRepo companyPorts.CompanyRepository) *JobService {
-	return &JobService{repo: repo, companyRepo: companyRepo}
+func NewJobService(repo ports.JobRepository, companyRepo companyPorts.CompanyRepository, parserRegistry *parser.Registry) *JobService {
+	return &JobService{repo: repo, companyRepo: companyRepo, parserRegistry: parserRegistry}
+}
+
+// ImportParse parses a job URL and returns structured job data
+func (s *JobService) ImportParse(ctx context.Context, req *model.ImportParseRequest) (*model.ImportParseResponse, error) {
+	rawURL := strings.TrimSpace(req.URL)
+	if rawURL == "" {
+		return nil, model.ErrInvalidURL
+	}
+
+	parsed, err := url.ParseRequestURI(rawURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return nil, model.ErrInvalidURL
+	}
+
+	result, err := s.parserRegistry.Parse(ctx, rawURL)
+	if err != nil {
+		// Map parser errors to model errors
+		switch {
+		case errors.Is(err, parser.ErrUnsupportedJobSite):
+			return nil, model.ErrUnsupportedJobSite
+		case errors.Is(err, parser.ErrFetchFailed):
+			return nil, model.ErrFetchFailed
+		case errors.Is(err, parser.ErrParseFailed):
+			return nil, model.ErrParseFailed
+		default:
+			return nil, err
+		}
+	}
+
+	return &model.ImportParseResponse{
+		Title:       result.Title,
+		CompanyName: result.CompanyName,
+		Location:    result.Location,
+		Description: result.Description,
+		Source:      result.Source,
+		URL:         result.URL,
+	}, nil
 }
 
 // Create creates a new job
@@ -34,13 +75,23 @@ func (s *JobService) Create(ctx context.Context, userID string, req *model.Creat
 		}
 	}
 
+	// Validate and set board column
+	boardColumn := "wishlist"
+	if req.BoardColumn != nil && *req.BoardColumn != "" {
+		if !model.ValidBoardColumns[*req.BoardColumn] {
+			return nil, model.ErrInvalidBoardColumn
+		}
+		boardColumn = *req.BoardColumn
+	}
+
 	job := &model.Job{
-		UserID:    userID,
-		CompanyID: req.CompanyID,
-		Title:     strings.TrimSpace(req.Title),
-		Source:    req.Source,
-		URL:       req.URL,
-		Notes:     req.Notes,
+		UserID:      userID,
+		CompanyID:   req.CompanyID,
+		Title:       strings.TrimSpace(req.Title),
+		Source:      req.Source,
+		URL:         req.URL,
+		Notes:       req.Notes,
+		BoardColumn: boardColumn,
 	}
 
 	if err := s.repo.Create(ctx, job); err != nil {
@@ -60,9 +111,9 @@ func (s *JobService) GetByID(ctx context.Context, userID, jobID string) (*model.
 }
 
 // List retrieves jobs for a user with pagination, filtering, and sorting
-func (s *JobService) List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error) {
+func (s *JobService) List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder, boardColumn string) ([]*model.JobDTO, int, error) {
 	// Repository now returns JobDTO directly with enriched data
-	return s.repo.List(ctx, userID, limit, offset, status, sortBy, sortOrder)
+	return s.repo.List(ctx, userID, limit, offset, status, sortBy, sortOrder, boardColumn)
 }
 
 // Update updates a job
@@ -104,6 +155,12 @@ func (s *JobService) Update(ctx context.Context, userID, jobID string, req *mode
 			return nil, model.ErrInvalidJobStatus
 		}
 		job.Status = *req.Status
+	}
+	if req.BoardColumn != nil {
+		if !model.ValidBoardColumns[*req.BoardColumn] {
+			return nil, model.ErrInvalidBoardColumn
+		}
+		job.BoardColumn = *req.BoardColumn
 	}
 
 	if err := s.repo.Update(ctx, job); err != nil {

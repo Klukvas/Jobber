@@ -138,7 +138,21 @@
     "completed": "Completed",
     "deleteStage": "Delete Stage",
     "deleteStageConfirm": "Are you sure you want to delete the stage \"{{stageName}}\"? This action cannot be undone.",
-    "deleteStageError": "Failed to delete stage"
+    "deleteStageError": "Failed to delete stage",
+    "schedule": {
+      "button": "Schedule",
+      "title": "Schedule Event",
+      "description": "Create a Google Calendar event for this stage",
+      "eventTitle": "Event Title",
+      "startTime": "Start Time",
+      "duration": "Duration",
+      "minutes": "min",
+      "eventDescription": "Description",
+      "descriptionPlaceholder": "Add details about the meeting...",
+      "schedule": "Schedule",
+      "createSuccess": "Event scheduled successfully",
+      "createError": "Failed to schedule event"
+    }
   },
   "resumes": {
     "title": "Resumes",
@@ -211,7 +225,37 @@
     "titlePlaceholder": "e.g., Senior Software Engineer",
     "selectCompany": "Select a company (optional)",
     "sourcePlaceholder": "e.g., LinkedIn, Indeed, Company Website",
-    "notesPlaceholder": "Any additional notes about the job..."
+    "notesPlaceholder": "Any additional notes about the job...",
+    "viewGrid": "Grid",
+    "viewKanban": "Board",
+    "board": {
+      "wishlist": "Wishlist",
+      "applied": "Applied",
+      "interview": "Interview",
+      "offer": "Offer",
+      "rejected": "Rejected",
+      "columnLabel": "Board Column",
+      "emptyColumn": "No jobs in this column",
+      "moveSuccess": "Job moved successfully",
+      "moveError": "Failed to move job"
+    },
+    "import": {
+      "button": "Import",
+      "title": "Import Job",
+      "description": "Paste a job URL from LinkedIn, DOU, or Indeed to import it automatically",
+      "urlLabel": "Job URL",
+      "urlPlaceholder": "https://linkedin.com/jobs/view/...",
+      "parse": "Parse",
+      "parsing": "Parsing...",
+      "parseError": "Failed to parse job URL",
+      "reviewTitle": "Review Imported Job",
+      "reviewDescription": "Review and edit the imported job data before saving",
+      "importJob": "Import Job",
+      "importSuccess": "Job imported successfully",
+      "importError": "Failed to import job",
+      "detectedCompany": "Detected company",
+      "location": "Location"
+    }
   },
   "settings": {
     "title": "Settings",
@@ -225,7 +269,18 @@
     "english": "English",
     "ukrainian": "Українська",
     "account": "Account",
-    "accountDescription": "Manage your account settings"
+    "accountDescription": "Manage your account settings",
+    "calendar": {
+      "title": "Google Calendar",
+      "description": "Connect your Google Calendar to schedule interviews directly",
+      "connect": "Connect Google Calendar",
+      "disconnect": "Disconnect",
+      "connected": "Connected",
+      "connectSuccess": "Google Calendar connected successfully",
+      "connectError": "Failed to connect Google Calendar",
+      "disconnectSuccess": "Google Calendar disconnected",
+      "disconnectError": "Failed to disconnect Google Calendar"
+    }
   },
   "errors": {
     "required": "This field is required",

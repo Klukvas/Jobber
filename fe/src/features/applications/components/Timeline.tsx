@@ -13,11 +13,13 @@ import {
   Trash2,
   Edit,
   MessageSquare,
+  CalendarPlus,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/shared/ui/Button";
 import { UpdateStageStatusModal } from "../modals/UpdateStageStatusModal";
 import { AddCommentModal } from "../modals/AddCommentModal";
+import { ScheduleStageModal } from "@/features/calendar/modals/ScheduleStageModal";
 
 interface TimelineProps {
   stages: ApplicationStageDTO[];
@@ -42,6 +44,10 @@ export function Timeline({
     id: string;
     name: string;
   } | null>(null);
+  const [scheduleStage, setScheduleStage] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const completeStage = useMutation({
@@ -56,6 +62,9 @@ export function Timeline({
       queryClient.invalidateQueries({
         queryKey: ["application", applicationId],
       });
+    },
+    onError: () => {
+      showErrorNotification(t("applications.stageStatusUpdateError"));
     },
   });
 
@@ -252,6 +261,19 @@ export function Timeline({
                             {t("applications.addComment")}
                           </button>
                           <button
+                            onClick={() => {
+                              setScheduleStage({
+                                id: stage.id,
+                                name: stage.stage_name,
+                              });
+                              setMenuOpen(null);
+                            }}
+                            className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-accent"
+                          >
+                            <CalendarPlus className="h-4 w-4" />
+                            {t("applications.schedule.button")}
+                          </button>
+                          <button
                             onClick={() => handleDeleteClick(stage)}
                             className="flex w-full items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-accent"
                           >
@@ -308,6 +330,16 @@ export function Timeline({
           onOpenChange={(open) => !open && setSelectedStage(null)}
           applicationId={applicationId}
           stage={selectedStage}
+        />
+      )}
+
+      {scheduleStage && (
+        <ScheduleStageModal
+          open={!!scheduleStage}
+          onOpenChange={(open) => !open && setScheduleStage(null)}
+          stageId={scheduleStage.id}
+          stageName={scheduleStage.name}
+          applicationId={applicationId}
         />
       )}
 

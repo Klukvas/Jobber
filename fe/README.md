@@ -14,6 +14,7 @@ Job Application Tracking Platform - Frontend Application
 - **Zustand** - Client state management
 - **i18next** - Internationalization
 - **ky** - HTTP client
+- **@dnd-kit** - Drag-and-drop toolkit
 
 ## Project Structure
 
@@ -26,6 +27,7 @@ src/
 ├── pages/          # Route-level pages
 ├── features/       # Business features
 │   ├── applications/
+│   ├── jobs/       # Kanban board, job cards, modals
 │   └── resumes/
 ├── entities/       # Domain entities (types & helpers)
 ├── widgets/        # Reusable composed UI blocks
@@ -85,7 +87,7 @@ The app will be available at `http://localhost:3000`
 - **Applications** - Track job applications with stages
 - **Resumes** - Manage multiple resume versions
 - **Companies** - Store company information
-- **Jobs** - Track job postings
+- **Jobs** - Track job postings (Grid & Kanban board views with drag-and-drop)
 - **Settings** - Theme, language, account settings
 
 ### UI/UX

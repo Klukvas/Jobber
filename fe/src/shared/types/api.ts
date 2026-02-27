@@ -58,12 +58,12 @@ export interface RefreshRequest {
 }
 
 // Application Status
-export type ApplicationStatus = 
-  | 'active' 
-  | 'on_hold' 
-  | 'rejected' 
-  | 'offer' 
-  | 'archived';
+export type ApplicationStatus =
+  | "active"
+  | "on_hold"
+  | "rejected"
+  | "offer"
+  | "archived";
 
 // Nested DTOs for Application
 export interface JobNestedDTO {
@@ -127,7 +127,7 @@ export interface CompleteStageRequest {
 }
 
 export interface UpdateStageRequest {
-  status?: 'pending' | 'active' | 'completed' | 'skipped' | 'cancelled';
+  status?: "pending" | "active" | "completed" | "skipped" | "cancelled";
   completed_at?: string;
 }
 
@@ -159,7 +159,7 @@ export interface CompanyDTO {
   updated_at: string;
   applications_count: number;
   active_applications_count: number;
-  derived_status: 'idle' | 'active' | 'interviewing';
+  derived_status: "idle" | "active" | "interviewing";
   last_activity_at?: string;
 }
 
@@ -175,6 +175,14 @@ export interface UpdateCompanyRequest {
   notes?: string;
 }
 
+// Board Column
+export type BoardColumn =
+  | "wishlist"
+  | "applied"
+  | "interview"
+  | "offer"
+  | "rejected";
+
 // Job
 export interface JobDTO {
   id: string;
@@ -184,7 +192,8 @@ export interface JobDTO {
   url?: string;
   source?: string;
   notes?: string;
-  status: 'active' | 'archived';
+  status: "active" | "archived";
+  board_column: BoardColumn;
   applications_count: number;
   created_at: string;
   updated_at: string;
@@ -196,6 +205,7 @@ export interface CreateJobRequest {
   url?: string;
   source?: string;
   notes?: string;
+  board_column?: BoardColumn;
 }
 
 export interface UpdateJobRequest {
@@ -204,11 +214,53 @@ export interface UpdateJobRequest {
   url?: string;
   source?: string;
   notes?: string;
-  status?: 'active' | 'archived';
+  status?: "active" | "archived";
+  board_column?: BoardColumn;
+}
+
+// Job Import
+export interface ImportParseRequest {
+  url: string;
+}
+
+export interface ImportParseResponse {
+  title: string;
+  company_name?: string;
+  location?: string;
+  description?: string;
+  source: string;
+  url: string;
+}
+
+// Calendar
+export interface CalendarStatusDTO {
+  connected: boolean;
+  email?: string;
+}
+
+export interface OAuthURLResponse {
+  url: string;
+}
+
+export interface CreateCalendarEventRequest {
+  stage_id: string;
+  title: string;
+  start_time: string;
+  duration_min: number;
+  description?: string;
+}
+
+export interface CalendarEventDTO {
+  event_id: string;
+  stage_id: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  link?: string;
 }
 
 // Resume
-export type StorageType = 'external' | 's3';
+export type StorageType = "external" | "s3";
 
 export interface ResumeDTO {
   id: string;

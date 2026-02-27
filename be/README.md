@@ -115,7 +115,7 @@ Base URL: `http://localhost:8080/api/v1`
 
 **📖 Interactive API Documentation:** Swagger UI available at `http://localhost:8080/swagger/index.html`
 
-**📄 Pagination:** All list endpoints support pagination with `limit` (max 100) and `offset` parameters. See [PAGINATION_GUIDE.md](PAGINATION_GUIDE.md) for details.
+**📄 Pagination:** All list endpoints support pagination with `limit` (max 500) and `offset` parameters. See [PAGINATION_GUIDE.md](PAGINATION_GUIDE.md) for details.
 
 ### Health Check
 - `GET /health` - Health status of all services
@@ -155,7 +155,7 @@ Error codes are stable and machine-readable, suitable for client-side logic.
 
 - **User**: Platform user
 - **Application**: Core aggregate - represents a job application
-- **Job**: Job posting details
+- **Job**: Job posting details (with board_column for Kanban pipeline stages)
 - **Company**: Company information
 - **Resume**: User's resume versions
 - **ApplicationStage**: Stages in application lifecycle (append-only)

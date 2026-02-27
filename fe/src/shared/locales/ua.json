@@ -138,7 +138,21 @@
     "completed": "Завершено",
     "deleteStage": "Видалити етап",
     "deleteStageConfirm": "Ви впевнені, що хочете видалити етап \"{{stageName}}\"? Цю дію не можна скасувати.",
-    "deleteStageError": "Не вдалося видалити етап"
+    "deleteStageError": "Не вдалося видалити етап",
+    "schedule": {
+      "button": "Запланувати",
+      "title": "Запланувати подію",
+      "description": "Створіть подію в Google Calendar для цього етапу",
+      "eventTitle": "Назва події",
+      "startTime": "Час початку",
+      "duration": "Тривалість",
+      "minutes": "хв",
+      "eventDescription": "Опис",
+      "descriptionPlaceholder": "Додайте деталі про зустріч...",
+      "schedule": "Запланувати",
+      "createSuccess": "Подію успішно заплановано",
+      "createError": "Не вдалося запланувати подію"
+    }
   },
   "resumes": {
     "title": "Резюме",
@@ -211,7 +225,37 @@
     "titlePlaceholder": "напр., Senior Software Engineer",
     "selectCompany": "Оберіть компанію (необов'язково)",
     "sourcePlaceholder": "напр., LinkedIn, Indeed, сайт компанії",
-    "notesPlaceholder": "Додаткові нотатки про вакансію..."
+    "notesPlaceholder": "Додаткові нотатки про вакансію...",
+    "viewGrid": "Сітка",
+    "viewKanban": "Дошка",
+    "board": {
+      "wishlist": "Список бажань",
+      "applied": "Подано",
+      "interview": "Інтерв'ю",
+      "offer": "Оффер",
+      "rejected": "Відмова",
+      "columnLabel": "Колонка дошки",
+      "emptyColumn": "Немає вакансій у цій колонці",
+      "moveSuccess": "Вакансію успішно переміщено",
+      "moveError": "Не вдалося перемістити вакансію"
+    },
+    "import": {
+      "button": "Імпорт",
+      "title": "Імпорт вакансії",
+      "description": "Вставте URL вакансії з LinkedIn, DOU або Indeed для автоматичного імпорту",
+      "urlLabel": "URL вакансії",
+      "urlPlaceholder": "https://linkedin.com/jobs/view/...",
+      "parse": "Розпізнати",
+      "parsing": "Розпізнавання...",
+      "parseError": "Не вдалося розпізнати вакансію за URL",
+      "reviewTitle": "Перегляд імпортованої вакансії",
+      "reviewDescription": "Перегляньте та відредагуйте дані вакансії перед збереженням",
+      "importJob": "Імпортувати вакансію",
+      "importSuccess": "Вакансію успішно імпортовано",
+      "importError": "Не вдалося імпортувати вакансію",
+      "detectedCompany": "Виявлена компанія",
+      "location": "Місцезнаходження"
+    }
   },
   "stages": {
     "title": "Шаблони етапів",
@@ -259,7 +303,18 @@
     "english": "English",
     "ukrainian": "Українська",
     "account": "Обліковий запис",
-    "accountDescription": "Керуйте налаштуваннями облікового запису"
+    "accountDescription": "Керуйте налаштуваннями облікового запису",
+    "calendar": {
+      "title": "Google Calendar",
+      "description": "Підключіть Google Calendar для планування співбесід",
+      "connect": "Підключити Google Calendar",
+      "disconnect": "Від'єднати",
+      "connected": "Підключено",
+      "connectSuccess": "Google Calendar успішно підключено",
+      "connectError": "Не вдалося підключити Google Calendar",
+      "disconnectSuccess": "Google Calendar від'єднано",
+      "disconnectError": "Не вдалося від'єднати Google Calendar"
+    }
   },
   "errors": {
     "required": "Це поле є обов'язковим",

@@ -36,6 +36,7 @@ import (
 	jobHandler "github.com/andreypavlenko/jobber/modules/jobs/handler"
 	jobRepo "github.com/andreypavlenko/jobber/modules/jobs/repository"
 	jobService "github.com/andreypavlenko/jobber/modules/jobs/service"
+	"github.com/andreypavlenko/jobber/modules/jobs/service/parser"
 
 	resumeHandler "github.com/andreypavlenko/jobber/modules/resumes/handler"
 	resumeRepo "github.com/andreypavlenko/jobber/modules/resumes/repository"
@@ -49,11 +50,18 @@ import (
 	analyticsRepo "github.com/andreypavlenko/jobber/modules/analytics/repository"
 	analyticsService "github.com/andreypavlenko/jobber/modules/analytics/service"
 
+	calendarHandler "github.com/andreypavlenko/jobber/modules/calendar/handler"
+	calendarRepo "github.com/andreypavlenko/jobber/modules/calendar/repository"
+	calendarService "github.com/andreypavlenko/jobber/modules/calendar/service"
+
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	"google.golang.org/api/calendar/v3"
 )
 
 // @title Jobber API
@@ -195,7 +203,9 @@ func main() {
 		cfg.JWT.RefreshExpiry,
 	)
 	companySvc := companyService.NewCompanyService(companyRepository)
-	jobSvc := jobService.NewJobService(jobRepository, companyRepository)
+	jobParserFetcher := parser.NewFetcher()
+	jobParserRegistry := parser.NewRegistry(jobParserFetcher)
+	jobSvc := jobService.NewJobService(jobRepository, companyRepository, jobParserRegistry)
 	resumeSvc := resumeService.NewResumeService(resumeRepository, s3Client)
 	applicationSvc := appService.NewApplicationService(
 		pgClient.Pool,
@@ -220,6 +230,44 @@ func main() {
 	commentHdl := commentHandler.NewCommentHandler(commentSvc)
 	analyticsHdl := analyticsHandler.NewAnalyticsHandler(analyticsSvc)
 
+	// Initialize calendar module (optional — only if all Google Calendar config is provided)
+	var calendarHdl *calendarHandler.CalendarHandler
+	if cfg.GoogleCalendar.ClientID != "" &&
+		cfg.GoogleCalendar.ClientSecret != "" &&
+		cfg.GoogleCalendar.TokenEncryptionKey != "" &&
+		cfg.GoogleCalendar.RedirectURL != "" &&
+		cfg.GoogleCalendar.FrontendURL != "" {
+		oauthConfig := &oauth2.Config{
+			ClientID:     cfg.GoogleCalendar.ClientID,
+			ClientSecret: cfg.GoogleCalendar.ClientSecret,
+			RedirectURL:  cfg.GoogleCalendar.RedirectURL,
+			Scopes:       []string{calendar.CalendarEventsScope},
+			Endpoint:     google.Endpoint,
+		}
+
+		encryptor, err := calendarService.NewEncryptor(cfg.GoogleCalendar.TokenEncryptionKey)
+		if err != nil {
+			logger.Fatal("Failed to initialize calendar encryption", zap.Error(err))
+		}
+
+		calTokenRepo := calendarRepo.NewTokenRepository(pgClient.Pool)
+		calStageRepo := calendarRepo.NewStageRepository(pgClient.Pool)
+		gcalClient := calendarService.NewGoogleClient(oauthConfig)
+		calSvc := calendarService.NewCalendarService(
+			calTokenRepo,
+			calStageRepo,
+			gcalClient,
+			encryptor,
+			oauthConfig,
+			redisClient.Client,
+			cfg.GoogleCalendar.FrontendURL,
+		)
+		calendarHdl = calendarHandler.NewCalendarHandler(calSvc)
+		logger.Info("Google Calendar integration enabled")
+	} else {
+		logger.Info("Google Calendar not configured, integration disabled")
+	}
+
 	// Rate limiting for auth endpoints (10 requests per minute per IP)
 	authRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
 		MaxRequests: 10,
@@ -238,6 +286,9 @@ func main() {
 		applicationHdl.RegisterRoutes(v1, authMiddleware)
 		commentHdl.RegisterRoutes(v1, authMiddleware)
 		analyticsHdl.RegisterRoutes(v1, authMiddleware)
+		if calendarHdl != nil {
+			calendarHdl.RegisterRoutes(v1, authMiddleware)
+		}
 	}
 
 	// Start background job: clean up expired refresh tokens every hour

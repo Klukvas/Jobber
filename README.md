@@ -245,6 +245,7 @@ npm run lint      # Run ESLint
 - **Styling:** Tailwind CSS
 - **State:** Zustand
 - **HTTP:** Axios
+- **Drag & Drop:** @dnd-kit
 - **Routing:** React Router
 
 ---
@@ -326,7 +327,7 @@ npm run test
 
 - **Authentication** - JWT-based user registration and login
 - **Company Management** - Track companies you're interested in
-- **Job Management** - Save job postings
+- **Job Management** - Save job postings with Kanban board view (drag-and-drop)
 - **Resume Management** - Multiple resume versions
 - **Application Tracking** - Core feature for tracking job applications
 - **Stage Management** - Customizable interview stages
@@ -334,6 +335,61 @@ npm run test
 - **Timeline** - Visual history of application progress
 - **Reminders** - Schedule follow-ups (model ready, API pending)
 - **Tags** - Categorize entities (model ready, API pending)
+- **Job Import** - Import jobs from LinkedIn, DOU, Indeed by URL
+- **Google Calendar** - Schedule interviews directly from the app
+
+---
+
+## Roadmap
+
+Competitors: [Huntr](https://huntr.co) ($40/mo), [Teal](https://tealhq.com) (freemium), [JobHero](https://gojobhero.com) ($9/week)
+
+| # | Feature | Details | Why |
+|---|---------|---------|-----|
+| 1 | **Chrome Extension** | Save jobs in 1 click from any job board, auto-fill application forms, integration with 40+ boards | Killer feature. Without it, switching from competitors is unlikely |
+| 2 | **AI Resume Tailor** (Claude API) | AI Resume Builder, AI Cover Letter, Resume Tailor, Job Match Score (%), Keyword Extraction | Primary paid feature of competitors. Cost via Claude API is minimal, sell for $10-15/mo |
+| ~~3~~ | ~~**Kanban Board**~~ | ~~Drag-and-drop board for visualizing jobs by pipeline stage~~ | ✅ **Done** — Grid/Board toggle, drag-and-drop with @dnd-kit, optimistic updates |
+| 4 | **Contacts / CRM** | Track recruiters & hiring managers, link to jobs/companies, email templates for follow-ups | Complements tracking, low complexity |
+| 5 | **Reminders & Tasks** | Email/push notifications, task checklists per application, follow-up reminders | Basic productivity feature |
+| 6 | **AI Interview Practice** | Practice interviews with AI, generate questions from job description, feedback on answers | Differentiator from competitors |
+| 7 | **Document Management** | Store & tag documents (resumes, cover letters), version per job | All documents in one place |
+| 8 | **Employer Map** | Visualize job locations on a map | Nice-to-have, available in Huntr |
+
+**Monetization:** Free tier (current features) + Pro tier ($10-15/mo: AI features, Chrome extension, unlimited imports). 3-4x cheaper than competitors.
+
+### Job Parsing: How Competitors Do It
+
+Three main approaches exist in the industry:
+
+**1. Chrome Extension + Per-site Content Scripts (Huntr, Teal)**
+- Extension has separate parsers for each supported job board (Teal — 50+, Huntr — 40+)
+- On supported sites: auto-extracts title, company, location, salary, description via DOM selectors
+- On unsupported sites: user manually copies data or fields remain empty
+- Pros: Fast, no API costs, works offline
+- Cons: UI changes on job boards constantly break parsers; LinkedIn especially problematic
+
+**2. JSON-LD schema.org/JobPosting (Industry Standard) — Jobber uses this**
+- Most job boards embed `<script type="application/ld+json">` with structured data for Google Jobs
+- LinkedIn, Indeed, Glassdoor all use this format
+- Pros: Reliable, standardized, doesn't depend on DOM
+- Cons: Not all sites support it (DOU doesn't), data may be incomplete
+
+**3. User-guided DOM + LLM (HuntingPad — newest approach)**
+- User highlights job posting text on page
+- Extension finds common DOM ancestor, prunes HTML (~80% token reduction)
+- Optimized HTML sent to LLM for structured extraction
+- Pros: Works on any site, no per-site parsers, doesn't break on UI changes
+- Cons: Requires LLM API (but ~$0.001/parse with Claude Haiku)
+
+**Recommended Strategy for Jobber (layered):**
+
+| Layer | When | Coverage | Cost |
+|-------|------|----------|------|
+| JSON-LD | Always try first | LinkedIn, Indeed, Glassdoor (~70%) | Free |
+| Per-site DOM | Top 10-15 boards without JSON-LD | DOU, HH.ru, Djinni | Free |
+| Claude Haiku LLM | Any unsupported site | Remaining 100% | ~$0.001/parse |
+
+This layered approach gives 99% coverage with minimal maintenance. The LLM fallback integrates naturally with the AI Resume Tailor feature (Claude API already connected).
 
 ---
 

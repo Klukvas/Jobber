@@ -9,12 +9,22 @@ import (
 
 // Config holds all configuration for the application
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Redis    RedisConfig
-	JWT      JWTConfig
-	Log      LogConfig
-	S3       S3Config
+	Server         ServerConfig
+	Database       DatabaseConfig
+	Redis          RedisConfig
+	JWT            JWTConfig
+	Log            LogConfig
+	S3             S3Config
+	GoogleCalendar GoogleCalendarConfig
+}
+
+// GoogleCalendarConfig holds Google Calendar integration configuration
+type GoogleCalendarConfig struct {
+	ClientID           string
+	ClientSecret       string
+	RedirectURL        string
+	TokenEncryptionKey string // 64 hex chars = 32 bytes AES key
+	FrontendURL        string
 }
 
 // ServerConfig holds server configuration
@@ -109,6 +119,13 @@ func Load() (*Config, error) {
 			Region:    getEnv("S3_REGION", "eu-central"),
 			AccessKey: getEnv("S3_ACCESS_KEY", ""),
 			SecretKey: getEnv("S3_SECRET_KEY", ""),
+		},
+		GoogleCalendar: GoogleCalendarConfig{
+			ClientID:           getEnv("GOOGLE_CLIENT_ID", ""),
+			ClientSecret:       getEnv("GOOGLE_CLIENT_SECRET", ""),
+			RedirectURL:        getEnv("GOOGLE_REDIRECT_URL", ""),
+			TokenEncryptionKey: getEnv("GOOGLE_TOKEN_ENCRYPTION_KEY", ""),
+			FrontendURL:        getEnv("GOOGLE_CALENDAR_FRONTEND_URL", ""),
 		},
 	}
 

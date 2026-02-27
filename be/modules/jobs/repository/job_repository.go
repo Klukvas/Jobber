@@ -25,12 +25,15 @@ func NewJobRepository(pool *pgxpool.Pool) *JobRepository {
 // Create creates a new job
 func (r *JobRepository) Create(ctx context.Context, job *model.Job) error {
 	query := `
-		INSERT INTO jobs (id, user_id, company_id, title, source, url, notes, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO jobs (id, user_id, company_id, title, source, url, notes, status, board_column, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 
 	job.ID = uuid.New().String()
 	job.Status = "active" // Always create as active
+	if job.BoardColumn == "" {
+		job.BoardColumn = "wishlist"
+	}
 	now := time.Now().UTC()
 	job.CreatedAt = now
 	job.UpdatedAt = now
@@ -44,6 +47,7 @@ func (r *JobRepository) Create(ctx context.Context, job *model.Job) error {
 		job.URL,
 		job.Notes,
 		job.Status,
+		job.BoardColumn,
 		job.CreatedAt,
 		job.UpdatedAt,
 	)
@@ -54,7 +58,7 @@ func (r *JobRepository) Create(ctx context.Context, job *model.Job) error {
 // GetByID retrieves a job by ID
 func (r *JobRepository) GetByID(ctx context.Context, userID, jobID string) (*model.Job, error) {
 	query := `
-		SELECT id, user_id, company_id, title, source, url, notes, status, created_at, updated_at
+		SELECT id, user_id, company_id, title, source, url, notes, status, board_column, created_at, updated_at
 		FROM jobs
 		WHERE id = $1 AND user_id = $2
 	`
@@ -69,6 +73,7 @@ func (r *JobRepository) GetByID(ctx context.Context, userID, jobID string) (*mod
 		&job.URL,
 		&job.Notes,
 		&job.Status,
+		&job.BoardColumn,
 		&job.CreatedAt,
 		&job.UpdatedAt,
 	)
@@ -84,7 +89,7 @@ func (r *JobRepository) GetByID(ctx context.Context, userID, jobID string) (*mod
 }
 
 // List retrieves jobs for a user with pagination, filtering, and sorting
-func (r *JobRepository) List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error) {
+func (r *JobRepository) List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder, boardColumn string) ([]*model.JobDTO, int, error) {
 	// Default to active status if not specified
 	if status == "" {
 		status = "active"
@@ -98,6 +103,12 @@ func (r *JobRepository) List(ctx context.Context, userID string, limit, offset i
 	if status != "all" {
 		whereClause += " AND j.status = $" + fmt.Sprintf("%d", argIndex)
 		args = append(args, status)
+		argIndex++
+	}
+
+	if boardColumn != "" {
+		whereClause += " AND j.board_column = $" + fmt.Sprintf("%d", argIndex)
+		args = append(args, boardColumn)
 		argIndex++
 	}
 
@@ -152,6 +163,7 @@ func (r *JobRepository) List(ctx context.Context, userID string, limit, offset i
 			j.url,
 			j.notes,
 			j.status,
+			j.board_column,
 			j.created_at,
 			j.updated_at,
 			c.name as company_name,
@@ -160,7 +172,7 @@ func (r *JobRepository) List(ctx context.Context, userID string, limit, offset i
 		LEFT JOIN companies c ON j.company_id = c.id
 		LEFT JOIN applications a ON j.id = a.job_id
 		WHERE ` + whereClause + `
-		GROUP BY j.id, j.user_id, j.company_id, j.title, j.source, j.url, j.notes, j.status, j.created_at, j.updated_at, c.name
+		GROUP BY j.id, j.user_id, j.company_id, j.title, j.source, j.url, j.notes, j.status, j.board_column, j.created_at, j.updated_at, c.name
 		ORDER BY ` + orderBy + `
 		LIMIT ` + limitPlaceholder + ` OFFSET ` + offsetPlaceholder + `
 	`
@@ -187,6 +199,7 @@ func (r *JobRepository) List(ctx context.Context, userID string, limit, offset i
 			&job.URL,
 			&job.Notes,
 			&job.Status,
+			&job.BoardColumn,
 			&job.CreatedAt,
 			&job.UpdatedAt,
 			&companyName,
@@ -212,7 +225,7 @@ func (r *JobRepository) List(ctx context.Context, userID string, limit, offset i
 func (r *JobRepository) Update(ctx context.Context, job *model.Job) error {
 	query := `
 		UPDATE jobs
-		SET company_id = $3, title = $4, source = $5, url = $6, notes = $7, status = $8, updated_at = $9
+		SET company_id = $3, title = $4, source = $5, url = $6, notes = $7, status = $8, board_column = $9, updated_at = $10
 		WHERE id = $1 AND user_id = $2
 	`
 
@@ -227,6 +240,7 @@ func (r *JobRepository) Update(ctx context.Context, job *model.Job) error {
 		job.URL,
 		job.Notes,
 		job.Status,
+		job.BoardColumn,
 		job.UpdatedAt,
 	)
 	if err != nil {

@@ -172,7 +172,7 @@ func (m *MockJobRepository) GetByID(ctx context.Context, userID, jobID string) (
 	}
 	return nil, nil
 }
-func (m *MockJobRepository) List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*jobModel.JobDTO, int, error) {
+func (m *MockJobRepository) List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder, boardColumn string) ([]*jobModel.JobDTO, int, error) {
 	return nil, 0, nil
 }
 func (m *MockJobRepository) Update(ctx context.Context, job *jobModel.Job) error { return nil }

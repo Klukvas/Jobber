@@ -10,7 +10,7 @@ import (
 type JobRepository interface {
 	Create(ctx context.Context, job *model.Job) error
 	GetByID(ctx context.Context, userID, jobID string) (*model.Job, error)
-	List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error)
+	List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder, boardColumn string) ([]*model.JobDTO, int, error)
 	Update(ctx context.Context, job *model.Job) error
 	Delete(ctx context.Context, userID, jobID string) error
 }

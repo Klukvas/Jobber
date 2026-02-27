@@ -1,9 +1,15 @@
 import { useTranslation } from "react-i18next";
 import { useThemeStore } from "@/stores/themeStore";
 import { useAuthStore } from "@/stores/authStore";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { authService } from "@/services/authService";
-import { useNavigate } from "react-router-dom";
+import { calendarService } from "@/services/calendarService";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect } from "react";
+import {
+  showSuccessNotification,
+  showErrorNotification,
+} from "@/shared/lib/notifications";
 import {
   Card,
   CardContent,
@@ -20,6 +26,8 @@ export default function Settings() {
   const { theme, setTheme } = useThemeStore();
   const clearAuth = useAuthStore((state) => state.clearAuth);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const logoutMutation = useMutation({
     mutationFn: authService.logout,
@@ -28,6 +36,49 @@ export default function Settings() {
       navigate("/");
     },
   });
+
+  const { data: calendarStatus } = useQuery({
+    queryKey: ["calendar-status"],
+    queryFn: calendarService.getStatus,
+  });
+
+  const connectMutation = useMutation({
+    mutationFn: calendarService.getAuthURL,
+    onSuccess: (data) => {
+      window.location.href = data.url;
+    },
+    onError: (error: Error) => {
+      showErrorNotification(
+        error.message || t("settings.calendar.connectError"),
+      );
+    },
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: calendarService.disconnect,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["calendar-status"] });
+      showSuccessNotification(t("settings.calendar.disconnectSuccess"));
+    },
+    onError: (error: Error) => {
+      showErrorNotification(
+        error.message || t("settings.calendar.disconnectError"),
+      );
+    },
+  });
+
+  // Handle OAuth callback result from URL params
+  const calendarParam = searchParams.get("calendar");
+  useEffect(() => {
+    if (calendarParam === "connected") {
+      showSuccessNotification(t("settings.calendar.connectSuccess"));
+      queryClient.invalidateQueries({ queryKey: ["calendar-status"] });
+      setSearchParams({});
+    } else if (calendarParam === "error") {
+      showErrorNotification(t("settings.calendar.connectError"));
+      setSearchParams({});
+    }
+  }, [calendarParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-6">
@@ -76,6 +127,51 @@ export default function Settings() {
               {t("settings.ukrainian")}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("settings.calendar.title")}</CardTitle>
+          <CardDescription>
+            {t("settings.calendar.description")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {calendarStatus?.connected ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+                <span className="text-sm">
+                  {t("settings.calendar.connected")}
+                  {calendarStatus.email && (
+                    <span className="text-muted-foreground ml-1">
+                      ({calendarStatus.email})
+                    </span>
+                  )}
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => disconnectMutation.mutate()}
+                disabled={disconnectMutation.isPending}
+              >
+                {disconnectMutation.isPending
+                  ? t("common.loading")
+                  : t("settings.calendar.disconnect")}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              onClick={() => connectMutation.mutate()}
+              disabled={connectMutation.isPending}
+            >
+              {connectMutation.isPending
+                ? t("common.loading")
+                : t("settings.calendar.connect")}
+            </Button>
+          )}
         </CardContent>
       </Card>
 
