@@ -476,7 +476,7 @@ func main() {
 	_, err = tx.Exec(ctx,
 		`INSERT INTO users (id, email, name, password_hash, locale, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $6)`,
-		reviewerID, reviewerEmail, "Chrome Reviewer", hashPassword(reviewerPassword), "en", now, now,
+		reviewerID, reviewerEmail, "Chrome Reviewer", hashPassword(reviewerPassword), "en", now,
 	)
 	must(err, "create reviewer user")
 
