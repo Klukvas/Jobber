@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -274,6 +275,10 @@ func TestContainsString(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func containsString(s, substr string) bool {
+	return strings.Contains(s, substr)
 }
 
 // testUserRepo is a test wrapper that uses pgxmock

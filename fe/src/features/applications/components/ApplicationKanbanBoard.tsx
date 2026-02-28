@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -68,7 +68,10 @@ export function ApplicationKanbanBoard({
     staleTime: 5 * 60 * 1000,
   });
 
-  const stageTemplates = stageTemplatesData?.items ?? [];
+  const stageTemplates = useMemo(
+    () => stageTemplatesData?.items ?? [],
+    [stageTemplatesData?.items],
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

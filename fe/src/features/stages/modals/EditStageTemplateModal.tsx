@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { stageTemplatesService } from "@/services/stageTemplatesService";
@@ -34,13 +34,13 @@ export function EditStageTemplateModal({
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [order, setOrder] = useState("");
+  const [prevTemplateId, setPrevTemplateId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (template) {
-      setName(template.name);
-      setOrder(String(template.order));
-    }
-  }, [template]);
+  if (template && template.id !== prevTemplateId) {
+    setPrevTemplateId(template.id);
+    setName(template.name);
+    setOrder(String(template.order));
+  }
 
   const updateMutation = useMutation({
     mutationFn: (data: { name: string; order: number }) =>

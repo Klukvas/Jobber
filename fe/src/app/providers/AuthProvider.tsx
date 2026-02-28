@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useAuthStore } from '@/stores/authStore';
+import { useEffect, useState } from "react";
+import { useAuthStore } from "@/stores/authStore";
 
 interface AuthProviderProps {
   children: React.ReactNode;
@@ -7,22 +7,26 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [isInitialized, setIsInitialized] = useState(false);
-  const { accessToken, refreshToken, user, clearAuth, setAuth } = useAuthStore();
 
   useEffect(() => {
     const initializeAuth = async () => {
+      // Read current auth state directly from the store so this effect
+      // runs only once on mount without needing reactive dependencies.
+      const { accessToken, refreshToken, user, setAuth, clearAuth } =
+        useAuthStore.getState();
+
       // If we have tokens but no access token, try to refresh
       if (!accessToken && refreshToken && user) {
         try {
           const response = await fetch(
-            `${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/auth/refresh`,
+            `${import.meta.env.VITE_API_BASE_URL || "/api/v1"}/auth/refresh`,
             {
-              method: 'POST',
+              method: "POST",
               headers: {
-                'Content-Type': 'application/json',
+                "Content-Type": "application/json",
               },
               body: JSON.stringify({ refresh_token: refreshToken }),
-            }
+            },
           );
 
           if (response.ok) {
@@ -42,7 +46,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
 
     initializeAuth();
-  }, []); // Run only once on mount
+  }, []); // Run only once on mount — values are read via getState() inside
 
   // Show loading state while checking auth
   if (!isInitialized) {
