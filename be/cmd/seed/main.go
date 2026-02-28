@@ -469,7 +469,7 @@ func main() {
 
 	// ── 10. reviewer account (for Chrome Web Store review) ──────────────
 	const reviewerEmail = "reviewer@jobber.dev"
-	const reviewerPassword = "Reviewer2026!"
+	const reviewerPassword = "ReviewerPass2026"
 	_, _ = tx.Exec(ctx, `DELETE FROM users WHERE email = $1`, reviewerEmail)
 
 	reviewerID := newID()
