@@ -467,6 +467,33 @@ func main() {
 	}
 	fmt.Printf("created %d reminders\n", len(reminderDefs))
 
+	// ── 10. reviewer account (for Chrome Web Store review) ──────────────
+	const reviewerEmail = "reviewer@jobber.dev"
+	const reviewerPassword = "Reviewer2026!"
+	_, _ = tx.Exec(ctx, `DELETE FROM users WHERE email = $1`, reviewerEmail)
+
+	reviewerID := newID()
+	_, err = tx.Exec(ctx,
+		`INSERT INTO users (id, email, name, password_hash, locale, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $6)`,
+		reviewerID, reviewerEmail, "Chrome Reviewer", hashPassword(reviewerPassword), "en", now, now,
+	)
+	must(err, "create reviewer user")
+
+	// Add minimal data so the reviewer can test the full flow
+	reviewerStages := []struct{ name string; order int }{
+		{"Applied", 1}, {"Interview", 2}, {"Offer", 3},
+	}
+	for _, s := range reviewerStages {
+		_, err = tx.Exec(ctx,
+			`INSERT INTO stage_templates (id, user_id, name, "order", created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $5)`,
+			newID(), reviewerID, s.name, s.order, now,
+		)
+		must(err, "create reviewer stage "+s.name)
+	}
+	fmt.Printf("created reviewer: %s / %s\n", reviewerEmail, reviewerPassword)
+
 	// ── commit ───────────────────────────────────────────────────────────
 	if err := tx.Commit(ctx); err != nil {
 		log.Fatalf("commit: %v", err)
@@ -474,6 +501,7 @@ func main() {
 
 	fmt.Println("\n✓ seed completed successfully!")
 	fmt.Printf("  login: %s / password123\n", seedEmail)
+	fmt.Printf("  reviewer: %s / %s\n", reviewerEmail, reviewerPassword)
 }
 
 func must(err error, msg string) {
