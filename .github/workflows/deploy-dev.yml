@@ -356,6 +356,13 @@ jobs:
             Caddyfile \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:~/jobber/
 
+      - name: Sync secrets to server .env
+        env:
+          ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Remove existing key and append new value
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd ~/jobber && touch .env && sed -i '/^ANTHROPIC_API_KEY=/d' .env && echo 'ANTHROPIC_API_KEY=${ANTHROPIC_KEY}' >> .env && echo '✅ Secrets synced'"
+
       - name: Deploy via SSH
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'

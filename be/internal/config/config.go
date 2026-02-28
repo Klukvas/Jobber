@@ -16,6 +16,12 @@ type Config struct {
 	Log            LogConfig
 	S3             S3Config
 	GoogleCalendar GoogleCalendarConfig
+	Anthropic      AnthropicConfig
+}
+
+// AnthropicConfig holds Anthropic API configuration
+type AnthropicConfig struct {
+	APIKey string
 }
 
 // GoogleCalendarConfig holds Google Calendar integration configuration
@@ -126,6 +132,9 @@ func Load() (*Config, error) {
 			RedirectURL:        getEnv("GOOGLE_REDIRECT_URL", ""),
 			TokenEncryptionKey: getEnv("GOOGLE_TOKEN_ENCRYPTION_KEY", ""),
 			FrontendURL:        getEnv("GOOGLE_CALENDAR_FRONTEND_URL", ""),
+		},
+		Anthropic: AnthropicConfig{
+			APIKey: getEnv("ANTHROPIC_API_KEY", ""),
 		},
 	}
 

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=380, initial-scale=1.0">
+  <title>Jobber</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- Login View -->
+  <div id="view-login" class="view">
+    <div class="header">
+      <div class="logo">💼 Jobber</div>
+      <p class="subtitle">Sign in to import jobs</p>
+    </div>
+    <form id="login-form">
+      <div class="field">
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" placeholder="you@example.com" required>
+      </div>
+      <div class="field">
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" placeholder="Password" required>
+      </div>
+      <button type="submit" class="btn btn-primary" id="btn-login">Sign In</button>
+      <div id="login-error" class="error hidden"></div>
+    </form>
+  </div>
+
+  <!-- Idle View (logged in, ready to parse) -->
+  <div id="view-idle" class="view hidden">
+    <div class="header">
+      <div class="logo">💼 Jobber</div>
+      <p class="subtitle" id="current-url"></p>
+    </div>
+    <button class="btn btn-primary" id="btn-parse">Import This Job</button>
+    <button class="btn btn-link" id="btn-logout">Sign Out</button>
+  </div>
+
+  <!-- Loading View -->
+  <div id="view-loading" class="view hidden">
+    <div class="header">
+      <div class="logo">💼 Jobber</div>
+      <p class="subtitle">Parsing job posting...</p>
+    </div>
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Preview View -->
+  <div id="view-preview" class="view hidden">
+    <div class="header">
+      <div class="logo">💼 Jobber</div>
+      <p class="subtitle">Review parsed data</p>
+    </div>
+    <form id="save-form">
+      <div class="field">
+        <label for="preview-title">Job Title</label>
+        <input type="text" id="preview-title" required>
+      </div>
+      <div class="field">
+        <label for="preview-company">Company</label>
+        <input type="text" id="preview-company">
+      </div>
+      <div class="field">
+        <label for="preview-source">Source</label>
+        <input type="text" id="preview-source">
+      </div>
+      <div class="field">
+        <label for="preview-url">URL</label>
+        <input type="url" id="preview-url">
+      </div>
+      <div class="field">
+        <label for="preview-notes">Description</label>
+        <textarea id="preview-notes" rows="8"></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary" id="btn-save">Save to Jobber</button>
+      <button type="button" class="btn btn-secondary" id="btn-back">Back</button>
+      <div id="save-error" class="error hidden"></div>
+    </form>
+  </div>
+
+  <!-- Success View -->
+  <div id="view-success" class="view hidden">
+    <div class="header">
+      <div class="logo">💼 Jobber</div>
+    </div>
+    <div class="success-icon">✅</div>
+    <p class="success-text">Job saved successfully!</p>
+    <button class="btn btn-primary" id="btn-done">Done</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

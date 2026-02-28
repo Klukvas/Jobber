@@ -13,6 +13,7 @@ import (
 	_ "github.com/andreypavlenko/jobber/docs" // swagger docs
 
 	"github.com/andreypavlenko/jobber/internal/config"
+	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
 	"github.com/andreypavlenko/jobber/internal/platform/logger"
@@ -52,6 +53,9 @@ import (
 	calendarHandler "github.com/andreypavlenko/jobber/modules/calendar/handler"
 	calendarRepo "github.com/andreypavlenko/jobber/modules/calendar/repository"
 	calendarService "github.com/andreypavlenko/jobber/modules/calendar/service"
+
+	importHandler "github.com/andreypavlenko/jobber/modules/jobimport/handler"
+	importService "github.com/andreypavlenko/jobber/modules/jobimport/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -265,11 +269,29 @@ func main() {
 		logger.Info("Google Calendar not configured, integration disabled")
 	}
 
+	// Initialize AI client for job import (optional — only if ANTHROPIC_API_KEY is set)
+	var importHdl *importHandler.ImportHandler
+	if cfg.Anthropic.APIKey != "" {
+		aiClient := ai.NewAnthropicClient(cfg.Anthropic.APIKey)
+		importSvc := importService.NewImportService(aiClient)
+		importHdl = importHandler.NewImportHandler(importSvc)
+		logger.Info("AI job import enabled")
+	} else {
+		logger.Info("ANTHROPIC_API_KEY not configured, AI job import disabled")
+	}
+
 	// Rate limiting for auth endpoints (10 requests per minute per IP)
 	authRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
 		MaxRequests: 10,
 		Window:      1 * time.Minute,
 		KeyPrefix:   "auth",
+	})
+
+	// Rate limiting for AI import endpoint (20 requests per minute per IP)
+	importRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
+		MaxRequests: 20,
+		Window:      1 * time.Minute,
+		KeyPrefix:   "ai_import",
 	})
 
 	// API v1 routes
@@ -285,6 +307,9 @@ func main() {
 		analyticsHdl.RegisterRoutes(v1, authMiddleware)
 		if calendarHdl != nil {
 			calendarHdl.RegisterRoutes(v1, authMiddleware)
+		}
+		if importHdl != nil {
+			importHdl.RegisterRoutes(v1, authMiddleware, importRateLimiter)
 		}
 	}
 
