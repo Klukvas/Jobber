@@ -93,6 +93,10 @@ If you cannot determine a field, set it to null. Do not include any text outside
 		return nil, fmt.Errorf("failed to parse AI response as JSON: %w", err)
 	}
 
+	if strings.TrimSpace(parsed.Title) == "" {
+		return nil, fmt.Errorf("could not find a job posting on this page")
+	}
+
 	// Use provided URL as fallback
 	if parsed.URL == nil {
 		parsed.URL = &pageURL
