@@ -21,7 +21,7 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 import { CreateJobModal } from "@/features/jobs/modals/CreateJobModal";
-import { usePageTitle } from "@/shared/lib/usePageTitle";
+import { usePageMeta } from "@/shared/lib/usePageMeta";
 import type { JobDTO } from "@/shared/types/api";
 import {
   showSuccessNotification,
@@ -33,7 +33,7 @@ type SortDir = "asc" | "desc";
 
 export default function Jobs() {
   const { t } = useTranslation();
-  usePageTitle("jobs.title");
+  usePageMeta({ titleKey: "jobs.title", noindex: true });
   const queryClient = useQueryClient();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<JobDTO | undefined>(undefined);

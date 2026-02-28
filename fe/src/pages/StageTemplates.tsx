@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { CreateStageTemplateModal } from "@/features/stages/modals/CreateStageTemplateModal";
 import { EditStageTemplateModal } from "@/features/stages/modals/EditStageTemplateModal";
-import { usePageTitle } from "@/shared/lib/usePageTitle";
+import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { showErrorNotification } from "@/shared/lib/notifications";
 import type { StageTemplateDTO } from "@/shared/types/api";
 
@@ -38,7 +38,7 @@ const RECOMMENDED_STAGES = [
 ];
 
 export default function StageTemplates() {
-  usePageTitle("nav.stages");
+  usePageMeta({ titleKey: "nav.stages", noindex: true });
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);

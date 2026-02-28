@@ -1,0 +1,16 @@
+# Jobber
+> Job application tracking platform
+
+Jobber helps job seekers organize their job search with a Kanban-style board,
+company management, resume tracking, application stages, and analytics.
+
+## Features
+- Track job applications across customizable stages
+- Manage companies and contacts
+- Store multiple resumes
+- Analytics dashboard with insights
+- Multi-language support (English, Ukrainian)
+
+## Links
+- Homepage: https://jobber-app
+- Blog: https://jobber-app/blog

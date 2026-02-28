@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import { companiesService } from '@/services/companiesService';
-import { Button } from '@/shared/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/Card';
-import { SkeletonList } from '@/shared/ui/Skeleton';
-import { EmptyState } from '@/shared/ui/EmptyState';
-import { ErrorState } from '@/shared/ui/ErrorState';
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
+import { companiesService } from "@/services/companiesService";
+import { Button } from "@/shared/ui/Button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
+import { SkeletonList } from "@/shared/ui/Skeleton";
+import { EmptyState } from "@/shared/ui/EmptyState";
+import { ErrorState } from "@/shared/ui/ErrorState";
 import {
   Plus,
   Building2,
@@ -18,38 +18,40 @@ import {
   Briefcase,
   Clock,
   ArrowUpDown,
-} from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { CreateCompanyModal } from '@/features/companies/modals/CreateCompanyModal';
-import { DeleteCompanyDialog } from '@/features/companies/modals/DeleteCompanyDialog';
-import { usePageTitle } from '@/shared/lib/usePageTitle';
-import type { CompanyDTO } from '@/shared/types/api';
+} from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { CreateCompanyModal } from "@/features/companies/modals/CreateCompanyModal";
+import { DeleteCompanyDialog } from "@/features/companies/modals/DeleteCompanyDialog";
+import { usePageMeta } from "@/shared/lib/usePageMeta";
+import type { CompanyDTO } from "@/shared/types/api";
 
-type SortBy = 'name' | 'last_activity' | 'applications_count';
-type SortDir = 'asc' | 'desc';
+type SortBy = "name" | "last_activity" | "applications_count";
+type SortDir = "asc" | "desc";
 
 export default function Companies() {
   const { t } = useTranslation();
-  usePageTitle('companies.title');
+  usePageMeta({ titleKey: "companies.title", noindex: true });
   const navigate = useNavigate();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<CompanyDTO | null>(null);
-  const [deletingCompany, setDeletingCompany] = useState<CompanyDTO | null>(null);
+  const [deletingCompany, setDeletingCompany] = useState<CompanyDTO | null>(
+    null,
+  );
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<SortBy>('name');
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [sortBy, setSortBy] = useState<SortBy>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   // Close context menu when clicking outside
   useEffect(() => {
     const handleClickOutside = () => setOpenMenuId(null);
     if (openMenuId) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
+      document.addEventListener("click", handleClickOutside);
+      return () => document.removeEventListener("click", handleClickOutside);
     }
   }, [openMenuId]);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['companies', sortBy, sortDir],
+    queryKey: ["companies", sortBy, sortDir],
     queryFn: () =>
       companiesService.list({
         limit: 100,
@@ -61,10 +63,10 @@ export default function Companies() {
 
   const toggleSort = (field: SortBy) => {
     if (sortBy === field) {
-      setSortDir(sortDir === 'desc' ? 'asc' : 'desc');
+      setSortDir(sortDir === "desc" ? "asc" : "desc");
     } else {
       setSortBy(field);
-      setSortDir(field === 'name' ? 'asc' : 'desc');
+      setSortDir(field === "name" ? "asc" : "desc");
     }
   };
 
@@ -84,25 +86,29 @@ export default function Companies() {
 
   const getCompanyStatusDisplay = (status: string) => {
     switch (status) {
-      case 'idle':
+      case "idle":
         return {
-          label: 'Idle',
-          className: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
+          label: "Idle",
+          className:
+            "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
         };
-      case 'active':
+      case "active":
         return {
-          label: 'Active',
-          className: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+          label: "Active",
+          className:
+            "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
         };
-      case 'interviewing':
+      case "interviewing":
         return {
-          label: 'Interviewing',
-          className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+          label: "Interviewing",
+          className:
+            "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
         };
       default:
         return {
           label: status,
-          className: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
+          className:
+            "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
         };
     }
   };
@@ -111,7 +117,7 @@ export default function Companies() {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">{t('companies.title')}</h1>
+          <h1 className="text-3xl font-bold">{t("companies.title")}</h1>
         </div>
         <SkeletonList count={3} />
       </div>
@@ -121,7 +127,7 @@ export default function Companies() {
   if (isError) {
     return (
       <div className="space-y-4">
-        <h1 className="text-3xl font-bold">{t('companies.title')}</h1>
+        <h1 className="text-3xl font-bold">{t("companies.title")}</h1>
         <ErrorState message={error.message} onRetry={() => refetch()} />
       </div>
     );
@@ -133,22 +139,22 @@ export default function Companies() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">{t('companies.title')}</h1>
+        <h1 className="text-3xl font-bold">{t("companies.title")}</h1>
         <Button onClick={() => setIsCreateModalOpen(true)}>
           <Plus className="h-4 w-4" />
-          {t('companies.create')}
+          {t("companies.create")}
         </Button>
       </div>
 
       {companies.length === 0 ? (
         <EmptyState
           icon={<Building2 className="h-12 w-12" />}
-          title={t('companies.noCompanies')}
-          description={t('companies.createFirst')}
+          title={t("companies.noCompanies")}
+          description={t("companies.createFirst")}
           action={
             <Button onClick={() => setIsCreateModalOpen(true)}>
               <Plus className="h-4 w-4" />
-              {t('companies.create')}
+              {t("companies.create")}
             </Button>
           }
         />
@@ -158,33 +164,33 @@ export default function Companies() {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm text-muted-foreground">Sort by:</span>
             <Button
-              variant={sortBy === 'name' ? 'default' : 'outline'}
+              variant={sortBy === "name" ? "default" : "outline"}
               size="sm"
-              onClick={() => toggleSort('name')}
+              onClick={() => toggleSort("name")}
             >
               <Building2 className="h-3 w-3 mr-1" />
               Name
-              {sortBy === 'name' && <ArrowUpDown className="h-3 w-3 ml-1" />}
+              {sortBy === "name" && <ArrowUpDown className="h-3 w-3 ml-1" />}
             </Button>
             <Button
-              variant={sortBy === 'last_activity' ? 'default' : 'outline'}
+              variant={sortBy === "last_activity" ? "default" : "outline"}
               size="sm"
-              onClick={() => toggleSort('last_activity')}
+              onClick={() => toggleSort("last_activity")}
             >
               <Clock className="h-3 w-3 mr-1" />
               Last Activity
-              {sortBy === 'last_activity' && (
+              {sortBy === "last_activity" && (
                 <ArrowUpDown className="h-3 w-3 ml-1" />
               )}
             </Button>
             <Button
-              variant={sortBy === 'applications_count' ? 'default' : 'outline'}
+              variant={sortBy === "applications_count" ? "default" : "outline"}
               size="sm"
-              onClick={() => toggleSort('applications_count')}
+              onClick={() => toggleSort("applications_count")}
             >
               <Briefcase className="h-3 w-3 mr-1" />
               Applications
-              {sortBy === 'applications_count' && (
+              {sortBy === "applications_count" && (
                 <ArrowUpDown className="h-3 w-3 ml-1" />
               )}
             </Button>
@@ -193,7 +199,9 @@ export default function Companies() {
           {/* Company Cards */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {companies.map((company) => {
-              const statusDisplay = getCompanyStatusDisplay(company.derived_status);
+              const statusDisplay = getCompanyStatusDisplay(
+                company.derived_status,
+              );
               return (
                 <div key={company.id} className="relative">
                   <Card className="transition-all hover:shadow-md h-full group">
@@ -211,7 +219,7 @@ export default function Companies() {
                               e.stopPropagation();
                               e.preventDefault();
                               setOpenMenuId(
-                                openMenuId === company.id ? null : company.id
+                                openMenuId === company.id ? null : company.id,
                               );
                             }}
                             className="p-1 rounded-md hover:bg-accent transition-colors opacity-0 group-hover:opacity-100"
@@ -289,12 +297,12 @@ export default function Companies() {
                             <div className="flex items-center gap-2 text-muted-foreground">
                               <Clock className="h-3.5 w-3.5" />
                               <span>
-                                Last activity{' '}
+                                Last activity{" "}
                                 {formatDistanceToNow(
                                   new Date(company.last_activity_at),
                                   {
                                     addSuffix: true,
-                                  }
+                                  },
                                 )}
                               </span>
                             </div>

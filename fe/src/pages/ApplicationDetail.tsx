@@ -20,10 +20,10 @@ import { Timeline } from "@/features/applications/components/Timeline";
 import { AddStageModal } from "@/features/applications/modals/AddStageModal";
 import { UpdateApplicationStatusModal } from "@/features/applications/modals/UpdateApplicationStatusModal";
 import { Textarea } from "@/shared/ui/Textarea";
-import { usePageTitle } from "@/shared/lib/usePageTitle";
+import { usePageMeta } from "@/shared/lib/usePageMeta";
 
 export default function ApplicationDetail() {
-  usePageTitle("applications.details");
+  usePageMeta({ titleKey: "applications.details", noindex: true });
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
   const navigate = useNavigate();

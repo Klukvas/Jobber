@@ -32,7 +32,7 @@ import {
   ApplicationKanbanBoard,
   APPLICATIONS_KANBAN_QUERY_KEY,
 } from "@/features/applications/components/ApplicationKanbanBoard";
-import { usePageTitle } from "@/shared/lib/usePageTitle";
+import { usePageMeta } from "@/shared/lib/usePageMeta";
 import type { ApplicationDTO } from "@/shared/types/api";
 
 type SortBy = "last_activity" | "status" | "applied_at";
@@ -46,7 +46,7 @@ function getInitialViewMode(): ViewMode {
 
 export default function Applications() {
   const { t } = useTranslation();
-  usePageTitle("applications.title");
+  usePageMeta({ titleKey: "applications.title", noindex: true });
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [sortBy, setSortBy] = useState<SortBy>("last_activity");

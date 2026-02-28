@@ -1,36 +1,54 @@
-import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '@/stores/authStore';
-import { usePageTitle } from '@/shared/lib/usePageTitle';
-import { LoginModal } from '@/features/auth/modals/LoginModal';
-import { RegisterModal } from '@/features/auth/modals/RegisterModal';
-import { HomeNavbar } from '@/features/home/components/HomeNavbar';
-import { HeroSection } from '@/features/home/components/HeroSection';
-import { FeaturesSection } from '@/features/home/components/FeaturesSection';
-import { HowItWorksSection } from '@/features/home/components/HowItWorksSection';
-import { DemoPreviewSection } from '@/features/home/components/DemoPreviewSection';
-import { FooterSection } from '@/features/home/components/FooterSection';
+import { useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useAuthStore } from "@/stores/authStore";
+import { usePageMeta } from "@/shared/lib/usePageMeta";
+import { LoginModal } from "@/features/auth/modals/LoginModal";
+import { RegisterModal } from "@/features/auth/modals/RegisterModal";
+import { HomeNavbar } from "@/features/home/components/HomeNavbar";
+import { JsonLd } from "@/features/home/components/JsonLd";
+import { HeroSection } from "@/features/home/components/HeroSection";
+import { FeaturesSection } from "@/features/home/components/FeaturesSection";
+import { HowItWorksSection } from "@/features/home/components/HowItWorksSection";
+import { DemoPreviewSection } from "@/features/home/components/DemoPreviewSection";
+import { FooterSection } from "@/features/home/components/FooterSection";
 
-type AuthModal = 'login' | 'register' | null;
+type AuthModal = "login" | "register" | null;
 
 export default function Home() {
   const location = useLocation();
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  usePageTitle();
+  usePageMeta({
+    titleKey: "seo.home.title",
+    descriptionKey: "seo.home.description",
+  });
+
+  useEffect(() => {
+    if (!location.hash) return;
+    const id = location.hash.slice(1);
+    const timer = setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [location.hash]);
 
   const activeModal: AuthModal =
-    location.pathname === '/login' ? 'login' :
-    location.pathname === '/register' ? 'register' : null;
+    location.pathname === "/login"
+      ? "login"
+      : location.pathname === "/register"
+        ? "register"
+        : null;
 
-  const openLogin = () => navigate('/login');
-  const openRegister = () => navigate('/register');
-  const closeModal = () => navigate('/');
-  const switchToRegister = () => navigate('/register');
-  const switchToLogin = () => navigate('/login');
-  const goPlatform = () => navigate('/app/applications');
+  const openLogin = () => navigate("/login");
+  const openRegister = () => navigate("/register");
+  const closeModal = () => navigate("/");
+  const switchToRegister = () => navigate("/register");
+  const switchToLogin = () => navigate("/login");
+  const goPlatform = () => navigate("/app/applications");
 
   return (
     <div className="flex min-h-screen flex-col">
+      <JsonLd />
       <HomeNavbar
         isAuthenticated={isAuthenticated}
         onLogin={openLogin}
@@ -49,12 +67,12 @@ export default function Home() {
       <FooterSection />
 
       <LoginModal
-        open={activeModal === 'login'}
+        open={activeModal === "login"}
         onOpenChange={(open) => !open && closeModal()}
         onSwitchToRegister={switchToRegister}
       />
       <RegisterModal
-        open={activeModal === 'register'}
+        open={activeModal === "register"}
         onOpenChange={(open) => !open && closeModal()}
         onSwitchToLogin={switchToLogin}
       />

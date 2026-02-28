@@ -18,12 +18,12 @@ import {
   CardTitle,
 } from "@/shared/ui/Card";
 import { Button } from "@/shared/ui/Button";
-import { usePageTitle } from "@/shared/lib/usePageTitle";
+import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { useOnboarding } from "@/features/onboarding/useOnboarding";
 
 export default function Settings() {
   const { t, i18n } = useTranslation();
-  usePageTitle("settings.title");
+  usePageMeta({ titleKey: "settings.title", noindex: true });
   const { theme, setTheme } = useThemeStore();
   const clearAuth = useAuthStore((state) => state.clearAuth);
   const { restart } = useOnboarding();
@@ -80,7 +80,7 @@ export default function Settings() {
       showErrorNotification(t("settings.calendar.connectError"));
       setSearchParams({});
     }
-  }, [calendarParam]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [calendarParam, t, queryClient, setSearchParams]);
 
   return (
     <div className="space-y-6">
@@ -127,6 +127,12 @@ export default function Settings() {
               onClick={() => i18n.changeLanguage("ua")}
             >
               {t("settings.ukrainian")}
+            </Button>
+            <Button
+              variant={i18n.language === "ru" ? "default" : "outline"}
+              onClick={() => i18n.changeLanguage("ru")}
+            >
+              {t("settings.russian")}
             </Button>
           </div>
         </CardContent>

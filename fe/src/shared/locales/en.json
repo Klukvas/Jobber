@@ -258,11 +258,11 @@
     "languageDescription": "Select your preferred language",
     "theme": "Theme",
     "themeDescription": "Choose your preferred color scheme",
-    "timezone": "Timezone",
     "light": "Light",
     "dark": "Dark",
     "english": "English",
     "ukrainian": "Українська",
+    "russian": "Русский",
     "account": "Account",
     "accountDescription": "Manage your account settings",
     "calendar": {
@@ -281,6 +281,45 @@
       "description": "Restart the welcome wizard to see the getting started guide again",
       "restart": "Restart Onboarding"
     }
+  },
+  "seo": {
+    "defaultTitle": "Jobber — Job Application Tracker",
+    "defaultDescription": "Track your job applications, manage companies, and analyze your job search progress with Jobber.",
+    "home": {
+      "title": "Jobber — Track Your Job Search",
+      "description": "Organize and manage your job search with a Kanban board, analytics, and stage tracking."
+    },
+    "jobs": {
+      "title": "Jobs — Jobber",
+      "description": "Browse and manage your job postings in one place."
+    },
+    "applications": {
+      "title": "Applications — Jobber",
+      "description": "Track all your job applications and their progress through stages."
+    },
+    "companies": {
+      "title": "Companies — Jobber",
+      "description": "Manage the companies you are applying to."
+    },
+    "analytics": {
+      "title": "Analytics — Jobber",
+      "description": "Get insights into your job search with detailed analytics."
+    },
+    "blog": {
+      "title": "Blog — Jobber",
+      "description": "Tips and insights to help you land your next job."
+    }
+  },
+  "blog": {
+    "title": "Blog",
+    "subtitle": "Tips and insights for your job search",
+    "readMore": "Read more",
+    "backToBlog": "Back to blog",
+    "notFound": "Post not found",
+    "notFoundDescription": "The blog post you are looking for does not exist.",
+    "tags": "Tags",
+    "publishedOn": "Published on",
+    "noPosts": "No posts yet. Check back soon!"
   },
   "errors": {
     "required": "This field is required",
@@ -328,7 +367,6 @@
   },
   "home": {
     "nav": {
-      "product": "Product",
       "features": "Features",
       "howItWorks": "How It Works"
     },

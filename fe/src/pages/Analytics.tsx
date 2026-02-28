@@ -1,19 +1,25 @@
-import { useQuery } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
-import { 
+import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import {
   analyticsService,
   type OverviewAnalytics,
   type FunnelAnalytics,
   type StageTimeAnalytics,
   type ResumeAnalytics,
   type SourceAnalytics,
-} from '@/services/analyticsService';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/shared/ui/Card';
-import { Skeleton } from '@/shared/ui/Skeleton';
-import { EmptyState } from '@/shared/ui/EmptyState';
-import { ErrorState } from '@/shared/ui/ErrorState';
-import { 
-  BarChart3, 
+} from "@/services/analyticsService";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/shared/ui/Card";
+import { Skeleton } from "@/shared/ui/Skeleton";
+import { EmptyState } from "@/shared/ui/EmptyState";
+import { ErrorState } from "@/shared/ui/ErrorState";
+import {
+  BarChart3,
   TrendingUp,
   Clock,
   FileText,
@@ -22,12 +28,18 @@ import {
   CheckCircle,
   ArrowRight,
   Briefcase,
-} from 'lucide-react';
-import { cn } from '@/shared/lib/utils';
-import { usePageTitle } from '@/shared/lib/usePageTitle';
+} from "lucide-react";
+import { cn } from "@/shared/lib/utils";
+import { usePageMeta } from "@/shared/lib/usePageMeta";
 
 // Overview Cards Component
-function OverviewCards({ data, isLoading }: { data?: OverviewAnalytics; isLoading: boolean }) {
+function OverviewCards({
+  data,
+  isLoading,
+}: {
+  data?: OverviewAnalytics;
+  isLoading: boolean;
+}) {
   const { t } = useTranslation();
 
   if (isLoading) {
@@ -49,36 +61,37 @@ function OverviewCards({ data, isLoading }: { data?: OverviewAnalytics; isLoadin
 
   const cards = [
     {
-      title: t('analytics.overview.totalApplications'),
+      title: t("analytics.overview.totalApplications"),
       value: data.total_applications,
       icon: Briefcase,
-      color: 'text-blue-500',
+      color: "text-blue-500",
     },
     {
-      title: t('analytics.overview.activeApplications'),
+      title: t("analytics.overview.activeApplications"),
       value: data.active_applications,
       icon: Activity,
-      color: 'text-green-500',
+      color: "text-green-500",
     },
     {
-      title: t('analytics.overview.closedApplications'),
+      title: t("analytics.overview.closedApplications"),
       value: data.closed_applications,
       icon: CheckCircle,
-      color: 'text-gray-500',
+      color: "text-gray-500",
     },
     {
-      title: t('analytics.overview.responseRate'),
+      title: t("analytics.overview.responseRate"),
       value: `${data.response_rate}%`,
       icon: TrendingUp,
-      color: 'text-purple-500',
+      color: "text-purple-500",
     },
     {
-      title: t('analytics.overview.avgResponseTime'),
-      value: data.avg_days_to_first_response > 0 
-        ? `${data.avg_days_to_first_response} ${t('analytics.days')}`
-        : '-',
+      title: t("analytics.overview.avgResponseTime"),
+      value:
+        data.avg_days_to_first_response > 0
+          ? `${data.avg_days_to_first_response} ${t("analytics.days")}`
+          : "-",
       icon: Clock,
-      color: 'text-orange-500',
+      color: "text-orange-500",
     },
   ];
 
@@ -91,10 +104,12 @@ function OverviewCards({ data, isLoading }: { data?: OverviewAnalytics; isLoadin
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {card.title}
+                  </p>
                   <p className="text-2xl font-bold mt-1">{card.value}</p>
                 </div>
-                <Icon className={cn('h-8 w-8', card.color)} />
+                <Icon className={cn("h-8 w-8", card.color)} />
               </div>
             </CardContent>
           </Card>
@@ -105,7 +120,13 @@ function OverviewCards({ data, isLoading }: { data?: OverviewAnalytics; isLoadin
 }
 
 // Funnel Visualization Component
-function FunnelVisualization({ data, isLoading }: { data?: FunnelAnalytics; isLoading: boolean }) {
+function FunnelVisualization({
+  data,
+  isLoading,
+}: {
+  data?: FunnelAnalytics;
+  isLoading: boolean;
+}) {
   const { t } = useTranslation();
 
   if (isLoading) {
@@ -114,7 +135,7 @@ function FunnelVisualization({ data, isLoading }: { data?: FunnelAnalytics; isLo
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5" />
-            {t('analytics.funnel.title')}
+            {t("analytics.funnel.title")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -136,30 +157,30 @@ function FunnelVisualization({ data, isLoading }: { data?: FunnelAnalytics; isLo
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5" />
-            {t('analytics.funnel.title')}
+            {t("analytics.funnel.title")}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <EmptyState
             icon={<TrendingUp className="h-12 w-12" />}
-            title={t('analytics.funnel.noData')}
-            description={t('analytics.funnel.noDataDescription')}
+            title={t("analytics.funnel.noData")}
+            description={t("analytics.funnel.noDataDescription")}
           />
         </CardContent>
       </Card>
     );
   }
 
-  const maxCount = Math.max(...data.stages.map(s => s.count), 1);
+  const maxCount = Math.max(...data.stages.map((s) => s.count), 1);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <TrendingUp className="h-5 w-5" />
-          {t('analytics.funnel.title')}
+          {t("analytics.funnel.title")}
         </CardTitle>
-        <CardDescription>{t('analytics.funnel.description')}</CardDescription>
+        <CardDescription>{t("analytics.funnel.description")}</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
@@ -170,21 +191,24 @@ function FunnelVisualization({ data, isLoading }: { data?: FunnelAnalytics; isLo
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium">{stage.stage_name}</span>
                   <div className="flex items-center gap-4 text-muted-foreground">
-                    <span>{stage.count} {t('analytics.applications')}</span>
+                    <span>
+                      {stage.count} {t("analytics.applications")}
+                    </span>
                     {index > 0 && (
                       <>
                         <span className="text-green-600">
-                          {stage.conversion_rate}% {t('analytics.funnel.converted')}
+                          {stage.conversion_rate}%{" "}
+                          {t("analytics.funnel.converted")}
                         </span>
                         <span className="text-red-500">
-                          {stage.drop_off_rate}% {t('analytics.funnel.dropOff')}
+                          {stage.drop_off_rate}% {t("analytics.funnel.dropOff")}
                         </span>
                       </>
                     )}
                   </div>
                 </div>
                 <div className="h-8 bg-muted rounded-md overflow-hidden">
-                  <div 
+                  <div
                     className="h-full bg-primary/80 rounded-md transition-all duration-500 flex items-center justify-end pr-2"
                     style={{ width: `${Math.max(widthPercent, 5)}%` }}
                   >
@@ -210,7 +234,13 @@ function FunnelVisualization({ data, isLoading }: { data?: FunnelAnalytics; isLo
 }
 
 // Stage Time Table Component
-function StageTimeTable({ data, isLoading }: { data?: StageTimeAnalytics; isLoading: boolean }) {
+function StageTimeTable({
+  data,
+  isLoading,
+}: {
+  data?: StageTimeAnalytics;
+  isLoading: boolean;
+}) {
   const { t } = useTranslation();
 
   if (isLoading) {
@@ -219,7 +249,7 @@ function StageTimeTable({ data, isLoading }: { data?: StageTimeAnalytics; isLoad
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5" />
-            {t('analytics.stageTime.title')}
+            {t("analytics.stageTime.title")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -244,14 +274,14 @@ function StageTimeTable({ data, isLoading }: { data?: StageTimeAnalytics; isLoad
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5" />
-            {t('analytics.stageTime.title')}
+            {t("analytics.stageTime.title")}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <EmptyState
             icon={<Clock className="h-12 w-12" />}
-            title={t('analytics.stageTime.noData')}
-            description={t('analytics.stageTime.noDataDescription')}
+            title={t("analytics.stageTime.noData")}
+            description={t("analytics.stageTime.noDataDescription")}
           />
         </CardContent>
       </Card>
@@ -263,9 +293,11 @@ function StageTimeTable({ data, isLoading }: { data?: StageTimeAnalytics; isLoad
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Clock className="h-5 w-5" />
-          {t('analytics.stageTime.title')}
+          {t("analytics.stageTime.title")}
         </CardTitle>
-        <CardDescription>{t('analytics.stageTime.description')}</CardDescription>
+        <CardDescription>
+          {t("analytics.stageTime.description")}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
@@ -273,30 +305,39 @@ function StageTimeTable({ data, isLoading }: { data?: StageTimeAnalytics; isLoad
             <thead>
               <tr className="border-b">
                 <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
-                  {t('analytics.stageTime.stage')}
+                  {t("analytics.stageTime.stage")}
                 </th>
                 <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
-                  {t('analytics.stageTime.avgDays')}
+                  {t("analytics.stageTime.avgDays")}
                 </th>
                 <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
-                  {t('analytics.stageTime.minDays')}
+                  {t("analytics.stageTime.minDays")}
                 </th>
                 <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
-                  {t('analytics.stageTime.maxDays')}
+                  {t("analytics.stageTime.maxDays")}
                 </th>
                 <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
-                  {t('analytics.stageTime.applications')}
+                  {t("analytics.stageTime.applications")}
                 </th>
               </tr>
             </thead>
             <tbody>
               {data.stages.map((stage) => (
-                <tr key={stage.stage_name} className="border-b last:border-0 hover:bg-muted/50">
+                <tr
+                  key={stage.stage_name}
+                  className="border-b last:border-0 hover:bg-muted/50"
+                >
                   <td className="py-3 px-2 font-medium">{stage.stage_name}</td>
                   <td className="py-3 px-2 text-right">{stage.avg_days}</td>
-                  <td className="py-3 px-2 text-right text-muted-foreground">{stage.min_days}</td>
-                  <td className="py-3 px-2 text-right text-muted-foreground">{stage.max_days}</td>
-                  <td className="py-3 px-2 text-right">{stage.applications_count}</td>
+                  <td className="py-3 px-2 text-right text-muted-foreground">
+                    {stage.min_days}
+                  </td>
+                  <td className="py-3 px-2 text-right text-muted-foreground">
+                    {stage.max_days}
+                  </td>
+                  <td className="py-3 px-2 text-right">
+                    {stage.applications_count}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -308,7 +349,13 @@ function StageTimeTable({ data, isLoading }: { data?: StageTimeAnalytics; isLoad
 }
 
 // Resume Effectiveness Table Component
-function ResumeEffectivenessTable({ data, isLoading }: { data?: ResumeAnalytics; isLoading: boolean }) {
+function ResumeEffectivenessTable({
+  data,
+  isLoading,
+}: {
+  data?: ResumeAnalytics;
+  isLoading: boolean;
+}) {
   const { t } = useTranslation();
 
   if (isLoading) {
@@ -317,7 +364,7 @@ function ResumeEffectivenessTable({ data, isLoading }: { data?: ResumeAnalytics;
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            {t('analytics.resumes.title')}
+            {t("analytics.resumes.title")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -342,14 +389,14 @@ function ResumeEffectivenessTable({ data, isLoading }: { data?: ResumeAnalytics;
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            {t('analytics.resumes.title')}
+            {t("analytics.resumes.title")}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <EmptyState
             icon={<FileText className="h-12 w-12" />}
-            title={t('analytics.resumes.noData')}
-            description={t('analytics.resumes.noDataDescription')}
+            title={t("analytics.resumes.noData")}
+            description={t("analytics.resumes.noDataDescription")}
           />
         </CardContent>
       </Card>
@@ -361,9 +408,9 @@ function ResumeEffectivenessTable({ data, isLoading }: { data?: ResumeAnalytics;
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <FileText className="h-5 w-5" />
-          {t('analytics.resumes.title')}
+          {t("analytics.resumes.title")}
         </CardTitle>
-        <CardDescription>{t('analytics.resumes.description')}</CardDescription>
+        <CardDescription>{t("analytics.resumes.description")}</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
@@ -371,36 +418,51 @@ function ResumeEffectivenessTable({ data, isLoading }: { data?: ResumeAnalytics;
             <thead>
               <tr className="border-b">
                 <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
-                  {t('analytics.resumes.resume')}
+                  {t("analytics.resumes.resume")}
                 </th>
                 <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
-                  {t('analytics.resumes.applications')}
+                  {t("analytics.resumes.applications")}
                 </th>
                 <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
-                  {t('analytics.resumes.responses')}
+                  {t("analytics.resumes.responses")}
                 </th>
                 <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
-                  {t('analytics.resumes.interviews')}
+                  {t("analytics.resumes.interviews")}
                 </th>
                 <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
-                  {t('analytics.resumes.responseRate')}
+                  {t("analytics.resumes.responseRate")}
                 </th>
               </tr>
             </thead>
             <tbody>
               {data.resumes.map((resume) => (
-                <tr key={resume.resume_id} className="border-b last:border-0 hover:bg-muted/50">
-                  <td className="py-3 px-2 font-medium">{resume.resume_title}</td>
-                  <td className="py-3 px-2 text-right">{resume.applications_count}</td>
-                  <td className="py-3 px-2 text-right">{resume.responses_count}</td>
-                  <td className="py-3 px-2 text-right">{resume.interviews_count}</td>
+                <tr
+                  key={resume.resume_id}
+                  className="border-b last:border-0 hover:bg-muted/50"
+                >
+                  <td className="py-3 px-2 font-medium">
+                    {resume.resume_title}
+                  </td>
                   <td className="py-3 px-2 text-right">
-                    <span className={cn(
-                      'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium',
-                      resume.response_rate >= 50 ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
-                      resume.response_rate >= 25 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' :
-                      'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
-                    )}>
+                    {resume.applications_count}
+                  </td>
+                  <td className="py-3 px-2 text-right">
+                    {resume.responses_count}
+                  </td>
+                  <td className="py-3 px-2 text-right">
+                    {resume.interviews_count}
+                  </td>
+                  <td className="py-3 px-2 text-right">
+                    <span
+                      className={cn(
+                        "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium",
+                        resume.response_rate >= 50
+                          ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                          : resume.response_rate >= 25
+                            ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
+                            : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+                      )}
+                    >
                       {resume.response_rate}%
                     </span>
                   </td>
@@ -415,7 +477,13 @@ function ResumeEffectivenessTable({ data, isLoading }: { data?: ResumeAnalytics;
 }
 
 // Source Analytics Table Component
-function SourceAnalyticsTable({ data, isLoading }: { data?: SourceAnalytics; isLoading: boolean }) {
+function SourceAnalyticsTable({
+  data,
+  isLoading,
+}: {
+  data?: SourceAnalytics;
+  isLoading: boolean;
+}) {
   const { t } = useTranslation();
 
   if (isLoading) {
@@ -424,7 +492,7 @@ function SourceAnalyticsTable({ data, isLoading }: { data?: SourceAnalytics; isL
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Globe className="h-5 w-5" />
-            {t('analytics.sources.title')}
+            {t("analytics.sources.title")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -449,14 +517,14 @@ function SourceAnalyticsTable({ data, isLoading }: { data?: SourceAnalytics; isL
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Globe className="h-5 w-5" />
-            {t('analytics.sources.title')}
+            {t("analytics.sources.title")}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <EmptyState
             icon={<Globe className="h-12 w-12" />}
-            title={t('analytics.sources.noData')}
-            description={t('analytics.sources.noDataDescription')}
+            title={t("analytics.sources.noData")}
+            description={t("analytics.sources.noDataDescription")}
           />
         </CardContent>
       </Card>
@@ -468,9 +536,9 @@ function SourceAnalyticsTable({ data, isLoading }: { data?: SourceAnalytics; isL
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Globe className="h-5 w-5" />
-          {t('analytics.sources.title')}
+          {t("analytics.sources.title")}
         </CardTitle>
-        <CardDescription>{t('analytics.sources.description')}</CardDescription>
+        <CardDescription>{t("analytics.sources.description")}</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
@@ -478,32 +546,45 @@ function SourceAnalyticsTable({ data, isLoading }: { data?: SourceAnalytics; isL
             <thead>
               <tr className="border-b">
                 <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
-                  {t('analytics.sources.source')}
+                  {t("analytics.sources.source")}
                 </th>
                 <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
-                  {t('analytics.sources.applications')}
+                  {t("analytics.sources.applications")}
                 </th>
                 <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
-                  {t('analytics.sources.responses')}
+                  {t("analytics.sources.responses")}
                 </th>
                 <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
-                  {t('analytics.sources.conversionRate')}
+                  {t("analytics.sources.conversionRate")}
                 </th>
               </tr>
             </thead>
             <tbody>
               {data.sources.map((source) => (
-                <tr key={source.source_name} className="border-b last:border-0 hover:bg-muted/50">
-                  <td className="py-3 px-2 font-medium">{source.source_name}</td>
-                  <td className="py-3 px-2 text-right">{source.applications_count}</td>
-                  <td className="py-3 px-2 text-right">{source.responses_count}</td>
+                <tr
+                  key={source.source_name}
+                  className="border-b last:border-0 hover:bg-muted/50"
+                >
+                  <td className="py-3 px-2 font-medium">
+                    {source.source_name}
+                  </td>
                   <td className="py-3 px-2 text-right">
-                    <span className={cn(
-                      'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium',
-                      source.conversion_rate >= 50 ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
-                      source.conversion_rate >= 25 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' :
-                      'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
-                    )}>
+                    {source.applications_count}
+                  </td>
+                  <td className="py-3 px-2 text-right">
+                    {source.responses_count}
+                  </td>
+                  <td className="py-3 px-2 text-right">
+                    <span
+                      className={cn(
+                        "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium",
+                        source.conversion_rate >= 50
+                          ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                          : source.conversion_rate >= 25
+                            ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
+                            : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+                      )}
+                    >
                       {source.conversion_rate}%
                     </span>
                   </td>
@@ -520,55 +601,67 @@ function SourceAnalyticsTable({ data, isLoading }: { data?: SourceAnalytics; isL
 // Main Analytics Page Component
 export default function Analytics() {
   const { t } = useTranslation();
-  usePageTitle('analytics.title');
+  usePageMeta({ titleKey: "analytics.title", noindex: true });
 
   const overviewQuery = useQuery({
-    queryKey: ['analytics', 'overview'],
+    queryKey: ["analytics", "overview"],
     queryFn: () => analyticsService.getOverview(),
   });
 
   const funnelQuery = useQuery({
-    queryKey: ['analytics', 'funnel'],
+    queryKey: ["analytics", "funnel"],
     queryFn: () => analyticsService.getFunnel(),
   });
 
   const stageTimeQuery = useQuery({
-    queryKey: ['analytics', 'stageTime'],
+    queryKey: ["analytics", "stageTime"],
     queryFn: () => analyticsService.getStageTime(),
   });
 
   const resumeQuery = useQuery({
-    queryKey: ['analytics', 'resumes'],
+    queryKey: ["analytics", "resumes"],
     queryFn: () => analyticsService.getResumeEffectiveness(),
   });
 
   const sourceQuery = useQuery({
-    queryKey: ['analytics', 'sources'],
+    queryKey: ["analytics", "sources"],
     queryFn: () => analyticsService.getSourceAnalytics(),
   });
 
-  const isAllLoading = overviewQuery.isLoading && funnelQuery.isLoading && 
-    stageTimeQuery.isLoading && resumeQuery.isLoading && sourceQuery.isLoading;
+  const isAllLoading =
+    overviewQuery.isLoading &&
+    funnelQuery.isLoading &&
+    stageTimeQuery.isLoading &&
+    resumeQuery.isLoading &&
+    sourceQuery.isLoading;
 
-  const hasAnyError = overviewQuery.isError || funnelQuery.isError || 
-    stageTimeQuery.isError || resumeQuery.isError || sourceQuery.isError;
+  const hasAnyError =
+    overviewQuery.isError ||
+    funnelQuery.isError ||
+    stageTimeQuery.isError ||
+    resumeQuery.isError ||
+    sourceQuery.isError;
 
   // Check if there's no data at all
-  const hasNoData = !overviewQuery.isLoading && 
-    overviewQuery.data?.total_applications === 0;
+  const hasNoData =
+    !overviewQuery.isLoading && overviewQuery.data?.total_applications === 0;
 
   if (hasAnyError && !isAllLoading) {
-    const error = overviewQuery.error || funnelQuery.error || 
-      stageTimeQuery.error || resumeQuery.error || sourceQuery.error;
-    
+    const error =
+      overviewQuery.error ||
+      funnelQuery.error ||
+      stageTimeQuery.error ||
+      resumeQuery.error ||
+      sourceQuery.error;
+
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-3">
           <BarChart3 className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold">{t('analytics.title')}</h1>
+          <h1 className="text-3xl font-bold">{t("analytics.title")}</h1>
         </div>
         <ErrorState
-          message={(error as Error)?.message || t('analytics.error')}
+          message={(error as Error)?.message || t("analytics.error")}
           onRetry={() => {
             overviewQuery.refetch();
             funnelQuery.refetch();
@@ -586,12 +679,12 @@ export default function Analytics() {
       <div className="space-y-6">
         <div className="flex items-center gap-3">
           <BarChart3 className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold">{t('analytics.title')}</h1>
+          <h1 className="text-3xl font-bold">{t("analytics.title")}</h1>
         </div>
         <EmptyState
           icon={<BarChart3 className="h-16 w-16" />}
-          title={t('analytics.noData')}
-          description={t('analytics.noDataDescription')}
+          title={t("analytics.noData")}
+          description={t("analytics.noDataDescription")}
         />
       </div>
     );
@@ -603,28 +696,43 @@ export default function Analytics() {
       <div className="flex items-center gap-3">
         <BarChart3 className="h-8 w-8 text-primary" />
         <div>
-          <h1 className="text-3xl font-bold">{t('analytics.title')}</h1>
-          <p className="text-muted-foreground">{t('analytics.description')}</p>
+          <h1 className="text-3xl font-bold">{t("analytics.title")}</h1>
+          <p className="text-muted-foreground">{t("analytics.description")}</p>
         </div>
       </div>
 
       {/* Overview Cards */}
-      <OverviewCards data={overviewQuery.data} isLoading={overviewQuery.isLoading} />
+      <OverviewCards
+        data={overviewQuery.data}
+        isLoading={overviewQuery.isLoading}
+      />
 
       {/* Funnel Visualization */}
-      <FunnelVisualization data={funnelQuery.data} isLoading={funnelQuery.isLoading} />
+      <FunnelVisualization
+        data={funnelQuery.data}
+        isLoading={funnelQuery.isLoading}
+      />
 
       {/* Two-column grid for tables */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Stage Time Table */}
-        <StageTimeTable data={stageTimeQuery.data} isLoading={stageTimeQuery.isLoading} />
+        <StageTimeTable
+          data={stageTimeQuery.data}
+          isLoading={stageTimeQuery.isLoading}
+        />
 
         {/* Resume Effectiveness Table */}
-        <ResumeEffectivenessTable data={resumeQuery.data} isLoading={resumeQuery.isLoading} />
+        <ResumeEffectivenessTable
+          data={resumeQuery.data}
+          isLoading={resumeQuery.isLoading}
+        />
       </div>
 
       {/* Source Analytics Table */}
-      <SourceAnalyticsTable data={sourceQuery.data} isLoading={sourceQuery.isLoading} />
+      <SourceAnalyticsTable
+        data={sourceQuery.data}
+        isLoading={sourceQuery.isLoading}
+      />
     </div>
   );
 }

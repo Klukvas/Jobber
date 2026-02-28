@@ -1,31 +1,33 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
-import { RootLayout } from './layouts/RootLayout';
-import { AuthLayout } from './layouts/AuthLayout';
-import { AppLayout } from './layouts/AppLayout';
+import { createBrowserRouter, Navigate } from "react-router-dom";
+import { RootLayout } from "./layouts/RootLayout";
+import { AuthLayout } from "./layouts/AuthLayout";
+import { AppLayout } from "./layouts/AppLayout";
 
 // Lazy load pages
-import { lazy } from 'react';
+import { lazy } from "react";
 
 // Public pages
-const HomePage = lazy(() => import('@/pages/Home'));
+const HomePage = lazy(() => import("@/pages/Home"));
+const BlogPage = lazy(() => import("@/pages/Blog"));
+const BlogPostPage = lazy(() => import("@/pages/BlogPost"));
 
 // Protected pages
-const ApplicationsPage = lazy(() => import('@/pages/Applications'));
-const ApplicationDetailPage = lazy(() => import('@/pages/ApplicationDetail'));
-const ResumesPage = lazy(() => import('@/pages/Resumes'));
-const CompaniesPage = lazy(() => import('@/pages/Companies'));
-const JobsPage = lazy(() => import('@/pages/Jobs'));
-const StageTemplatesPage = lazy(() => import('@/pages/StageTemplates'));
-const AnalyticsPage = lazy(() => import('@/pages/Analytics'));
-const SettingsPage = lazy(() => import('@/pages/Settings'));
+const ApplicationsPage = lazy(() => import("@/pages/Applications"));
+const ApplicationDetailPage = lazy(() => import("@/pages/ApplicationDetail"));
+const ResumesPage = lazy(() => import("@/pages/Resumes"));
+const CompaniesPage = lazy(() => import("@/pages/Companies"));
+const JobsPage = lazy(() => import("@/pages/Jobs"));
+const StageTemplatesPage = lazy(() => import("@/pages/StageTemplates"));
+const AnalyticsPage = lazy(() => import("@/pages/Analytics"));
+const SettingsPage = lazy(() => import("@/pages/Settings"));
 
 export const router = createBrowserRouter([
   {
-    path: '/',
+    path: "/",
     element: <RootLayout />,
     children: [
       {
-        path: '',
+        path: "",
         element: <AuthLayout />,
         children: [
           {
@@ -34,18 +36,26 @@ export const router = createBrowserRouter([
           },
           {
             // Login modal is shown on Home page based on URL
-            path: 'login',
+            path: "login",
             element: <HomePage />,
           },
           {
             // Register modal is shown on Home page based on URL
-            path: 'register',
+            path: "register",
             element: <HomePage />,
           },
         ],
       },
       {
-        path: 'app',
+        path: "blog",
+        element: <BlogPage />,
+      },
+      {
+        path: "blog/:slug",
+        element: <BlogPostPage />,
+      },
+      {
+        path: "app",
         element: <AppLayout />,
         children: [
           {
@@ -53,35 +63,35 @@ export const router = createBrowserRouter([
             element: <Navigate to="/app/applications" replace />,
           },
           {
-            path: 'applications',
+            path: "applications",
             element: <ApplicationsPage />,
           },
           {
-            path: 'applications/:id',
+            path: "applications/:id",
             element: <ApplicationDetailPage />,
           },
           {
-            path: 'resumes',
+            path: "resumes",
             element: <ResumesPage />,
           },
           {
-            path: 'companies',
+            path: "companies",
             element: <CompaniesPage />,
           },
           {
-            path: 'jobs',
+            path: "jobs",
             element: <JobsPage />,
           },
           {
-            path: 'stages',
+            path: "stages",
             element: <StageTemplatesPage />,
           },
           {
-            path: 'analytics',
+            path: "analytics",
             element: <AnalyticsPage />,
           },
           {
-            path: 'settings',
+            path: "settings",
             element: <SettingsPage />,
           },
         ],
