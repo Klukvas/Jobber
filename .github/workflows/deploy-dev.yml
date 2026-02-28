@@ -511,6 +511,11 @@ jobs:
             echo "⚠️  Frontend health check failed (non-critical)"
           fi
 
+          # Run database seed (creates reviewer account for Chrome Web Store)
+          echo ""
+          echo "🌱 Running database seed..."
+          docker exec jobber-backend ./jobber-seed || echo "⚠️  Seed failed (non-critical)"
+
           # Show final status
           echo ""
           echo "📊 Final service status:"

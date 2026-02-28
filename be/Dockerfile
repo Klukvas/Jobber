@@ -16,6 +16,7 @@ COPY . .
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -o jobber-api ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux go build -o jobber-seed ./cmd/seed
 
 # Runtime stage
 FROM alpine:latest
@@ -29,8 +30,9 @@ RUN apk --no-cache add ca-certificates tzdata
 RUN addgroup -g 1000 appuser && \
     adduser -D -u 1000 -G appuser appuser
 
-# Copy binary from builder
+# Copy binaries from builder
 COPY --from=builder /app/jobber-api .
+COPY --from=builder /app/jobber-seed .
 COPY --from=builder /app/migrations ./migrations
 
 # Change ownership
