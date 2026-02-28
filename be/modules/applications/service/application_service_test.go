@@ -166,7 +166,7 @@ func (m *MockJobRepository) GetByID(ctx context.Context, userID, jobID string) (
 	}
 	return nil, nil
 }
-func (m *MockJobRepository) List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder, boardColumn string) ([]*jobModel.JobDTO, int, error) {
+func (m *MockJobRepository) List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*jobModel.JobDTO, int, error) {
 	return nil, 0, nil
 }
 func (m *MockJobRepository) Update(ctx context.Context, job *jobModel.Job) error { return nil }
@@ -504,6 +504,10 @@ func TestApplicationService_Delete(t *testing.T) {
 		svc, appRepo, _, _, _, _, _, _ := createTestService()
 
 		var deletedAppID string
+
+		appRepo.GetByIDFunc = func(ctx context.Context, uid, aid string) (*model.Application, error) {
+			return &model.Application{ID: aid, UserID: uid, JobID: "job-1"}, nil
+		}
 
 		appRepo.DeleteFunc = func(ctx context.Context, uid, aid string) error {
 			deletedAppID = aid
@@ -941,7 +945,7 @@ func TestApplicationService_List(t *testing.T) {
 			return &resumeModel.Resume{ID: rid, Title: "Test Resume"}, nil
 		}
 
-		result, total, err := svc.List(context.Background(), userID, "created_at", "desc", 20, 0)
+		result, total, err := svc.List(context.Background(), userID, "created_at", "desc", "", 20, 0)
 
 		require.NoError(t, err)
 		assert.Len(t, result, 2)

@@ -19,16 +19,8 @@ import {
   Calendar,
   FileText,
   ArrowUpDown,
-  Download,
-  LayoutGrid,
-  Kanban,
 } from "lucide-react";
 import { CreateJobModal } from "@/features/jobs/modals/CreateJobModal";
-import { ImportJobModal } from "@/features/jobs/modals/ImportJobModal";
-import {
-  KanbanBoard,
-  KANBAN_QUERY_KEY,
-} from "@/features/jobs/components/KanbanBoard";
 import { usePageTitle } from "@/shared/lib/usePageTitle";
 import type { JobDTO } from "@/shared/types/api";
 import {
@@ -38,29 +30,16 @@ import {
 
 type SortField = "created_at" | "title" | "company_name";
 type SortDir = "asc" | "desc";
-type ViewMode = "grid" | "kanban";
-
-function getInitialViewMode(): ViewMode {
-  const stored = localStorage.getItem("jobs-view-mode");
-  return stored === "kanban" ? "kanban" : "grid";
-}
 
 export default function Jobs() {
   const { t } = useTranslation();
   usePageTitle("jobs.title");
   const queryClient = useQueryClient();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<JobDTO | undefined>(undefined);
   const [sortField, setSortField] = useState<SortField>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
-
-  // Persist view mode
-  useEffect(() => {
-    localStorage.setItem("jobs-view-mode", viewMode);
-  }, [viewMode]);
 
   // Close context menu when clicking outside
   useEffect(() => {
@@ -71,20 +50,14 @@ export default function Jobs() {
     }
   }, [openMenuId]);
 
-  // Kanban uses a shared constant key; grid uses sort-specific keys
-  const queryKey =
-    viewMode === "kanban"
-      ? [...KANBAN_QUERY_KEY]
-      : ["jobs", sortField, sortDir];
-
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey,
+    queryKey: ["jobs", sortField, sortDir],
     queryFn: () =>
       jobsService.list({
-        limit: viewMode === "kanban" ? 500 : 100,
+        limit: 100,
         offset: 0,
         status: "active",
-        sort: viewMode === "kanban" ? undefined : `${sortField}:${sortDir}`,
+        sort: `${sortField}:${sortDir}`,
       }),
   });
 
@@ -150,42 +123,10 @@ export default function Jobs() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">{t("jobs.title")}</h1>
-        <div className="flex items-center gap-2">
-          {/* View Toggle */}
-          <div className="flex items-center rounded-lg border bg-muted p-0.5">
-            <button
-              onClick={() => setViewMode("grid")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                viewMode === "grid"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <LayoutGrid className="h-4 w-4" />
-              {t("jobs.viewGrid")}
-            </button>
-            <button
-              onClick={() => setViewMode("kanban")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                viewMode === "kanban"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Kanban className="h-4 w-4" />
-              {t("jobs.viewKanban")}
-            </button>
-          </div>
-
-          <Button variant="outline" onClick={() => setIsImportModalOpen(true)}>
-            <Download className="h-4 w-4" />
-            {t("jobs.import.button")}
-          </Button>
-          <Button onClick={() => setIsCreateModalOpen(true)}>
-            <Plus className="h-4 w-4" />
-            {t("jobs.create")}
-          </Button>
-        </div>
+        <Button onClick={() => setIsCreateModalOpen(true)}>
+          <Plus className="h-4 w-4" />
+          {t("jobs.create")}
+        </Button>
       </div>
 
       {jobs.length === 0 ? (
@@ -199,12 +140,6 @@ export default function Jobs() {
               {t("jobs.createFirstJob")}
             </Button>
           }
-        />
-      ) : viewMode === "kanban" ? (
-        <KanbanBoard
-          jobs={jobs}
-          onEditJob={handleEdit}
-          onArchiveJob={handleArchive}
         />
       ) : (
         <>
@@ -352,11 +287,6 @@ export default function Jobs() {
         open={isCreateModalOpen}
         onOpenChange={handleModalClose}
         job={editingJob}
-      />
-
-      <ImportJobModal
-        open={isImportModalOpen}
-        onOpenChange={setIsImportModalOpen}
       />
     </div>
   );

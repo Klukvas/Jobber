@@ -49,7 +49,7 @@ var defaultMockCompanyRepo = &MockCompanyRepository{}
 type MockJobRepository struct {
 	CreateFunc  func(ctx context.Context, job *model.Job) error
 	GetByIDFunc func(ctx context.Context, userID, jobID string) (*model.Job, error)
-	ListFunc    func(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder, boardColumn string) ([]*model.JobDTO, int, error)
+	ListFunc    func(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error)
 	UpdateFunc  func(ctx context.Context, job *model.Job) error
 	DeleteFunc  func(ctx context.Context, userID, jobID string) error
 }
@@ -68,9 +68,9 @@ func (m *MockJobRepository) GetByID(ctx context.Context, userID, jobID string) (
 	return nil, nil
 }
 
-func (m *MockJobRepository) List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder, boardColumn string) ([]*model.JobDTO, int, error) {
+func (m *MockJobRepository) List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error) {
 	if m.ListFunc != nil {
-		return m.ListFunc(ctx, userID, limit, offset, status, sortBy, sortOrder, boardColumn)
+		return m.ListFunc(ctx, userID, limit, offset, status, sortBy, sortOrder)
 	}
 	return nil, 0, nil
 }
@@ -103,7 +103,7 @@ func TestJobService_Create(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		req := &model.CreateJobRequest{
 			Title: "Software Engineer",
 		}
@@ -117,7 +117,7 @@ func TestJobService_Create(t *testing.T) {
 
 	t.Run("returns error for empty title", func(t *testing.T) {
 		mockRepo := &MockJobRepository{}
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		req := &model.CreateJobRequest{Title: "   "}
 
 		result, err := svc.Create(context.Background(), userID, req)
@@ -137,7 +137,7 @@ func TestJobService_Create(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		req := &model.CreateJobRequest{Title: "  Software Engineer  "}
 
 		_, err := svc.Create(context.Background(), userID, req)
@@ -161,7 +161,7 @@ func TestJobService_Create(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		req := &model.CreateJobRequest{
 			Title:     "Software Engineer",
 			CompanyID: &companyID,
@@ -179,65 +179,6 @@ func TestJobService_Create(t *testing.T) {
 		assert.Equal(t, &notes, createdJob.Notes)
 	})
 
-	t.Run("creates job with board_column", func(t *testing.T) {
-		var createdJob *model.Job
-
-		mockRepo := &MockJobRepository{
-			CreateFunc: func(ctx context.Context, job *model.Job) error {
-				createdJob = job
-				job.ID = "job-1"
-				return nil
-			},
-		}
-
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
-		boardColumn := "applied"
-		req := &model.CreateJobRequest{
-			Title:       "Software Engineer",
-			BoardColumn: &boardColumn,
-		}
-
-		_, err := svc.Create(context.Background(), userID, req)
-
-		require.NoError(t, err)
-		assert.Equal(t, "applied", createdJob.BoardColumn)
-	})
-
-	t.Run("defaults board_column to wishlist", func(t *testing.T) {
-		var createdJob *model.Job
-
-		mockRepo := &MockJobRepository{
-			CreateFunc: func(ctx context.Context, job *model.Job) error {
-				createdJob = job
-				job.ID = "job-1"
-				return nil
-			},
-		}
-
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
-		req := &model.CreateJobRequest{Title: "Software Engineer"}
-
-		_, err := svc.Create(context.Background(), userID, req)
-
-		require.NoError(t, err)
-		assert.Equal(t, "wishlist", createdJob.BoardColumn)
-	})
-
-	t.Run("returns error for invalid board_column", func(t *testing.T) {
-		mockRepo := &MockJobRepository{}
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
-		invalidColumn := "invalid-column"
-		req := &model.CreateJobRequest{
-			Title:       "Software Engineer",
-			BoardColumn: &invalidColumn,
-		}
-
-		result, err := svc.Create(context.Background(), userID, req)
-
-		assert.Nil(t, result)
-		assert.Equal(t, model.ErrInvalidBoardColumn, err)
-	})
-
 	t.Run("returns error from repository", func(t *testing.T) {
 		expectedError := errors.New("database error")
 
@@ -247,7 +188,7 @@ func TestJobService_Create(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		req := &model.CreateJobRequest{Title: "Software Engineer"}
 
 		result, err := svc.Create(context.Background(), userID, req)
@@ -279,7 +220,7 @@ func TestJobService_GetByID(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		result, err := svc.GetByID(context.Background(), userID, jobID)
 
 		require.NoError(t, err)
@@ -294,7 +235,7 @@ func TestJobService_GetByID(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		result, err := svc.GetByID(context.Background(), userID, jobID)
 
 		assert.Nil(t, result)
@@ -312,7 +253,7 @@ func TestJobService_List(t *testing.T) {
 		}
 
 		mockRepo := &MockJobRepository{
-			ListFunc: func(ctx context.Context, uid string, limit, offset int, status, sortBy, sortOrder, boardColumn string) ([]*model.JobDTO, int, error) {
+			ListFunc: func(ctx context.Context, uid string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error) {
 				assert.Equal(t, userID, uid)
 				assert.Equal(t, 20, limit)
 				assert.Equal(t, 0, offset)
@@ -320,8 +261,8 @@ func TestJobService_List(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
-		result, total, err := svc.List(context.Background(), userID, 20, 0, "active", "", "", "")
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		result, total, err := svc.List(context.Background(), userID, 20, 0, "active", "", "")
 
 		require.NoError(t, err)
 		assert.Len(t, result, 2)
@@ -330,13 +271,13 @@ func TestJobService_List(t *testing.T) {
 
 	t.Run("returns empty list", func(t *testing.T) {
 		mockRepo := &MockJobRepository{
-			ListFunc: func(ctx context.Context, uid string, limit, offset int, status, sortBy, sortOrder, boardColumn string) ([]*model.JobDTO, int, error) {
+			ListFunc: func(ctx context.Context, uid string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error) {
 				return []*model.JobDTO{}, 0, nil
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
-		result, total, err := svc.List(context.Background(), userID, 20, 0, "active", "", "", "")
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		result, total, err := svc.List(context.Background(), userID, 20, 0, "active", "", "")
 
 		require.NoError(t, err)
 		assert.Empty(t, result)
@@ -345,15 +286,15 @@ func TestJobService_List(t *testing.T) {
 
 	t.Run("passes sort parameters", func(t *testing.T) {
 		mockRepo := &MockJobRepository{
-			ListFunc: func(ctx context.Context, uid string, limit, offset int, status, sortBy, sortOrder, boardColumn string) ([]*model.JobDTO, int, error) {
+			ListFunc: func(ctx context.Context, uid string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error) {
 				assert.Equal(t, "title", sortBy)
 				assert.Equal(t, "asc", sortOrder)
 				return []*model.JobDTO{}, 0, nil
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
-		_, _, err := svc.List(context.Background(), userID, 20, 0, "active", "title", "asc", "")
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		_, _, err := svc.List(context.Background(), userID, 20, 0, "active", "title", "asc")
 
 		require.NoError(t, err)
 	})
@@ -382,7 +323,7 @@ func TestJobService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		newTitle := "New Title"
 		req := &model.UpdateJobRequest{Title: &newTitle}
 
@@ -406,7 +347,7 @@ func TestJobService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		emptyTitle := "   "
 		req := &model.UpdateJobRequest{Title: &emptyTitle}
 
@@ -430,7 +371,7 @@ func TestJobService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		invalidStatus := "invalid-status"
 		req := &model.UpdateJobRequest{Status: &invalidStatus}
 
@@ -457,7 +398,7 @@ func TestJobService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		newStatus := "archived"
 		req := &model.UpdateJobRequest{Status: &newStatus}
 
@@ -467,59 +408,6 @@ func TestJobService_Update(t *testing.T) {
 		assert.Equal(t, "archived", result.Status)
 	})
 
-	t.Run("updates board_column successfully", func(t *testing.T) {
-		existingJob := &model.Job{
-			ID:          jobID,
-			UserID:      userID,
-			Title:       "Job Title",
-			Status:      "active",
-			BoardColumn: "wishlist",
-		}
-
-		mockRepo := &MockJobRepository{
-			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
-				return existingJob, nil
-			},
-			UpdateFunc: func(ctx context.Context, job *model.Job) error {
-				return nil
-			},
-		}
-
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
-		newColumn := "interview"
-		req := &model.UpdateJobRequest{BoardColumn: &newColumn}
-
-		result, err := svc.Update(context.Background(), userID, jobID, req)
-
-		require.NoError(t, err)
-		assert.Equal(t, "interview", result.BoardColumn)
-	})
-
-	t.Run("returns error for invalid board_column on update", func(t *testing.T) {
-		existingJob := &model.Job{
-			ID:          jobID,
-			UserID:      userID,
-			Title:       "Job Title",
-			Status:      "active",
-			BoardColumn: "wishlist",
-		}
-
-		mockRepo := &MockJobRepository{
-			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
-				return existingJob, nil
-			},
-		}
-
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
-		invalidColumn := "invalid"
-		req := &model.UpdateJobRequest{BoardColumn: &invalidColumn}
-
-		result, err := svc.Update(context.Background(), userID, jobID, req)
-
-		assert.Nil(t, result)
-		assert.Equal(t, model.ErrInvalidBoardColumn, err)
-	})
-
 	t.Run("returns error when job not found", func(t *testing.T) {
 		mockRepo := &MockJobRepository{
 			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
@@ -527,7 +415,7 @@ func TestJobService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		newTitle := "New Title"
 		req := &model.UpdateJobRequest{Title: &newTitle}
 
@@ -552,7 +440,7 @@ func TestJobService_Delete(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		err := svc.Delete(context.Background(), userID, jobID)
 
 		require.NoError(t, err)
@@ -566,7 +454,7 @@ func TestJobService_Delete(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
 		err := svc.Delete(context.Background(), userID, jobID)
 
 		assert.Equal(t, model.ErrJobNotFound, err)
@@ -579,15 +467,14 @@ func TestJob_ToDTO(t *testing.T) {
 	source := "LinkedIn"
 
 	job := &model.Job{
-		ID:          "job-1",
-		UserID:      "user-123",
-		CompanyID:   &companyID,
-		Title:       "Software Engineer",
-		Source:      &source,
-		Status:      "active",
-		BoardColumn: "applied",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:        "job-1",
+		UserID:    "user-123",
+		CompanyID: &companyID,
+		Title:     "Software Engineer",
+		Source:    &source,
+		Status:    "active",
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 
 	dto := job.ToDTO()
@@ -597,8 +484,7 @@ func TestJob_ToDTO(t *testing.T) {
 	assert.Equal(t, job.Title, dto.Title)
 	assert.Equal(t, job.Source, dto.Source)
 	assert.Equal(t, job.Status, dto.Status)
-	assert.Equal(t, "applied", dto.BoardColumn)
 	assert.Equal(t, job.CreatedAt, dto.CreatedAt)
-	assert.Nil(t, dto.CompanyName) // Set by repository
+	assert.Nil(t, dto.CompanyName)        // Set by repository
 	assert.Equal(t, 0, dto.ApplicationsCount) // Set by repository
 }

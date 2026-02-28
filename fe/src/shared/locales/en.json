@@ -104,8 +104,14 @@
     "newStatus": "New Status",
     "statusActive": "Active",
     "statusActiveDesc": "Application is active",
-    "statusClosed": "Closed",
-    "statusClosedDesc": "Application is closed",
+    "statusOnHold": "On Hold",
+    "statusOnHoldDesc": "Application is paused",
+    "statusOffer": "Offer",
+    "statusOfferDesc": "Received an offer",
+    "statusRejected": "Rejected",
+    "statusRejectedDesc": "Application was rejected",
+    "statusArchived": "Archived",
+    "statusArchivedDesc": "Application is archived",
     "statusUpdateSuccess": "Application status updated successfully",
     "statusUpdateError": "Failed to update application status",
     "statusUpdateFailed": "Failed to update status. Please try again.",
@@ -139,6 +145,21 @@
     "deleteStage": "Delete Stage",
     "deleteStageConfirm": "Are you sure you want to delete the stage \"{{stageName}}\"? This action cannot be undone.",
     "deleteStageError": "Failed to delete stage",
+    "viewList": "List",
+    "viewBoard": "Board",
+    "board": {
+      "groupByStatus": "By Status",
+      "groupByStage": "By Stage",
+      "emptyColumn": "No applications here",
+      "moveSuccess": "Application moved successfully",
+      "moveError": "Failed to move application",
+      "active": "Active",
+      "onHold": "On Hold",
+      "offer": "Offer",
+      "rejected": "Rejected",
+      "archived": "Archived",
+      "noStage": "No Stage"
+    },
     "schedule": {
       "button": "Schedule",
       "title": "Schedule Event",
@@ -224,38 +245,12 @@
     "createDescription": "Add a new job posting to track",
     "titlePlaceholder": "e.g., Senior Software Engineer",
     "selectCompany": "Select a company (optional)",
+    "quickAddCompany": "New company",
+    "quickAddCompanyPlaceholder": "Company name",
+    "quickAddCompanySuccess": "Company created",
+    "quickAddCompanyError": "Failed to create company",
     "sourcePlaceholder": "e.g., LinkedIn, Indeed, Company Website",
-    "notesPlaceholder": "Any additional notes about the job...",
-    "viewGrid": "Grid",
-    "viewKanban": "Board",
-    "board": {
-      "wishlist": "Wishlist",
-      "applied": "Applied",
-      "interview": "Interview",
-      "offer": "Offer",
-      "rejected": "Rejected",
-      "columnLabel": "Board Column",
-      "emptyColumn": "No jobs in this column",
-      "moveSuccess": "Job moved successfully",
-      "moveError": "Failed to move job"
-    },
-    "import": {
-      "button": "Import",
-      "title": "Import Job",
-      "description": "Paste a job URL from LinkedIn, DOU, or Indeed to import it automatically",
-      "urlLabel": "Job URL",
-      "urlPlaceholder": "https://linkedin.com/jobs/view/...",
-      "parse": "Parse",
-      "parsing": "Parsing...",
-      "parseError": "Failed to parse job URL",
-      "reviewTitle": "Review Imported Job",
-      "reviewDescription": "Review and edit the imported job data before saving",
-      "importJob": "Import Job",
-      "importSuccess": "Job imported successfully",
-      "importError": "Failed to import job",
-      "detectedCompany": "Detected company",
-      "location": "Location"
-    }
+    "notesPlaceholder": "Any additional notes about the job..."
   },
   "settings": {
     "title": "Settings",
@@ -280,6 +275,11 @@
       "connectError": "Failed to connect Google Calendar",
       "disconnectSuccess": "Google Calendar disconnected",
       "disconnectError": "Failed to disconnect Google Calendar"
+    },
+    "onboarding": {
+      "title": "Onboarding",
+      "description": "Restart the welcome wizard to see the getting started guide again",
+      "restart": "Restart Onboarding"
     }
   },
   "errors": {
@@ -325,6 +325,105 @@
     "deleteError": "Failed to delete stage template",
     "deleteSuccess": "Stage template deleted successfully",
     "created": "Created {{date}}"
+  },
+  "home": {
+    "nav": {
+      "product": "Product",
+      "features": "Features",
+      "howItWorks": "How It Works"
+    },
+    "hero": {
+      "title": "Track Your Job Applications with Confidence",
+      "subtitle": "Organize and manage your job search as a process, not a single action. Keep track of every stage, stay on top of deadlines, and never miss an opportunity.",
+      "cta": "Get Started Free",
+      "ctaSecondary": "Sign In",
+      "ctaGoPlatform": "Go to Platform"
+    },
+    "features": {
+      "title": "Everything You Need",
+      "subtitle": "Powerful tools to streamline your entire job search journey",
+      "track": {
+        "title": "Track Progress",
+        "description": "Visualize where each application stands in your job search pipeline with real-time status updates"
+      },
+      "organize": {
+        "title": "Stay Organized",
+        "description": "Keep all your resumes, companies, and job postings in one centralized place"
+      },
+      "analytics": {
+        "title": "Get Insights",
+        "description": "Understand your job search patterns and optimize your strategy with detailed analytics"
+      },
+      "stages": {
+        "title": "Custom Stages",
+        "description": "Define your own application stages and track progress through each step of the hiring process"
+      }
+    },
+    "howItWorks": {
+      "title": "How It Works",
+      "subtitle": "Get started in minutes with a simple 4-step process",
+      "step1": {
+        "title": "Add Companies",
+        "description": "Create a list of companies you're interested in working for"
+      },
+      "step2": {
+        "title": "Upload Resumes",
+        "description": "Store multiple resume versions tailored to different roles"
+      },
+      "step3": {
+        "title": "Track Applications",
+        "description": "Log each application and monitor its progress through stages"
+      },
+      "step4": {
+        "title": "Analyze Results",
+        "description": "Review analytics to understand what's working and improve your strategy"
+      }
+    },
+    "demo": {
+      "title": "See It in Action",
+      "subtitle": "A powerful Kanban board to visualize your entire job search at a glance"
+    },
+    "footer": {
+      "copyright": "Jobber. All rights reserved.",
+      "tagline": "Your job search, organized."
+    }
+  },
+  "onboarding": {
+    "welcome": {
+      "title": "Welcome to Jobber!",
+      "subtitle": "Let's get you set up in just a few steps"
+    },
+    "steps": {
+      "company": {
+        "title": "Add Your First Company",
+        "description": "Start by adding a company you're interested in or have applied to. You can always add more later."
+      },
+      "resume": {
+        "title": "Upload a Resume",
+        "description": "Upload your resume so you can link it to applications and track which version you used."
+      },
+      "job": {
+        "title": "Create a Job",
+        "description": "Add a job posting you'd like to track. Link it to a company and start monitoring your progress."
+      },
+      "stages": {
+        "title": "Set Up Stages",
+        "description": "Define the steps of your hiring process — Applied, Phone Screen, Interview, Offer — and track progress through each one."
+      },
+      "analytics": {
+        "title": "View Analytics",
+        "description": "See detailed insights about your job search — response rates, time in stages, resume effectiveness, and more."
+      },
+      "done": {
+        "title": "You're All Set!",
+        "description": "You're ready to start tracking your job applications. Good luck with your search!"
+      }
+    },
+    "next": "Next",
+    "back": "Back",
+    "skip": "Skip",
+    "finish": "Finish",
+    "letsGo": "Let's Go!"
   },
   "analytics": {
     "title": "Analytics",

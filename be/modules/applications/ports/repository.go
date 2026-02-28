@@ -13,6 +13,7 @@ type ListOptions struct {
 	Offset  int
 	SortBy  string // "last_activity", "status", "company", "applied_at"
 	SortDir string // "asc", "desc"
+	Status  string // optional filter: "active", "on_hold", "rejected", "offer", "archived"
 }
 
 type ApplicationRepository interface {

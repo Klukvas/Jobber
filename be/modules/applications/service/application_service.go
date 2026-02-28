@@ -88,7 +88,7 @@ func (s *ApplicationService) Create(ctx context.Context, userID string, req *mod
 	if err := s.appRepo.Create(ctx, app); err != nil {
 		return nil, err
 	}
-	
+
 	// Fetch related entities for the response
 	return s.buildApplicationDTO(ctx, userID, app)
 }
@@ -168,15 +168,38 @@ func (s *ApplicationService) buildApplicationDTO(ctx context.Context, userID str
 		lastActivity = app.UpdatedAt
 	}
 
-	return model.NewApplicationDTO(app, job, company, resume, lastActivity), nil
+	dto := model.NewApplicationDTO(app, job, company, resume, lastActivity)
+
+	// Resolve current stage name
+	if app.CurrentStageID != nil && *app.CurrentStageID != "" {
+		stage, err := s.stageRepo.GetByID(ctx, *app.CurrentStageID)
+		if err != nil {
+			s.log.Warn("failed to fetch current stage for DTO",
+				zap.String("application_id", app.ID),
+				zap.String("stage_id", *app.CurrentStageID),
+				zap.Error(err))
+		} else {
+			tmpl, err := s.templateRepo.GetByID(ctx, userID, stage.StageTemplateID)
+			if err != nil {
+				s.log.Warn("failed to fetch stage template for DTO",
+					zap.String("stage_template_id", stage.StageTemplateID),
+					zap.Error(err))
+			} else {
+				dto.CurrentStageName = &tmpl.Name
+			}
+		}
+	}
+
+	return dto, nil
 }
 
-func (s *ApplicationService) List(ctx context.Context, userID string, sortBy, sortDir string, limit, offset int) ([]*model.ApplicationDTO, int, error) {
+func (s *ApplicationService) List(ctx context.Context, userID string, sortBy, sortDir, status string, limit, offset int) ([]*model.ApplicationDTO, int, error) {
 	opts := &ports.ListOptions{
 		Limit:   limit,
 		Offset:  offset,
 		SortBy:  sortBy,
 		SortDir: sortDir,
+		Status:  status,
 	}
 	
 	apps, total, err := s.appRepo.List(ctx, userID, opts)
@@ -221,7 +244,7 @@ func (s *ApplicationService) Update(ctx context.Context, userID, appID string, r
 	if err := s.appRepo.Update(ctx, app); err != nil {
 		return nil, err
 	}
-	
+
 	// Return DTO with nested entities
 	return s.buildApplicationDTO(ctx, userID, app)
 }

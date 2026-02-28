@@ -20,17 +20,29 @@ import {
   Archive,
   GitBranch,
   ArrowUpDown,
+  LayoutGrid,
+  Kanban,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { CreateApplicationModal } from "@/features/applications/modals/CreateApplicationModal";
 import { AddCommentModal } from "@/features/applications/modals/AddCommentModal";
 import { AddStageModal } from "@/features/applications/modals/AddStageModal";
 import { UpdateApplicationStatusModal } from "@/features/applications/modals/UpdateApplicationStatusModal";
+import {
+  ApplicationKanbanBoard,
+  APPLICATIONS_KANBAN_QUERY_KEY,
+} from "@/features/applications/components/ApplicationKanbanBoard";
 import { usePageTitle } from "@/shared/lib/usePageTitle";
 import type { ApplicationDTO } from "@/shared/types/api";
 
 type SortBy = "last_activity" | "status" | "applied_at";
 type SortDir = "asc" | "desc";
+type ViewMode = "list" | "kanban";
+
+function getInitialViewMode(): ViewMode {
+  const stored = localStorage.getItem("apps-view-mode");
+  return stored === "kanban" ? "kanban" : "list";
+}
 
 export default function Applications() {
   const { t } = useTranslation();
@@ -40,11 +52,17 @@ export default function Applications() {
   const [sortBy, setSortBy] = useState<SortBy>("last_activity");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
   const [activeQuickAction, setActiveQuickAction] = useState<{
     type: "comment" | "stage" | "archive";
     application: ApplicationDTO;
   } | null>(null);
   const pageSize = 20;
+
+  // Persist view mode
+  useEffect(() => {
+    localStorage.setItem("apps-view-mode", viewMode);
+  }, [viewMode]);
 
   // Close context menu when clicking outside
   useEffect(() => {
@@ -55,15 +73,22 @@ export default function Applications() {
     }
   }, [openMenuId]);
 
+  // Kanban uses a shared constant key; list uses sort-specific keys
+  const queryKey =
+    viewMode === "kanban"
+      ? [...APPLICATIONS_KANBAN_QUERY_KEY]
+      : ["applications", page, sortBy, sortDir];
+
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["applications", page, sortBy, sortDir],
+    queryKey,
     queryFn: () =>
       applicationsService.list({
-        limit: pageSize,
-        offset: page * pageSize,
-        sort_by: sortBy,
-        sort_dir: sortDir,
+        limit: viewMode === "kanban" ? 500 : pageSize,
+        offset: viewMode === "kanban" ? 0 : page * pageSize,
+        sort_by: viewMode === "kanban" ? undefined : sortBy,
+        sort_dir: viewMode === "kanban" ? undefined : sortDir,
       }),
+    staleTime: viewMode === "kanban" ? 30_000 : 0,
   });
 
   const handleQuickAction = (
@@ -73,8 +98,6 @@ export default function Applications() {
     setActiveQuickAction({ type, application });
     setOpenMenuId(null);
   };
-
-  // Removed unused handleArchive function - status changes handled by UpdateApplicationStatusModal
 
   const toggleSort = (field: SortBy) => {
     if (sortBy === field) {
@@ -114,10 +137,38 @@ export default function Applications() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">{t("applications.title")}</h1>
-        <Button onClick={() => setIsCreateModalOpen(true)}>
-          <Plus className="h-4 w-4" />
-          {t("applications.create")}
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* View Toggle */}
+          <div className="flex items-center rounded-lg border bg-muted p-0.5">
+            <button
+              onClick={() => setViewMode("list")}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                viewMode === "list"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <LayoutGrid className="h-4 w-4" />
+              {t("applications.viewList")}
+            </button>
+            <button
+              onClick={() => setViewMode("kanban")}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                viewMode === "kanban"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Kanban className="h-4 w-4" />
+              {t("applications.viewBoard")}
+            </button>
+          </div>
+
+          <Button onClick={() => setIsCreateModalOpen(true)}>
+            <Plus className="h-4 w-4" />
+            {t("applications.create")}
+          </Button>
+        </div>
       </div>
 
       {applications.length === 0 ? (
@@ -131,6 +182,13 @@ export default function Applications() {
               {t("applications.create")}
             </Button>
           }
+        />
+      ) : viewMode === "kanban" ? (
+        <ApplicationKanbanBoard
+          applications={applications}
+          onAddComment={(app) => handleQuickAction("comment", app)}
+          onAddStage={(app) => handleQuickAction("stage", app)}
+          onChangeStatus={(app) => handleQuickAction("archive", app)}
         />
       ) : (
         <>
@@ -367,7 +425,6 @@ export default function Applications() {
           onOpenChange={(open) => {
             if (!open) {
               setActiveQuickAction(null);
-              refetch();
             }
           }}
           applicationId={activeQuickAction.application.id}

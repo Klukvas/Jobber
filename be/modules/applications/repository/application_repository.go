@@ -60,10 +60,18 @@ func (r *ApplicationRepository) GetByID(ctx context.Context, userID, appID strin
 }
 
 func (r *ApplicationRepository) List(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.Application, int, error) {
+	// Build optional status filter
+	statusFilter := ""
+	args := []any{userID}
+	if opts.Status != "" {
+		statusFilter = fmt.Sprintf(" AND a.status = $%d", len(args)+1)
+		args = append(args, opts.Status)
+	}
+
 	// Get total count
-	countQuery := `SELECT COUNT(*) FROM applications WHERE user_id = $1`
+	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM applications a WHERE a.user_id = $1%s`, statusFilter)
 	var total int
-	if err := r.pool.QueryRow(ctx, countQuery, userID).Scan(&total); err != nil {
+	if err := r.pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
@@ -82,19 +90,21 @@ func (r *ApplicationRepository) List(ctx context.Context, userID string, opts *p
 		default:
 			sortCol = "applied_at"
 		}
-		
+
 		sortDir := "DESC"
 		if strings.ToUpper(opts.SortDir) == "ASC" {
 			sortDir = "ASC"
 		}
-		
+
 		orderBy = fmt.Sprintf("%s %s", sortCol, sortDir)
 	}
 
 	// Get paginated results with last_activity calculation
+	limitIdx := len(args) + 1
+	offsetIdx := len(args) + 2
 	query := fmt.Sprintf(`
 		WITH last_activities AS (
-			SELECT 
+			SELECT
 				a.id as app_id,
 				GREATEST(
 					a.updated_at,
@@ -102,19 +112,20 @@ func (r *ApplicationRepository) List(ctx context.Context, userID string, opts *p
 					COALESCE((SELECT MAX(created_at) FROM comments WHERE application_id = a.id), a.updated_at)
 				) as last_activity_at
 			FROM applications a
-			WHERE a.user_id = $1
+			WHERE a.user_id = $1%s
 		)
-		SELECT 
-			a.id, a.user_id, a.job_id, a.resume_id, a.name, 
+		SELECT
+			a.id, a.user_id, a.job_id, a.resume_id, a.name,
 			a.current_stage_id, a.status, a.applied_at, a.created_at, a.updated_at
 		FROM applications a
 		JOIN last_activities la ON a.id = la.app_id
-		WHERE a.user_id = $1 
+		WHERE a.user_id = $1%s
 		ORDER BY %s
-		LIMIT $2 OFFSET $3
-	`, orderBy)
+		LIMIT $%d OFFSET $%d
+	`, statusFilter, statusFilter, orderBy, limitIdx, offsetIdx)
 
-	rows, err := r.pool.Query(ctx, query, userID, opts.Limit, opts.Offset)
+	queryArgs := append(args, opts.Limit, opts.Offset)
+	rows, err := r.pool.Query(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, 0, err
 	}

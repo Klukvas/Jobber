@@ -4,8 +4,6 @@ import type {
   CreateJobRequest,
   UpdateJobRequest,
   PaginatedResponse,
-  ImportParseResponse,
-  BoardColumn,
 } from "@/shared/types/api";
 
 export interface ListJobsParams {
@@ -46,13 +44,5 @@ export const jobsService = {
 
   async delete(id: string): Promise<void> {
     return apiClient.delete<void>(`jobs/${id}`);
-  },
-
-  async moveToColumn(id: string, board_column: BoardColumn): Promise<JobDTO> {
-    return apiClient.patch<JobDTO>(`jobs/${id}`, { board_column });
-  },
-
-  async importParse(url: string): Promise<ImportParseResponse> {
-    return apiClient.post<ImportParseResponse>("jobs/import/parse", { url });
   },
 };

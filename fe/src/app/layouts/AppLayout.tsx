@@ -1,10 +1,13 @@
-import { Outlet, Navigate } from 'react-router-dom';
-import { useAuthStore } from '@/stores/authStore';
-import { Sidebar } from '@/widgets/Sidebar';
-import { Header } from '@/widgets/Header';
+import { Outlet, Navigate } from "react-router-dom";
+import { useAuthStore } from "@/stores/authStore";
+import { Sidebar } from "@/widgets/Sidebar";
+import { Header } from "@/widgets/Header";
+import { useOnboarding } from "@/features/onboarding/useOnboarding";
+import { WelcomeWizard } from "@/features/onboarding/WelcomeWizard";
 
 export function AppLayout() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const { shouldShow, complete } = useOnboarding();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -19,6 +22,7 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+      <WelcomeWizard open={shouldShow} onComplete={complete} />
     </div>
   );
 }

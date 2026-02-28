@@ -50,9 +50,9 @@ func (h *JobHandler) Create(c *gin.Context) {
 	if err != nil {
 		errorCode := model.GetErrorCode(err)
 		errorMessage := model.GetErrorMessage(err)
-		
+
 		statusCode := http.StatusInternalServerError
-		if errorCode == model.CodeJobTitleRequired || errorCode == model.CodeInvalidBoardColumn {
+		if errorCode == model.CodeJobTitleRequired {
 			statusCode = http.StatusBadRequest
 		} else if errorCode == model.CodeCompanyNotFound {
 			statusCode = http.StatusNotFound
@@ -90,12 +90,12 @@ func (h *JobHandler) Get(c *gin.Context) {
 	if err != nil {
 		errorCode := model.GetErrorCode(err)
 		errorMessage := model.GetErrorMessage(err)
-		
+
 		statusCode := http.StatusInternalServerError
 		if errorCode == model.CodeJobNotFound {
 			statusCode = http.StatusNotFound
 		}
-		
+
 		httpPlatform.RespondWithError(c, statusCode, string(errorCode), errorMessage)
 		return
 	}
@@ -159,16 +159,7 @@ func (h *JobHandler) List(c *gin.Context) {
 		}
 	}
 
-	// Parse optional board_column filter
-	boardColumn := c.Query("board_column")
-	if boardColumn != "" {
-		if !model.ValidBoardColumns[boardColumn] {
-			httpPlatform.RespondWithError(c, http.StatusBadRequest, string(model.CodeInvalidBoardColumn), model.GetErrorMessage(model.ErrInvalidBoardColumn))
-			return
-		}
-	}
-
-	jobs, total, err := h.service.List(c.Request.Context(), userID, pagination.Limit, pagination.Offset, status, sortBy, sortOrder, boardColumn)
+	jobs, total, err := h.service.List(c.Request.Context(), userID, pagination.Limit, pagination.Offset, status, sortBy, sortOrder)
 	if err != nil {
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list jobs")
 		return
@@ -221,14 +212,14 @@ func (h *JobHandler) Update(c *gin.Context) {
 	if err != nil {
 		errorCode := model.GetErrorCode(err)
 		errorMessage := model.GetErrorMessage(err)
-		
+
 		statusCode := http.StatusInternalServerError
 		if errorCode == model.CodeJobNotFound || errorCode == model.CodeCompanyNotFound {
 			statusCode = http.StatusNotFound
-		} else if errorCode == model.CodeJobTitleRequired || errorCode == model.CodeInvalidJobStatus || errorCode == model.CodeInvalidBoardColumn {
+		} else if errorCode == model.CodeJobTitleRequired || errorCode == model.CodeInvalidJobStatus {
 			statusCode = http.StatusBadRequest
 		}
-		
+
 		httpPlatform.RespondWithError(c, statusCode, string(errorCode), errorMessage)
 		return
 	}
@@ -260,66 +251,17 @@ func (h *JobHandler) Delete(c *gin.Context) {
 	if err := h.service.Delete(c.Request.Context(), userID, jobID); err != nil {
 		errorCode := model.GetErrorCode(err)
 		errorMessage := model.GetErrorMessage(err)
-		
+
 		statusCode := http.StatusInternalServerError
 		if errorCode == model.CodeJobNotFound {
 			statusCode = http.StatusNotFound
 		}
-		
+
 		httpPlatform.RespondWithError(c, statusCode, string(errorCode), errorMessage)
 		return
 	}
 
 	httpPlatform.RespondWithData(c, http.StatusOK, gin.H{"message": "Job deleted successfully"})
-}
-
-// ImportParse godoc
-// @Summary Parse a job URL
-// @Description Fetch and parse a job posting URL to extract structured data
-// @Tags jobs
-// @Security BearerAuth
-// @Accept json
-// @Produce json
-// @Param request body model.ImportParseRequest true "URL to parse"
-// @Success 200 {object} model.ImportParseResponse
-// @Failure 400 {object} httpPlatform.ErrorResponse
-// @Failure 401 {object} httpPlatform.ErrorResponse
-// @Failure 422 {object} httpPlatform.ErrorResponse
-// @Failure 500 {object} httpPlatform.ErrorResponse
-// @Router /jobs/import/parse [post]
-func (h *JobHandler) ImportParse(c *gin.Context) {
-	_, exists := auth.GetUserID(c)
-	if !exists {
-		httpPlatform.RespondWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized")
-		return
-	}
-
-	var req model.ImportParseRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request payload")
-		return
-	}
-
-	result, err := h.service.ImportParse(c.Request.Context(), &req)
-	if err != nil {
-		errorCode := model.GetErrorCode(err)
-		errorMessage := model.GetErrorMessage(err)
-
-		statusCode := http.StatusInternalServerError
-		switch errorCode {
-		case model.CodeInvalidURL:
-			statusCode = http.StatusBadRequest
-		case model.CodeUnsupportedSite:
-			statusCode = http.StatusUnprocessableEntity
-		case model.CodeFetchFailed, model.CodeParseFailed:
-			statusCode = http.StatusUnprocessableEntity
-		}
-
-		httpPlatform.RespondWithError(c, statusCode, string(errorCode), errorMessage)
-		return
-	}
-
-	httpPlatform.RespondWithData(c, http.StatusOK, result)
 }
 
 // RegisterRoutes registers job routes
@@ -328,7 +270,6 @@ func (h *JobHandler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.
 	jobs.Use(authMiddleware)
 	{
 		jobs.POST("", h.Create)
-		jobs.POST("/import/parse", h.ImportParse)
 		jobs.GET("", h.List)
 		jobs.GET("/:id", h.Get)
 		jobs.PATCH("/:id", h.Update)

@@ -7,7 +7,7 @@ import {
   showErrorNotification,
 } from "@/shared/lib/notifications";
 import { companiesService } from "@/services/companiesService";
-import type { JobDTO, UpdateJobRequest, BoardColumn } from "@/shared/types/api";
+import type { JobDTO, UpdateJobRequest } from "@/shared/types/api";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,7 @@ import {
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { Label } from "@/shared/ui/Label";
+import { CompanySelectWithQuickAdd } from "@/features/jobs/components/CompanySelectWithQuickAdd";
 
 interface CreateJobModalProps {
   open: boolean;
@@ -37,9 +38,6 @@ function ModalContent({ job, onOpenChange, open }: CreateJobModalProps) {
   const [url, setUrl] = useState(job?.url || "");
   const [source, setSource] = useState(job?.source || "");
   const [notes, setNotes] = useState(job?.notes || "");
-  const [boardColumn, setBoardColumn] = useState<BoardColumn>(
-    job?.board_column || "wishlist",
-  );
 
   const { data: companiesData } = useQuery({
     queryKey: ["companies"],
@@ -84,7 +82,6 @@ function ModalContent({ job, onOpenChange, open }: CreateJobModalProps) {
             url: url || undefined,
             source: source || undefined,
             notes: notes || undefined,
-            board_column: boardColumn,
           },
         });
       } else {
@@ -94,7 +91,6 @@ function ModalContent({ job, onOpenChange, open }: CreateJobModalProps) {
           url: url || undefined,
           source: source || undefined,
           notes: notes || undefined,
-          board_column: boardColumn,
         });
       }
     }
@@ -124,22 +120,11 @@ function ModalContent({ job, onOpenChange, open }: CreateJobModalProps) {
               required
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="company">{t("jobs.company")}</Label>
-            <select
-              id="company"
-              value={companyId}
-              onChange={(e) => setCompanyId(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="">{t("jobs.selectCompany")}</option>
-              {(companiesData?.items || []).map((company) => (
-                <option key={company.id} value={company.id}>
-                  {company.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <CompanySelectWithQuickAdd
+            companies={companiesData?.items || []}
+            value={companyId}
+            onChange={setCompanyId}
+          />
           <div className="space-y-2">
             <Label htmlFor="url">{t("jobs.url")}</Label>
             <Input
@@ -168,21 +153,6 @@ function ModalContent({ job, onOpenChange, open }: CreateJobModalProps) {
               placeholder={t("jobs.notesPlaceholder")}
               className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="board_column">{t("jobs.board.columnLabel")}</Label>
-            <select
-              id="board_column"
-              value={boardColumn}
-              onChange={(e) => setBoardColumn(e.target.value as BoardColumn)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="wishlist">{t("jobs.board.wishlist")}</option>
-              <option value="applied">{t("jobs.board.applied")}</option>
-              <option value="interview">{t("jobs.board.interview")}</option>
-              <option value="offer">{t("jobs.board.offer")}</option>
-              <option value="rejected">{t("jobs.board.rejected")}</option>
-            </select>
           </div>
         </div>
         <DialogFooter>

@@ -34,10 +34,6 @@ func randBetween(min, max int) int {
 	return min + rand.Intn(max-min+1)
 }
 
-func pick[T any](items []T) T {
-	return items[rand.Intn(len(items))]
-}
-
 // ── main ─────────────────────────────────────────────────────────────────────
 
 func main() {
@@ -175,7 +171,7 @@ func main() {
 	// ── 6. jobs ──────────────────────────────────────────────────────────
 	type job struct {
 		id, companyID, title, source, url, notes, status string
-		daysAgo                                          int
+		daysAgo                                           int
 	}
 
 	jobs := []job{
@@ -203,8 +199,8 @@ func main() {
 
 	for _, j := range jobs {
 		_, err = tx.Exec(ctx,
-			`INSERT INTO jobs (id, user_id, company_id, title, source, url, notes, status, created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)`,
+			`INSERT INTO jobs (id, user_id, company_id, title, source, url, notes, status, board_column, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'wishlist', $9, $9)`,
 			j.id, userID, j.companyID, j.title, j.source, j.url, j.notes, j.status, daysAgo(j.daysAgo),
 		)
 		must(err, "create job "+j.title)

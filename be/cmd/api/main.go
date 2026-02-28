@@ -36,7 +36,6 @@ import (
 	jobHandler "github.com/andreypavlenko/jobber/modules/jobs/handler"
 	jobRepo "github.com/andreypavlenko/jobber/modules/jobs/repository"
 	jobService "github.com/andreypavlenko/jobber/modules/jobs/service"
-	"github.com/andreypavlenko/jobber/modules/jobs/service/parser"
 
 	resumeHandler "github.com/andreypavlenko/jobber/modules/resumes/handler"
 	resumeRepo "github.com/andreypavlenko/jobber/modules/resumes/repository"
@@ -203,9 +202,7 @@ func main() {
 		cfg.JWT.RefreshExpiry,
 	)
 	companySvc := companyService.NewCompanyService(companyRepository)
-	jobParserFetcher := parser.NewFetcher()
-	jobParserRegistry := parser.NewRegistry(jobParserFetcher)
-	jobSvc := jobService.NewJobService(jobRepository, companyRepository, jobParserRegistry)
+	jobSvc := jobService.NewJobService(jobRepository, companyRepository)
 	resumeSvc := resumeService.NewResumeService(resumeRepository, s3Client)
 	applicationSvc := appService.NewApplicationService(
 		pgClient.Pool,

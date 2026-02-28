@@ -87,6 +87,7 @@ export interface ApplicationDTO {
   updated_at: string;
   last_activity_at?: string;
   current_stage_id?: string;
+  current_stage_name?: string;
   job?: JobNestedDTO;
   resume?: ResumeNestedDTO;
   application_comments?: CommentDTO[];
@@ -175,14 +176,6 @@ export interface UpdateCompanyRequest {
   notes?: string;
 }
 
-// Board Column
-export type BoardColumn =
-  | "wishlist"
-  | "applied"
-  | "interview"
-  | "offer"
-  | "rejected";
-
 // Job
 export interface JobDTO {
   id: string;
@@ -193,7 +186,6 @@ export interface JobDTO {
   source?: string;
   notes?: string;
   status: "active" | "archived";
-  board_column: BoardColumn;
   applications_count: number;
   created_at: string;
   updated_at: string;
@@ -205,7 +197,6 @@ export interface CreateJobRequest {
   url?: string;
   source?: string;
   notes?: string;
-  board_column?: BoardColumn;
 }
 
 export interface UpdateJobRequest {
@@ -215,21 +206,6 @@ export interface UpdateJobRequest {
   source?: string;
   notes?: string;
   status?: "active" | "archived";
-  board_column?: BoardColumn;
-}
-
-// Job Import
-export interface ImportParseRequest {
-  url: string;
-}
-
-export interface ImportParseResponse {
-  title: string;
-  company_name?: string;
-  location?: string;
-  description?: string;
-  source: string;
-  url: string;
 }
 
 // Calendar

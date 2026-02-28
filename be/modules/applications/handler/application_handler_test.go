@@ -172,7 +172,7 @@ func (m *MockJobRepository) GetByID(ctx context.Context, userID, jobID string) (
 	}
 	return nil, nil
 }
-func (m *MockJobRepository) List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder, boardColumn string) ([]*jobModel.JobDTO, int, error) {
+func (m *MockJobRepository) List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*jobModel.JobDTO, int, error) {
 	return nil, 0, nil
 }
 func (m *MockJobRepository) Update(ctx context.Context, job *jobModel.Job) error { return nil }
@@ -536,6 +536,10 @@ func TestApplicationHandler_Delete(t *testing.T) {
 	t.Run("deletes application successfully", func(t *testing.T) {
 		handler, appRepo, _, _, _, _, _ := createTestHandler()
 
+		appRepo.GetByIDFunc = func(ctx context.Context, uid, aid string) (*model.Application, error) {
+			return &model.Application{ID: aid, UserID: uid, JobID: "job-1"}, nil
+		}
+
 		appRepo.DeleteFunc = func(ctx context.Context, uid, aid string) error {
 			return nil
 		}
@@ -552,6 +556,10 @@ func TestApplicationHandler_Delete(t *testing.T) {
 
 	t.Run("returns 404 when application not found", func(t *testing.T) {
 		handler, appRepo, _, _, _, _, _ := createTestHandler()
+
+		appRepo.GetByIDFunc = func(ctx context.Context, uid, aid string) (*model.Application, error) {
+			return nil, model.ErrApplicationNotFound
+		}
 
 		appRepo.DeleteFunc = func(ctx context.Context, uid, aid string) error {
 			return model.ErrApplicationNotFound

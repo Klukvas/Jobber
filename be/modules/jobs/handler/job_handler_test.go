@@ -49,7 +49,7 @@ var defaultMockCompanyRepo = &MockCompanyRepository{}
 type MockJobRepository struct {
 	CreateFunc  func(ctx context.Context, job *model.Job) error
 	GetByIDFunc func(ctx context.Context, userID, jobID string) (*model.Job, error)
-	ListFunc    func(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder, boardColumn string) ([]*model.JobDTO, int, error)
+	ListFunc    func(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error)
 	UpdateFunc  func(ctx context.Context, job *model.Job) error
 	DeleteFunc  func(ctx context.Context, userID, jobID string) error
 }
@@ -68,9 +68,9 @@ func (m *MockJobRepository) GetByID(ctx context.Context, userID, jobID string) (
 	return nil, nil
 }
 
-func (m *MockJobRepository) List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder, boardColumn string) ([]*model.JobDTO, int, error) {
+func (m *MockJobRepository) List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error) {
 	if m.ListFunc != nil {
-		return m.ListFunc(ctx, userID, limit, offset, status, sortBy, sortOrder, boardColumn)
+		return m.ListFunc(ctx, userID, limit, offset, status, sortBy, sortOrder)
 	}
 	return nil, 0, nil
 }
@@ -115,7 +115,7 @@ func TestJobHandler_Create(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -137,7 +137,7 @@ func TestJobHandler_Create(t *testing.T) {
 
 	t.Run("returns 401 when not authenticated", func(t *testing.T) {
 		mockRepo := &MockJobRepository{}
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -154,7 +154,7 @@ func TestJobHandler_Create(t *testing.T) {
 
 	t.Run("returns 400 for invalid request", func(t *testing.T) {
 		mockRepo := &MockJobRepository{}
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -171,7 +171,7 @@ func TestJobHandler_Create(t *testing.T) {
 
 	t.Run("returns 400 for empty title", func(t *testing.T) {
 		mockRepo := &MockJobRepository{}
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -207,7 +207,7 @@ func TestJobHandler_Get(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -232,7 +232,7 @@ func TestJobHandler_Get(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -256,12 +256,12 @@ func TestJobHandler_List(t *testing.T) {
 		}
 
 		mockRepo := &MockJobRepository{
-			ListFunc: func(ctx context.Context, uid string, limit, offset int, status, sortBy, sortOrder, boardColumn string) ([]*model.JobDTO, int, error) {
+			ListFunc: func(ctx context.Context, uid string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error) {
 				return expectedJobs, 2, nil
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -276,14 +276,14 @@ func TestJobHandler_List(t *testing.T) {
 
 	t.Run("parses sort parameter correctly", func(t *testing.T) {
 		mockRepo := &MockJobRepository{
-			ListFunc: func(ctx context.Context, uid string, limit, offset int, status, sortBy, sortOrder, boardColumn string) ([]*model.JobDTO, int, error) {
+			ListFunc: func(ctx context.Context, uid string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error) {
 				assert.Equal(t, "created_at", sortBy)
 				assert.Equal(t, "desc", sortOrder)
 				return []*model.JobDTO{}, 0, nil
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -320,7 +320,7 @@ func TestJobHandler_Update(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -342,7 +342,7 @@ func TestJobHandler_Update(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -371,7 +371,7 @@ func TestJobHandler_Update(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -398,7 +398,7 @@ func TestJobHandler_Delete(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -418,7 +418,7 @@ func TestJobHandler_Delete(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -461,7 +461,7 @@ func TestJobHandler_RegisterRoutes(t *testing.T) {
 		GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
 			return &model.Job{ID: jid, Title: "Test", Status: "active"}, nil
 		},
-		ListFunc: func(ctx context.Context, uid string, limit, offset int, status, sortBy, sortOrder, boardColumn string) ([]*model.JobDTO, int, error) {
+		ListFunc: func(ctx context.Context, uid string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error) {
 			return []*model.JobDTO{}, 0, nil
 		},
 		DeleteFunc: func(ctx context.Context, uid, jid string) error {
@@ -469,7 +469,7 @@ func TestJobHandler_RegisterRoutes(t *testing.T) {
 		},
 	}
 
-	svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil)
+	svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
 	handler := NewJobHandler(svc)
 
 	router := setupTestRouter()

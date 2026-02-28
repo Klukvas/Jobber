@@ -57,6 +57,7 @@ type ApplicationDTO struct {
 	UpdatedAt          time.Time                 `json:"updated_at"`
 	LastActivityAt     time.Time                 `json:"last_activity_at"`
 	CurrentStageID     *string                   `json:"current_stage_id,omitempty"`
+	CurrentStageName   *string                   `json:"current_stage_name,omitempty"`
 	Job                *JobNestedDTO             `json:"job"`
 	Resume             *ResumeNestedDTO          `json:"resume"`
 	ApplicationComments []*commentModel.CommentDTO `json:"application_comments,omitempty"`

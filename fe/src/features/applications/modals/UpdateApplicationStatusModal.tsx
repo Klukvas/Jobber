@@ -24,7 +24,20 @@ interface UpdateApplicationStatusModalProps {
   currentStatus: string;
 }
 
-const APPLICATION_STATUS_VALUES = ["active", "closed"] as const;
+const APPLICATION_STATUS_VALUES = [
+  "active",
+  "on_hold",
+  "rejected",
+  "offer",
+  "archived",
+] as const;
+
+function statusToTranslationKey(status: string): string {
+  return status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("");
+}
 
 export function UpdateApplicationStatusModal({
   open,
@@ -77,7 +90,9 @@ export function UpdateApplicationStatusModal({
             <div className="space-y-2">
               <Label>{t("applications.currentStatus")}</Label>
               <div className="rounded-md bg-muted px-3 py-2 text-sm">
-                {currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)}
+                {t(
+                  `applications.status${statusToTranslationKey(currentStatus)}`,
+                )}
               </div>
             </div>
             <div className="space-y-2">
@@ -89,17 +104,15 @@ export function UpdateApplicationStatusModal({
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 required
               >
-                {APPLICATION_STATUS_VALUES.map((value) => (
-                  <option key={value} value={value}>
-                    {t(
-                      `applications.status${value.charAt(0).toUpperCase() + value.slice(1)}`,
-                    )}{" "}
-                    -{" "}
-                    {t(
-                      `applications.status${value.charAt(0).toUpperCase() + value.slice(1)}Desc`,
-                    )}
-                  </option>
-                ))}
+                {APPLICATION_STATUS_VALUES.map((value) => {
+                  const key = statusToTranslationKey(value);
+                  return (
+                    <option key={value} value={value}>
+                      {t(`applications.status${key}`)} -{" "}
+                      {t(`applications.status${key}Desc`)}
+                    </option>
+                  );
+                })}
               </select>
             </div>
             {updateStatusMutation.isError && (

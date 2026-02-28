@@ -19,12 +19,14 @@ import {
 } from "@/shared/ui/Card";
 import { Button } from "@/shared/ui/Button";
 import { usePageTitle } from "@/shared/lib/usePageTitle";
+import { useOnboarding } from "@/features/onboarding/useOnboarding";
 
 export default function Settings() {
   const { t, i18n } = useTranslation();
   usePageTitle("settings.title");
   const { theme, setTheme } = useThemeStore();
   const clearAuth = useAuthStore((state) => state.clearAuth);
+  const { restart } = useOnboarding();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -172,6 +174,26 @@ export default function Settings() {
                 : t("settings.calendar.connect")}
             </Button>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("settings.onboarding.title")}</CardTitle>
+          <CardDescription>
+            {t("settings.onboarding.description")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            variant="outline"
+            onClick={() => {
+              restart();
+              navigate("/app/applications");
+            }}
+          >
+            {t("settings.onboarding.restart")}
+          </Button>
         </CardContent>
       </Card>
 

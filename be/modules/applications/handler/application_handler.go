@@ -91,6 +91,7 @@ func (h *ApplicationHandler) Get(c *gin.Context) {
 // @Param offset query int false "Number of items to skip (default: 0)"
 // @Param sort_by query string false "Sort field: last_activity, status, applied_at (default: last_activity)"
 // @Param sort_dir query string false "Sort direction: asc, desc (default: desc)"
+// @Param status query string false "Filter by status: active, on_hold, rejected, offer, archived"
 // @Success 200 {object} httpPlatform.PaginatedResponse{items=[]model.ApplicationDTO}
 // @Failure 400 {object} httpPlatform.ErrorResponse "Invalid pagination parameters"
 // @Failure 401 {object} httpPlatform.ErrorResponse
@@ -112,8 +113,19 @@ func (h *ApplicationHandler) List(c *gin.Context) {
 	// Parse sorting parameters
 	sortBy := c.DefaultQuery("sort_by", "last_activity")
 	sortDir := c.DefaultQuery("sort_dir", "desc")
+	status := c.Query("status") // optional status filter
+	if status != "" {
+		validStatuses := map[string]bool{
+			"active": true, "on_hold": true, "rejected": true,
+			"offer": true, "archived": true,
+		}
+		if !validStatuses[status] {
+			httpPlatform.RespondWithError(c, http.StatusBadRequest, "INVALID_STATUS", "Invalid status filter value")
+			return
+		}
+	}
 
-	apps, total, err := h.service.List(c.Request.Context(), userID, sortBy, sortDir, pagination.Limit, pagination.Offset)
+	apps, total, err := h.service.List(c.Request.Context(), userID, sortBy, sortDir, status, pagination.Limit, pagination.Offset)
 	if err != nil {
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list applications")
 		return
