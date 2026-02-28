@@ -10,6 +10,7 @@ import { lazy } from "react";
 const HomePage = lazy(() => import("@/pages/Home"));
 const BlogPage = lazy(() => import("@/pages/Blog"));
 const BlogPostPage = lazy(() => import("@/pages/BlogPost"));
+const PrivacyPage = lazy(() => import("@/pages/Privacy"));
 
 // Protected pages
 const ApplicationsPage = lazy(() => import("@/pages/Applications"));
@@ -53,6 +54,10 @@ export const router = createBrowserRouter([
       {
         path: "blog/:slug",
         element: <BlogPostPage />,
+      },
+      {
+        path: "privacy",
+        element: <PrivacyPage />,
       },
       {
         path: "app",
