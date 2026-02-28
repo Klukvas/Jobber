@@ -27,6 +27,7 @@ const btnSave = document.getElementById("btn-save");
 const btnBack = document.getElementById("btn-back");
 const saveError = document.getElementById("save-error");
 
+const idleError = document.getElementById("idle-error");
 const btnDone = document.getElementById("btn-done");
 
 // State
@@ -165,6 +166,7 @@ loginForm.addEventListener("submit", async (e) => {
 
 // Parse job
 btnParse.addEventListener("click", async () => {
+  hideError(idleError);
   showView("loading");
 
   try {
@@ -179,30 +181,43 @@ btnParse.addEventListener("click", async () => {
     }
 
     // Inject content script and extract text
-    const [result] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: () => ({
-        text: document.body.innerText.trim().substring(0, 50000),
-        url: location.href,
-      }),
-    });
+    let pageData;
+    try {
+      const [result] = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => ({
+          text: document.body.innerText.trim().substring(0, 50000),
+          url: location.href,
+        }),
+      });
+      pageData = result.result;
+    } catch {
+      throw new Error(
+        "Cannot read this page. Try on a job posting page (LinkedIn, Indeed, etc.)",
+      );
+    }
 
-    const pageData = result.result;
     if (!pageData?.text || pageData.text.length < 10) {
       throw new Error("Not enough text on this page to parse");
     }
 
     // Call backend parse endpoint
-    const response = await apiFetch("/api/v1/jobs/parse", {
-      method: "POST",
-      body: JSON.stringify({
-        page_text: pageData.text,
-        page_url: pageData.url,
-      }),
-    });
+    let response;
+    try {
+      response = await apiFetch("/api/v1/jobs/parse", {
+        method: "POST",
+        body: JSON.stringify({
+          page_text: pageData.text,
+          page_url: pageData.url,
+        }),
+      });
+    } catch {
+      throw new Error(
+        "Cannot connect to Jobber server. Check your internet connection.",
+      );
+    }
 
     if (response.status === 401) {
-      // Token expired
       await chrome.storage.local.remove(["accessToken", "refreshToken"]);
       state.accessToken = null;
       showView("login");
@@ -227,9 +242,8 @@ btnParse.addEventListener("click", async () => {
 
     showView("preview");
   } catch (err) {
-    // Go back to idle with an alert
     await showIdleView();
-    alert(err.message);
+    showError(idleError, err.message);
   }
 });
 
