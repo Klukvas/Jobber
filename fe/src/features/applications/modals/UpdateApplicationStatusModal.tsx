@@ -16,6 +16,7 @@ import {
 } from "@/shared/ui/Dialog";
 import { Button } from "@/shared/ui/Button";
 import { Label } from "@/shared/ui/Label";
+import { Loader2 } from "lucide-react";
 
 interface UpdateApplicationStatusModalProps {
   open: boolean;
@@ -135,9 +136,14 @@ export function UpdateApplicationStatusModal({
                 updateStatusMutation.isPending || newStatus === currentStatus
               }
             >
-              {updateStatusMutation.isPending
-                ? t("common.loading")
-                : t("applications.updateStatus")}
+              {updateStatusMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {t("common.loading")}
+                </>
+              ) : (
+                t("applications.updateStatus")
+              )}
             </Button>
           </DialogFooter>
         </form>

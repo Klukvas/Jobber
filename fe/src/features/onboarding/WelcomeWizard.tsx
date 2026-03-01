@@ -16,6 +16,7 @@ const STEP_HIGHLIGHT: Record<number, string | null> = {
   4: "/app/stages",
   5: "/app/analytics",
   6: null,
+  7: null,
 };
 
 interface WelcomeWizardProps {
@@ -124,9 +125,18 @@ export function WelcomeWizard({ open, onComplete }: WelcomeWizardProps) {
 
           <div className="flex items-center justify-between pt-2">
             <div className="w-20">
-              {!isFirst && (
+              {!isFirst ? (
                 <Button variant="ghost" size="sm" onClick={handleBack}>
                   {t("onboarding.back")}
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSkip}
+                  className="text-muted-foreground"
+                >
+                  {t("onboarding.skip")}
                 </Button>
               )}
             </div>

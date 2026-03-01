@@ -35,7 +35,7 @@ func NewImportHandler(service *service.ImportService) *ImportHandler {
 // @Failure 503 {object} httpPlatform.ErrorResponse
 // @Router /jobs/parse [post]
 func (h *ImportHandler) ParseJobPage(c *gin.Context) {
-	_, exists := auth.GetUserID(c)
+	userID, exists := auth.GetUserID(c)
 	if !exists {
 		httpPlatform.RespondWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized")
 		return
@@ -47,7 +47,7 @@ func (h *ImportHandler) ParseJobPage(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.ParseJobPage(c.Request.Context(), &req)
+	result, err := h.service.ParseJobPage(c.Request.Context(), userID, &req)
 	if err != nil {
 		errorCode := model.GetErrorCode(err)
 		errorMessage := model.GetErrorMessage(err)
@@ -55,6 +55,10 @@ func (h *ImportHandler) ParseJobPage(c *gin.Context) {
 		statusCode := http.StatusInternalServerError
 		if errors.Is(err, model.ErrAINotConfigured) {
 			statusCode = http.StatusServiceUnavailable
+		}
+
+		if errorCode == "PLAN_LIMIT_REACHED" {
+			statusCode = http.StatusForbidden
 		}
 
 		httpPlatform.RespondWithError(c, statusCode, string(errorCode), errorMessage)

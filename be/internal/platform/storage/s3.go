@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/andreypavlenko/jobber/internal/config"
@@ -120,6 +121,25 @@ func (c *S3Client) DeleteObject(ctx context.Context, key string) error {
 	}
 
 	return nil
+}
+
+// GetObject downloads an object from S3 and returns its contents
+func (c *S3Client) GetObject(ctx context.Context, key string) ([]byte, error) {
+	output, err := c.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object: %w", err)
+	}
+	defer output.Body.Close()
+
+	data, err := io.ReadAll(output.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read object body: %w", err)
+	}
+
+	return data, nil
 }
 
 // ObjectExists checks if an object exists in S3

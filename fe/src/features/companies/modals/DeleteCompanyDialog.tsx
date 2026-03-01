@@ -12,7 +12,7 @@ import {
   DialogDescription,
 } from "@/shared/ui/Dialog";
 import { Button } from "@/shared/ui/Button";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 
 interface DeleteCompanyDialogProps {
   open: boolean;
@@ -118,9 +118,14 @@ export function DeleteCompanyDialog({
             onClick={handleDelete}
             disabled={deleteMutation.isPending}
           >
-            {deleteMutation.isPending
-              ? t("common.loading")
-              : t("common.delete")}
+            {deleteMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                {t("common.loading")}
+              </>
+            ) : (
+              t("common.delete")
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

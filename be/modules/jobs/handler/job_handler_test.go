@@ -42,16 +42,20 @@ func (m *MockCompanyRepository) Delete(ctx context.Context, userID, companyID st
 func (m *MockCompanyRepository) GetRelatedJobsAndApplicationsCount(ctx context.Context, userID, companyID string) (int, int, error) {
 	return 0, 0, nil
 }
+func (m *MockCompanyRepository) ToggleFavorite(ctx context.Context, userID, companyID string) (bool, error) {
+	return false, nil
+}
 
 var defaultMockCompanyRepo = &MockCompanyRepository{}
 
 // MockJobRepository implements ports.JobRepository
 type MockJobRepository struct {
-	CreateFunc  func(ctx context.Context, job *model.Job) error
-	GetByIDFunc func(ctx context.Context, userID, jobID string) (*model.Job, error)
-	ListFunc    func(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error)
-	UpdateFunc  func(ctx context.Context, job *model.Job) error
-	DeleteFunc  func(ctx context.Context, userID, jobID string) error
+	CreateFunc         func(ctx context.Context, job *model.Job) error
+	GetByIDFunc        func(ctx context.Context, userID, jobID string) (*model.Job, error)
+	ListFunc           func(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error)
+	UpdateFunc         func(ctx context.Context, job *model.Job) error
+	DeleteFunc         func(ctx context.Context, userID, jobID string) error
+	ToggleFavoriteFunc func(ctx context.Context, userID, jobID string) (bool, error)
 }
 
 func (m *MockJobRepository) Create(ctx context.Context, job *model.Job) error {
@@ -89,6 +93,13 @@ func (m *MockJobRepository) Delete(ctx context.Context, userID, jobID string) er
 	return nil
 }
 
+func (m *MockJobRepository) ToggleFavorite(ctx context.Context, userID, jobID string) (bool, error) {
+	if m.ToggleFavoriteFunc != nil {
+		return m.ToggleFavoriteFunc(ctx, userID, jobID)
+	}
+	return false, nil
+}
+
 func setupTestRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	return gin.New()
@@ -115,7 +126,7 @@ func TestJobHandler_Create(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -137,7 +148,7 @@ func TestJobHandler_Create(t *testing.T) {
 
 	t.Run("returns 401 when not authenticated", func(t *testing.T) {
 		mockRepo := &MockJobRepository{}
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -154,7 +165,7 @@ func TestJobHandler_Create(t *testing.T) {
 
 	t.Run("returns 400 for invalid request", func(t *testing.T) {
 		mockRepo := &MockJobRepository{}
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -171,7 +182,7 @@ func TestJobHandler_Create(t *testing.T) {
 
 	t.Run("returns 400 for empty title", func(t *testing.T) {
 		mockRepo := &MockJobRepository{}
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -207,7 +218,7 @@ func TestJobHandler_Get(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -232,7 +243,7 @@ func TestJobHandler_Get(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -261,7 +272,7 @@ func TestJobHandler_List(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -283,7 +294,7 @@ func TestJobHandler_List(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -320,7 +331,7 @@ func TestJobHandler_Update(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -342,7 +353,7 @@ func TestJobHandler_Update(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -371,7 +382,7 @@ func TestJobHandler_Update(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -398,7 +409,7 @@ func TestJobHandler_Delete(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -418,7 +429,7 @@ func TestJobHandler_Delete(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -429,6 +440,69 @@ func TestJobHandler_Delete(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+}
+
+func TestJobHandler_ToggleFavorite(t *testing.T) {
+	userID := "user-123"
+	jobID := "job-456"
+
+	t.Run("toggles favorite successfully", func(t *testing.T) {
+		mockRepo := &MockJobRepository{
+			ToggleFavoriteFunc: func(ctx context.Context, uid, jid string) (bool, error) {
+				assert.Equal(t, userID, uid)
+				assert.Equal(t, jobID, jid)
+				return true, nil
+			},
+		}
+
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		handler := NewJobHandler(svc)
+
+		router := setupTestRouter()
+		router.POST("/jobs/:id/favorite", mockAuthMiddleware(userID), handler.ToggleFavorite)
+
+		req, _ := http.NewRequest(http.MethodPost, "/jobs/"+jobID+"/favorite", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), `"is_favorite":true`)
+	})
+
+	t.Run("returns 404 when job not found", func(t *testing.T) {
+		mockRepo := &MockJobRepository{
+			ToggleFavoriteFunc: func(ctx context.Context, uid, jid string) (bool, error) {
+				return false, model.ErrJobNotFound
+			},
+		}
+
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		handler := NewJobHandler(svc)
+
+		router := setupTestRouter()
+		router.POST("/jobs/:id/favorite", mockAuthMiddleware(userID), handler.ToggleFavorite)
+
+		req, _ := http.NewRequest(http.MethodPost, "/jobs/nonexistent/favorite", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("returns 401 without auth", func(t *testing.T) {
+		mockRepo := &MockJobRepository{}
+		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		handler := NewJobHandler(svc)
+
+		router := setupTestRouter()
+		router.POST("/jobs/:id/favorite", handler.ToggleFavorite)
+
+		req, _ := http.NewRequest(http.MethodPost, "/jobs/"+jobID+"/favorite", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 }
 
@@ -469,7 +543,7 @@ func TestJobHandler_RegisterRoutes(t *testing.T) {
 		},
 	}
 
-	svc := service.NewJobService(mockRepo, defaultMockCompanyRepo)
+	svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 	handler := NewJobHandler(svc)
 
 	router := setupTestRouter()
@@ -485,6 +559,7 @@ func TestJobHandler_RegisterRoutes(t *testing.T) {
 		{http.MethodGet, "/api/v1/jobs/test-id"},
 		{http.MethodPatch, "/api/v1/jobs/test-id"},
 		{http.MethodDelete, "/api/v1/jobs/test-id"},
+		{http.MethodPost, "/api/v1/jobs/test-id/favorite"},
 	}
 
 	for _, route := range routes {

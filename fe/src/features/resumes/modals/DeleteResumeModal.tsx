@@ -11,7 +11,7 @@ import {
   DialogDescription,
 } from "@/shared/ui/Dialog";
 import { Button } from "@/shared/ui/Button";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import type { ResumeDTO } from "@/shared/types/api";
 
 interface DeleteResumeModalProps {
@@ -90,9 +90,14 @@ export function DeleteResumeModal({
             onClick={handleDelete}
             disabled={resume.can_delete === false || deleteMutation.isPending}
           >
-            {deleteMutation.isPending
-              ? t("common.loading")
-              : t("resumes.delete")}
+            {deleteMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                {t("common.loading")}
+              </>
+            ) : (
+              t("resumes.delete")
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

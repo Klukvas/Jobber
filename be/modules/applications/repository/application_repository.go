@@ -9,6 +9,7 @@ import (
 
 	"github.com/andreypavlenko/jobber/modules/applications/model"
 	"github.com/andreypavlenko/jobber/modules/applications/ports"
+	companyModel "github.com/andreypavlenko/jobber/modules/companies/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -140,6 +141,169 @@ func (r *ApplicationRepository) List(ctx context.Context, userID string, opts *p
 		apps = append(apps, app)
 	}
 	return apps, total, rows.Err()
+}
+
+// ListEnriched returns enriched ApplicationDTOs via JOINs (single query, no N+1).
+func (r *ApplicationRepository) ListEnriched(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.ApplicationDTO, int, error) {
+	// Build optional status filter
+	statusFilter := ""
+	args := []any{userID}
+	if opts.Status != "" {
+		statusFilter = fmt.Sprintf(" AND a.status = $%d", len(args)+1)
+		args = append(args, opts.Status)
+	}
+
+	// Build ORDER BY clause
+	orderBy := "last_activity_at DESC" // default
+	if opts.SortBy != "" {
+		sortCol := ""
+		switch opts.SortBy {
+		case "last_activity":
+			sortCol = "last_activity_at"
+		case "status":
+			sortCol = "a.status"
+		case "applied_at":
+			sortCol = "a.applied_at"
+		default:
+			sortCol = "last_activity_at"
+		}
+
+		sortDir := "DESC"
+		if strings.ToUpper(opts.SortDir) == "ASC" {
+			sortDir = "ASC"
+		}
+
+		orderBy = fmt.Sprintf("%s %s", sortCol, sortDir)
+	}
+
+	limitIdx := len(args) + 1
+	offsetIdx := len(args) + 2
+	query := fmt.Sprintf(`
+		WITH stage_activity AS (
+			SELECT application_id, MAX(created_at) as max_created
+			FROM application_stages
+			GROUP BY application_id
+		),
+		comment_activity AS (
+			SELECT application_id, MAX(created_at) as max_created
+			FROM comments
+			GROUP BY application_id
+		)
+		SELECT
+			a.id, a.name, a.status, a.applied_at, a.created_at, a.updated_at,
+			a.current_stage_id,
+			GREATEST(
+				a.updated_at,
+				COALESCE(sa.max_created, a.updated_at),
+				COALESCE(ca.max_created, a.updated_at)
+			) as last_activity_at,
+			j.id, j.title,
+			c.id, c.name, c.location, c.notes, c.is_favorite, c.created_at, c.updated_at,
+			r.id, r.title,
+			st.name as current_stage_name,
+			COUNT(*) OVER() as total_count
+		FROM applications a
+		LEFT JOIN stage_activity sa ON sa.application_id = a.id
+		LEFT JOIN comment_activity ca ON ca.application_id = a.id
+		LEFT JOIN jobs j ON j.id = a.job_id
+		LEFT JOIN companies c ON j.company_id = c.id
+		LEFT JOIN resumes r ON r.id = a.resume_id
+		LEFT JOIN application_stages cur_stage ON cur_stage.id = a.current_stage_id
+		LEFT JOIN stage_templates st ON st.id = cur_stage.stage_template_id
+		WHERE a.user_id = $1%s
+		ORDER BY %s
+		LIMIT $%d OFFSET $%d
+	`, statusFilter, orderBy, limitIdx, offsetIdx)
+
+	queryArgs := append(args, opts.Limit, opts.Offset)
+	rows, err := r.pool.Query(ctx, query, queryArgs...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var dtos []*model.ApplicationDTO
+	var total int
+	for rows.Next() {
+		dto := &model.ApplicationDTO{}
+		var lastActivity time.Time
+		var jobID, jobTitle *string
+		var companyID, companyName *string
+		var companyLocation, companyNotes *string
+		var companyIsFavorite *bool
+		var companyCreatedAt, companyUpdatedAt *time.Time
+		var resumeID, resumeTitle *string
+		var currentStageName *string
+
+		if err := rows.Scan(
+			&dto.ID, &dto.Name, &dto.Status, &dto.AppliedAt, &dto.CreatedAt, &dto.UpdatedAt,
+			&dto.CurrentStageID,
+			&lastActivity,
+			&jobID, &jobTitle,
+			&companyID, &companyName, &companyLocation, &companyNotes, &companyIsFavorite, &companyCreatedAt, &companyUpdatedAt,
+			&resumeID, &resumeTitle,
+			&currentStageName,
+			&total,
+		); err != nil {
+			return nil, 0, err
+		}
+
+		dto.LastActivityAt = lastActivity
+		dto.CurrentStageName = currentStageName
+
+		// Build nested Job + Company
+		if jobID != nil {
+			dto.Job = &model.JobNestedDTO{
+				ID:    *jobID,
+				Title: safeString(jobTitle),
+			}
+			if companyID != nil {
+				dto.Job.Company = &companyModel.CompanyDTO{
+					ID:         *companyID,
+					Name:       safeString(companyName),
+					Location:   companyLocation,
+					Notes:      companyNotes,
+					IsFavorite: safeBool(companyIsFavorite),
+				}
+				if companyCreatedAt != nil {
+					dto.Job.Company.CreatedAt = *companyCreatedAt
+				}
+				if companyUpdatedAt != nil {
+					dto.Job.Company.UpdatedAt = *companyUpdatedAt
+				}
+			}
+		}
+
+		// Build nested Resume
+		if resumeID != nil {
+			dto.Resume = &model.ResumeNestedDTO{
+				ID:   *resumeID,
+				Name: safeString(resumeTitle),
+			}
+		}
+
+		dtos = append(dtos, dto)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	return dtos, total, nil
+}
+
+func safeString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func safeBool(b *bool) bool {
+	if b == nil {
+		return false
+	}
+	return *b
 }
 
 func (r *ApplicationRepository) Update(ctx context.Context, app *model.Application) error {

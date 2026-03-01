@@ -23,6 +23,24 @@ export function FooterSection() {
           >
             {t("blog.title")}
           </Link>
+          <Link
+            to="/terms"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {t("home.footer.terms")}
+          </Link>
+          <Link
+            to="/privacy"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {t("home.footer.privacy")}
+          </Link>
+          <Link
+            to="/refund"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {t("home.footer.refund")}
+          </Link>
           <p className="text-sm text-muted-foreground">
             &copy; {year} {t("home.footer.copyright")}
           </p>

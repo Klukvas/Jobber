@@ -58,6 +58,14 @@ import (
 	importHandler "github.com/andreypavlenko/jobber/modules/jobimport/handler"
 	importService "github.com/andreypavlenko/jobber/modules/jobimport/service"
 
+	matchScoreHandler "github.com/andreypavlenko/jobber/modules/matchscore/handler"
+	matchScoreRepo "github.com/andreypavlenko/jobber/modules/matchscore/repository"
+	matchScoreService "github.com/andreypavlenko/jobber/modules/matchscore/service"
+
+	subHandler "github.com/andreypavlenko/jobber/modules/subscriptions/handler"
+	subRepo "github.com/andreypavlenko/jobber/modules/subscriptions/repository"
+	subService "github.com/andreypavlenko/jobber/modules/subscriptions/service"
+
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	swaggerFiles "github.com/swaggo/files"
@@ -197,6 +205,21 @@ func main() {
 	applicationStageRepository := appRepo.NewApplicationStageRepository(pgClient.Pool)
 	commentRepository := commentRepo.NewCommentRepository(pgClient.Pool)
 	analyticsRepository := analyticsRepo.NewAnalyticsRepository(pgClient.Pool)
+	subscriptionRepository := subRepo.NewSubscriptionRepository(pgClient.Pool)
+
+	// Initialize subscription service (used as limit checker by other services)
+	subscriptionSvc := subService.NewSubscriptionService(
+		subscriptionRepository,
+		cfg.Paddle.WebhookSecret,
+		cfg.Paddle.APIKey,
+		cfg.Paddle.ProPriceID,
+		cfg.Paddle.EnterprisePriceID,
+		cfg.Paddle.ClientToken,
+		cfg.Paddle.Environment,
+	)
+
+	// Initialize match score cache repository
+	matchScoreCacheRepo := matchScoreRepo.NewMatchScoreCacheRepository(pgClient.Pool)
 
 	// Initialize services
 	authSvc := authService.NewAuthService(
@@ -205,10 +228,11 @@ func main() {
 		jwtManager,
 		cfg.JWT.AccessExpiry,
 		cfg.JWT.RefreshExpiry,
+		subscriptionSvc,
 	)
 	companySvc := companyService.NewCompanyService(companyRepository)
-	jobSvc := jobService.NewJobService(jobRepository, companyRepository)
-	resumeSvc := resumeService.NewResumeService(resumeRepository, s3Client)
+	jobSvc := jobService.NewJobService(jobRepository, companyRepository, subscriptionSvc, matchScoreCacheRepo)
+	resumeSvc := resumeService.NewResumeService(resumeRepository, s3Client, subscriptionSvc, matchScoreCacheRepo)
 	applicationSvc := appService.NewApplicationService(
 		pgClient.Pool,
 		applicationRepository,
@@ -219,6 +243,7 @@ func main() {
 		resumeRepository,
 		commentRepository,
 		logger,
+		subscriptionSvc,
 	)
 	commentSvc := commentService.NewCommentService(commentRepository)
 	analyticsSvc := analyticsService.NewAnalyticsService(analyticsRepository)
@@ -231,6 +256,8 @@ func main() {
 	applicationHdl := appHandler.NewApplicationHandler(applicationSvc)
 	commentHdl := commentHandler.NewCommentHandler(commentSvc)
 	analyticsHdl := analyticsHandler.NewAnalyticsHandler(analyticsSvc)
+	subscriptionHdl := subHandler.NewSubscriptionHandler(subscriptionSvc)
+	webhookHdl := subHandler.NewWebhookHandler(subscriptionSvc)
 
 	// Initialize calendar module (optional — only if all Google Calendar config is provided)
 	var calendarHdl *calendarHandler.CalendarHandler
@@ -270,15 +297,20 @@ func main() {
 		logger.Info("Google Calendar not configured, integration disabled")
 	}
 
-	// Initialize AI client for job import (optional — only if ANTHROPIC_API_KEY is set)
+	// Initialize AI client for job import and match scoring (optional — only if ANTHROPIC_API_KEY is set)
 	var importHdl *importHandler.ImportHandler
+	var matchScoreHdl *matchScoreHandler.MatchScoreHandler
 	if cfg.Anthropic.APIKey != "" {
 		aiClient := ai.NewAnthropicClient(cfg.Anthropic.APIKey)
-		importSvc := importService.NewImportService(aiClient)
+		importSvc := importService.NewImportService(aiClient, subscriptionSvc)
 		importHdl = importHandler.NewImportHandler(importSvc)
-		logger.Info("AI job import enabled")
+
+		matchScoreSvc := matchScoreService.NewMatchScoreService(aiClient, s3Client, jobRepository, resumeRepository, subscriptionSvc, matchScoreCacheRepo)
+		matchScoreHdl = matchScoreHandler.NewMatchScoreHandler(matchScoreSvc)
+
+		logger.Info("AI job import and match scoring enabled")
 	} else {
-		logger.Info("ANTHROPIC_API_KEY not configured, AI job import disabled")
+		logger.Info("ANTHROPIC_API_KEY not configured, AI job import and match scoring disabled")
 	}
 
 	// Rate limiting for auth endpoints (10 requests per minute per IP)
@@ -295,6 +327,13 @@ func main() {
 		KeyPrefix:   "ai_import",
 	})
 
+	// Rate limiting for match score endpoint (10 requests per minute per IP)
+	matchScoreRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
+		MaxRequests: 10,
+		Window:      1 * time.Minute,
+		KeyPrefix:   "match_score",
+	})
+
 	// API v1 routes
 	v1 := router.Group("/api/v1")
 	{
@@ -306,11 +345,16 @@ func main() {
 		applicationHdl.RegisterRoutes(v1, authMiddleware)
 		commentHdl.RegisterRoutes(v1, authMiddleware)
 		analyticsHdl.RegisterRoutes(v1, authMiddleware)
+		subscriptionHdl.RegisterRoutes(v1, authMiddleware)
+		webhookHdl.RegisterRoutes(v1) // Public, no auth — Paddle calls this
 		if calendarHdl != nil {
 			calendarHdl.RegisterRoutes(v1, authMiddleware)
 		}
 		if importHdl != nil {
 			importHdl.RegisterRoutes(v1, authMiddleware, importRateLimiter)
+		}
+		if matchScoreHdl != nil {
+			matchScoreHdl.RegisterRoutes(v1, authMiddleware, matchScoreRateLimiter)
 		}
 	}
 

@@ -44,7 +44,7 @@ function OverviewCards({
 
   if (isLoading) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         {Array.from({ length: 5 }).map((_, i) => (
           <Card key={i}>
             <CardContent className="p-6">
@@ -64,25 +64,25 @@ function OverviewCards({
       title: t("analytics.overview.totalApplications"),
       value: data.total_applications,
       icon: Briefcase,
-      color: "text-blue-500",
+      color: "text-blue-500 dark:text-blue-400",
     },
     {
       title: t("analytics.overview.activeApplications"),
       value: data.active_applications,
       icon: Activity,
-      color: "text-green-500",
+      color: "text-green-500 dark:text-green-400",
     },
     {
       title: t("analytics.overview.closedApplications"),
       value: data.closed_applications,
       icon: CheckCircle,
-      color: "text-gray-500",
+      color: "text-gray-500 dark:text-gray-400",
     },
     {
       title: t("analytics.overview.responseRate"),
       value: `${data.response_rate}%`,
       icon: TrendingUp,
-      color: "text-purple-500",
+      color: "text-purple-500 dark:text-purple-400",
     },
     {
       title: t("analytics.overview.avgResponseTime"),
@@ -91,16 +91,16 @@ function OverviewCards({
           ? `${data.avg_days_to_first_response} ${t("analytics.days")}`
           : "-",
       icon: Clock,
-      color: "text-orange-500",
+      color: "text-orange-500 dark:text-orange-400",
     },
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-      {cards.map((card, index) => {
+    <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+      {cards.map((card) => {
         const Icon = card.icon;
         return (
-          <Card key={index}>
+          <Card key={card.title}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>

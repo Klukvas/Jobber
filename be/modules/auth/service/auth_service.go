@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -14,13 +15,19 @@ import (
 	userPorts "github.com/andreypavlenko/jobber/modules/users/ports"
 )
 
+// SubscriptionCreator creates a free subscription for new users.
+type SubscriptionCreator interface {
+	EnsureFreeSubscription(ctx context.Context, userID string) error
+}
+
 // AuthService handles authentication business logic
 type AuthService struct {
-	userRepo         userPorts.UserRepository
-	tokenRepo        authPorts.RefreshTokenRepository
-	jwtManager       *auth.JWTManager
-	accessExpiry     time.Duration
-	refreshExpiry    time.Duration
+	userRepo            userPorts.UserRepository
+	tokenRepo           authPorts.RefreshTokenRepository
+	jwtManager          *auth.JWTManager
+	accessExpiry        time.Duration
+	refreshExpiry       time.Duration
+	subscriptionCreator SubscriptionCreator
 }
 
 // NewAuthService creates a new auth service
@@ -30,14 +37,19 @@ func NewAuthService(
 	jwtManager *auth.JWTManager,
 	accessExpiry time.Duration,
 	refreshExpiry time.Duration,
+	subscriptionCreator ...SubscriptionCreator,
 ) *AuthService {
-	return &AuthService{
+	svc := &AuthService{
 		userRepo:      userRepo,
 		tokenRepo:     tokenRepo,
 		jwtManager:    jwtManager,
 		accessExpiry:  accessExpiry,
 		refreshExpiry: refreshExpiry,
 	}
+	if len(subscriptionCreator) > 0 {
+		svc.subscriptionCreator = subscriptionCreator[0]
+	}
+	return svc
 }
 
 // Register registers a new user
@@ -80,6 +92,13 @@ func (s *AuthService) Register(ctx context.Context, req *authModel.RegisterReque
 	user := userModel.NewUser(email, name, passwordHash, locale)
 	if err := s.userRepo.Create(ctx, user); err != nil {
 		return nil, nil, err
+	}
+
+	// Create free subscription for new user
+	if s.subscriptionCreator != nil {
+		if err := s.subscriptionCreator.EnsureFreeSubscription(ctx, user.ID); err != nil {
+			log.Printf("[ERROR] Failed to create free subscription for user %s: %v", user.ID, err)
+		}
 	}
 
 	// Generate tokens
@@ -182,8 +201,10 @@ func (s *AuthService) generateTokens(ctx context.Context, userID string) (*authM
 	}, nil
 }
 
+// emailRegex is compiled once at package level to avoid recompilation on every call.
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+
 // isValidEmail validates email format
 func isValidEmail(email string) bool {
-	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 	return emailRegex.MatchString(email)
 }

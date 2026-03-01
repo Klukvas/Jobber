@@ -61,9 +61,11 @@ func main() {
 			{
 				AllowedOrigins: []string{
 					"http://localhost:5173",  // Vite dev server
-					"http://localhost:3000",  // Common React dev server
+					"http://localhost:3000",
+				"http://localhost:3005",
 					"http://localhost:8080",  // Backend (for testing)
-					"https://your-production-domain.com", // Add your production domain
+					"https://jobber-app.com",
+				"https://www.jobber-app.com",
 				},
 				AllowedMethods: []string{
 					"GET",

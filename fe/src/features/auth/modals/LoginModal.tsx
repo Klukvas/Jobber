@@ -16,6 +16,7 @@ import {
   DialogDescription,
 } from "@/shared/ui/Dialog";
 import { ApiError } from "@/services/api";
+import { Loader2 } from "lucide-react";
 
 interface LoginModalProps {
   open: boolean;
@@ -125,7 +126,14 @@ function ModalContent({
             className="w-full"
             disabled={loginMutation.isPending}
           >
-            {loginMutation.isPending ? t("common.loading") : t("auth.login")}
+            {loginMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                {t("common.loading")}
+              </>
+            ) : (
+              t("auth.login")
+            )}
           </Button>
           <p className="text-center text-sm text-muted-foreground">
             {t("auth.dontHaveAccount")}{" "}

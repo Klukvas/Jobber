@@ -13,21 +13,42 @@ import (
 	"github.com/google/uuid"
 )
 
-type ResumeService struct {
-	repo      ports.ResumeRepository
-	s3Client  *storage.S3Client
-	s3Enabled bool
+// LimitChecker checks subscription limits before resource creation.
+type LimitChecker interface {
+	CheckLimit(ctx context.Context, userID, resource string) error
 }
 
-func NewResumeService(repo ports.ResumeRepository, s3Client *storage.S3Client) *ResumeService {
+// CacheInvalidator invalidates match-score cache when source data changes.
+type CacheInvalidator interface {
+	InvalidateByResume(ctx context.Context, resumeID string) error
+}
+
+type ResumeService struct {
+	repo             ports.ResumeRepository
+	s3Client         *storage.S3Client
+	s3Enabled        bool
+	limitChecker     LimitChecker
+	cacheInvalidator CacheInvalidator
+}
+
+func NewResumeService(repo ports.ResumeRepository, s3Client *storage.S3Client, limitChecker LimitChecker, cacheInvalidator CacheInvalidator) *ResumeService {
 	return &ResumeService{
-		repo:      repo,
-		s3Client:  s3Client,
-		s3Enabled: s3Client != nil,
+		repo:             repo,
+		s3Client:         s3Client,
+		s3Enabled:        s3Client != nil,
+		limitChecker:     limitChecker,
+		cacheInvalidator: cacheInvalidator,
 	}
 }
 
 func (s *ResumeService) Create(ctx context.Context, userID string, req *model.CreateResumeRequest) (*model.ResumeDTO, error) {
+	// Check subscription limit
+	if s.limitChecker != nil {
+		if err := s.limitChecker.CheckLimit(ctx, userID, "resumes"); err != nil {
+			return nil, err
+		}
+	}
+
 	if strings.TrimSpace(req.Title) == "" {
 		return nil, model.ErrResumeTitleRequired
 	}
@@ -96,6 +117,7 @@ func (s *ResumeService) Update(ctx context.Context, userID, resumeID string, req
 		return nil, err
 	}
 
+	fileChanged := false
 	if req.Title != nil {
 		if strings.TrimSpace(*req.Title) == "" {
 			return nil, model.ErrResumeTitleRequired
@@ -103,6 +125,7 @@ func (s *ResumeService) Update(ctx context.Context, userID, resumeID string, req
 		resume.Title = strings.TrimSpace(*req.Title)
 	}
 	if req.FileURL != nil {
+		fileChanged = true
 		fileURL := strings.TrimSpace(*req.FileURL)
 		if fileURL == "" {
 			resume.FileURL = nil
@@ -117,10 +140,25 @@ func (s *ResumeService) Update(ctx context.Context, userID, resumeID string, req
 	if err := s.repo.Update(ctx, resume); err != nil {
 		return nil, err
 	}
+
+	// Invalidate match-score cache when resume file changes
+	if fileChanged && s.cacheInvalidator != nil {
+		if err := s.cacheInvalidator.InvalidateByResume(ctx, resumeID); err != nil {
+			log.Printf("[WARN] match score cache invalidation failed for resume=%s: %v", resumeID, err)
+		}
+	}
+
 	return resume.ToDTO(), nil
 }
 
 func (s *ResumeService) Delete(ctx context.Context, userID, resumeID string) error {
+	// Invalidate match-score cache before deleting (FK CASCADE is a safety net)
+	if s.cacheInvalidator != nil {
+		if err := s.cacheInvalidator.InvalidateByResume(ctx, resumeID); err != nil {
+			log.Printf("[WARN] match score cache invalidation failed for resume=%s: %v", resumeID, err)
+		}
+	}
+
 	// Get resume to check storage type
 	resume, err := s.repo.GetByID(ctx, userID, resumeID)
 	if err != nil {
@@ -152,6 +190,13 @@ func (s *ResumeService) Delete(ctx context.Context, userID, resumeID string) err
 
 // GenerateUploadURL generates a presigned URL for uploading a resume file
 func (s *ResumeService) GenerateUploadURL(ctx context.Context, userID string, req *model.GenerateUploadURLRequest) (*model.GenerateUploadURLResponse, error) {
+	// Check subscription limit
+	if s.limitChecker != nil {
+		if err := s.limitChecker.CheckLimit(ctx, userID, "resumes"); err != nil {
+			return nil, err
+		}
+	}
+
 	if !s.s3Enabled {
 		return nil, fmt.Errorf("S3 storage is not configured")
 	}

@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { applicationsService } from "@/services/applicationsService";
 import { commentsService } from "@/services/commentsService";
+import { matchScoreService } from "@/services/matchScoreService";
+import { ApiError } from "@/services/api";
 import { Button } from "@/shared/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
 import { SkeletonDetail } from "@/shared/ui/Skeleton";
@@ -14,13 +16,20 @@ import {
   Plus,
   MessageSquarePlus,
   Edit,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Timeline } from "@/features/applications/components/Timeline";
 import { AddStageModal } from "@/features/applications/modals/AddStageModal";
 import { UpdateApplicationStatusModal } from "@/features/applications/modals/UpdateApplicationStatusModal";
+import { MatchScoreCard } from "@/features/applications/components/MatchScoreCard";
 import { Textarea } from "@/shared/ui/Textarea";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
+import type { MatchScoreResponse } from "@/shared/types/api";
+import { PricingModal } from "@/features/subscription/components/PricingModal";
+import { StatusBadge } from "@/shared/ui/StatusBadge";
+import type { ApplicationStatus } from "@/shared/types/api";
 
 export default function ApplicationDetail() {
   usePageMeta({ titleKey: "applications.details", noindex: true });
@@ -31,6 +40,9 @@ export default function ApplicationDetail() {
   const [isAddStageModalOpen, setIsAddStageModalOpen] = useState(false);
   const [isUpdateStatusModalOpen, setIsUpdateStatusModalOpen] = useState(false);
   const [newComment, setNewComment] = useState("");
+  const [matchScore, setMatchScore] = useState<MatchScoreResponse | null>(null);
+  const [matchScoreError, setMatchScoreError] = useState<string | null>(null);
+  const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
 
   const {
     data: application,
@@ -63,6 +75,41 @@ export default function ApplicationDetail() {
       // Invalidate application query to refresh embedded comments
       queryClient.invalidateQueries({ queryKey: ["application", id] });
       setNewComment("");
+    },
+  });
+
+  const checkMatchMutation = useMutation({
+    mutationFn: () => {
+      if (!application?.job?.id || !application?.resume?.id) {
+        return Promise.reject(new Error("Missing job or resume"));
+      }
+      return matchScoreService.checkMatch(
+        application.job.id,
+        application.resume.id,
+      );
+    },
+    onSuccess: (data) => {
+      setMatchScore(data);
+      setMatchScoreError(null);
+      setIsPricingModalOpen(false);
+    },
+    onError: (error: Error) => {
+      if (error instanceof ApiError) {
+        if (error.code === "PLAN_LIMIT_REACHED") {
+          setIsPricingModalOpen(true);
+          queryClient.invalidateQueries({ queryKey: ["subscription"] });
+        } else if (error.code === "JOB_DESCRIPTION_EMPTY") {
+          setMatchScoreError(t("applications.matchScore.noDescription"));
+        } else if (error.code === "RESUME_FILE_EMPTY") {
+          setMatchScoreError(t("applications.matchScore.noResumeFile"));
+        } else if (error.code === "AI_NOT_CONFIGURED") {
+          setMatchScoreError(t("applications.matchScore.aiNotAvailable"));
+        } else {
+          setMatchScoreError(t("applications.matchScore.error"));
+        }
+      } else {
+        setMatchScoreError(t("applications.matchScore.error"));
+      }
     },
   });
 
@@ -111,7 +158,7 @@ export default function ApplicationDetail() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{t("applications.details")}</CardTitle>
+          <CardTitle>{application.name || t("applications.details")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -148,30 +195,42 @@ export default function ApplicationDetail() {
             </span>
           </div>
           <div>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">
                   {t("applications.status")}
                 </p>
-                <p
-                  className={`font-medium ${
-                    application.status === "active"
-                      ? "text-green-600"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  {application.status.charAt(0).toUpperCase() +
-                    application.status.slice(1)}
-                </p>
+                <StatusBadge status={application.status as ApplicationStatus} />
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsUpdateStatusModalOpen(true)}
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                {t("applications.changeStatus")}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => checkMatchMutation.mutate()}
+                  disabled={
+                    checkMatchMutation.isPending ||
+                    !application?.job?.id ||
+                    !application?.resume?.id
+                  }
+                >
+                  {checkMatchMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-2" />
+                  )}
+                  {checkMatchMutation.isPending
+                    ? t("applications.matchScore.checking")
+                    : t("applications.matchScore.checkMatch")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsUpdateStatusModalOpen(true)}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  {t("applications.changeStatus")}
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -223,6 +282,14 @@ export default function ApplicationDetail() {
         </CardContent>
       </Card>
 
+      {matchScoreError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          {matchScoreError}
+        </div>
+      )}
+
+      {matchScore && <MatchScoreCard data={matchScore} />}
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle>{t("applications.timeline")}</CardTitle>
@@ -254,6 +321,11 @@ export default function ApplicationDetail() {
           currentStatus={application.status}
         />
       )}
+
+      <PricingModal
+        open={isPricingModalOpen}
+        onOpenChange={setIsPricingModalOpen}
+      />
     </div>
   );
 }

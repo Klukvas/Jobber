@@ -17,6 +17,7 @@ import {
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { Label } from "@/shared/ui/Label";
+import { Loader2 } from "lucide-react";
 import type { StageTemplateDTO } from "@/shared/types/api";
 
 interface EditStageTemplateModalProps {
@@ -107,9 +108,14 @@ export function EditStageTemplateModal({
               type="submit"
               disabled={updateMutation.isPending || !name || !order}
             >
-              {updateMutation.isPending
-                ? t("common.loading")
-                : t("common.save")}
+              {updateMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {t("common.loading")}
+                </>
+              ) : (
+                t("common.save")
+              )}
             </Button>
           </DialogFooter>
         </form>

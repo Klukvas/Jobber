@@ -1,23 +1,29 @@
 import { useTranslation } from 'react-i18next';
 
-const MOCK_COLUMNS = [
+interface MockColumn {
+  readonly titleKey: string;
+  readonly color: string;
+  readonly cards: readonly string[];
+}
+
+const MOCK_COLUMNS: readonly MockColumn[] = [
   {
-    title: 'Applied',
+    titleKey: 'home.demo.columns.applied',
     color: 'bg-blue-500',
     cards: ['Frontend Dev @ Stripe', 'Backend Dev @ Vercel'],
   },
   {
-    title: 'Interview',
+    titleKey: 'home.demo.columns.interview',
     color: 'bg-yellow-500',
     cards: ['Full Stack @ GitHub'],
   },
   {
-    title: 'Offer',
+    titleKey: 'home.demo.columns.offer',
     color: 'bg-green-500',
     cards: ['SRE @ Cloudflare'],
   },
   {
-    title: 'Rejected',
+    titleKey: 'home.demo.columns.rejected',
     color: 'bg-red-500',
     cards: ['DevOps @ Netflix'],
   },
@@ -54,25 +60,28 @@ export function DemoPreviewSection() {
 
           {/* Kanban board mockup */}
           <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
-            {MOCK_COLUMNS.map((col) => (
-              <div key={col.title} className="space-y-2">
-                <div className="flex items-center gap-2 px-1">
-                  <div className={`h-2 w-2 rounded-full ${col.color}`} />
-                  <span className="text-xs font-medium">{col.title}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {col.cards.length}
-                  </span>
-                </div>
-                {col.cards.map((card) => (
-                  <div
-                    key={card}
-                    className="rounded-lg border bg-background p-2 text-xs shadow-sm sm:p-3"
-                  >
-                    {card}
+            {MOCK_COLUMNS.map((col) => {
+              const title = t(col.titleKey);
+              return (
+                <div key={col.titleKey} className="space-y-2">
+                  <div className="flex items-center gap-2 px-1">
+                    <div className={`h-2 w-2 rounded-full ${col.color}`} />
+                    <span className="text-xs font-medium">{title}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {col.cards.length}
+                    </span>
                   </div>
-                ))}
-              </div>
-            ))}
+                  {col.cards.map((card) => (
+                    <div
+                      key={card}
+                      className="rounded-lg border bg-background p-2 text-xs shadow-sm sm:p-3"
+                    >
+                      {card}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

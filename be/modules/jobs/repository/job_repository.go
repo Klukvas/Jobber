@@ -25,8 +25,8 @@ func NewJobRepository(pool *pgxpool.Pool) *JobRepository {
 // Create creates a new job
 func (r *JobRepository) Create(ctx context.Context, job *model.Job) error {
 	query := `
-		INSERT INTO jobs (id, user_id, company_id, title, source, url, notes, status, board_column, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO jobs (id, user_id, company_id, title, source, url, notes, description, status, board_column, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`
 
 	job.ID = uuid.New().String()
@@ -43,6 +43,7 @@ func (r *JobRepository) Create(ctx context.Context, job *model.Job) error {
 		job.Source,
 		job.URL,
 		job.Notes,
+		job.Description,
 		job.Status,
 		"wishlist", // board_column kept in DB with default value
 		job.CreatedAt,
@@ -55,7 +56,7 @@ func (r *JobRepository) Create(ctx context.Context, job *model.Job) error {
 // GetByID retrieves a job by ID
 func (r *JobRepository) GetByID(ctx context.Context, userID, jobID string) (*model.Job, error) {
 	query := `
-		SELECT id, user_id, company_id, title, source, url, notes, status, created_at, updated_at
+		SELECT id, user_id, company_id, title, source, url, notes, description, status, is_favorite, created_at, updated_at
 		FROM jobs
 		WHERE id = $1 AND user_id = $2
 	`
@@ -69,7 +70,9 @@ func (r *JobRepository) GetByID(ctx context.Context, userID, jobID string) (*mod
 		&job.Source,
 		&job.URL,
 		&job.Notes,
+		&job.Description,
 		&job.Status,
+		&job.IsFavorite,
 		&job.CreatedAt,
 		&job.UpdatedAt,
 	)
@@ -84,7 +87,8 @@ func (r *JobRepository) GetByID(ctx context.Context, userID, jobID string) (*mod
 	return job, nil
 }
 
-// List retrieves jobs for a user with pagination, filtering, and sorting
+// List retrieves jobs for a user with pagination, filtering, and sorting.
+// Uses COUNT(*) OVER() to eliminate the separate count query.
 func (r *JobRepository) List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error) {
 	// Default to active status if not specified
 	if status == "" {
@@ -102,13 +106,6 @@ func (r *JobRepository) List(ctx context.Context, userID string, limit, offset i
 		argIndex++
 	}
 
-	// Get total count
-	countQuery := `SELECT COUNT(*) FROM jobs j WHERE ` + whereClause
-	var total int
-	if err := r.pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
-		return nil, 0, err
-	}
-
 	// Determine ORDER BY clause
 	orderBy := "j.created_at DESC" // default
 	if sortBy != "" {
@@ -120,16 +117,12 @@ func (r *JobRepository) List(ctx context.Context, userID string, limit, offset i
 				orderBy = "j.created_at DESC"
 			}
 		case "title":
-			// Case-insensitive sorting
 			if sortOrder == "asc" {
 				orderBy = "LOWER(j.title) ASC"
 			} else {
 				orderBy = "LOWER(j.title) DESC"
 			}
 		case "company_name":
-			// Handle NULL company names - put them last regardless of sort order
-			// Case-insensitive sorting using LOWER()
-			// c.name IS NULL check ensures NULLs are always last
 			if sortOrder == "asc" {
 				orderBy = "(CASE WHEN c.name IS NULL THEN 1 ELSE 0 END), LOWER(c.name) ASC"
 			} else {
@@ -140,7 +133,7 @@ func (r *JobRepository) List(ctx context.Context, userID string, limit, offset i
 		}
 	}
 
-	// Get paginated results with enriched data
+	// Single query with COUNT(*) OVER() for total count
 	limitPlaceholder := fmt.Sprintf("$%d", argIndex)
 	offsetPlaceholder := fmt.Sprintf("$%d", argIndex+1)
 	query := `
@@ -152,16 +145,19 @@ func (r *JobRepository) List(ctx context.Context, userID string, limit, offset i
 			j.source,
 			j.url,
 			j.notes,
+			j.description,
 			j.status,
+			j.is_favorite,
 			j.created_at,
 			j.updated_at,
 			c.name as company_name,
-			COALESCE(COUNT(a.id), 0) as applications_count
+			COALESCE(COUNT(a.id), 0) as applications_count,
+			COUNT(*) OVER() as total_count
 		FROM jobs j
 		LEFT JOIN companies c ON j.company_id = c.id
 		LEFT JOIN applications a ON j.id = a.job_id
 		WHERE ` + whereClause + `
-		GROUP BY j.id, j.user_id, j.company_id, j.title, j.source, j.url, j.notes, j.status, j.created_at, j.updated_at, c.name
+		GROUP BY j.id, j.user_id, j.company_id, j.title, j.source, j.url, j.notes, j.description, j.status, j.is_favorite, j.created_at, j.updated_at, c.name
 		ORDER BY ` + orderBy + `
 		LIMIT ` + limitPlaceholder + ` OFFSET ` + offsetPlaceholder + `
 	`
@@ -174,6 +170,7 @@ func (r *JobRepository) List(ctx context.Context, userID string, limit, offset i
 	defer rows.Close()
 
 	var jobs []*model.JobDTO
+	var total int
 	for rows.Next() {
 		var companyName *string
 		var applicationsCount int
@@ -187,11 +184,14 @@ func (r *JobRepository) List(ctx context.Context, userID string, limit, offset i
 			&job.Source,
 			&job.URL,
 			&job.Notes,
+			&job.Description,
 			&job.Status,
+			&job.IsFavorite,
 			&job.CreatedAt,
 			&job.UpdatedAt,
 			&companyName,
 			&applicationsCount,
+			&total,
 		); err != nil {
 			return nil, 0, err
 		}
@@ -213,7 +213,7 @@ func (r *JobRepository) List(ctx context.Context, userID string, limit, offset i
 func (r *JobRepository) Update(ctx context.Context, job *model.Job) error {
 	query := `
 		UPDATE jobs
-		SET company_id = $3, title = $4, source = $5, url = $6, notes = $7, status = $8, updated_at = $9
+		SET company_id = $3, title = $4, source = $5, url = $6, notes = $7, description = $8, status = $9, updated_at = $10
 		WHERE id = $1 AND user_id = $2
 	`
 
@@ -227,6 +227,7 @@ func (r *JobRepository) Update(ctx context.Context, job *model.Job) error {
 		job.Source,
 		job.URL,
 		job.Notes,
+		job.Description,
 		job.Status,
 		job.UpdatedAt,
 	)
@@ -239,6 +240,22 @@ func (r *JobRepository) Update(ctx context.Context, job *model.Job) error {
 	}
 
 	return nil
+}
+
+// ToggleFavorite toggles the favorite status of a job
+func (r *JobRepository) ToggleFavorite(ctx context.Context, userID, jobID string) (bool, error) {
+	query := `UPDATE jobs SET is_favorite = NOT is_favorite WHERE id = $1 AND user_id = $2 RETURNING is_favorite`
+
+	var isFavorite bool
+	err := r.pool.QueryRow(ctx, query, jobID, userID).Scan(&isFavorite)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, model.ErrJobNotFound
+		}
+		return false, err
+	}
+
+	return isFavorite, nil
 }
 
 // Delete deletes a job

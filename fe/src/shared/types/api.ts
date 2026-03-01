@@ -156,6 +156,7 @@ export interface CompanyDTO {
   name: string;
   location?: string;
   notes?: string;
+  is_favorite: boolean;
   created_at: string;
   updated_at: string;
   applications_count: number;
@@ -185,7 +186,9 @@ export interface JobDTO {
   url?: string;
   source?: string;
   notes?: string;
+  description?: string;
   status: "active" | "archived";
+  is_favorite: boolean;
   applications_count: number;
   created_at: string;
   updated_at: string;
@@ -197,6 +200,7 @@ export interface CreateJobRequest {
   url?: string;
   source?: string;
   notes?: string;
+  description?: string;
 }
 
 export interface UpdateJobRequest {
@@ -205,7 +209,24 @@ export interface UpdateJobRequest {
   url?: string;
   source?: string;
   notes?: string;
+  description?: string;
   status?: "active" | "archived";
+}
+
+// Match Score
+export interface MatchScoreCategory {
+  name: string;
+  score: number;
+  details: string;
+}
+
+export interface MatchScoreResponse {
+  overall_score: number;
+  categories: MatchScoreCategory[];
+  missing_keywords: string[];
+  strengths: string[];
+  summary: string;
+  from_cache: boolean;
 }
 
 // Calendar
@@ -292,6 +313,50 @@ export interface CreateCommentRequest {
   application_id: string;
   stage_id?: string;
   content: string;
+}
+
+// Subscription
+export interface PlanLimits {
+  max_jobs: number; // -1 = unlimited
+  max_resumes: number;
+  max_applications: number;
+  max_ai_requests: number;
+  max_job_parses: number;
+}
+
+export interface SubscriptionUsage {
+  jobs: number;
+  resumes: number;
+  applications: number;
+  ai_requests: number;
+  job_parses: number;
+}
+
+export type SubscriptionPlan = "free" | "pro" | "enterprise";
+export type SubscriptionStatus =
+  | "free"
+  | "active"
+  | "past_due"
+  | "cancelled"
+  | "paused";
+
+export interface SubscriptionDTO {
+  plan: SubscriptionPlan;
+  status: SubscriptionStatus;
+  limits: PlanLimits;
+  usage: SubscriptionUsage;
+  current_period_end?: string;
+  cancel_at?: string;
+}
+
+export interface CheckoutConfigDTO {
+  client_token: string;
+  prices: Record<string, string>;
+  environment: string;
+}
+
+export interface PortalSessionDTO {
+  url: string;
 }
 
 // Health

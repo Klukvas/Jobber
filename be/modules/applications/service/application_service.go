@@ -20,6 +20,11 @@ import (
 	"go.uber.org/zap"
 )
 
+// LimitChecker checks subscription limits before resource creation.
+type LimitChecker interface {
+	CheckLimit(ctx context.Context, userID, resource string) error
+}
+
 type ApplicationService struct {
 	pool         *pgxpool.Pool
 	appRepo      ports.ApplicationRepository
@@ -30,6 +35,7 @@ type ApplicationService struct {
 	resumeRepo   resumePorts.ResumeRepository
 	commentRepo  commentPorts.CommentRepository
 	log          *logger.Logger
+	limitChecker LimitChecker
 }
 
 func NewApplicationService(
@@ -42,11 +48,12 @@ func NewApplicationService(
 	resumeRepo resumePorts.ResumeRepository,
 	commentRepo commentPorts.CommentRepository,
 	log *logger.Logger,
+	limitChecker ...LimitChecker,
 ) *ApplicationService {
 	if log == nil {
 		log = &logger.Logger{Logger: zap.NewNop()}
 	}
-	return &ApplicationService{
+	svc := &ApplicationService{
 		pool:         pool,
 		appRepo:      appRepo,
 		stageRepo:    stageRepo,
@@ -57,9 +64,20 @@ func NewApplicationService(
 		commentRepo:  commentRepo,
 		log:          log,
 	}
+	if len(limitChecker) > 0 {
+		svc.limitChecker = limitChecker[0]
+	}
+	return svc
 }
 
 func (s *ApplicationService) Create(ctx context.Context, userID string, req *model.CreateApplicationRequest) (*model.ApplicationDTO, error) {
+	// Check subscription limit
+	if s.limitChecker != nil {
+		if err := s.limitChecker.CheckLimit(ctx, userID, "applications"); err != nil {
+			return nil, err
+		}
+	}
+
 	appliedAt := req.AppliedAt
 	if appliedAt.IsZero() {
 		appliedAt = time.Now().UTC()
@@ -201,23 +219,8 @@ func (s *ApplicationService) List(ctx context.Context, userID string, sortBy, so
 		SortDir: sortDir,
 		Status:  status,
 	}
-	
-	apps, total, err := s.appRepo.List(ctx, userID, opts)
-	if err != nil {
-		return nil, 0, err
-	}
 
-	dtos := make([]*model.ApplicationDTO, 0, len(apps))
-	for _, app := range apps {
-		// Build DTO with nested entities
-		dto, err := s.buildApplicationDTO(ctx, userID, app)
-		if err != nil {
-			s.log.Error("failed to build DTO for application", zap.String("application_id", app.ID), zap.Error(err))
-			continue
-		}
-		dtos = append(dtos, dto)
-	}
-	return dtos, total, nil
+	return s.appRepo.ListEnriched(ctx, userID, opts)
 }
 
 func (s *ApplicationService) Update(ctx context.Context, userID, appID string, req *model.UpdateApplicationRequest) (*model.ApplicationDTO, error) {

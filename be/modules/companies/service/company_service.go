@@ -80,6 +80,11 @@ func (s *CompanyService) Update(ctx context.Context, userID, companyID string, r
 	return s.repo.GetByIDEnriched(ctx, userID, companyID)
 }
 
+// ToggleFavorite toggles the favorite status of a company
+func (s *CompanyService) ToggleFavorite(ctx context.Context, userID, companyID string) (bool, error) {
+	return s.repo.ToggleFavorite(ctx, userID, companyID)
+}
+
 // Delete deletes a company after checking for related data
 func (s *CompanyService) Delete(ctx context.Context, userID, companyID string) error {
 	// Check if company exists first

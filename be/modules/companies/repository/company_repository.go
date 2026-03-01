@@ -52,7 +52,7 @@ func (r *CompanyRepository) Create(ctx context.Context, company *model.Company) 
 // GetByID retrieves a company by ID
 func (r *CompanyRepository) GetByID(ctx context.Context, userID, companyID string) (*model.Company, error) {
 	query := `
-		SELECT id, user_id, name, location, notes, created_at, updated_at
+		SELECT id, user_id, name, location, notes, is_favorite, created_at, updated_at
 		FROM companies
 		WHERE id = $1 AND user_id = $2
 	`
@@ -64,6 +64,7 @@ func (r *CompanyRepository) GetByID(ctx context.Context, userID, companyID strin
 		&company.Name,
 		&company.Location,
 		&company.Notes,
+		&company.IsFavorite,
 		&company.CreatedAt,
 		&company.UpdatedAt,
 	)
@@ -81,35 +82,35 @@ func (r *CompanyRepository) GetByID(ctx context.Context, userID, companyID strin
 // GetByIDEnriched retrieves a company by ID with enriched fields
 func (r *CompanyRepository) GetByIDEnriched(ctx context.Context, userID, companyID string) (*model.CompanyDTO, error) {
 	query := `
-		WITH company_apps AS (
-			SELECT 
-				c.id as company_id,
-				a.id as app_id,
-				a.status,
-				a.updated_at as app_updated,
-				COALESCE((SELECT MAX(created_at) FROM application_stages WHERE application_id = a.id), a.updated_at) as stage_activity,
-				COALESCE((SELECT MAX(created_at) FROM comments WHERE application_id = a.id), a.updated_at) as comment_activity,
-				COALESCE((SELECT COUNT(*) FROM application_stages WHERE application_id = a.id), 0) as stages_count
-			FROM companies c
-			LEFT JOIN jobs j ON j.company_id = c.id AND j.user_id = c.user_id
-			LEFT JOIN applications a ON a.job_id = j.id AND a.user_id = j.user_id
-			WHERE c.id = $1 AND c.user_id = $2
+		WITH stage_agg AS (
+			SELECT application_id, MAX(created_at) as max_created, COUNT(*) as cnt
+			FROM application_stages
+			GROUP BY application_id
+		),
+		comment_agg AS (
+			SELECT application_id, MAX(created_at) as max_created
+			FROM comments
+			GROUP BY application_id
 		)
-		SELECT 
+		SELECT
 			c.id,
 			c.name,
 			c.location,
 			c.notes,
+			c.is_favorite,
 			c.created_at,
 			c.updated_at,
-			COALESCE(COUNT(DISTINCT ca.app_id), 0) as applications_count,
-			COALESCE(COUNT(DISTINCT ca.app_id) FILTER (WHERE ca.status = 'active'), 0) as active_applications_count,
-			MAX(GREATEST(ca.app_updated, ca.stage_activity, ca.comment_activity)) as last_activity_at,
-			COALESCE(MAX(ca.stages_count), 0) as max_stages
+			COALESCE(COUNT(DISTINCT a.id), 0) as applications_count,
+			COALESCE(COUNT(DISTINCT a.id) FILTER (WHERE a.status = 'active'), 0) as active_applications_count,
+			MAX(GREATEST(a.updated_at, COALESCE(sa.max_created, a.updated_at), COALESCE(ca.max_created, a.updated_at))) as last_activity_at,
+			COALESCE(MAX(sa.cnt), 0) as max_stages
 		FROM companies c
-		LEFT JOIN company_apps ca ON ca.company_id = c.id
+		LEFT JOIN jobs j ON j.company_id = c.id AND j.user_id = c.user_id
+		LEFT JOIN applications a ON a.job_id = j.id AND a.user_id = j.user_id
+		LEFT JOIN stage_agg sa ON sa.application_id = a.id
+		LEFT JOIN comment_agg ca ON ca.application_id = a.id
 		WHERE c.id = $1 AND c.user_id = $2
-		GROUP BY c.id, c.name, c.location, c.notes, c.created_at, c.updated_at
+		GROUP BY c.id, c.name, c.location, c.notes, c.is_favorite, c.created_at, c.updated_at
 	`
 
 	var dto model.CompanyDTO
@@ -119,6 +120,7 @@ func (r *CompanyRepository) GetByIDEnriched(ctx context.Context, userID, company
 		&dto.Name,
 		&dto.Location,
 		&dto.Notes,
+		&dto.IsFavorite,
 		&dto.CreatedAt,
 		&dto.UpdatedAt,
 		&dto.ApplicationsCount,
@@ -140,15 +142,10 @@ func (r *CompanyRepository) GetByIDEnriched(ctx context.Context, userID, company
 	return &dto, nil
 }
 
-// List retrieves companies for a user with pagination and enriched fields
+// List retrieves companies for a user with pagination and enriched fields.
+// Uses pre-aggregated CTEs instead of correlated subqueries and COUNT(*) OVER()
+// to eliminate the separate count query.
 func (r *CompanyRepository) List(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.CompanyDTO, int, error) {
-	// Get total count
-	countQuery := `SELECT COUNT(*) FROM companies WHERE user_id = $1`
-	var total int
-	if err := r.pool.QueryRow(ctx, countQuery, userID).Scan(&total); err != nil {
-		return nil, 0, err
-	}
-
 	// Build ORDER BY clause
 	orderBy := "c.name ASC" // default
 	if opts.SortBy != "" {
@@ -172,37 +169,38 @@ func (r *CompanyRepository) List(ctx context.Context, userID string, opts *ports
 		orderBy = fmt.Sprintf("%s %s", sortCol, sortDir)
 	}
 
-	// Get paginated results with enriched fields
+	// Single query with pre-aggregated CTEs and COUNT(*) OVER()
 	query := fmt.Sprintf(`
-		WITH company_apps AS (
-			SELECT 
-				c.id as company_id,
-				a.id as app_id,
-				a.status,
-				a.updated_at as app_updated,
-				COALESCE((SELECT MAX(created_at) FROM application_stages WHERE application_id = a.id), a.updated_at) as stage_activity,
-				COALESCE((SELECT MAX(created_at) FROM comments WHERE application_id = a.id), a.updated_at) as comment_activity,
-				COALESCE((SELECT COUNT(*) FROM application_stages WHERE application_id = a.id), 0) as stages_count
-			FROM companies c
-			LEFT JOIN jobs j ON j.company_id = c.id AND j.user_id = c.user_id
-			LEFT JOIN applications a ON a.job_id = j.id AND a.user_id = j.user_id
-			WHERE c.user_id = $1
+		WITH stage_agg AS (
+			SELECT application_id, MAX(created_at) as max_created, COUNT(*) as cnt
+			FROM application_stages
+			GROUP BY application_id
+		),
+		comment_agg AS (
+			SELECT application_id, MAX(created_at) as max_created
+			FROM comments
+			GROUP BY application_id
 		)
-		SELECT 
+		SELECT
 			c.id,
 			c.name,
 			c.location,
 			c.notes,
+			c.is_favorite,
 			c.created_at,
 			c.updated_at,
-			COALESCE(COUNT(DISTINCT ca.app_id), 0) as applications_count,
-			COALESCE(COUNT(DISTINCT ca.app_id) FILTER (WHERE ca.status = 'active'), 0) as active_applications_count,
-			MAX(GREATEST(ca.app_updated, ca.stage_activity, ca.comment_activity)) as last_activity_at,
-			COALESCE(MAX(ca.stages_count), 0) as max_stages
+			COALESCE(COUNT(DISTINCT a.id), 0) as applications_count,
+			COALESCE(COUNT(DISTINCT a.id) FILTER (WHERE a.status = 'active'), 0) as active_applications_count,
+			MAX(GREATEST(a.updated_at, COALESCE(sa.max_created, a.updated_at), COALESCE(ca.max_created, a.updated_at))) as last_activity_at,
+			COALESCE(MAX(sa.cnt), 0) as max_stages,
+			COUNT(*) OVER() as total_count
 		FROM companies c
-		LEFT JOIN company_apps ca ON ca.company_id = c.id
+		LEFT JOIN jobs j ON j.company_id = c.id AND j.user_id = c.user_id
+		LEFT JOIN applications a ON a.job_id = j.id AND a.user_id = j.user_id
+		LEFT JOIN stage_agg sa ON sa.application_id = a.id
+		LEFT JOIN comment_agg ca ON ca.application_id = a.id
 		WHERE c.user_id = $1
-		GROUP BY c.id, c.name, c.location, c.notes, c.created_at, c.updated_at
+		GROUP BY c.id, c.name, c.location, c.notes, c.is_favorite, c.created_at, c.updated_at
 		ORDER BY %s
 		LIMIT $2 OFFSET $3
 	`, orderBy)
@@ -214,6 +212,7 @@ func (r *CompanyRepository) List(ctx context.Context, userID string, opts *ports
 	defer rows.Close()
 
 	var companies []*model.CompanyDTO
+	var total int
 	for rows.Next() {
 		dto := &model.CompanyDTO{}
 		var maxStages int
@@ -222,12 +221,14 @@ func (r *CompanyRepository) List(ctx context.Context, userID string, opts *ports
 			&dto.Name,
 			&dto.Location,
 			&dto.Notes,
+			&dto.IsFavorite,
 			&dto.CreatedAt,
 			&dto.UpdatedAt,
 			&dto.ApplicationsCount,
 			&dto.ActiveApplicationsCount,
 			&dto.LastActivityAt,
 			&maxStages,
+			&total,
 		); err != nil {
 			return nil, 0, err
 		}
@@ -302,6 +303,22 @@ func (r *CompanyRepository) Update(ctx context.Context, company *model.Company) 
 	}
 
 	return nil
+}
+
+// ToggleFavorite toggles the favorite status of a company
+func (r *CompanyRepository) ToggleFavorite(ctx context.Context, userID, companyID string) (bool, error) {
+	query := `UPDATE companies SET is_favorite = NOT is_favorite WHERE id = $1 AND user_id = $2 RETURNING is_favorite`
+
+	var isFavorite bool
+	err := r.pool.QueryRow(ctx, query, companyID, userID).Scan(&isFavorite)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, model.ErrCompanyNotFound
+		}
+		return false, err
+	}
+
+	return isFavorite, nil
 }
 
 // Delete deletes a company

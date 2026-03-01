@@ -20,6 +20,7 @@ type ApplicationRepository interface {
 	Create(ctx context.Context, app *model.Application) error
 	GetByID(ctx context.Context, userID, appID string) (*model.Application, error)
 	List(ctx context.Context, userID string, opts *ListOptions) ([]*model.Application, int, error)
+	ListEnriched(ctx context.Context, userID string, opts *ListOptions) ([]*model.ApplicationDTO, int, error)
 	Update(ctx context.Context, app *model.Application) error
 	Delete(ctx context.Context, userID, appID string) error
 	GetLastActivityAt(ctx context.Context, appID string) (time.Time, error)

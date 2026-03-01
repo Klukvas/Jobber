@@ -9,7 +9,7 @@ import {
   Building2,
   Briefcase,
 } from "lucide-react";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { memo, useState, useEffect, useRef, useCallback } from "react";
 import { StatusBadge } from "@/shared/ui/StatusBadge";
 import type { ApplicationDTO } from "@/shared/types/api";
 
@@ -20,7 +20,7 @@ interface ApplicationKanbanCardProps {
   onChangeStatus: (application: ApplicationDTO) => void;
 }
 
-export function ApplicationKanbanCard({
+export const ApplicationKanbanCard = memo(function ApplicationKanbanCard({
   application,
   onAddComment,
   onAddStage,
@@ -92,7 +92,7 @@ export function ApplicationKanbanCard({
               setMenuOpen((prev) => !prev);
             }}
             onPointerDown={(e) => e.stopPropagation()}
-            className="p-1 rounded-md hover:bg-accent transition-colors opacity-0 group-hover:opacity-100"
+            className="p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground"
             aria-label="Application actions"
           >
             <MoreVertical className="h-3.5 w-3.5" />
@@ -159,4 +159,4 @@ export function ApplicationKanbanCard({
       </div>
     </div>
   );
-}
+});

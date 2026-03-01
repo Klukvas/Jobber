@@ -1,6 +1,10 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, Link, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useMutation } from "@tanstack/react-query";
 import { useSidebarStore } from "@/stores/sidebarStore";
+import { useAuthStore } from "@/stores/authStore";
+import { useSubscription } from "@/shared/hooks/useSubscription";
+import { authService } from "@/services/authService";
 import { useOnboardingHighlight } from "@/features/onboarding/useOnboarding";
 import { cn } from "@/shared/lib/utils";
 import {
@@ -9,11 +13,11 @@ import {
   Building2,
   Search,
   ListOrdered,
-  Settings,
   ChevronLeft,
   ChevronRight,
   X,
   BarChart3,
+  LogOut,
 } from "lucide-react";
 
 const navItems = [
@@ -23,14 +27,53 @@ const navItems = [
   { path: "/app/jobs", icon: Search, labelKey: "nav.jobs" },
   { path: "/app/stages", icon: ListOrdered, labelKey: "nav.stages" },
   { path: "/app/analytics", icon: BarChart3, labelKey: "nav.analytics" },
-  { path: "/app/settings", icon: Settings, labelKey: "nav.settings" },
 ];
+
+function getPlanBadge(
+  plan: string,
+  t: (key: string) => string,
+): { label: string; className: string } {
+  switch (plan) {
+    case "enterprise":
+      return {
+        label: t("settings.subscription.enterprisePlan"),
+        className:
+          "bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300",
+      };
+    case "pro":
+      return {
+        label: t("settings.subscription.proPlan"),
+        className:
+          "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+      };
+    default:
+      return {
+        label: t("settings.subscription.freePlan"),
+        className:
+          "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+      };
+  }
+}
 
 export function Sidebar() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { isExpanded, isMobileOpen, toggleExpanded, closeMobile } =
     useSidebarStore();
+  const location = useLocation();
   const highlightedPath = useOnboardingHighlight();
+  const user = useAuthStore((state) => state.user);
+  const clearAuth = useAuthStore((state) => state.clearAuth);
+  const { plan } = useSubscription();
+  const badge = getPlanBadge(plan, t);
+
+  const logoutMutation = useMutation({
+    mutationFn: authService.logout,
+    onSettled: () => {
+      clearAuth();
+      navigate("/");
+    },
+  });
 
   return (
     <>
@@ -46,7 +89,7 @@ export function Sidebar() {
       <aside
         className={cn(
           "fixed left-0 top-0 z-50 h-screen border-r bg-card transition-all duration-300",
-          "md:relative md:z-0",
+          "md:sticky md:top-0 md:z-0",
           {
             "w-64": isExpanded,
             "w-16": !isExpanded,
@@ -58,7 +101,14 @@ export function Sidebar() {
         <div className="flex h-full flex-col">
           {/* Logo / Brand */}
           <div className="flex h-16 items-center justify-between border-b px-4">
-            {isExpanded && <h1 className="text-xl font-bold">Jobber</h1>}
+            {isExpanded && (
+              <Link to="/" className="hover:opacity-80 transition-opacity">
+                <span className="text-xl font-bold">Jobber</span>
+                <span className="block text-[10px] text-muted-foreground leading-tight">
+                  Powered By FluxLab
+                </span>
+              </Link>
+            )}
             <button
               onClick={toggleExpanded}
               className="hidden rounded-md p-2 hover:bg-accent md:block"
@@ -115,10 +165,83 @@ export function Sidebar() {
               );
             })}
           </nav>
+
+          {/* User Footer */}
+          <div className="border-t p-2 space-y-1">
+            {/* Email + Plan Badge */}
+            {isExpanded ? (
+              <NavLink
+                to="/app/settings"
+                className={cn(
+                  "flex items-center gap-2 rounded-md px-3 py-2 transition-colors",
+                  "hover:bg-accent hover:text-accent-foreground",
+                  {
+                    "bg-accent text-accent-foreground":
+                      location.pathname === "/app/settings",
+                    "text-muted-foreground":
+                      location.pathname !== "/app/settings",
+                  },
+                )}
+              >
+                <span
+                  className="truncate text-sm font-medium"
+                  title={user?.email}
+                >
+                  {user?.email}
+                </span>
+                <span
+                  className={cn(
+                    "flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none",
+                    badge.className,
+                  )}
+                >
+                  {badge.label}
+                </span>
+              </NavLink>
+            ) : (
+              <NavLink
+                to="/app/settings"
+                className={cn(
+                  "flex justify-center rounded-md px-3 py-2 transition-colors",
+                  "hover:bg-accent hover:text-accent-foreground",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  {
+                    "bg-accent text-accent-foreground":
+                      location.pathname === "/app/settings",
+                    "text-muted-foreground":
+                      location.pathname !== "/app/settings",
+                  },
+                )}
+                title={user?.email}
+              >
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none",
+                    badge.className,
+                  )}
+                >
+                  {badge.label.charAt(0)}
+                </span>
+              </NavLink>
+            )}
+
+            {/* Logout */}
+            <button
+              onClick={() => logoutMutation.mutate()}
+              disabled={logoutMutation.isPending}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "text-muted-foreground hover:bg-destructive/10 hover:text-destructive",
+                { "justify-center": !isExpanded },
+              )}
+              title={!isExpanded ? t("auth.logout") : undefined}
+            >
+              <LogOut className="h-5 w-5 flex-shrink-0" />
+              {isExpanded && <span>{t("auth.logout")}</span>}
+            </button>
+          </div>
         </div>
       </aside>
-
-      {/* Mobile Menu Button - rendered in Header */}
     </>
   );
 }

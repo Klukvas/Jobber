@@ -280,6 +280,44 @@ func (h *CompanyHandler) GetRelatedCounts(c *gin.Context) {
 	})
 }
 
+// ToggleFavorite godoc
+// @Summary Toggle company favorite status
+// @Description Toggle the favorite status of a specific company
+// @Tags companies
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Company ID"
+// @Success 200 {object} map[string]bool
+// @Failure 401 {object} httpPlatform.ErrorResponse
+// @Failure 404 {object} httpPlatform.ErrorResponse "Company not found"
+// @Failure 500 {object} httpPlatform.ErrorResponse
+// @Router /companies/{id}/favorite [post]
+func (h *CompanyHandler) ToggleFavorite(c *gin.Context) {
+	userID, exists := auth.GetUserID(c)
+	if !exists {
+		httpPlatform.RespondWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized")
+		return
+	}
+
+	companyID := c.Param("id")
+
+	isFavorite, err := h.service.ToggleFavorite(c.Request.Context(), userID, companyID)
+	if err != nil {
+		errorCode := model.GetErrorCode(err)
+		errorMessage := model.GetErrorMessage(err)
+
+		statusCode := http.StatusInternalServerError
+		if errorCode == model.CodeCompanyNotFound {
+			statusCode = http.StatusNotFound
+		}
+
+		httpPlatform.RespondWithError(c, statusCode, string(errorCode), errorMessage)
+		return
+	}
+
+	httpPlatform.RespondWithData(c, http.StatusOK, gin.H{"is_favorite": isFavorite})
+}
+
 // RegisterRoutes registers company routes
 func (h *CompanyHandler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.HandlerFunc) {
 	companies := router.Group("/companies")
@@ -291,5 +329,6 @@ func (h *CompanyHandler) RegisterRoutes(router *gin.RouterGroup, authMiddleware 
 		companies.GET("/:id/related-counts", h.GetRelatedCounts)
 		companies.PATCH("/:id", h.Update)
 		companies.DELETE("/:id", h.Delete)
+		companies.POST("/:id/favorite", h.ToggleFavorite)
 	}
 }

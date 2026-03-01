@@ -11,16 +11,19 @@ const HomePage = lazy(() => import("@/pages/Home"));
 const BlogPage = lazy(() => import("@/pages/Blog"));
 const BlogPostPage = lazy(() => import("@/pages/BlogPost"));
 const PrivacyPage = lazy(() => import("@/pages/Privacy"));
+const TermsPage = lazy(() => import("@/pages/Terms"));
+const RefundPage = lazy(() => import("@/pages/Refund"));
 
 // Protected pages
+const SettingsPage = lazy(() => import("@/pages/Settings"));
 const ApplicationsPage = lazy(() => import("@/pages/Applications"));
 const ApplicationDetailPage = lazy(() => import("@/pages/ApplicationDetail"));
 const ResumesPage = lazy(() => import("@/pages/Resumes"));
 const CompaniesPage = lazy(() => import("@/pages/Companies"));
 const JobsPage = lazy(() => import("@/pages/Jobs"));
+const JobDetailPage = lazy(() => import("@/pages/JobDetail"));
 const StageTemplatesPage = lazy(() => import("@/pages/StageTemplates"));
 const AnalyticsPage = lazy(() => import("@/pages/Analytics"));
-const SettingsPage = lazy(() => import("@/pages/Settings"));
 
 export const router = createBrowserRouter([
   {
@@ -28,13 +31,13 @@ export const router = createBrowserRouter([
     element: <RootLayout />,
     children: [
       {
+        index: true,
+        element: <HomePage />,
+      },
+      {
         path: "",
         element: <AuthLayout />,
         children: [
-          {
-            index: true,
-            element: <HomePage />,
-          },
           {
             // Login modal is shown on Home page based on URL
             path: "login",
@@ -58,6 +61,14 @@ export const router = createBrowserRouter([
       {
         path: "privacy",
         element: <PrivacyPage />,
+      },
+      {
+        path: "terms",
+        element: <TermsPage />,
+      },
+      {
+        path: "refund",
+        element: <RefundPage />,
       },
       {
         path: "app",
@@ -86,6 +97,10 @@ export const router = createBrowserRouter([
           {
             path: "jobs",
             element: <JobsPage />,
+          },
+          {
+            path: "jobs/:id",
+            element: <JobDetailPage />,
           },
           {
             path: "stages",

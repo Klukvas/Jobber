@@ -1,10 +1,27 @@
+import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { ArrowLeft, Briefcase } from "lucide-react";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 
 export default function Privacy() {
-  usePageMeta({ titleKey: "privacy.title" });
+  const { t } = useTranslation();
+  usePageMeta({ title: "Privacy Policy — Jobber" });
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 text-foreground">
+      <nav className="mb-8 flex items-center justify-between">
+        <Link
+          to="/"
+          className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          {t("common.backToHome")}
+        </Link>
+        <Link to="/" className="flex items-center gap-2">
+          <Briefcase className="h-5 w-5 text-primary" />
+          <span className="font-bold">Jobber</span>
+        </Link>
+      </nav>
       <h1 className="mb-8 text-3xl font-bold">Privacy Policy</h1>
       <p className="mb-4 text-sm text-muted-foreground">
         Last updated: February 28, 2026
@@ -33,13 +50,13 @@ export default function Privacy() {
           </li>
           <li>
             <strong>Page content (extension only):</strong> when you click
-            &quot;Import This Job&quot;, the text content of the current web page
-            is sent to our server for AI-powered parsing. We do not store the raw
-            page text after parsing is complete.
+            &quot;Import This Job&quot;, the text content of the current web
+            page is sent to our server for AI-powered parsing. We do not store
+            the raw page text after parsing is complete.
           </li>
           <li>
-            <strong>Authentication tokens:</strong> JWT tokens are stored locally
-            in your browser to keep you signed in.
+            <strong>Authentication tokens:</strong> JWT tokens are stored
+            locally in your browser to keep you signed in.
           </li>
         </ul>
       </section>
@@ -59,9 +76,9 @@ export default function Privacy() {
       <section className="mb-8">
         <h2 className="mb-3 text-xl font-semibold">4. Data Sharing</h2>
         <p>
-          We do not sell, trade, or transfer your personal data to third parties.
-          Page text is sent to Anthropic&apos;s API solely for job parsing and is
-          subject to{" "}
+          We do not sell, trade, or transfer your personal data to third
+          parties. Page text is sent to Anthropic&apos;s API solely for job
+          parsing and is subject to{" "}
           <a
             href="https://www.anthropic.com/privacy"
             target="_blank"
@@ -108,8 +125,8 @@ export default function Privacy() {
         <h2 className="mb-3 text-xl font-semibold">7. Your Rights</h2>
         <p>
           You can delete your account and all associated data at any time from
-          the Settings page. To request data export or have questions, contact us
-          at{" "}
+          the Settings page. To request data export or have questions, contact
+          us at{" "}
           <a
             href="mailto:apavlenko.dev@gmail.com"
             className="text-primary underline"

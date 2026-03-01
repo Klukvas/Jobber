@@ -17,6 +17,7 @@ import {
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { Label } from "@/shared/ui/Label";
+import { Loader2 } from "lucide-react";
 
 interface ScheduleStageModalProps {
   open: boolean;
@@ -158,9 +159,14 @@ function ModalContent({
             type="submit"
             disabled={createMutation.isPending || !title.trim() || !startTime}
           >
-            {createMutation.isPending
-              ? t("common.loading")
-              : t("applications.schedule.schedule")}
+            {createMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                {t("common.loading")}
+              </>
+            ) : (
+              t("applications.schedule.schedule")
+            )}
           </Button>
         </DialogFooter>
       </form>

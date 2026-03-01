@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
 	"github.com/andreypavlenko/jobber/modules/applications/model"
 	"github.com/andreypavlenko/jobber/modules/applications/service"
+	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -44,6 +46,10 @@ func (h *ApplicationHandler) Create(c *gin.Context) {
 
 	app, err := h.service.Create(c.Request.Context(), userID, &req)
 	if err != nil {
+		if errors.Is(err, subModel.ErrLimitReached) {
+			httpPlatform.RespondWithError(c, http.StatusForbidden, "PLAN_LIMIT_REACHED", "Plan limit reached. Upgrade to Pro for unlimited access.")
+			return
+		}
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, string(model.GetErrorCode(err)), model.GetErrorMessage(err))
 		return
 	}

@@ -17,7 +17,8 @@ import {
   MoreVertical,
   Edit,
   Trash2,
-  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   Briefcase,
   Download,
   Cloud,
@@ -46,11 +47,10 @@ export default function Resumes() {
 
   // Close context menu when clicking outside
   useEffect(() => {
+    if (!openMenuId) return;
     const handleClickOutside = () => setOpenMenuId(null);
-    if (openMenuId) {
-      document.addEventListener("click", handleClickOutside);
-      return () => document.removeEventListener("click", handleClickOutside);
-    }
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
   }, [openMenuId]);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -91,9 +91,7 @@ export default function Resumes() {
       window.open(data.download_url, "_blank");
     },
     onError: (error: Error) => {
-      showErrorNotification(
-        error?.message || "Failed to generate download link",
-      );
+      showErrorNotification(error?.message || t("resumes.downloadError"));
     },
   });
 
@@ -136,8 +134,8 @@ export default function Resumes() {
       {resumes.length === 0 ? (
         <EmptyState
           icon={<FileText className="h-12 w-12" />}
-          title="No resumes yet"
-          description="Create your first resume to start applying for jobs. You can upload multiple versions and track which ones you use for different applications."
+          title={t("resumes.noResumes")}
+          description={t("resumes.createFirst")}
           action={
             <Button onClick={() => setIsCreateModalOpen(true)}>
               <Plus className="h-4 w-4" />
@@ -149,17 +147,22 @@ export default function Resumes() {
         <>
           {/* Sorting Controls */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-muted-foreground">Sort by:</span>
+            <span className="text-sm text-muted-foreground">
+              {t("common.sortBy")}
+            </span>
             <Button
               variant={sortBy === "created_at" ? "default" : "outline"}
               size="sm"
               onClick={() => toggleSort("created_at")}
             >
               <Calendar className="h-3 w-3 mr-1" />
-              Created Date
-              {sortBy === "created_at" && (
-                <ArrowUpDown className="h-3 w-3 ml-1" />
-              )}
+              {t("resumes.sortCreatedDate")}
+              {sortBy === "created_at" &&
+                (sortDir === "desc" ? (
+                  <ArrowDown className="h-3 w-3 ml-1" />
+                ) : (
+                  <ArrowUp className="h-3 w-3 ml-1" />
+                ))}
             </Button>
             <Button
               variant={sortBy === "title" ? "default" : "outline"}
@@ -167,18 +170,26 @@ export default function Resumes() {
               onClick={() => toggleSort("title")}
             >
               <FileText className="h-3 w-3 mr-1" />
-              Title
-              {sortBy === "title" && <ArrowUpDown className="h-3 w-3 ml-1" />}
+              {t("resumes.sortTitle")}
+              {sortBy === "title" &&
+                (sortDir === "desc" ? (
+                  <ArrowDown className="h-3 w-3 ml-1" />
+                ) : (
+                  <ArrowUp className="h-3 w-3 ml-1" />
+                ))}
             </Button>
             <Button
               variant={sortBy === "is_active" ? "default" : "outline"}
               size="sm"
               onClick={() => toggleSort("is_active")}
             >
-              Active Status
-              {sortBy === "is_active" && (
-                <ArrowUpDown className="h-3 w-3 ml-1" />
-              )}
+              {t("resumes.sortActiveStatus")}
+              {sortBy === "is_active" &&
+                (sortDir === "desc" ? (
+                  <ArrowDown className="h-3 w-3 ml-1" />
+                ) : (
+                  <ArrowUp className="h-3 w-3 ml-1" />
+                ))}
             </Button>
           </div>
 
@@ -209,7 +220,7 @@ export default function Resumes() {
                             openMenuId === resume.id ? null : resume.id,
                           );
                         }}
-                        className="p-1 rounded-md hover:bg-accent transition-colors opacity-0 group-hover:opacity-100"
+                        className="p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground"
                         aria-label="Resume actions"
                       >
                         <MoreVertical className="h-4 w-4" />
@@ -225,7 +236,7 @@ export default function Resumes() {
                             className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
                           >
                             <Edit className="h-4 w-4" />
-                            Edit
+                            {t("common.edit")}
                           </button>
                           <button
                             onClick={(e) => {
@@ -241,12 +252,12 @@ export default function Resumes() {
                             }`}
                             title={
                               resume.can_delete === false
-                                ? "Cannot delete resume used in applications"
+                                ? t("resumes.cannotDeleteInUse")
                                 : ""
                             }
                           >
                             <Trash2 className="h-4 w-4" />
-                            Delete
+                            {t("common.delete")}
                           </button>
                         </div>
                       )}
@@ -256,14 +267,14 @@ export default function Resumes() {
                   {/* Active/Inactive Badge */}
                   <div className="flex items-center gap-2 mt-2">
                     {resume.is_active ? (
-                      <div className="flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded">
+                      <div className="flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 dark:bg-green-900/30 dark:text-green-400 px-2 py-1 rounded">
                         <CheckCircle className="h-3 w-3" />
-                        Active
+                        {t("common.active")}
                       </div>
                     ) : (
                       <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded">
                         <XCircle className="h-3 w-3" />
-                        Inactive
+                        {t("common.inactive")}
                       </div>
                     )}
                   </div>
@@ -275,7 +286,7 @@ export default function Resumes() {
                       <>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Cloud className="h-3 w-3" />
-                          <span>Cloud Storage (PDF)</span>
+                          <span>{t("resumes.cloudStorage")}</span>
                         </div>
                         <Button
                           variant="outline"
@@ -286,15 +297,15 @@ export default function Resumes() {
                         >
                           <Download className="h-3 w-3 mr-2" />
                           {downloadMutation.isPending
-                            ? "Generating link..."
-                            : "Download Resume"}
+                            ? t("resumes.generatingLink")
+                            : t("resumes.downloadResume")}
                         </Button>
                       </>
                     ) : resume.file_url ? (
                       <>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <LinkIcon className="h-3 w-3" />
-                          <span>External URL</span>
+                          <span>{t("resumes.externalUrl")}</span>
                         </div>
                         <a
                           href={resume.file_url}
@@ -303,12 +314,12 @@ export default function Resumes() {
                           className="flex items-center justify-center gap-2 text-sm hover:underline w-full px-4 py-2 border rounded-md hover:bg-accent transition-colors"
                         >
                           <ExternalLink className="h-3 w-3" />
-                          View Resume
+                          {t("resumes.viewResume")}
                         </a>
                       </>
                     ) : (
                       <div className="text-sm text-muted-foreground italic">
-                        No file attached
+                        {t("resumes.noFileAttached")}
                       </div>
                     )}
                   </div>
@@ -318,13 +329,16 @@ export default function Resumes() {
                     <Briefcase className="h-4 w-4" />
                     <span>
                       {(resume.applications_count ?? 0) === 0
-                        ? "Not used in applications yet"
-                        : `Used in ${resume.applications_count} application${resume.applications_count === 1 ? "" : "s"}`}
+                        ? t("resumes.notUsedYet")
+                        : t("resumes.usedInApplications", {
+                            count: resume.applications_count,
+                          })}
                     </span>
                   </div>
 
                   <div className="text-sm text-muted-foreground">
-                    Created {format(new Date(resume.created_at), "MMM d, yyyy")}
+                    {t("resumes.created")}{" "}
+                    {format(new Date(resume.created_at), "MMM d, yyyy")}
                   </div>
                 </CardContent>
               </Card>

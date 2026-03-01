@@ -19,7 +19,8 @@ import {
   MessageSquare,
   Archive,
   GitBranch,
-  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   LayoutGrid,
   Kanban,
 } from "lucide-react";
@@ -66,11 +67,10 @@ export default function Applications() {
 
   // Close context menu when clicking outside
   useEffect(() => {
+    if (!openMenuId) return;
     const handleClickOutside = () => setOpenMenuId(null);
-    if (openMenuId) {
-      document.addEventListener("click", handleClickOutside);
-      return () => document.removeEventListener("click", handleClickOutside);
-    }
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
   }, [openMenuId]);
 
   // Kanban uses a shared constant key; list uses sort-specific keys
@@ -88,7 +88,7 @@ export default function Applications() {
         sort_by: viewMode === "kanban" ? undefined : sortBy,
         sort_dir: viewMode === "kanban" ? undefined : sortDir,
       }),
-    staleTime: viewMode === "kanban" ? 30_000 : 0,
+    staleTime: 30_000,
   });
 
   const handleQuickAction = (
@@ -204,9 +204,12 @@ export default function Applications() {
             >
               <Clock className="h-3 w-3 mr-1" />
               {t("applications.sortLastActivity")}
-              {sortBy === "last_activity" && (
-                <ArrowUpDown className="h-3 w-3 ml-1" />
-              )}
+              {sortBy === "last_activity" &&
+                (sortDir === "desc" ? (
+                  <ArrowDown className="h-3 w-3 ml-1" />
+                ) : (
+                  <ArrowUp className="h-3 w-3 ml-1" />
+                ))}
             </Button>
             <Button
               variant={sortBy === "status" ? "default" : "outline"}
@@ -214,7 +217,12 @@ export default function Applications() {
               onClick={() => toggleSort("status")}
             >
               {t("applications.sortStatus")}
-              {sortBy === "status" && <ArrowUpDown className="h-3 w-3 ml-1" />}
+              {sortBy === "status" &&
+                (sortDir === "desc" ? (
+                  <ArrowDown className="h-3 w-3 ml-1" />
+                ) : (
+                  <ArrowUp className="h-3 w-3 ml-1" />
+                ))}
             </Button>
             <Button
               variant={sortBy === "applied_at" ? "default" : "outline"}
@@ -223,9 +231,12 @@ export default function Applications() {
             >
               <Calendar className="h-3 w-3 mr-1" />
               {t("applications.sortAppliedDate")}
-              {sortBy === "applied_at" && (
-                <ArrowUpDown className="h-3 w-3 ml-1" />
-              )}
+              {sortBy === "applied_at" &&
+                (sortDir === "desc" ? (
+                  <ArrowDown className="h-3 w-3 ml-1" />
+                ) : (
+                  <ArrowUp className="h-3 w-3 ml-1" />
+                ))}
             </Button>
           </div>
 
@@ -255,7 +266,7 @@ export default function Applications() {
                                   : application.id,
                               );
                             }}
-                            className="p-1 rounded-md hover:bg-accent transition-colors opacity-0 group-hover:opacity-100"
+                            className="p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground"
                             aria-label="Application actions"
                           >
                             <MoreVertical className="h-4 w-4" />

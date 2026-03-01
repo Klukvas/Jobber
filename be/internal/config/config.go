@@ -17,6 +17,17 @@ type Config struct {
 	S3             S3Config
 	GoogleCalendar GoogleCalendarConfig
 	Anthropic      AnthropicConfig
+	Paddle         PaddleConfig
+}
+
+// PaddleConfig holds Paddle payment configuration
+type PaddleConfig struct {
+	APIKey            string
+	WebhookSecret     string
+	Environment       string // sandbox or production
+	ProPriceID        string
+	EnterprisePriceID string
+	ClientToken       string // frontend overlay checkout
 }
 
 // AnthropicConfig holds Anthropic API configuration
@@ -136,6 +147,14 @@ func Load() (*Config, error) {
 		Anthropic: AnthropicConfig{
 			APIKey: getEnv("ANTHROPIC_API_KEY", ""),
 		},
+		Paddle: PaddleConfig{
+			APIKey:            getEnv("PADDLE_API_KEY", ""),
+			WebhookSecret:     getEnv("PADDLE_WEBHOOK_SECRET", ""),
+			Environment:       getEnv("PADDLE_ENVIRONMENT", "sandbox"),
+			ProPriceID:        getEnv("PADDLE_PRO_PRICE_ID", ""),
+			EnterprisePriceID: getEnv("PADDLE_ENTERPRISE_PRICE_ID", ""),
+			ClientToken:       getEnv("PADDLE_CLIENT_TOKEN", ""),
+		},
 	}
 
 	// Validate required fields
@@ -144,6 +163,19 @@ func Load() (*Config, error) {
 	}
 	if cfg.JWT.RefreshSecret == "" {
 		return nil, fmt.Errorf("JWT_REFRESH_SECRET is required")
+	}
+
+	// Production security guards
+	if cfg.Server.Env == "production" {
+		if cfg.Server.AllowedOrigins == "*" {
+			return nil, fmt.Errorf("ALLOWED_ORIGINS must not be '*' in production")
+		}
+		if len(cfg.JWT.AccessSecret) < 32 {
+			return nil, fmt.Errorf("JWT_ACCESS_SECRET must be at least 32 characters in production")
+		}
+		if len(cfg.JWT.RefreshSecret) < 32 {
+			return nil, fmt.Errorf("JWT_REFRESH_SECRET must be at least 32 characters in production")
+		}
 	}
 
 	return cfg, nil

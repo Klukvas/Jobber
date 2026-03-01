@@ -4,16 +4,18 @@ import "time"
 
 // Job represents a job posting
 type Job struct {
-	ID        string
-	UserID    string
-	CompanyID *string
-	Title     string
-	Source    *string
-	URL       *string
-	Notes     *string
-	Status    string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          string
+	UserID      string
+	CompanyID   *string
+	Title       string
+	Source      *string
+	URL         *string
+	Notes       *string
+	Description *string
+	Status      string
+	IsFavorite  bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // JobDTO represents job data transfer object
@@ -25,7 +27,9 @@ type JobDTO struct {
 	Source            *string   `json:"source,omitempty"`
 	URL               *string   `json:"url,omitempty"`
 	Notes             *string   `json:"notes,omitempty"`
+	Description       *string   `json:"description,omitempty"`
 	Status            string    `json:"status"`
+	IsFavorite        bool      `json:"is_favorite"`
 	ApplicationsCount int       `json:"applications_count"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
@@ -42,7 +46,9 @@ func (j *Job) ToDTO() *JobDTO {
 		Source:            j.Source,
 		URL:               j.URL,
 		Notes:             j.Notes,
+		Description:       j.Description,
 		Status:            j.Status,
+		IsFavorite:        j.IsFavorite,
 		ApplicationsCount: 0, // Set by repository
 		CreatedAt:         j.CreatedAt,
 		UpdatedAt:         j.UpdatedAt,

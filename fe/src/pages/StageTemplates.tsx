@@ -10,6 +10,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/shared/ui/Card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/shared/ui/Dialog";
 import { SkeletonList } from "@/shared/ui/Skeleton";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { ErrorState } from "@/shared/ui/ErrorState";
@@ -20,6 +28,7 @@ import {
   Edit2,
   Check,
   Sparkles,
+  Loader2,
 } from "lucide-react";
 import { CreateStageTemplateModal } from "@/features/stages/modals/CreateStageTemplateModal";
 import { EditStageTemplateModal } from "@/features/stages/modals/EditStageTemplateModal";
@@ -43,6 +52,8 @@ export default function StageTemplates() {
   const queryClient = useQueryClient();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] =
+    useState<StageTemplateDTO | null>(null);
+  const [deletingTemplate, setDeletingTemplate] =
     useState<StageTemplateDTO | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -70,9 +81,15 @@ export default function StageTemplates() {
     },
   });
 
-  const handleDelete = (id: string, name: string) => {
-    if (window.confirm(t("stages.deleteConfirm", { name }))) {
-      deleteMutation.mutate(id);
+  const handleDelete = (template: StageTemplateDTO) => {
+    setDeletingTemplate(template);
+  };
+
+  const confirmDelete = () => {
+    if (deletingTemplate) {
+      deleteMutation.mutate(deletingTemplate.id, {
+        onSettled: () => setDeletingTemplate(null),
+      });
     }
   };
 
@@ -223,14 +240,14 @@ export default function StageTemplates() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleDelete(stage.id, stage.name)}
+                    onClick={() => handleDelete(stage)}
                     disabled={deleteMutation.isPending}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-0 pb-3">
                 <p className="text-sm text-muted-foreground">
                   {t("stages.created", {
                     date: new Date(stage.created_at).toLocaleDateString(),
@@ -254,6 +271,46 @@ export default function StageTemplates() {
         }}
         template={editingTemplate}
       />
+
+      <Dialog
+        open={deletingTemplate !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingTemplate(null);
+        }}
+      >
+        <DialogContent onClose={() => setDeletingTemplate(null)}>
+          <DialogHeader>
+            <DialogTitle>{t("stages.deleteStage")}</DialogTitle>
+            <DialogDescription>
+              {t("stages.deleteConfirm", { name: deletingTemplate?.name })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeletingTemplate(null)}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {t("common.loading")}
+                </>
+              ) : (
+                t("common.delete")
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,6 +1,10 @@
 package model
 
-import "errors"
+import (
+	"errors"
+
+	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
+)
 
 // ParseJobRequest is the request payload for parsing a job page.
 type ParseJobRequest struct {
@@ -35,6 +39,8 @@ const (
 // GetErrorCode maps domain errors to error codes.
 func GetErrorCode(err error) ErrorCode {
 	switch {
+	case errors.Is(err, subModel.ErrLimitReached):
+		return "PLAN_LIMIT_REACHED"
 	case errors.Is(err, ErrAINotConfigured):
 		return CodeAINotConfigured
 	case errors.Is(err, ErrParsingFailed):
@@ -47,6 +53,8 @@ func GetErrorCode(err error) ErrorCode {
 // GetErrorMessage returns a user-friendly error message.
 func GetErrorMessage(err error) string {
 	switch {
+	case errors.Is(err, subModel.ErrLimitReached):
+		return "Plan limit reached. Upgrade for more AI job parsing."
 	case errors.Is(err, ErrAINotConfigured):
 		return "AI job parsing is not available. Please contact support."
 	case errors.Is(err, ErrParsingFailed):

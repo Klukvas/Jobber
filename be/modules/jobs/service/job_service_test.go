@@ -42,16 +42,20 @@ func (m *MockCompanyRepository) Delete(ctx context.Context, userID, companyID st
 func (m *MockCompanyRepository) GetRelatedJobsAndApplicationsCount(ctx context.Context, userID, companyID string) (int, int, error) {
 	return 0, 0, nil
 }
+func (m *MockCompanyRepository) ToggleFavorite(ctx context.Context, userID, companyID string) (bool, error) {
+	return false, nil
+}
 
 var defaultMockCompanyRepo = &MockCompanyRepository{}
 
 // MockJobRepository implements ports.JobRepository
 type MockJobRepository struct {
-	CreateFunc  func(ctx context.Context, job *model.Job) error
-	GetByIDFunc func(ctx context.Context, userID, jobID string) (*model.Job, error)
-	ListFunc    func(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error)
-	UpdateFunc  func(ctx context.Context, job *model.Job) error
-	DeleteFunc  func(ctx context.Context, userID, jobID string) error
+	CreateFunc         func(ctx context.Context, job *model.Job) error
+	GetByIDFunc        func(ctx context.Context, userID, jobID string) (*model.Job, error)
+	ListFunc           func(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error)
+	UpdateFunc         func(ctx context.Context, job *model.Job) error
+	DeleteFunc         func(ctx context.Context, userID, jobID string) error
+	ToggleFavoriteFunc func(ctx context.Context, userID, jobID string) (bool, error)
 }
 
 func (m *MockJobRepository) Create(ctx context.Context, job *model.Job) error {
@@ -89,6 +93,13 @@ func (m *MockJobRepository) Delete(ctx context.Context, userID, jobID string) er
 	return nil
 }
 
+func (m *MockJobRepository) ToggleFavorite(ctx context.Context, userID, jobID string) (bool, error) {
+	if m.ToggleFavoriteFunc != nil {
+		return m.ToggleFavoriteFunc(ctx, userID, jobID)
+	}
+	return false, nil
+}
+
 func TestJobService_Create(t *testing.T) {
 	userID := "user-123"
 
@@ -103,7 +114,7 @@ func TestJobService_Create(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		req := &model.CreateJobRequest{
 			Title: "Software Engineer",
 		}
@@ -117,7 +128,7 @@ func TestJobService_Create(t *testing.T) {
 
 	t.Run("returns error for empty title", func(t *testing.T) {
 		mockRepo := &MockJobRepository{}
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		req := &model.CreateJobRequest{Title: "   "}
 
 		result, err := svc.Create(context.Background(), userID, req)
@@ -137,7 +148,7 @@ func TestJobService_Create(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		req := &model.CreateJobRequest{Title: "  Software Engineer  "}
 
 		_, err := svc.Create(context.Background(), userID, req)
@@ -161,7 +172,7 @@ func TestJobService_Create(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		req := &model.CreateJobRequest{
 			Title:     "Software Engineer",
 			CompanyID: &companyID,
@@ -188,7 +199,7 @@ func TestJobService_Create(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		req := &model.CreateJobRequest{Title: "Software Engineer"}
 
 		result, err := svc.Create(context.Background(), userID, req)
@@ -220,7 +231,7 @@ func TestJobService_GetByID(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		result, err := svc.GetByID(context.Background(), userID, jobID)
 
 		require.NoError(t, err)
@@ -235,7 +246,7 @@ func TestJobService_GetByID(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		result, err := svc.GetByID(context.Background(), userID, jobID)
 
 		assert.Nil(t, result)
@@ -261,7 +272,7 @@ func TestJobService_List(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		result, total, err := svc.List(context.Background(), userID, 20, 0, "active", "", "")
 
 		require.NoError(t, err)
@@ -276,7 +287,7 @@ func TestJobService_List(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		result, total, err := svc.List(context.Background(), userID, 20, 0, "active", "", "")
 
 		require.NoError(t, err)
@@ -293,7 +304,7 @@ func TestJobService_List(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		_, _, err := svc.List(context.Background(), userID, 20, 0, "active", "title", "asc")
 
 		require.NoError(t, err)
@@ -323,7 +334,7 @@ func TestJobService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		newTitle := "New Title"
 		req := &model.UpdateJobRequest{Title: &newTitle}
 
@@ -347,7 +358,7 @@ func TestJobService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		emptyTitle := "   "
 		req := &model.UpdateJobRequest{Title: &emptyTitle}
 
@@ -371,7 +382,7 @@ func TestJobService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		invalidStatus := "invalid-status"
 		req := &model.UpdateJobRequest{Status: &invalidStatus}
 
@@ -398,7 +409,7 @@ func TestJobService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		newStatus := "archived"
 		req := &model.UpdateJobRequest{Status: &newStatus}
 
@@ -415,7 +426,7 @@ func TestJobService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		newTitle := "New Title"
 		req := &model.UpdateJobRequest{Title: &newTitle}
 
@@ -440,7 +451,7 @@ func TestJobService_Delete(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		err := svc.Delete(context.Background(), userID, jobID)
 
 		require.NoError(t, err)
@@ -454,10 +465,137 @@ func TestJobService_Delete(t *testing.T) {
 			},
 		}
 
-		svc := NewJobService(mockRepo, defaultMockCompanyRepo)
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
 		err := svc.Delete(context.Background(), userID, jobID)
 
 		assert.Equal(t, model.ErrJobNotFound, err)
+	})
+}
+
+// MockCacheInvalidator implements CacheInvalidator for testing
+type MockCacheInvalidator struct {
+	InvalidateByJobFunc func(ctx context.Context, jobID string) error
+	CalledWith          string
+	CallCount           int
+}
+
+func (m *MockCacheInvalidator) InvalidateByJob(ctx context.Context, jobID string) error {
+	m.CalledWith = jobID
+	m.CallCount++
+	if m.InvalidateByJobFunc != nil {
+		return m.InvalidateByJobFunc(ctx, jobID)
+	}
+	return nil
+}
+
+func TestJobService_Update_CacheInvalidation(t *testing.T) {
+	userID := "user-123"
+	jobID := "job-1"
+
+	existingJob := func() *model.Job {
+		return &model.Job{
+			ID:     jobID,
+			UserID: userID,
+			Title:  "Job Title",
+			Status: "active",
+		}
+	}
+
+	t.Run("invalidates cache when description changes", func(t *testing.T) {
+		cache := &MockCacheInvalidator{}
+		mockRepo := &MockJobRepository{
+			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
+				return existingJob(), nil
+			},
+			UpdateFunc: func(ctx context.Context, job *model.Job) error { return nil },
+		}
+
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, cache)
+		desc := "New description"
+		req := &model.UpdateJobRequest{Description: &desc}
+
+		_, err := svc.Update(context.Background(), userID, jobID, req)
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, cache.CallCount)
+		assert.Equal(t, jobID, cache.CalledWith)
+	})
+
+	t.Run("does not invalidate cache when description unchanged", func(t *testing.T) {
+		cache := &MockCacheInvalidator{}
+		mockRepo := &MockJobRepository{
+			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
+				return existingJob(), nil
+			},
+			UpdateFunc: func(ctx context.Context, job *model.Job) error { return nil },
+		}
+
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, cache)
+		newTitle := "New Title"
+		req := &model.UpdateJobRequest{Title: &newTitle}
+
+		_, err := svc.Update(context.Background(), userID, jobID, req)
+
+		require.NoError(t, err)
+		assert.Equal(t, 0, cache.CallCount)
+	})
+
+	t.Run("invalidation error does not break update", func(t *testing.T) {
+		cache := &MockCacheInvalidator{
+			InvalidateByJobFunc: func(ctx context.Context, jobID string) error {
+				return errors.New("cache unavailable")
+			},
+		}
+		mockRepo := &MockJobRepository{
+			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
+				return existingJob(), nil
+			},
+			UpdateFunc: func(ctx context.Context, job *model.Job) error { return nil },
+		}
+
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, cache)
+		desc := "New description"
+		req := &model.UpdateJobRequest{Description: &desc}
+
+		result, err := svc.Update(context.Background(), userID, jobID, req)
+
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+	})
+}
+
+func TestJobService_Delete_CacheInvalidation(t *testing.T) {
+	userID := "user-123"
+	jobID := "job-1"
+
+	t.Run("invalidates cache before delete", func(t *testing.T) {
+		cache := &MockCacheInvalidator{}
+		mockRepo := &MockJobRepository{
+			DeleteFunc: func(ctx context.Context, uid, jid string) error { return nil },
+		}
+
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, cache)
+		err := svc.Delete(context.Background(), userID, jobID)
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, cache.CallCount)
+		assert.Equal(t, jobID, cache.CalledWith)
+	})
+
+	t.Run("invalidation error does not break delete", func(t *testing.T) {
+		cache := &MockCacheInvalidator{
+			InvalidateByJobFunc: func(ctx context.Context, jobID string) error {
+				return errors.New("cache unavailable")
+			},
+		}
+		mockRepo := &MockJobRepository{
+			DeleteFunc: func(ctx context.Context, uid, jid string) error { return nil },
+		}
+
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, cache)
+		err := svc.Delete(context.Background(), userID, jobID)
+
+		require.NoError(t, err)
 	})
 }
 
@@ -487,4 +625,52 @@ func TestJob_ToDTO(t *testing.T) {
 	assert.Equal(t, job.CreatedAt, dto.CreatedAt)
 	assert.Nil(t, dto.CompanyName)        // Set by repository
 	assert.Equal(t, 0, dto.ApplicationsCount) // Set by repository
+}
+
+func TestJobService_ToggleFavorite(t *testing.T) {
+	userID := "user-123"
+	jobID := "job-456"
+
+	t.Run("returns true when toggled to favorite", func(t *testing.T) {
+		mockRepo := &MockJobRepository{
+			ToggleFavoriteFunc: func(ctx context.Context, uid, jid string) (bool, error) {
+				assert.Equal(t, userID, uid)
+				assert.Equal(t, jobID, jid)
+				return true, nil
+			},
+		}
+
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		result, err := svc.ToggleFavorite(context.Background(), userID, jobID)
+
+		require.NoError(t, err)
+		assert.True(t, result)
+	})
+
+	t.Run("returns false when toggled off", func(t *testing.T) {
+		mockRepo := &MockJobRepository{
+			ToggleFavoriteFunc: func(ctx context.Context, uid, jid string) (bool, error) {
+				return false, nil
+			},
+		}
+
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		result, err := svc.ToggleFavorite(context.Background(), userID, jobID)
+
+		require.NoError(t, err)
+		assert.False(t, result)
+	})
+
+	t.Run("returns error when job not found", func(t *testing.T) {
+		mockRepo := &MockJobRepository{
+			ToggleFavoriteFunc: func(ctx context.Context, uid, jid string) (bool, error) {
+				return false, model.ErrJobNotFound
+			},
+		}
+
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		_, err := svc.ToggleFavorite(context.Background(), userID, jobID)
+
+		assert.ErrorIs(t, err, model.ErrJobNotFound)
+	})
 }

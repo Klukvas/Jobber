@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
 	"github.com/andreypavlenko/jobber/modules/resumes/model"
 	"github.com/andreypavlenko/jobber/modules/resumes/service"
+	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -44,6 +46,10 @@ func (h *ResumeHandler) Create(c *gin.Context) {
 
 	resume, err := h.service.Create(c.Request.Context(), userID, &req)
 	if err != nil {
+		if errors.Is(err, subModel.ErrLimitReached) {
+			httpPlatform.RespondWithError(c, http.StatusForbidden, "PLAN_LIMIT_REACHED", "Plan limit reached. Upgrade to Pro for unlimited access.")
+			return
+		}
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, string(model.GetErrorCode(err)), model.GetErrorMessage(err))
 		return
 	}
@@ -221,6 +227,10 @@ func (h *ResumeHandler) GenerateUploadURL(c *gin.Context) {
 
 	response, err := h.service.GenerateUploadURL(c.Request.Context(), userID, &req)
 	if err != nil {
+		if errors.Is(err, subModel.ErrLimitReached) {
+			httpPlatform.RespondWithError(c, http.StatusForbidden, "PLAN_LIMIT_REACHED", "Plan limit reached. Upgrade to Pro for unlimited access.")
+			return
+		}
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, "UPLOAD_URL_GENERATION_FAILED", err.Error())
 		return
 	}

@@ -26,6 +26,7 @@ type MockCompanyRepository struct {
 	UpdateFunc                            func(ctx context.Context, company *model.Company) error
 	DeleteFunc                            func(ctx context.Context, userID, companyID string) error
 	GetRelatedJobsAndApplicationsCountFunc func(ctx context.Context, userID, companyID string) (jobsCount, appsCount int, err error)
+	ToggleFavoriteFunc                     func(ctx context.Context, userID, companyID string) (bool, error)
 }
 
 func (m *MockCompanyRepository) Create(ctx context.Context, company *model.Company) error {
@@ -75,6 +76,13 @@ func (m *MockCompanyRepository) GetRelatedJobsAndApplicationsCount(ctx context.C
 		return m.GetRelatedJobsAndApplicationsCountFunc(ctx, userID, companyID)
 	}
 	return 0, 0, nil
+}
+
+func (m *MockCompanyRepository) ToggleFavorite(ctx context.Context, userID, companyID string) (bool, error) {
+	if m.ToggleFavoriteFunc != nil {
+		return m.ToggleFavoriteFunc(ctx, userID, companyID)
+	}
+	return false, nil
 }
 
 func setupTestRouter() *gin.Engine {
@@ -460,6 +468,7 @@ func TestCompanyHandler_RegisterRoutes(t *testing.T) {
 		{http.MethodGet, "/api/v1/companies/test-id/related-counts"},
 		{http.MethodPatch, "/api/v1/companies/test-id"},
 		{http.MethodDelete, "/api/v1/companies/test-id"},
+		{http.MethodPost, "/api/v1/companies/test-id/favorite"},
 	}
 
 	for _, route := range routes {
@@ -478,4 +487,67 @@ func TestCompanyHandler_RegisterRoutes(t *testing.T) {
 			assert.NotEqual(t, http.StatusNotFound, w.Code, "Route %s %s should be registered", route.method, route.path)
 		})
 	}
+}
+
+func TestCompanyHandler_ToggleFavorite(t *testing.T) {
+	userID := "user-123"
+	companyID := "company-456"
+
+	t.Run("toggles favorite successfully", func(t *testing.T) {
+		mockRepo := &MockCompanyRepository{
+			ToggleFavoriteFunc: func(ctx context.Context, uid, cid string) (bool, error) {
+				assert.Equal(t, userID, uid)
+				assert.Equal(t, companyID, cid)
+				return true, nil
+			},
+		}
+
+		svc := service.NewCompanyService(mockRepo)
+		handler := NewCompanyHandler(svc)
+
+		router := setupTestRouter()
+		router.POST("/companies/:id/favorite", mockAuthMiddleware(userID), handler.ToggleFavorite)
+
+		req, _ := http.NewRequest(http.MethodPost, "/companies/"+companyID+"/favorite", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), `"is_favorite":true`)
+	})
+
+	t.Run("returns 404 when company not found", func(t *testing.T) {
+		mockRepo := &MockCompanyRepository{
+			ToggleFavoriteFunc: func(ctx context.Context, uid, cid string) (bool, error) {
+				return false, model.ErrCompanyNotFound
+			},
+		}
+
+		svc := service.NewCompanyService(mockRepo)
+		handler := NewCompanyHandler(svc)
+
+		router := setupTestRouter()
+		router.POST("/companies/:id/favorite", mockAuthMiddleware(userID), handler.ToggleFavorite)
+
+		req, _ := http.NewRequest(http.MethodPost, "/companies/nonexistent/favorite", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("returns 401 without auth", func(t *testing.T) {
+		mockRepo := &MockCompanyRepository{}
+		svc := service.NewCompanyService(mockRepo)
+		handler := NewCompanyHandler(svc)
+
+		router := setupTestRouter()
+		router.POST("/companies/:id/favorite", handler.ToggleFavorite)
+
+		req, _ := http.NewRequest(http.MethodPost, "/companies/"+companyID+"/favorite", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
 }

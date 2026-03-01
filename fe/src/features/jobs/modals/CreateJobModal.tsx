@@ -18,26 +18,39 @@ import {
 } from "@/shared/ui/Dialog";
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
+import { Textarea } from "@/shared/ui/Textarea";
 import { Label } from "@/shared/ui/Label";
 import { CompanySelectWithQuickAdd } from "@/features/jobs/components/CompanySelectWithQuickAdd";
+import { useSubscription } from "@/shared/hooks/useSubscription";
+import { UpgradeBanner } from "@/features/subscription/components/UpgradeBanner";
+import { Loader2 } from "lucide-react";
 
 interface CreateJobModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   job?: JobDTO; // If provided, the modal is in edit mode
+  onCreated?: (job: JobDTO) => void;
 }
 
 // Inner content component that resets state when key changes
-function ModalContent({ job, onOpenChange, open }: CreateJobModalProps) {
+function ModalContent({
+  job,
+  onOpenChange,
+  open,
+  onCreated,
+}: CreateJobModalProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const isEditMode = !!job;
+  const { canCreate } = useSubscription();
+  const showLimitBanner = !isEditMode && !canCreate("jobs");
 
   const [title, setTitle] = useState(job?.title || "");
   const [companyId, setCompanyId] = useState(job?.company_id || "");
   const [url, setUrl] = useState(job?.url || "");
   const [source, setSource] = useState(job?.source || "");
   const [notes, setNotes] = useState(job?.notes || "");
+  const [description, setDescription] = useState(job?.description || "");
 
   const { data: companiesData } = useQuery({
     queryKey: ["companies"],
@@ -47,9 +60,10 @@ function ModalContent({ job, onOpenChange, open }: CreateJobModalProps) {
 
   const createMutation = useMutation({
     mutationFn: jobsService.create,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+    onSuccess: async (data) => {
+      await queryClient.invalidateQueries({ queryKey: ["jobs"] });
       showSuccessNotification(t("jobs.createSuccess"));
+      onCreated?.(data);
       onOpenChange(false);
     },
     onError: (error: Error) => {
@@ -82,6 +96,7 @@ function ModalContent({ job, onOpenChange, open }: CreateJobModalProps) {
             url: url || undefined,
             source: source || undefined,
             notes: notes || undefined,
+            description: description || undefined,
           },
         });
       } else {
@@ -91,6 +106,7 @@ function ModalContent({ job, onOpenChange, open }: CreateJobModalProps) {
           url: url || undefined,
           source: source || undefined,
           notes: notes || undefined,
+          description: description || undefined,
         });
       }
     }
@@ -108,6 +124,11 @@ function ModalContent({ job, onOpenChange, open }: CreateJobModalProps) {
           {isEditMode ? t("jobs.editDescription") : t("jobs.createDescription")}
         </DialogDescription>
       </DialogHeader>
+      {showLimitBanner && (
+        <div className="py-2">
+          <UpgradeBanner resource="jobs" />
+        </div>
+      )}
       <form onSubmit={handleSubmit}>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
@@ -145,13 +166,22 @@ function ModalContent({ job, onOpenChange, open }: CreateJobModalProps) {
             />
           </div>
           <div className="space-y-2">
+            <Label htmlFor="description">{t("jobs.description")}</Label>
+            <Textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder={t("jobs.descriptionPlaceholder")}
+              className="min-h-[100px]"
+            />
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="notes">{t("jobs.notes")}</Label>
-            <textarea
+            <Textarea
               id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder={t("jobs.notesPlaceholder")}
-              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
         </div>
@@ -163,12 +193,20 @@ function ModalContent({ job, onOpenChange, open }: CreateJobModalProps) {
           >
             {t("common.cancel")}
           </Button>
-          <Button type="submit" disabled={isPending || !title}>
-            {isPending
-              ? t("common.loading")
-              : isEditMode
-                ? t("common.save")
-                : t("common.create")}
+          <Button
+            type="submit"
+            disabled={isPending || !title || showLimitBanner}
+          >
+            {isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                {t("common.loading")}
+              </>
+            ) : isEditMode ? (
+              t("common.save")
+            ) : (
+              t("common.create")
+            )}
           </Button>
         </DialogFooter>
       </form>
@@ -180,6 +218,7 @@ export function CreateJobModal({
   open,
   onOpenChange,
   job,
+  onCreated,
 }: CreateJobModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -190,6 +229,7 @@ export function CreateJobModal({
           job={job}
           onOpenChange={onOpenChange}
           open={open}
+          onCreated={onCreated}
         />
       </DialogContent>
     </Dialog>

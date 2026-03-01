@@ -6,6 +6,7 @@ import {
   Target,
   ListOrdered,
   BarChart3,
+  Chrome,
   CheckCircle,
 } from "lucide-react";
 
@@ -20,6 +21,11 @@ const STEPS = [
     color: "text-violet-500 bg-violet-500/10",
   },
   { key: "analytics", icon: BarChart3, color: "text-pink-500 bg-pink-500/10" },
+  {
+    key: "extension",
+    icon: Chrome,
+    color: "text-cyan-500 bg-cyan-500/10",
+  },
   {
     key: "done",
     icon: CheckCircle,

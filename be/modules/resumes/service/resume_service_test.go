@@ -69,7 +69,7 @@ func TestResumeService_Create(t *testing.T) {
 			},
 		}
 
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		req := &model.CreateResumeRequest{
 			Title: "Software Engineer Resume",
 		}
@@ -84,7 +84,7 @@ func TestResumeService_Create(t *testing.T) {
 
 	t.Run("returns error for empty title", func(t *testing.T) {
 		mockRepo := &MockResumeRepository{}
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		req := &model.CreateResumeRequest{Title: "   "}
 
 		result, err := svc.Create(context.Background(), userID, req)
@@ -105,7 +105,7 @@ func TestResumeService_Create(t *testing.T) {
 			},
 		}
 
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		req := &model.CreateResumeRequest{
 			Title:   "Resume with URL",
 			FileURL: &fileURL,
@@ -130,7 +130,7 @@ func TestResumeService_Create(t *testing.T) {
 			},
 		}
 
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		req := &model.CreateResumeRequest{
 			Title:    "Inactive Resume",
 			IsActive: &isActive,
@@ -151,7 +151,7 @@ func TestResumeService_Create(t *testing.T) {
 			},
 		}
 
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		req := &model.CreateResumeRequest{Title: "Test Resume"}
 
 		result, err := svc.Create(context.Background(), userID, req)
@@ -184,7 +184,7 @@ func TestResumeService_GetByID(t *testing.T) {
 			},
 		}
 
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		result, err := svc.GetByID(context.Background(), userID, resumeID)
 
 		require.NoError(t, err)
@@ -199,7 +199,7 @@ func TestResumeService_GetByID(t *testing.T) {
 			},
 		}
 
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		result, err := svc.GetByID(context.Background(), userID, resumeID)
 
 		assert.Nil(t, result)
@@ -228,7 +228,7 @@ func TestResumeService_List(t *testing.T) {
 			},
 		}
 
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		result, total, err := svc.List(context.Background(), userID, 20, 0, "", "")
 
 		require.NoError(t, err)
@@ -245,7 +245,7 @@ func TestResumeService_List(t *testing.T) {
 			},
 		}
 
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		result, total, err := svc.List(context.Background(), userID, 20, 0, "", "")
 
 		require.NoError(t, err)
@@ -262,7 +262,7 @@ func TestResumeService_List(t *testing.T) {
 			},
 		}
 
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		_, _, err := svc.List(context.Background(), userID, 20, 0, "", "")
 
 		require.NoError(t, err)
@@ -293,7 +293,7 @@ func TestResumeService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		newTitle := "New Title"
 		req := &model.UpdateResumeRequest{Title: &newTitle}
 
@@ -316,7 +316,7 @@ func TestResumeService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		emptyTitle := "   "
 		req := &model.UpdateResumeRequest{Title: &emptyTitle}
 
@@ -345,7 +345,7 @@ func TestResumeService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		newURL := "https://example.com/new-resume.pdf"
 		req := &model.UpdateResumeRequest{FileURL: &newURL}
 
@@ -374,7 +374,7 @@ func TestResumeService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		emptyURL := ""
 		req := &model.UpdateResumeRequest{FileURL: &emptyURL}
 
@@ -391,7 +391,7 @@ func TestResumeService_Update(t *testing.T) {
 			},
 		}
 
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		newTitle := "New Title"
 		req := &model.UpdateResumeRequest{Title: &newTitle}
 
@@ -426,7 +426,7 @@ func TestResumeService_Delete(t *testing.T) {
 			},
 		}
 
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		err := svc.Delete(context.Background(), userID, resumeID)
 
 		require.NoError(t, err)
@@ -440,7 +440,7 @@ func TestResumeService_Delete(t *testing.T) {
 			},
 		}
 
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		err := svc.Delete(context.Background(), userID, resumeID)
 
 		assert.Equal(t, model.ErrResumeNotFound, err)
@@ -522,7 +522,7 @@ func TestResumeService_Update_IsActive(t *testing.T) {
 			},
 		}
 
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		isActive := false
 		req := &model.UpdateResumeRequest{IsActive: &isActive}
 
@@ -531,6 +531,148 @@ func TestResumeService_Update_IsActive(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, result.IsActive)
 		assert.False(t, updatedResume.IsActive)
+	})
+}
+
+// MockCacheInvalidator implements CacheInvalidator for testing
+type MockCacheInvalidator struct {
+	InvalidateByResumeFunc func(ctx context.Context, resumeID string) error
+	CalledWith             string
+	CallCount              int
+}
+
+func (m *MockCacheInvalidator) InvalidateByResume(ctx context.Context, resumeID string) error {
+	m.CalledWith = resumeID
+	m.CallCount++
+	if m.InvalidateByResumeFunc != nil {
+		return m.InvalidateByResumeFunc(ctx, resumeID)
+	}
+	return nil
+}
+
+func TestResumeService_Update_CacheInvalidation(t *testing.T) {
+	userID := "user-123"
+	resumeID := "resume-1"
+
+	existingResume := func() *model.Resume {
+		return &model.Resume{
+			ID:          resumeID,
+			UserID:      userID,
+			Title:       "Resume",
+			IsActive:    true,
+			StorageType: model.StorageTypeExternal,
+		}
+	}
+
+	t.Run("invalidates cache when file URL changes", func(t *testing.T) {
+		cache := &MockCacheInvalidator{}
+		mockRepo := &MockResumeRepository{
+			GetByIDFunc: func(ctx context.Context, uid, rid string) (*model.Resume, error) {
+				return existingResume(), nil
+			},
+			UpdateFunc: func(ctx context.Context, resume *model.Resume) error { return nil },
+		}
+
+		svc := NewResumeService(mockRepo, nil, nil, cache)
+		newURL := "https://example.com/new.pdf"
+		req := &model.UpdateResumeRequest{FileURL: &newURL}
+
+		_, err := svc.Update(context.Background(), userID, resumeID, req)
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, cache.CallCount)
+		assert.Equal(t, resumeID, cache.CalledWith)
+	})
+
+	t.Run("does not invalidate cache when only title changes", func(t *testing.T) {
+		cache := &MockCacheInvalidator{}
+		mockRepo := &MockResumeRepository{
+			GetByIDFunc: func(ctx context.Context, uid, rid string) (*model.Resume, error) {
+				return existingResume(), nil
+			},
+			UpdateFunc: func(ctx context.Context, resume *model.Resume) error { return nil },
+		}
+
+		svc := NewResumeService(mockRepo, nil, nil, cache)
+		newTitle := "New Title"
+		req := &model.UpdateResumeRequest{Title: &newTitle}
+
+		_, err := svc.Update(context.Background(), userID, resumeID, req)
+
+		require.NoError(t, err)
+		assert.Equal(t, 0, cache.CallCount)
+	})
+
+	t.Run("invalidation error does not break update", func(t *testing.T) {
+		cache := &MockCacheInvalidator{
+			InvalidateByResumeFunc: func(ctx context.Context, resumeID string) error {
+				return errors.New("cache unavailable")
+			},
+		}
+		mockRepo := &MockResumeRepository{
+			GetByIDFunc: func(ctx context.Context, uid, rid string) (*model.Resume, error) {
+				return existingResume(), nil
+			},
+			UpdateFunc: func(ctx context.Context, resume *model.Resume) error { return nil },
+		}
+
+		svc := NewResumeService(mockRepo, nil, nil, cache)
+		newURL := "https://example.com/new.pdf"
+		req := &model.UpdateResumeRequest{FileURL: &newURL}
+
+		result, err := svc.Update(context.Background(), userID, resumeID, req)
+
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+	})
+}
+
+func TestResumeService_Delete_CacheInvalidation(t *testing.T) {
+	userID := "user-123"
+	resumeID := "resume-1"
+
+	t.Run("invalidates cache before delete", func(t *testing.T) {
+		cache := &MockCacheInvalidator{}
+		mockRepo := &MockResumeRepository{
+			GetByIDFunc: func(ctx context.Context, uid, rid string) (*model.Resume, error) {
+				return &model.Resume{
+					ID:          resumeID,
+					UserID:      userID,
+					StorageType: model.StorageTypeExternal,
+				}, nil
+			},
+			DeleteFunc: func(ctx context.Context, uid, rid string) error { return nil },
+		}
+
+		svc := NewResumeService(mockRepo, nil, nil, cache)
+		err := svc.Delete(context.Background(), userID, resumeID)
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, cache.CallCount)
+		assert.Equal(t, resumeID, cache.CalledWith)
+	})
+
+	t.Run("invalidation error does not break delete", func(t *testing.T) {
+		cache := &MockCacheInvalidator{
+			InvalidateByResumeFunc: func(ctx context.Context, resumeID string) error {
+				return errors.New("cache unavailable")
+			},
+		}
+		mockRepo := &MockResumeRepository{
+			GetByIDFunc: func(ctx context.Context, uid, rid string) (*model.Resume, error) {
+				return &model.Resume{
+					ID:          resumeID,
+					UserID:      userID,
+					StorageType: model.StorageTypeExternal,
+				}, nil
+			},
+			DeleteFunc: func(ctx context.Context, uid, rid string) error { return nil },
+		}
+
+		svc := NewResumeService(mockRepo, nil, nil, cache)
+		err := svc.Delete(context.Background(), userID, resumeID)
+
+		require.NoError(t, err)
 	})
 }
 
@@ -555,7 +697,7 @@ func TestResumeService_Delete_ResumeInUse(t *testing.T) {
 			},
 		}
 
-		svc := NewResumeService(mockRepo, nil)
+		svc := NewResumeService(mockRepo, nil, nil, nil)
 		err := svc.Delete(context.Background(), userID, resumeID)
 
 		assert.Equal(t, model.ErrResumeInUse, err)

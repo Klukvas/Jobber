@@ -259,7 +259,7 @@ saveForm.addEventListener("submit", async (e) => {
       title: previewTitle.value.trim(),
       source: previewSource.value.trim() || undefined,
       url: previewUrl.value.trim() || undefined,
-      notes: previewNotes.value.trim() || undefined,
+      description: previewNotes.value.trim() || undefined,
     };
 
     // Create company first if name provided, then link by ID

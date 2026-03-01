@@ -88,7 +88,7 @@ func TestResumeHandler_Create(t *testing.T) {
 			},
 		}
 
-		svc := service.NewResumeService(mockRepo, nil)
+		svc := service.NewResumeService(mockRepo, nil, nil, nil)
 		handler := NewResumeHandler(svc)
 
 		router := setupTestRouter()
@@ -110,7 +110,7 @@ func TestResumeHandler_Create(t *testing.T) {
 
 	t.Run("returns 401 when not authenticated", func(t *testing.T) {
 		mockRepo := &MockResumeRepository{}
-		svc := service.NewResumeService(mockRepo, nil)
+		svc := service.NewResumeService(mockRepo, nil, nil, nil)
 		handler := NewResumeHandler(svc)
 
 		router := setupTestRouter()
@@ -127,7 +127,7 @@ func TestResumeHandler_Create(t *testing.T) {
 
 	t.Run("returns 400 for invalid request", func(t *testing.T) {
 		mockRepo := &MockResumeRepository{}
-		svc := service.NewResumeService(mockRepo, nil)
+		svc := service.NewResumeService(mockRepo, nil, nil, nil)
 		handler := NewResumeHandler(svc)
 
 		router := setupTestRouter()
@@ -164,7 +164,7 @@ func TestResumeHandler_Get(t *testing.T) {
 			},
 		}
 
-		svc := service.NewResumeService(mockRepo, nil)
+		svc := service.NewResumeService(mockRepo, nil, nil, nil)
 		handler := NewResumeHandler(svc)
 
 		router := setupTestRouter()
@@ -189,7 +189,7 @@ func TestResumeHandler_Get(t *testing.T) {
 			},
 		}
 
-		svc := service.NewResumeService(mockRepo, nil)
+		svc := service.NewResumeService(mockRepo, nil, nil, nil)
 		handler := NewResumeHandler(svc)
 
 		router := setupTestRouter()
@@ -218,7 +218,7 @@ func TestResumeHandler_List(t *testing.T) {
 			},
 		}
 
-		svc := service.NewResumeService(mockRepo, nil)
+		svc := service.NewResumeService(mockRepo, nil, nil, nil)
 		handler := NewResumeHandler(svc)
 
 		router := setupTestRouter()
@@ -256,7 +256,7 @@ func TestResumeHandler_Update(t *testing.T) {
 			},
 		}
 
-		svc := service.NewResumeService(mockRepo, nil)
+		svc := service.NewResumeService(mockRepo, nil, nil, nil)
 		handler := NewResumeHandler(svc)
 
 		router := setupTestRouter()
@@ -278,7 +278,7 @@ func TestResumeHandler_Update(t *testing.T) {
 			},
 		}
 
-		svc := service.NewResumeService(mockRepo, nil)
+		svc := service.NewResumeService(mockRepo, nil, nil, nil)
 		handler := NewResumeHandler(svc)
 
 		router := setupTestRouter()
@@ -315,7 +315,7 @@ func TestResumeHandler_Delete(t *testing.T) {
 			},
 		}
 
-		svc := service.NewResumeService(mockRepo, nil)
+		svc := service.NewResumeService(mockRepo, nil, nil, nil)
 		handler := NewResumeHandler(svc)
 
 		router := setupTestRouter()
@@ -335,7 +335,7 @@ func TestResumeHandler_Delete(t *testing.T) {
 			},
 		}
 
-		svc := service.NewResumeService(mockRepo, nil)
+		svc := service.NewResumeService(mockRepo, nil, nil, nil)
 		handler := NewResumeHandler(svc)
 
 		router := setupTestRouter()
@@ -365,7 +365,7 @@ func TestResumeHandler_Delete(t *testing.T) {
 			},
 		}
 
-		svc := service.NewResumeService(mockRepo, nil)
+		svc := service.NewResumeService(mockRepo, nil, nil, nil)
 		handler := NewResumeHandler(svc)
 
 		router := setupTestRouter()
@@ -397,7 +397,7 @@ func TestResumeHandler_RegisterRoutes(t *testing.T) {
 		},
 	}
 
-	svc := service.NewResumeService(mockRepo, nil)
+	svc := service.NewResumeService(mockRepo, nil, nil, nil)
 	handler := NewResumeHandler(svc)
 
 	router := setupTestRouter()

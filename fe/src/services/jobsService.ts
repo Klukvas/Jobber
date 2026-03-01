@@ -45,4 +45,8 @@ export const jobsService = {
   async delete(id: string): Promise<void> {
     return apiClient.delete<void>(`jobs/${id}`);
   },
+
+  async toggleFavorite(id: string): Promise<{ is_favorite: boolean }> {
+    return apiClient.post<{ is_favorite: boolean }>(`jobs/${id}/favorite`);
+  },
 };

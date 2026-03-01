@@ -21,6 +21,7 @@ type MockCompanyRepository struct {
 	UpdateFunc                            func(ctx context.Context, company *model.Company) error
 	DeleteFunc                            func(ctx context.Context, userID, companyID string) error
 	GetRelatedJobsAndApplicationsCountFunc func(ctx context.Context, userID, companyID string) (jobsCount, appsCount int, err error)
+	ToggleFavoriteFunc                     func(ctx context.Context, userID, companyID string) (bool, error)
 }
 
 func (m *MockCompanyRepository) Create(ctx context.Context, company *model.Company) error {
@@ -70,6 +71,13 @@ func (m *MockCompanyRepository) GetRelatedJobsAndApplicationsCount(ctx context.C
 		return m.GetRelatedJobsAndApplicationsCountFunc(ctx, userID, companyID)
 	}
 	return 0, 0, nil
+}
+
+func (m *MockCompanyRepository) ToggleFavorite(ctx context.Context, userID, companyID string) (bool, error) {
+	if m.ToggleFavoriteFunc != nil {
+		return m.ToggleFavoriteFunc(ctx, userID, companyID)
+	}
+	return false, nil
 }
 
 func TestCompanyService_Create(t *testing.T) {
@@ -392,5 +400,53 @@ func TestCompanyService_GetRelatedJobsAndApplicationsCount(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 0, jobsCount)
 		assert.Equal(t, 0, appsCount)
+	})
+}
+
+func TestCompanyService_ToggleFavorite(t *testing.T) {
+	userID := "user-123"
+	companyID := "company-456"
+
+	t.Run("returns true when toggled to favorite", func(t *testing.T) {
+		mockRepo := &MockCompanyRepository{
+			ToggleFavoriteFunc: func(ctx context.Context, uid, cid string) (bool, error) {
+				assert.Equal(t, userID, uid)
+				assert.Equal(t, companyID, cid)
+				return true, nil
+			},
+		}
+
+		svc := NewCompanyService(mockRepo)
+		result, err := svc.ToggleFavorite(context.Background(), userID, companyID)
+
+		require.NoError(t, err)
+		assert.True(t, result)
+	})
+
+	t.Run("returns false when toggled off", func(t *testing.T) {
+		mockRepo := &MockCompanyRepository{
+			ToggleFavoriteFunc: func(ctx context.Context, uid, cid string) (bool, error) {
+				return false, nil
+			},
+		}
+
+		svc := NewCompanyService(mockRepo)
+		result, err := svc.ToggleFavorite(context.Background(), userID, companyID)
+
+		require.NoError(t, err)
+		assert.False(t, result)
+	})
+
+	t.Run("returns error when company not found", func(t *testing.T) {
+		mockRepo := &MockCompanyRepository{
+			ToggleFavoriteFunc: func(ctx context.Context, uid, cid string) (bool, error) {
+				return false, model.ErrCompanyNotFound
+			},
+		}
+
+		svc := NewCompanyService(mockRepo)
+		_, err := svc.ToggleFavorite(context.Background(), userID, companyID)
+
+		assert.ErrorIs(t, err, model.ErrCompanyNotFound)
 	})
 }

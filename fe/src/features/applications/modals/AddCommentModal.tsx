@@ -16,6 +16,7 @@ import {
 } from "@/shared/ui/Dialog";
 import { Button } from "@/shared/ui/Button";
 import { Label } from "@/shared/ui/Label";
+import { Loader2 } from "lucide-react";
 
 interface AddCommentModalProps {
   open: boolean;
@@ -99,9 +100,14 @@ export function AddCommentModal({
               {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending
-                ? t("applications.adding")
-                : t("applications.addComment")}
+              {createMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {t("applications.adding")}
+                </>
+              ) : (
+                t("applications.addComment")
+              )}
             </Button>
           </DialogFooter>
         </form>

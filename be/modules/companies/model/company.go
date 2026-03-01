@@ -4,13 +4,14 @@ import "time"
 
 // Company represents a company entity
 type Company struct {
-	ID        string
-	UserID    string
-	Name      string
-	Location  *string
-	Notes     *string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID         string
+	UserID     string
+	Name       string
+	Location   *string
+	Notes      *string
+	IsFavorite bool
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 // CompanyDTO represents company data transfer object with enriched fields
@@ -19,6 +20,7 @@ type CompanyDTO struct {
 	Name                    string     `json:"name"`
 	Location                *string    `json:"location,omitempty"`
 	Notes                   *string    `json:"notes,omitempty"`
+	IsFavorite              bool       `json:"is_favorite"`
 	CreatedAt               time.Time  `json:"created_at"`
 	UpdatedAt               time.Time  `json:"updated_at"`
 	ApplicationsCount       int        `json:"applications_count"`
@@ -39,11 +41,12 @@ const (
 // ToDTO converts Company to CompanyDTO
 func (c *Company) ToDTO() *CompanyDTO {
 	return &CompanyDTO{
-		ID:        c.ID,
-		Name:      c.Name,
-		Location:  c.Location,
-		Notes:     c.Notes,
-		CreatedAt: c.CreatedAt,
-		UpdatedAt: c.UpdatedAt,
+		ID:         c.ID,
+		Name:       c.Name,
+		Location:   c.Location,
+		Notes:      c.Notes,
+		IsFavorite: c.IsFavorite,
+		CreatedAt:  c.CreatedAt,
+		UpdatedAt:  c.UpdatedAt,
 	}
 }

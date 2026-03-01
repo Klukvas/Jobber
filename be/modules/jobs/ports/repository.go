@@ -13,4 +13,5 @@ type JobRepository interface {
 	List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error)
 	Update(ctx context.Context, job *model.Job) error
 	Delete(ctx context.Context, userID, jobID string) error
+	ToggleFavorite(ctx context.Context, userID, jobID string) (bool, error)
 }

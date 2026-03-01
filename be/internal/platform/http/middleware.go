@@ -1,6 +1,7 @@
 package http
 
 import (
+	"regexp"
 	"strings"
 	"time"
 
@@ -10,11 +11,21 @@ import (
 	"go.uber.org/zap"
 )
 
-// RequestIDMiddleware adds a unique request ID to each request
+const maxRequestIDLength = 128
+
+var validRequestIDRegex = regexp.MustCompile(`^[a-zA-Z0-9\-_\.]+$`)
+
+// isValidRequestID checks that a client-supplied request ID is safe.
+func isValidRequestID(id string) bool {
+	return len(id) <= maxRequestIDLength && validRequestIDRegex.MatchString(id)
+}
+
+// RequestIDMiddleware adds a unique request ID to each request.
+// Client-supplied IDs are validated; invalid values are replaced with a new UUID.
 func RequestIDMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestID := c.GetHeader("X-Request-ID")
-		if requestID == "" {
+		if requestID == "" || !isValidRequestID(requestID) {
 			requestID = uuid.New().String()
 		}
 		c.Set("request_id", requestID)

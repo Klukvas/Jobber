@@ -18,6 +18,7 @@ import {
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { Label } from "@/shared/ui/Label";
+import { Loader2 } from "lucide-react";
 
 interface CreateCompanyModalProps {
   open: boolean;
@@ -141,11 +142,16 @@ function ModalContent({
             {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={isPending || !name}>
-            {isPending
-              ? t("common.loading")
-              : isEditMode
-                ? t("common.save")
-                : t("common.create")}
+            {isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                {t("common.loading")}
+              </>
+            ) : isEditMode ? (
+              t("common.save")
+            ) : (
+              t("common.create")
+            )}
           </Button>
         </DialogFooter>
       </form>

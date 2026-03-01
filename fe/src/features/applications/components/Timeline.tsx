@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ApplicationStageDTO, CommentDTO } from "@/shared/types/api";
@@ -14,9 +14,18 @@ import {
   Edit,
   MessageSquare,
   CalendarPlus,
+  Loader2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/shared/ui/Button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/shared/ui/Dialog";
 import { UpdateStageStatusModal } from "../modals/UpdateStageStatusModal";
 import { AddCommentModal } from "../modals/AddCommentModal";
 import { ScheduleStageModal } from "@/features/calendar/modals/ScheduleStageModal";
@@ -48,7 +57,7 @@ export function Timeline({
     id: string;
     name: string;
   } | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const closeMenu = useCallback(() => setMenuOpen(null), []);
 
   const completeStage = useMutation({
     mutationFn: (stageId: string) =>
@@ -87,17 +96,23 @@ export function Timeline({
 
   // Close menu when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(null);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
+    if (!menuOpen) return;
+    const handleClickOutside = () => setMenuOpen(null);
+    // Use setTimeout to avoid closing immediately on the same click that opened it
+    const id = setTimeout(() => {
+      document.addEventListener("click", handleClickOutside);
+    }, 0);
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      clearTimeout(id);
+      document.removeEventListener("click", handleClickOutside);
     };
-  }, []);
+  }, [menuOpen]);
+
+  const stageStatusKey: Record<string, string> = {
+    active: "applications.stageStatusActive",
+    completed: "applications.stageStatusCompleted",
+    pending: "applications.stageStatusPending",
+  };
 
   const handleChangeStatus = (stage: ApplicationStageDTO) => {
     setSelectedStage(stage);
@@ -234,15 +249,12 @@ export function Timeline({
                       onClick={() =>
                         setMenuOpen(menuOpen === stage.id ? null : stage.id)
                       }
-                      title="Stage options"
+                      title={t("applications.stageOptions")}
                     >
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                     {menuOpen === stage.id && (
-                      <div
-                        ref={menuRef}
-                        className="absolute right-0 z-10 mt-2 w-48 rounded-md border bg-popover shadow-lg"
-                      >
+                      <div className="absolute right-0 z-10 mt-2 w-48 rounded-md border bg-popover shadow-lg">
                         <div className="py-1">
                           <button
                             onClick={() => handleChangeStatus(stage)}
@@ -309,7 +321,7 @@ export function Timeline({
                       : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
                 }`}
               >
-                {stage.status}
+                {t(stageStatusKey[stage.status] || stage.status)}
               </span>
             </div>
           </div>
@@ -344,38 +356,45 @@ export function Timeline({
       )}
 
       {/* Delete confirmation modal */}
-      {confirmDeleteStage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-lg">
-            <h2 className="text-xl font-semibold mb-4">
-              {t("applications.deleteStage")}
-            </h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              {t("applications.deleteStageConfirm", {
-                stageName: confirmDeleteStage.stage_name,
-              })}
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setConfirmDeleteStage(null)}
-                disabled={deleteStage.isPending}
-              >
-                {t("common.cancel")}
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={handleConfirmDelete}
-                disabled={deleteStage.isPending}
-              >
-                {deleteStage.isPending
-                  ? t("common.loading")
-                  : t("common.delete")}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Dialog
+        open={!!confirmDeleteStage}
+        onOpenChange={(open) => !open && setConfirmDeleteStage(null)}
+      >
+        <DialogContent onClose={() => setConfirmDeleteStage(null)}>
+          <DialogHeader>
+            <DialogTitle>{t("applications.deleteStage")}</DialogTitle>
+            <DialogDescription>
+              {confirmDeleteStage &&
+                t("applications.deleteStageConfirm", {
+                  stageName: confirmDeleteStage.stage_name,
+                })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-6">
+            <Button
+              variant="outline"
+              onClick={() => setConfirmDeleteStage(null)}
+              disabled={deleteStage.isPending}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={deleteStage.isPending}
+            >
+              {deleteStage.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {t("common.loading")}
+                </>
+              ) : (
+                t("common.delete")
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

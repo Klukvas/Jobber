@@ -23,4 +23,5 @@ type CompanyRepository interface {
 	Update(ctx context.Context, company *model.Company) error
 	Delete(ctx context.Context, userID, companyID string) error
 	GetRelatedJobsAndApplicationsCount(ctx context.Context, userID, companyID string) (jobsCount, appsCount int, err error)
+	ToggleFavorite(ctx context.Context, userID, companyID string) (bool, error)
 }

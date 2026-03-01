@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
 	"github.com/andreypavlenko/jobber/modules/jobs/model"
 	"github.com/andreypavlenko/jobber/modules/jobs/service"
+	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -48,6 +50,11 @@ func (h *JobHandler) Create(c *gin.Context) {
 
 	job, err := h.service.Create(c.Request.Context(), userID, &req)
 	if err != nil {
+		if errors.Is(err, subModel.ErrLimitReached) {
+			httpPlatform.RespondWithError(c, http.StatusForbidden, "PLAN_LIMIT_REACHED", "Plan limit reached. Upgrade to Pro for unlimited access.")
+			return
+		}
+
 		errorCode := model.GetErrorCode(err)
 		errorMessage := model.GetErrorMessage(err)
 
@@ -264,6 +271,44 @@ func (h *JobHandler) Delete(c *gin.Context) {
 	httpPlatform.RespondWithData(c, http.StatusOK, gin.H{"message": "Job deleted successfully"})
 }
 
+// ToggleFavorite godoc
+// @Summary Toggle job favorite status
+// @Description Toggle the favorite status of a specific job
+// @Tags jobs
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Job ID"
+// @Success 200 {object} map[string]bool
+// @Failure 401 {object} httpPlatform.ErrorResponse
+// @Failure 404 {object} httpPlatform.ErrorResponse "Job not found"
+// @Failure 500 {object} httpPlatform.ErrorResponse
+// @Router /jobs/{id}/favorite [post]
+func (h *JobHandler) ToggleFavorite(c *gin.Context) {
+	userID, exists := auth.GetUserID(c)
+	if !exists {
+		httpPlatform.RespondWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized")
+		return
+	}
+
+	jobID := c.Param("id")
+
+	isFavorite, err := h.service.ToggleFavorite(c.Request.Context(), userID, jobID)
+	if err != nil {
+		errorCode := model.GetErrorCode(err)
+		errorMessage := model.GetErrorMessage(err)
+
+		statusCode := http.StatusInternalServerError
+		if errorCode == model.CodeJobNotFound {
+			statusCode = http.StatusNotFound
+		}
+
+		httpPlatform.RespondWithError(c, statusCode, string(errorCode), errorMessage)
+		return
+	}
+
+	httpPlatform.RespondWithData(c, http.StatusOK, gin.H{"is_favorite": isFavorite})
+}
+
 // RegisterRoutes registers job routes
 func (h *JobHandler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.HandlerFunc) {
 	jobs := router.Group("/jobs")
@@ -274,5 +319,6 @@ func (h *JobHandler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.
 		jobs.GET("/:id", h.Get)
 		jobs.PATCH("/:id", h.Update)
 		jobs.DELETE("/:id", h.Delete)
+		jobs.POST("/:id/favorite", h.ToggleFavorite)
 	}
 }

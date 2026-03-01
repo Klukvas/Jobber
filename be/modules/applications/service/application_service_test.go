@@ -22,6 +22,7 @@ type MockApplicationRepository struct {
 	CreateFunc            func(ctx context.Context, app *model.Application) error
 	GetByIDFunc           func(ctx context.Context, userID, appID string) (*model.Application, error)
 	ListFunc              func(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.Application, int, error)
+	ListEnrichedFunc      func(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.ApplicationDTO, int, error)
 	UpdateFunc            func(ctx context.Context, app *model.Application) error
 	DeleteFunc            func(ctx context.Context, userID, appID string) error
 	GetLastActivityAtFunc func(ctx context.Context, appID string) (time.Time, error)
@@ -44,6 +45,13 @@ func (m *MockApplicationRepository) GetByID(ctx context.Context, userID, appID s
 func (m *MockApplicationRepository) List(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.Application, int, error) {
 	if m.ListFunc != nil {
 		return m.ListFunc(ctx, userID, opts)
+	}
+	return nil, 0, nil
+}
+
+func (m *MockApplicationRepository) ListEnriched(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.ApplicationDTO, int, error) {
+	if m.ListEnrichedFunc != nil {
+		return m.ListEnrichedFunc(ctx, userID, opts)
 	}
 	return nil, 0, nil
 }
@@ -173,6 +181,9 @@ func (m *MockJobRepository) Update(ctx context.Context, job *jobModel.Job) error
 func (m *MockJobRepository) Delete(ctx context.Context, userID, jobID string) error {
 	return nil
 }
+func (m *MockJobRepository) ToggleFavorite(ctx context.Context, userID, jobID string) (bool, error) {
+	return false, nil
+}
 
 type MockCompanyRepository struct {
 	GetByIDFunc func(ctx context.Context, userID, companyID string) (*companyModel.Company, error)
@@ -201,6 +212,9 @@ func (m *MockCompanyRepository) Delete(ctx context.Context, userID, companyID st
 }
 func (m *MockCompanyRepository) GetRelatedJobsAndApplicationsCount(ctx context.Context, userID, companyID string) (int, int, error) {
 	return 0, 0, nil
+}
+func (m *MockCompanyRepository) ToggleFavorite(ctx context.Context, userID, companyID string) (bool, error) {
+	return false, nil
 }
 
 type MockResumeRepository struct {
@@ -922,27 +936,19 @@ func TestApplicationService_List(t *testing.T) {
 	userID := "user-123"
 
 	t.Run("returns applications list", func(t *testing.T) {
-		svc, appRepo, _, _, jobRepo, _, resumeRepo, _ := createTestService()
+		svc, appRepo, _, _, _, _, _, _ := createTestService()
 
-		apps := []*model.Application{
-			{ID: "app-1", UserID: userID, JobID: "job-1", ResumeID: "resume-1", Status: "active", CreatedAt: time.Now()},
-			{ID: "app-2", UserID: userID, JobID: "job-2", ResumeID: "resume-2", Status: "offer", CreatedAt: time.Now()},
+		now := time.Now()
+		dtos := []*model.ApplicationDTO{
+			{ID: "app-1", Name: "App 1", Status: "active", CreatedAt: now, LastActivityAt: now},
+			{ID: "app-2", Name: "App 2", Status: "offer", CreatedAt: now, LastActivityAt: now},
 		}
 
-		appRepo.ListFunc = func(ctx context.Context, uid string, opts *ports.ListOptions) ([]*model.Application, int, error) {
-			return apps, 2, nil
-		}
-
-		appRepo.GetLastActivityAtFunc = func(ctx context.Context, appID string) (time.Time, error) {
-			return time.Now(), nil
-		}
-
-		jobRepo.GetByIDFunc = func(ctx context.Context, uid, jid string) (*jobModel.Job, error) {
-			return &jobModel.Job{ID: jid, Title: "Test Job"}, nil
-		}
-
-		resumeRepo.GetByIDFunc = func(ctx context.Context, uid, rid string) (*resumeModel.Resume, error) {
-			return &resumeModel.Resume{ID: rid, Title: "Test Resume"}, nil
+		appRepo.ListEnrichedFunc = func(ctx context.Context, uid string, opts *ports.ListOptions) ([]*model.ApplicationDTO, int, error) {
+			assert.Equal(t, userID, uid)
+			assert.Equal(t, 20, opts.Limit)
+			assert.Equal(t, 0, opts.Offset)
+			return dtos, 2, nil
 		}
 
 		result, total, err := svc.List(context.Background(), userID, "created_at", "desc", "", 20, 0)

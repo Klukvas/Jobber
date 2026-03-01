@@ -75,7 +75,7 @@ export function ApplicationKanbanBoard({
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
+      activationConstraint: { distance: 8 },
     }),
     useSensor(KeyboardSensor),
   );
@@ -117,11 +117,6 @@ export function ApplicationKanbanBoard({
         );
       }
       showErrorNotification(t("applications.board.moveError"));
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({
-        queryKey: APPLICATIONS_KANBAN_QUERY_KEY,
-      });
     },
   });
 
@@ -169,11 +164,6 @@ export function ApplicationKanbanBoard({
       }
       showErrorNotification(t("applications.board.moveError"));
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({
-        queryKey: APPLICATIONS_KANBAN_QUERY_KEY,
-      });
-    },
   });
 
   const handleDragStart = useCallback(
@@ -183,6 +173,10 @@ export function ApplicationKanbanBoard({
     },
     [applications],
   );
+
+  const handleDragCancel = useCallback(() => {
+    setActiveApp(null);
+  }, []);
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
@@ -227,10 +221,13 @@ export function ApplicationKanbanBoard({
     [groupBy, queryClient, stageTemplates, updateStatus, addStageToApp],
   );
 
-  const columns =
-    groupBy === "status"
-      ? buildStatusColumns(applications, t)
-      : buildStageColumns(applications, stageTemplates, t);
+  const columns = useMemo(
+    () =>
+      groupBy === "status"
+        ? buildStatusColumns(applications, t)
+        : buildStageColumns(applications, stageTemplates, t),
+    [groupBy, applications, stageTemplates, t],
+  );
 
   return (
     <div className="space-y-4">
@@ -265,8 +262,9 @@ export function ApplicationKanbanBoard({
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
-        <div className="flex gap-4 min-h-[calc(100vh-16rem)] overflow-x-auto pb-2">
+        <div className="relative flex gap-4 min-h-[calc(100vh-16rem)] overflow-x-auto pb-2 snap-x snap-mandatory md:snap-none scroll-pl-0">
           {columns.map((col) => (
             <ApplicationKanbanColumn
               key={col.id}

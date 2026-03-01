@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { companiesService } from "@/services/companiesService";
@@ -17,7 +17,9 @@ import {
   Trash2,
   Briefcase,
   Clock,
-  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Heart,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { CreateCompanyModal } from "@/features/companies/modals/CreateCompanyModal";
@@ -32,6 +34,7 @@ export default function Companies() {
   const { t } = useTranslation();
   usePageMeta({ titleKey: "companies.title", noindex: true });
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<CompanyDTO | null>(null);
   const [deletingCompany, setDeletingCompany] = useState<CompanyDTO | null>(
@@ -43,11 +46,10 @@ export default function Companies() {
 
   // Close context menu when clicking outside
   useEffect(() => {
+    if (!openMenuId) return;
     const handleClickOutside = () => setOpenMenuId(null);
-    if (openMenuId) {
-      document.addEventListener("click", handleClickOutside);
-      return () => document.removeEventListener("click", handleClickOutside);
-    }
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
   }, [openMenuId]);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -59,6 +61,34 @@ export default function Companies() {
         sort_by: sortBy,
         sort_dir: sortDir,
       }),
+    staleTime: 30_000,
+  });
+
+  const toggleFavoriteMutation = useMutation({
+    mutationFn: companiesService.toggleFavorite,
+    onMutate: async (companyId) => {
+      const queryKey = ["companies", sortBy, sortDir];
+      await queryClient.cancelQueries({ queryKey: ["companies"] });
+      const previous = queryClient.getQueryData(queryKey);
+      queryClient.setQueryData(queryKey, (old: typeof data) => {
+        if (!old) return old;
+        return {
+          ...old,
+          items: old.items.map((c: CompanyDTO) =>
+            c.id === companyId ? { ...c, is_favorite: !c.is_favorite } : c,
+          ),
+        };
+      });
+      return { previous, queryKey };
+    },
+    onError: (_err, _companyId, context) => {
+      if (context?.previous && context?.queryKey) {
+        queryClient.setQueryData(context.queryKey, context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["companies"] });
+    },
   });
 
   const toggleSort = (field: SortBy) => {
@@ -88,19 +118,19 @@ export default function Companies() {
     switch (status) {
       case "idle":
         return {
-          label: "Idle",
+          label: t("companies.statusIdle"),
           className:
             "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
         };
       case "active":
         return {
-          label: "Active",
+          label: t("companies.statusActive"),
           className:
             "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
         };
       case "interviewing":
         return {
-          label: "Interviewing",
+          label: t("companies.statusInterviewing"),
           className:
             "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
         };
@@ -162,15 +192,22 @@ export default function Companies() {
         <>
           {/* Sorting Controls */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-muted-foreground">Sort by:</span>
+            <span className="text-sm text-muted-foreground">
+              {t("common.sortBy")}
+            </span>
             <Button
               variant={sortBy === "name" ? "default" : "outline"}
               size="sm"
               onClick={() => toggleSort("name")}
             >
               <Building2 className="h-3 w-3 mr-1" />
-              Name
-              {sortBy === "name" && <ArrowUpDown className="h-3 w-3 ml-1" />}
+              {t("companies.sortName")}
+              {sortBy === "name" &&
+                (sortDir === "desc" ? (
+                  <ArrowDown className="h-3 w-3 ml-1" />
+                ) : (
+                  <ArrowUp className="h-3 w-3 ml-1" />
+                ))}
             </Button>
             <Button
               variant={sortBy === "last_activity" ? "default" : "outline"}
@@ -178,10 +215,13 @@ export default function Companies() {
               onClick={() => toggleSort("last_activity")}
             >
               <Clock className="h-3 w-3 mr-1" />
-              Last Activity
-              {sortBy === "last_activity" && (
-                <ArrowUpDown className="h-3 w-3 ml-1" />
-              )}
+              {t("companies.sortLastActivity")}
+              {sortBy === "last_activity" &&
+                (sortDir === "desc" ? (
+                  <ArrowDown className="h-3 w-3 ml-1" />
+                ) : (
+                  <ArrowUp className="h-3 w-3 ml-1" />
+                ))}
             </Button>
             <Button
               variant={sortBy === "applications_count" ? "default" : "outline"}
@@ -189,10 +229,13 @@ export default function Companies() {
               onClick={() => toggleSort("applications_count")}
             >
               <Briefcase className="h-3 w-3 mr-1" />
-              Applications
-              {sortBy === "applications_count" && (
-                <ArrowUpDown className="h-3 w-3 ml-1" />
-              )}
+              {t("companies.sortApplications")}
+              {sortBy === "applications_count" &&
+                (sortDir === "desc" ? (
+                  <ArrowDown className="h-3 w-3 ml-1" />
+                ) : (
+                  <ArrowUp className="h-3 w-3 ml-1" />
+                ))}
             </Button>
           </div>
 
@@ -210,49 +253,69 @@ export default function Companies() {
                         <CardTitle className="text-xl font-bold leading-tight flex-1">
                           {company.name}
                         </CardTitle>
-                        <div
-                          className="relative"
-                          onClick={(e) => e.preventDefault()}
-                        >
+                        <div className="flex items-center gap-1">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               e.preventDefault();
-                              setOpenMenuId(
-                                openMenuId === company.id ? null : company.id,
-                              );
+                              toggleFavoriteMutation.mutate(company.id);
                             }}
-                            className="p-1 rounded-md hover:bg-accent transition-colors opacity-0 group-hover:opacity-100"
-                            aria-label="Company actions"
+                            disabled={toggleFavoriteMutation.isPending}
+                            className="p-1 rounded-md hover:bg-accent transition-colors disabled:opacity-50"
+                            aria-label={
+                              company.is_favorite
+                                ? t("common.removeFromFavorites")
+                                : t("common.addToFavorites")
+                            }
                           >
-                            <MoreVertical className="h-4 w-4" />
+                            <Heart
+                              className={`h-4 w-4 ${company.is_favorite ? "fill-red-500 text-red-500" : "text-muted-foreground"}`}
+                            />
                           </button>
-                          {openMenuId === company.id && (
-                            <div className="absolute right-0 mt-1 w-40 bg-popover border rounded-md shadow-lg z-10">
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleEdit(company);
-                                }}
-                                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
-                              >
-                                <Edit className="h-4 w-4" />
-                                Edit
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleDelete(company);
-                                }}
-                                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                Delete
-                              </button>
-                            </div>
-                          )}
+                          <div
+                            className="relative"
+                            onClick={(e) => e.preventDefault()}
+                          >
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                setOpenMenuId(
+                                  openMenuId === company.id ? null : company.id,
+                                );
+                              }}
+                              className="p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground"
+                              aria-label="Company actions"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                            {openMenuId === company.id && (
+                              <div className="absolute right-0 mt-1 w-40 bg-popover border rounded-md shadow-lg z-10">
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleEdit(company);
+                                  }}
+                                  className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                  {t("common.edit")}
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleDelete(company);
+                                  }}
+                                  className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  {t("common.delete")}
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -268,7 +331,7 @@ export default function Companies() {
                       {/* Status Badge */}
                       <div className="flex items-center justify-between">
                         <span
-                          className={`inline-flex items-center rounded-full font-medium text-base px-3 py-1.5 ${statusDisplay.className}`}
+                          className={`inline-flex items-center rounded-full font-medium text-sm px-2.5 py-1 ${statusDisplay.className}`}
                         >
                           {statusDisplay.label}
                         </span>
@@ -279,7 +342,7 @@ export default function Companies() {
                         <div className="space-y-2 text-sm border-t pt-3">
                           <div className="flex items-center justify-between">
                             <span className="text-muted-foreground">
-                              Total Applications:
+                              {t("companies.totalApplications")}
                             </span>
                             <span className="font-medium">
                               {company.applications_count}
@@ -287,7 +350,7 @@ export default function Companies() {
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-muted-foreground">
-                              Active:
+                              {t("companies.activeApplications")}
                             </span>
                             <span className="font-medium">
                               {company.active_applications_count}
@@ -297,7 +360,7 @@ export default function Companies() {
                             <div className="flex items-center gap-2 text-muted-foreground">
                               <Clock className="h-3.5 w-3.5" />
                               <span>
-                                Last activity{" "}
+                                {t("companies.lastActivity")}{" "}
                                 {formatDistanceToNow(
                                   new Date(company.last_activity_at),
                                   {
@@ -310,7 +373,7 @@ export default function Companies() {
                         </div>
                       ) : (
                         <div className="text-sm text-muted-foreground border-t pt-3 text-center py-2">
-                          No applications yet
+                          {t("companies.noApplicationsYet")}
                         </div>
                       )}
 
@@ -330,7 +393,9 @@ export default function Companies() {
                           onClick={() => handleViewApplications(company.id)}
                         >
                           <Briefcase className="h-3.5 w-3.5 mr-1.5" />
-                          View Applications ({company.applications_count})
+                          {t("companies.viewApplications", {
+                            count: company.applications_count,
+                          })}
                         </Button>
                       )}
                     </CardContent>

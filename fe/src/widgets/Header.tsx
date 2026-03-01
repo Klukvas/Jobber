@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useThemeStore } from "@/stores/themeStore";
 import { useSidebarStore } from "@/stores/sidebarStore";
 import { Button } from "@/shared/ui/Button";
@@ -5,6 +6,7 @@ import { LanguageSwitcher } from "@/shared/ui/LanguageSwitcher";
 import { Sun, Moon, Menu } from "lucide-react";
 
 export function Header() {
+  const { t } = useTranslation();
   const { theme, toggleTheme } = useThemeStore();
   const toggleMobile = useSidebarStore((state) => state.toggleMobile);
 
@@ -29,7 +31,9 @@ export function Header() {
           size="icon"
           onClick={toggleTheme}
           aria-label={
-            theme === "light" ? "Switch to dark mode" : "Switch to light mode"
+            theme === "light"
+              ? t("settings.switchToDark")
+              : t("settings.switchToLight")
           }
         >
           {theme === "light" ? (

@@ -16,6 +16,7 @@ import {
   DialogDescription,
 } from "@/shared/ui/Dialog";
 import { ApiError } from "@/services/api";
+import { Loader2 } from "lucide-react";
 
 interface RegisterModalProps {
   open: boolean;
@@ -165,9 +166,14 @@ function ModalContent({
             className="w-full"
             disabled={registerMutation.isPending}
           >
-            {registerMutation.isPending
-              ? t("common.loading")
-              : t("auth.register")}
+            {registerMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                {t("common.loading")}
+              </>
+            ) : (
+              t("auth.register")
+            )}
           </Button>
           <p className="text-center text-sm text-muted-foreground">
             {t("auth.alreadyHaveAccount")}{" "}

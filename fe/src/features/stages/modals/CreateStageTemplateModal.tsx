@@ -17,6 +17,7 @@ import {
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { Label } from "@/shared/ui/Label";
+import { Loader2 } from "lucide-react";
 
 interface CreateStageTemplateModalProps {
   open: boolean;
@@ -103,9 +104,14 @@ export function CreateStageTemplateModal({
               type="submit"
               disabled={createMutation.isPending || !name || !order}
             >
-              {createMutation.isPending
-                ? t("common.loading")
-                : t("common.create")}
+              {createMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {t("common.loading")}
+                </>
+              ) : (
+                t("common.create")
+              )}
             </Button>
           </DialogFooter>
         </form>

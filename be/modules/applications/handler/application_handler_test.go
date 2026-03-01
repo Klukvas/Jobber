@@ -28,6 +28,7 @@ type MockApplicationRepository struct {
 	CreateFunc            func(ctx context.Context, app *model.Application) error
 	GetByIDFunc           func(ctx context.Context, userID, appID string) (*model.Application, error)
 	ListFunc              func(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.Application, int, error)
+	ListEnrichedFunc      func(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.ApplicationDTO, int, error)
 	UpdateFunc            func(ctx context.Context, app *model.Application) error
 	DeleteFunc            func(ctx context.Context, userID, appID string) error
 	GetLastActivityAtFunc func(ctx context.Context, appID string) (time.Time, error)
@@ -50,6 +51,13 @@ func (m *MockApplicationRepository) GetByID(ctx context.Context, userID, appID s
 func (m *MockApplicationRepository) List(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.Application, int, error) {
 	if m.ListFunc != nil {
 		return m.ListFunc(ctx, userID, opts)
+	}
+	return nil, 0, nil
+}
+
+func (m *MockApplicationRepository) ListEnriched(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.ApplicationDTO, int, error) {
+	if m.ListEnrichedFunc != nil {
+		return m.ListEnrichedFunc(ctx, userID, opts)
 	}
 	return nil, 0, nil
 }
@@ -179,6 +187,9 @@ func (m *MockJobRepository) Update(ctx context.Context, job *jobModel.Job) error
 func (m *MockJobRepository) Delete(ctx context.Context, userID, jobID string) error {
 	return nil
 }
+func (m *MockJobRepository) ToggleFavorite(ctx context.Context, userID, jobID string) (bool, error) {
+	return false, nil
+}
 
 type MockCompanyRepository struct {
 	GetByIDFunc func(ctx context.Context, userID, companyID string) (*companyModel.Company, error)
@@ -207,6 +218,9 @@ func (m *MockCompanyRepository) Delete(ctx context.Context, userID, companyID st
 }
 func (m *MockCompanyRepository) GetRelatedJobsAndApplicationsCount(ctx context.Context, userID, companyID string) (int, int, error) {
 	return 0, 0, nil
+}
+func (m *MockCompanyRepository) ToggleFavorite(ctx context.Context, userID, companyID string) (bool, error) {
+	return false, nil
 }
 
 type MockResumeRepository struct {
