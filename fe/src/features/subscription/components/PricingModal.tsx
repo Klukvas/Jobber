@@ -92,7 +92,7 @@ function PlanCard({
 export function PricingModal({ open, onOpenChange }: PricingModalProps) {
   const { t } = useTranslation();
   const { plan } = useSubscription();
-  const { openCheckout, isReady } = usePaddleCheckout();
+  const { openCheckout } = usePaddleCheckout();
 
   const handleSelect = (target: SubscriptionPlan) => {
     openCheckout(target);

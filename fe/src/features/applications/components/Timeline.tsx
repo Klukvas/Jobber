@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ApplicationStageDTO, CommentDTO } from "@/shared/types/api";
@@ -57,7 +57,6 @@ export function Timeline({
     id: string;
     name: string;
   } | null>(null);
-  const closeMenu = useCallback(() => setMenuOpen(null), []);
 
   const completeStage = useMutation({
     mutationFn: (stageId: string) =>

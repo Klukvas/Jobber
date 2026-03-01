@@ -34,7 +34,7 @@ export default function Settings() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { subscription, isPro, isEnterprise, isFree, nextPlan, usage, limits } =
+  const { subscription, isPro, isEnterprise, nextPlan, usage, limits } =
     useSubscription();
   const [pricingOpen, setPricingOpen] = useState(false);
 
