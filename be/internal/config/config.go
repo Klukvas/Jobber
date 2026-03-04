@@ -138,10 +138,10 @@ func Load() (*Config, error) {
 			SecretKey: getEnv("S3_SECRET_KEY", ""),
 		},
 		GoogleCalendar: GoogleCalendarConfig{
-			ClientID:           getEnv("GOOGLE_CLIENT_ID", ""),
-			ClientSecret:       getEnv("GOOGLE_CLIENT_SECRET", ""),
-			RedirectURL:        getEnv("GOOGLE_REDIRECT_URL", ""),
-			TokenEncryptionKey: getEnv("GOOGLE_TOKEN_ENCRYPTION_KEY", ""),
+			ClientID:           getEnv("GOOGLE_CALENDAR_CLIENT_ID", ""),
+			ClientSecret:       getEnv("GOOGLE_CALENDAR_CLIENT_SECRET", ""),
+			RedirectURL:        getEnv("GOOGLE_CALENDAR_REDIRECT_URL", ""),
+			TokenEncryptionKey: getEnv("GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY", ""),
 			FrontendURL:        getEnv("GOOGLE_CALENDAR_FRONTEND_URL", ""),
 		},
 		Anthropic: AnthropicConfig{
