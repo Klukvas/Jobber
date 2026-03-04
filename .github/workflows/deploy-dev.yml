@@ -372,9 +372,22 @@ jobs:
       - name: Sync secrets to server .env
         env:
           ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GCAL_CLIENT_ID: ${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}
+          GCAL_CLIENT_SECRET: ${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}
+          GCAL_REDIRECT_URL: ${{ secrets.GOOGLE_CALENDAR_REDIRECT_URL }}
+          GCAL_FRONTEND_URL: ${{ secrets.GOOGLE_CALENDAR_FRONTEND_URL }}
+          GCAL_ENCRYPTION_KEY: ${{ secrets.GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY }}
         run: |
-          # Remove existing key and append new value
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd ~/jobber && touch .env && sed -i '/^ANTHROPIC_API_KEY=/d' .env && echo 'ANTHROPIC_API_KEY=${ANTHROPIC_KEY}' >> .env && echo '✅ Secrets synced'"
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+            cd ~/jobber && touch .env
+            sed -i '/^ANTHROPIC_API_KEY=/d' .env && echo 'ANTHROPIC_API_KEY=${ANTHROPIC_KEY}' >> .env
+            sed -i '/^GOOGLE_CALENDAR_CLIENT_ID=/d' .env && echo 'GOOGLE_CALENDAR_CLIENT_ID=${GCAL_CLIENT_ID}' >> .env
+            sed -i '/^GOOGLE_CALENDAR_CLIENT_SECRET=/d' .env && echo 'GOOGLE_CALENDAR_CLIENT_SECRET=${GCAL_CLIENT_SECRET}' >> .env
+            sed -i '/^GOOGLE_CALENDAR_REDIRECT_URL=/d' .env && echo 'GOOGLE_CALENDAR_REDIRECT_URL=${GCAL_REDIRECT_URL}' >> .env
+            sed -i '/^GOOGLE_CALENDAR_FRONTEND_URL=/d' .env && echo 'GOOGLE_CALENDAR_FRONTEND_URL=${GCAL_FRONTEND_URL}' >> .env
+            sed -i '/^GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY=/d' .env && echo 'GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY=${GCAL_ENCRYPTION_KEY}' >> .env
+            echo '✅ Secrets synced'
+          "
 
       - name: Deploy via SSH
         run: |
