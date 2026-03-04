@@ -69,4 +69,5 @@ docker-compose.deploy.yml
 cors-config.json
 cors-config-fixed.json
 
-*.sh
+*.shclient_secret_*.json
+ext.zip
