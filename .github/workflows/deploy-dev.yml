@@ -194,12 +194,11 @@ jobs:
     name: Build & Push Backend
     runs-on: ubuntu-latest
     needs: [detect-changes, test-backend, test-frontend]
-    if: |
+    if: >-
+      always() &&
       needs.detect-changes.outputs.backend == 'true' &&
       (needs.test-backend.result == 'success' || needs.test-backend.result == 'skipped') &&
-      (needs.test-frontend.result == 'success' || needs.test-frontend.result == 'skipped') &&
-      needs.test-backend.result != 'failure' &&
-      needs.test-frontend.result != 'failure'
+      (needs.test-frontend.result == 'success' || needs.test-frontend.result == 'skipped')
     outputs:
       image_tag: ${{ steps.set_tag.outputs.tag }}
 
@@ -248,12 +247,11 @@ jobs:
     name: Build & Push Frontend
     runs-on: ubuntu-latest
     needs: [detect-changes, test-backend, test-frontend]
-    if: |
+    if: >-
+      always() &&
       needs.detect-changes.outputs.frontend == 'true' &&
       (needs.test-backend.result == 'success' || needs.test-backend.result == 'skipped') &&
-      (needs.test-frontend.result == 'success' || needs.test-frontend.result == 'skipped') &&
-      needs.test-backend.result != 'failure' &&
-      needs.test-frontend.result != 'failure'
+      (needs.test-frontend.result == 'success' || needs.test-frontend.result == 'skipped')
     outputs:
       image_tag: ${{ steps.set_tag.outputs.tag }}
 
