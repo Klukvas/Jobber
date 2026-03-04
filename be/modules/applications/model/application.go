@@ -25,7 +25,7 @@ type Application struct {
 	ID             string
 	UserID         string
 	JobID          string
-	ResumeID       string
+	ResumeID       *string
 	Name           string
 	CurrentStageID *string
 	Status         string // active, on_hold, rejected, offer, archived

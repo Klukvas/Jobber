@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { applicationsService } from "@/services/applicationsService";
 import { commentsService } from "@/services/commentsService";
 import { matchScoreService } from "@/services/matchScoreService";
 import { ApiError } from "@/services/api";
+import { showErrorNotification } from "@/shared/lib/notifications";
 import { Button } from "@/shared/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
 import { SkeletonDetail } from "@/shared/ui/Skeleton";
@@ -41,7 +42,6 @@ export default function ApplicationDetail() {
   const [isUpdateStatusModalOpen, setIsUpdateStatusModalOpen] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [matchScore, setMatchScore] = useState<MatchScoreResponse | null>(null);
-  const [matchScoreError, setMatchScoreError] = useState<string | null>(null);
   const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
 
   const {
@@ -80,8 +80,11 @@ export default function ApplicationDetail() {
 
   const checkMatchMutation = useMutation({
     mutationFn: () => {
-      if (!application?.job?.id || !application?.resume?.id) {
-        return Promise.reject(new Error("Missing job or resume"));
+      if (!application?.job?.id) {
+        return Promise.reject(new Error(t("applications.matchScore.error")));
+      }
+      if (!application?.resume?.id) {
+        return Promise.reject(new Error(t("applications.matchScore.noResume")));
       }
       return matchScoreService.checkMatch(
         application.job.id,
@@ -90,7 +93,6 @@ export default function ApplicationDetail() {
     },
     onSuccess: (data) => {
       setMatchScore(data);
-      setMatchScoreError(null);
       setIsPricingModalOpen(false);
     },
     onError: (error: Error) => {
@@ -99,16 +101,18 @@ export default function ApplicationDetail() {
           setIsPricingModalOpen(true);
           queryClient.invalidateQueries({ queryKey: ["subscription"] });
         } else if (error.code === "JOB_DESCRIPTION_EMPTY") {
-          setMatchScoreError(t("applications.matchScore.noDescription"));
+          showErrorNotification(t("applications.matchScore.noDescription"));
         } else if (error.code === "RESUME_FILE_EMPTY") {
-          setMatchScoreError(t("applications.matchScore.noResumeFile"));
+          showErrorNotification(t("applications.matchScore.noResumeFile"));
         } else if (error.code === "AI_NOT_CONFIGURED") {
-          setMatchScoreError(t("applications.matchScore.aiNotAvailable"));
+          showErrorNotification(t("applications.matchScore.aiNotAvailable"));
         } else {
-          setMatchScoreError(t("applications.matchScore.error"));
+          showErrorNotification(t("applications.matchScore.error"));
         }
       } else {
-        setMatchScoreError(t("applications.matchScore.error"));
+        showErrorNotification(
+          error.message || t("applications.matchScore.error"),
+        );
       }
     },
   });
@@ -173,9 +177,16 @@ export default function ApplicationDetail() {
             <p className="text-sm text-muted-foreground">
               {t("applications.job")}
             </p>
-            <p className="font-medium">
-              {application.job?.title || t("applications.unknownJob")}
-            </p>
+            {application.job ? (
+              <Link
+                to={`/app/jobs/${application.job.id}`}
+                className="font-medium hover:underline text-primary"
+              >
+                {application.job.title}
+              </Link>
+            ) : (
+              <p className="font-medium">{t("applications.unknownJob")}</p>
+            )}
           </div>
           <div>
             <p className="text-sm text-muted-foreground">
@@ -208,9 +219,7 @@ export default function ApplicationDetail() {
                   size="sm"
                   onClick={() => checkMatchMutation.mutate()}
                   disabled={
-                    checkMatchMutation.isPending ||
-                    !application?.job?.id ||
-                    !application?.resume?.id
+                    checkMatchMutation.isPending || !application?.job?.id
                   }
                 >
                   {checkMatchMutation.isPending ? (
@@ -281,12 +290,6 @@ export default function ApplicationDetail() {
           </div>
         </CardContent>
       </Card>
-
-      {matchScoreError && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-          {matchScoreError}
-        </div>
-      )}
 
       {matchScore && <MatchScoreCard data={matchScore} />}
 

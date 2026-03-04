@@ -5,7 +5,7 @@ import "time"
 // CreateApplicationRequest represents a create application request
 type CreateApplicationRequest struct {
 	JobID     string    `json:"job_id" binding:"required"`
-	ResumeID  string    `json:"resume_id" binding:"required"`
+	ResumeID  *string   `json:"resume_id"`
 	Name      string    `json:"name" binding:"max=255"` // Optional: auto-generated from job title if empty
 	AppliedAt time.Time `json:"applied_at"`
 }
@@ -18,7 +18,7 @@ type UpdateApplicationRequest struct {
 // CreateStageTemplateRequest represents a create stage template request
 type CreateStageTemplateRequest struct {
 	Name  string `json:"name" binding:"required,min=1,max=255"`
-	Order int    `json:"order" binding:"required,min=0"`
+	Order int    `json:"order" binding:"min=0"`
 }
 
 // UpdateStageTemplateRequest represents an update stage template request

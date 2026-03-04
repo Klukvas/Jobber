@@ -300,7 +300,41 @@ function StageTimeTable({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="overflow-x-auto">
+        {/* Mobile card view */}
+        <div className="sm:hidden space-y-3">
+          {data.stages.map((stage) => (
+            <div
+              key={stage.stage_name}
+              className="rounded-lg border p-3 space-y-1.5"
+            >
+              <p className="font-medium">{stage.stage_name}</p>
+              <div className="grid grid-cols-2 gap-1 text-sm">
+                <span className="text-muted-foreground">
+                  {t("analytics.stageTime.avgDays")}
+                </span>
+                <span className="text-right">{stage.avg_days}</span>
+                <span className="text-muted-foreground">
+                  {t("analytics.stageTime.minDays")}
+                </span>
+                <span className="text-right text-muted-foreground">
+                  {stage.min_days}
+                </span>
+                <span className="text-muted-foreground">
+                  {t("analytics.stageTime.maxDays")}
+                </span>
+                <span className="text-right text-muted-foreground">
+                  {stage.max_days}
+                </span>
+                <span className="text-muted-foreground">
+                  {t("analytics.stageTime.applications")}
+                </span>
+                <span className="text-right">{stage.applications_count}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Desktop table view */}
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b">
@@ -413,7 +447,50 @@ function ResumeEffectivenessTable({
         <CardDescription>{t("analytics.resumes.description")}</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="overflow-x-auto">
+        {/* Mobile card view */}
+        <div className="sm:hidden space-y-3">
+          {data.resumes.map((resume) => (
+            <div
+              key={resume.resume_id}
+              className="rounded-lg border p-3 space-y-1.5"
+            >
+              <p className="font-medium">{resume.resume_title}</p>
+              <div className="grid grid-cols-2 gap-1 text-sm">
+                <span className="text-muted-foreground">
+                  {t("analytics.resumes.applications")}
+                </span>
+                <span className="text-right">{resume.applications_count}</span>
+                <span className="text-muted-foreground">
+                  {t("analytics.resumes.responses")}
+                </span>
+                <span className="text-right">{resume.responses_count}</span>
+                <span className="text-muted-foreground">
+                  {t("analytics.resumes.interviews")}
+                </span>
+                <span className="text-right">{resume.interviews_count}</span>
+                <span className="text-muted-foreground">
+                  {t("analytics.resumes.responseRate")}
+                </span>
+                <span className="text-right">
+                  <span
+                    className={cn(
+                      "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
+                      resume.response_rate >= 50
+                        ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                        : resume.response_rate >= 25
+                          ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
+                          : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+                    )}
+                  >
+                    {resume.response_rate}%
+                  </span>
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Desktop table view */}
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b">
@@ -541,7 +618,46 @@ function SourceAnalyticsTable({
         <CardDescription>{t("analytics.sources.description")}</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="overflow-x-auto">
+        {/* Mobile card view */}
+        <div className="sm:hidden space-y-3">
+          {data.sources.map((source) => (
+            <div
+              key={source.source_name}
+              className="rounded-lg border p-3 space-y-1.5"
+            >
+              <p className="font-medium">{source.source_name}</p>
+              <div className="grid grid-cols-2 gap-1 text-sm">
+                <span className="text-muted-foreground">
+                  {t("analytics.sources.applications")}
+                </span>
+                <span className="text-right">{source.applications_count}</span>
+                <span className="text-muted-foreground">
+                  {t("analytics.sources.responses")}
+                </span>
+                <span className="text-right">{source.responses_count}</span>
+                <span className="text-muted-foreground">
+                  {t("analytics.sources.conversionRate")}
+                </span>
+                <span className="text-right">
+                  <span
+                    className={cn(
+                      "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
+                      source.conversion_rate >= 50
+                        ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                        : source.conversion_rate >= 25
+                          ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
+                          : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+                    )}
+                  >
+                    {source.conversion_rate}%
+                  </span>
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Desktop table view */}
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b">

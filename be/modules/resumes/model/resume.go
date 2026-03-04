@@ -47,7 +47,7 @@ func (r *Resume) ToDTOWithCounts(applicationsCount int) *ResumeDTO {
 		StorageKey:        r.StorageKey,
 		IsActive:          r.IsActive,
 		ApplicationsCount: applicationsCount,
-		CanDelete:         applicationsCount == 0,
+		CanDelete:         true,
 		CreatedAt:         r.CreatedAt,
 		UpdatedAt:         r.UpdatedAt,
 	}

@@ -56,7 +56,7 @@
   "applications": {
     "title": "Applications",
     "create": "Create Application",
-    "createDescription": "Create a new job application by selecting a job and resume",
+    "createDescription": "Create a new job application by selecting a job and optionally a resume",
     "createSuccess": "Application created successfully",
     "createError": "Failed to create application",
     "edit": "Edit Application",
@@ -182,6 +182,7 @@
       "summary": "Summary",
       "noDescription": "Add a job description first to check match score",
       "noResumeFile": "Upload a resume file first to check match score",
+      "noResume": "Attach a resume to this application to check match score",
       "aiNotAvailable": "AI matching is not available",
       "error": "Failed to check match score"
     },
@@ -197,7 +198,9 @@
       "descriptionPlaceholder": "Add details about the meeting...",
       "schedule": "Schedule",
       "createSuccess": "Event scheduled successfully",
-      "createError": "Failed to schedule event"
+      "createError": "Failed to schedule event",
+      "calendarNotConnected": "Google Calendar not connected",
+      "calendarNotConnectedDescription": "Connect your Google Calendar in Settings to schedule events for your application stages."
     }
   },
   "resumes": {
@@ -211,8 +214,8 @@
     "noResumes": "No resumes yet",
     "createFirst": "Create your first resume to get started",
     "deleteConfirm": "Are you sure you want to delete \"{{name}}\"?",
-    "inUseWarning": "This resume is currently used in {{count}} application(s).",
-    "inUseNote": "You cannot delete it until it's removed from all applications.",
+    "inUseWarning": "⚠️ This resume is used in {{count}} application(s).",
+    "inUseNote": "Those applications will lose their resume link but will not be deleted.",
     "deleteWarning": "This action cannot be undone. The resume will be permanently deleted.",
     "deleteError": "Failed to delete resume",
     "deleteSuccess": "Resume deleted successfully",
@@ -509,6 +512,7 @@
     "deleteStage": "Delete Stage",
     "deleteConfirm": "Are you sure you want to delete the stage \"{{name}}\"?",
     "deleteError": "Failed to delete stage template",
+    "deleteInUseError": "Cannot delete stage template: it is still used in active applications",
     "deleteSuccess": "Stage template deleted successfully",
     "created": "Created {{date}}"
   },

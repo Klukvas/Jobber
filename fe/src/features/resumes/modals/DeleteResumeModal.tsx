@@ -57,19 +57,16 @@ export function DeleteResumeModal({
         </DialogHeader>
 
         <div className="py-4">
-          {(resume.applications_count ?? 0) > 0 && (
+          {(resume.applications_count ?? 0) > 0 ? (
             <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800">
               <p className="font-medium">
-                ⚠️{" "}
                 {t("resumes.inUseWarning", {
                   count: resume.applications_count,
                 })}
               </p>
               <p className="mt-1">{t("resumes.inUseNote")}</p>
             </div>
-          )}
-
-          {(resume.applications_count ?? 0) === 0 && (
+          ) : (
             <p className="text-sm text-muted-foreground">
               {t("resumes.deleteWarning")}
             </p>
@@ -88,7 +85,7 @@ export function DeleteResumeModal({
             type="button"
             variant="destructive"
             onClick={handleDelete}
-            disabled={resume.can_delete === false || deleteMutation.isPending}
+            disabled={deleteMutation.isPending}
           >
             {deleteMutation.isPending ? (
               <>

@@ -135,9 +135,21 @@ export default function Applications() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">{t("applications.title")}</h1>
-        <div className="flex items-center gap-2">
+      <div className="space-y-2 sm:space-y-0">
+        {/* Row 1: title + create btn (visible on mobile, create btn hidden on sm+) */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">{t("applications.title")}</h1>
+          <Button
+            className="sm:hidden"
+            size="sm"
+            onClick={() => setIsCreateModalOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            {t("applications.create")}
+          </Button>
+        </div>
+        {/* Row 2 on mobile / inline on desktop: view toggle + create btn */}
+        <div className="flex items-center justify-between sm:justify-end gap-2">
           {/* View Toggle */}
           <div className="flex items-center rounded-lg border bg-muted p-0.5">
             <button
@@ -164,7 +176,10 @@ export default function Applications() {
             </button>
           </div>
 
-          <Button onClick={() => setIsCreateModalOpen(true)}>
+          <Button
+            className="hidden sm:flex"
+            onClick={() => setIsCreateModalOpen(true)}
+          >
             <Plus className="h-4 w-4" />
             {t("applications.create")}
           </Button>

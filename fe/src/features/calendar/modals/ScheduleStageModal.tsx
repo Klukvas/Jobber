@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { calendarService } from "@/services/calendarService";
 import {
   showSuccessNotification,
@@ -17,7 +17,7 @@ import {
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { Label } from "@/shared/ui/Label";
-import { Loader2 } from "lucide-react";
+import { CalendarX, Loader2 } from "lucide-react";
 
 interface ScheduleStageModalProps {
   open: boolean;
@@ -40,6 +40,23 @@ function ModalContent({
   const [startTime, setStartTime] = useState("");
   const [durationMin, setDurationMin] = useState(60);
   const [description, setDescription] = useState("");
+
+  const { data: calendarStatus, isLoading: isCheckingCalendar } = useQuery({
+    queryKey: ["calendar-status"],
+    queryFn: calendarService.getStatus,
+  });
+
+  const connectMutation = useMutation({
+    mutationFn: calendarService.getAuthURL,
+    onSuccess: (data) => {
+      window.location.href = data.url;
+    },
+    onError: (error: Error) => {
+      showErrorNotification(
+        error.message || t("settings.calendar.connectError"),
+      );
+    },
+  });
 
   const createMutation = useMutation({
     mutationFn: calendarService.createEvent,
@@ -76,6 +93,61 @@ function ModalContent({
       description: description || undefined,
     });
   };
+
+  if (isCheckingCalendar) {
+    return (
+      <>
+        <DialogHeader>
+          <DialogTitle>{t("applications.schedule.title")}</DialogTitle>
+        </DialogHeader>
+        <div className="flex justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </>
+    );
+  }
+
+  if (!calendarStatus?.connected) {
+    return (
+      <>
+        <DialogHeader>
+          <DialogTitle>{t("applications.schedule.title")}</DialogTitle>
+          <DialogDescription>
+            {t("applications.schedule.calendarNotConnected")}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col items-center gap-4 py-6">
+          <CalendarX className="h-12 w-12 text-muted-foreground" />
+          <p className="text-center text-sm text-muted-foreground">
+            {t("applications.schedule.calendarNotConnectedDescription")}
+          </p>
+        </div>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            {t("common.cancel")}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => connectMutation.mutate()}
+            disabled={connectMutation.isPending}
+          >
+            {connectMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                {t("common.loading")}
+              </>
+            ) : (
+              t("settings.calendar.connect")
+            )}
+          </Button>
+        </DialogFooter>
+      </>
+    );
+  }
 
   return (
     <>

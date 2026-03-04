@@ -70,11 +70,11 @@ export function CreateApplicationModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name && jobId && resumeId) {
+    if (jobId) {
       createMutation.mutate({
         name: name,
         job_id: jobId,
-        resume_id: resumeId,
+        ...(resumeId ? { resume_id: resumeId } : {}),
         applied_at: new Date().toISOString(),
       });
     }
@@ -101,14 +101,15 @@ export function CreateApplicationModal({
           <form onSubmit={handleSubmit}>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="name">{`${t("applications.applicationName")} *`}</Label>
+                <Label htmlFor="name">
+                  {t("applications.applicationName")}
+                </Label>
                 <Input
                   id="name"
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={t("applications.applicationNamePlaceholder")}
-                  required
                 />
               </div>
               <div className="space-y-2">
@@ -143,7 +144,9 @@ export function CreateApplicationModal({
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="resume">{`${t("applications.resumeLabel")} *`}</Label>
+                  <Label htmlFor="resume">
+                    {t("applications.resumeLabel")}
+                  </Label>
                   <Button
                     type="button"
                     variant="ghost"
@@ -160,7 +163,6 @@ export function CreateApplicationModal({
                   value={resumeId}
                   onChange={(e) => setResumeId(e.target.value)}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  required
                 >
                   <option value="">{t("applications.selectResume")}</option>
                   {resumesData?.items?.map((resume) => (

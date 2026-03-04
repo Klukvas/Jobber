@@ -279,6 +279,8 @@ func mockAuthMiddleware(userID string) gin.HandlerFunc {
 	}
 }
 
+func strPtr(s string) *string { return &s }
+
 func createTestHandler() (*ApplicationHandler, *MockApplicationRepository, *MockStageRepository, *MockTemplateRepository, *MockJobRepository, *MockResumeRepository, *MockCommentRepository) {
 	appRepo := &MockApplicationRepository{}
 	stageRepo := &MockStageRepository{}
@@ -377,7 +379,7 @@ func TestApplicationHandler_Get(t *testing.T) {
 			ID:        appID,
 			UserID:    userID,
 			JobID:     "job-1",
-			ResumeID:  "resume-1",
+			ResumeID:  strPtr("resume-1"),
 			Name:      "Test Application",
 			Status:    "active",
 			CreatedAt: time.Now(),
@@ -444,7 +446,7 @@ func TestApplicationHandler_List(t *testing.T) {
 		handler, appRepo, _, _, jobRepo, resumeRepo, _ := createTestHandler()
 
 		apps := []*model.Application{
-			{ID: "app-1", JobID: "job-1", ResumeID: "resume-1", Status: "active", CreatedAt: time.Now()},
+			{ID: "app-1", JobID: "job-1", ResumeID: strPtr("resume-1"), Status: "active", CreatedAt: time.Now()},
 		}
 
 		appRepo.ListFunc = func(ctx context.Context, uid string, opts *ports.ListOptions) ([]*model.Application, int, error) {
@@ -485,7 +487,7 @@ func TestApplicationHandler_Update(t *testing.T) {
 			ID:        appID,
 			UserID:    userID,
 			JobID:     "job-1",
-			ResumeID:  "resume-1",
+			ResumeID:  strPtr("resume-1"),
 			Status:    "active",
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
@@ -1018,7 +1020,7 @@ func TestApplicationHandler_RegisterRoutes(t *testing.T) {
 		return nil
 	}
 	appRepo.GetByIDFunc = func(ctx context.Context, uid, aid string) (*model.Application, error) {
-		return &model.Application{ID: aid, Status: "active", JobID: "job-1", ResumeID: "resume-1"}, nil
+		return &model.Application{ID: aid, Status: "active", JobID: "job-1", ResumeID: strPtr("resume-1")}, nil
 	}
 	appRepo.ListFunc = func(ctx context.Context, uid string, opts *ports.ListOptions) ([]*model.Application, int, error) {
 		return []*model.Application{}, 0, nil

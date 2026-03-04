@@ -34,6 +34,7 @@ import { CreateStageTemplateModal } from "@/features/stages/modals/CreateStageTe
 import { EditStageTemplateModal } from "@/features/stages/modals/EditStageTemplateModal";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { showErrorNotification } from "@/shared/lib/notifications";
+import { ApiError } from "@/services/api";
 import type { StageTemplateDTO } from "@/shared/types/api";
 
 const RECOMMENDED_STAGES = [
@@ -66,8 +67,12 @@ export default function StageTemplates() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stage-templates"] });
     },
-    onError: () => {
-      showErrorNotification(t("stages.deleteError"));
+    onError: (error: Error) => {
+      if (error instanceof ApiError && error.code === "STAGE_TEMPLATE_IN_USE") {
+        showErrorNotification(t("stages.deleteInUseError"));
+      } else {
+        showErrorNotification(t("stages.deleteError"));
+      }
     },
   });
 

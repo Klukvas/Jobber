@@ -261,6 +261,8 @@ func (m *MockCommentRepository) Delete(ctx context.Context, userID, commentID st
 	return nil
 }
 
+func strPtr(s string) *string { return &s }
+
 func createTestService() (*ApplicationService, *MockApplicationRepository, *MockStageRepository, *MockTemplateRepository, *MockJobRepository, *MockCompanyRepository, *MockResumeRepository, *MockCommentRepository) {
 	appRepo := &MockApplicationRepository{}
 	stageRepo := &MockStageRepository{}
@@ -301,7 +303,7 @@ func TestApplicationService_Create(t *testing.T) {
 
 		req := &model.CreateApplicationRequest{
 			JobID:    "job-1",
-			ResumeID: "resume-1",
+			ResumeID: strPtr("resume-1"),
 		}
 
 		result, err := svc.Create(context.Background(), userID, req)
@@ -336,7 +338,7 @@ func TestApplicationService_Create(t *testing.T) {
 
 		req := &model.CreateApplicationRequest{
 			JobID:    "job-1",
-			ResumeID: "resume-1",
+			ResumeID: strPtr("resume-1"),
 			Name:     "", // Empty name
 		}
 
@@ -371,7 +373,7 @@ func TestApplicationService_Create(t *testing.T) {
 
 		req := &model.CreateApplicationRequest{
 			JobID:    "job-1",
-			ResumeID: "resume-1",
+			ResumeID: strPtr("resume-1"),
 			Name:     "Custom Application Name",
 		}
 
@@ -379,6 +381,43 @@ func TestApplicationService_Create(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, "Custom Application Name", createdApp.Name)
+	})
+
+	t.Run("creates application without resume", func(t *testing.T) {
+		svc, appRepo, _, _, jobRepo, _, resumeRepo, _ := createTestService()
+
+		resumeRepoCalled := false
+		jobRepo.GetByIDFunc = func(ctx context.Context, uid, jid string) (*jobModel.Job, error) {
+			return &jobModel.Job{ID: jid, Title: "Software Engineer"}, nil
+		}
+
+		resumeRepo.GetByIDFunc = func(ctx context.Context, uid, rid string) (*resumeModel.Resume, error) {
+			resumeRepoCalled = true
+			return &resumeModel.Resume{ID: rid, Title: "My Resume"}, nil
+		}
+
+		appRepo.CreateFunc = func(ctx context.Context, app *model.Application) error {
+			app.ID = "app-1"
+			app.CreatedAt = time.Now()
+			app.UpdatedAt = time.Now()
+			return nil
+		}
+
+		appRepo.GetLastActivityAtFunc = func(ctx context.Context, appID string) (time.Time, error) {
+			return time.Now(), nil
+		}
+
+		req := &model.CreateApplicationRequest{
+			JobID:    "job-1",
+			ResumeID: nil, // no resume
+		}
+
+		result, err := svc.Create(context.Background(), userID, req)
+
+		require.NoError(t, err)
+		assert.Equal(t, "app-1", result.ID)
+		assert.Nil(t, result.Resume)
+		assert.False(t, resumeRepoCalled, "resume repo should not be called when ResumeID is nil")
 	})
 }
 
@@ -393,7 +432,7 @@ func TestApplicationService_GetByID(t *testing.T) {
 			ID:        appID,
 			UserID:    userID,
 			JobID:     "job-1",
-			ResumeID:  "resume-1",
+			ResumeID:  strPtr("resume-1"),
 			Name:      "Test Application",
 			Status:    "active",
 			CreatedAt: time.Now(),
@@ -452,7 +491,7 @@ func TestApplicationService_Update(t *testing.T) {
 			ID:        appID,
 			UserID:    userID,
 			JobID:     "job-1",
-			ResumeID:  "resume-1",
+			ResumeID:  strPtr("resume-1"),
 			Status:    "active",
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
@@ -1252,7 +1291,7 @@ func TestApplicationService_Create_WithAppliedAt(t *testing.T) {
 
 		req := &model.CreateApplicationRequest{
 			JobID:     "job-1",
-			ResumeID:  "resume-1",
+			ResumeID:  strPtr("resume-1"),
 			AppliedAt: appliedAt,
 		}
 

@@ -14,6 +14,7 @@ import (
 	companyModel "github.com/andreypavlenko/jobber/modules/companies/model"
 	companyPorts "github.com/andreypavlenko/jobber/modules/companies/ports"
 	jobPorts "github.com/andreypavlenko/jobber/modules/jobs/ports"
+	resumeModel "github.com/andreypavlenko/jobber/modules/resumes/model"
 	resumePorts "github.com/andreypavlenko/jobber/modules/resumes/ports"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -172,11 +173,14 @@ func (s *ApplicationService) buildApplicationDTO(ctx context.Context, userID str
 		}
 	}
 
-	// Fetch resume
-	resume, err := s.resumeRepo.GetByID(ctx, userID, app.ResumeID)
-	if err != nil {
-		s.log.Warn("failed to fetch resume", zap.String("resume_id", app.ResumeID), zap.Error(err))
-		resume = nil
+	// Fetch resume (optional — may be nil if no resume was attached)
+	var resume *resumeModel.Resume
+	if app.ResumeID != nil {
+		if r, fetchErr := s.resumeRepo.GetByID(ctx, userID, *app.ResumeID); fetchErr != nil {
+			s.log.Warn("failed to fetch resume", zap.String("resume_id", *app.ResumeID), zap.Error(fetchErr))
+		} else {
+			resume = r
+		}
 	}
 
 	// Get last activity
