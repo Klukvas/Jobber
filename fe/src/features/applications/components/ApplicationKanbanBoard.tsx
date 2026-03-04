@@ -20,6 +20,7 @@ import {
 } from "@/shared/lib/notifications";
 import { ApplicationKanbanColumn } from "./ApplicationKanbanColumn";
 import { ApplicationKanbanCard } from "./ApplicationKanbanCard";
+import { ApplicationMobileAccordion } from "./ApplicationMobileAccordion";
 import type {
   ApplicationDTO,
   ApplicationStatus,
@@ -257,40 +258,54 @@ export function ApplicationKanbanBoard({
         </div>
       </div>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
-      >
-        <div className="relative flex gap-4 min-h-[calc(100vh-16rem)] overflow-x-auto pb-2 snap-x snap-mandatory md:snap-none scroll-pl-0">
-          {columns.map((col) => (
-            <ApplicationKanbanColumn
-              key={col.id}
-              columnId={col.id}
-              label={col.label}
-              applications={col.applications}
-              onAddComment={onAddComment}
-              onAddStage={onAddStage}
-              onChangeStatus={onChangeStatus}
-            />
-          ))}
-        </div>
+      {/* Mobile accordion — replaces horizontal board on small screens */}
+      <div className="md:hidden">
+        <ApplicationMobileAccordion
+          key={groupBy}
+          columns={columns}
+          onAddComment={onAddComment}
+          onAddStage={onAddStage}
+          onChangeStatus={onChangeStatus}
+        />
+      </div>
 
-        <DragOverlay>
-          {activeApp ? (
-            <div className="w-[240px]">
-              <ApplicationKanbanCard
-                application={activeApp}
-                onAddComment={() => {}}
-                onAddStage={() => {}}
-                onChangeStatus={() => {}}
+      {/* Desktop kanban with drag-and-drop */}
+      <div className="hidden md:block">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
+          <div className="relative flex gap-4 min-h-[calc(100vh-16rem)] overflow-x-auto pb-2">
+            {columns.map((col) => (
+              <ApplicationKanbanColumn
+                key={col.id}
+                columnId={col.id}
+                label={col.label}
+                applications={col.applications}
+                onAddComment={onAddComment}
+                onAddStage={onAddStage}
+                onChangeStatus={onChangeStatus}
               />
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+            ))}
+          </div>
+
+          <DragOverlay>
+            {activeApp ? (
+              <div className="w-[240px]">
+                <ApplicationKanbanCard
+                  application={activeApp}
+                  onAddComment={() => {}}
+                  onAddStage={() => {}}
+                  onChangeStatus={() => {}}
+                />
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      </div>
     </div>
   );
 }

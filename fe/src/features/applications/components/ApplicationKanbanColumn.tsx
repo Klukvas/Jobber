@@ -37,7 +37,7 @@ export const ApplicationKanbanColumn = memo(function ApplicationKanbanColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col rounded-lg border border-t-4 bg-muted/30 min-w-[75vw] sm:min-w-[280px] flex-1 flex-shrink-0 snap-start ${colorClass} ${
+      className={`flex flex-col rounded-lg border border-t-4 bg-muted/30 min-w-[280px] flex-1 flex-shrink-0 ${colorClass} ${
         isOver ? "ring-2 ring-primary/30 bg-primary/5" : ""
       }`}
     >
