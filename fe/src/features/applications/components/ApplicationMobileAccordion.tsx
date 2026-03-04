@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, memo } from "react";
+import { useState, useCallback, useMemo, memo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -60,15 +60,13 @@ export function ApplicationMobileAccordion({
     defaultOpenIds(columns),
   );
 
-  // Re-sync when columns change (e.g. stage templates finish loading) and
-  // the current openIds no longer intersect with the available column IDs.
-  useEffect(() => {
+  // Derive effective open IDs at render time — avoids setState-in-effect lint rule.
+  // Falls back to the default open column if none of the stored IDs are valid.
+  const effectiveOpenIds = useMemo(() => {
     const currentIds = new Set(columns.map((c) => c.id));
-    setOpenIds((prev) => {
-      const hasValidOpen = [...prev].some((id) => currentIds.has(id));
-      return hasValidOpen ? prev : defaultOpenIds(columns);
-    });
-  }, [columns]);
+    const valid = new Set([...openIds].filter((id) => currentIds.has(id)));
+    return valid.size > 0 ? valid : defaultOpenIds(columns);
+  }, [openIds, columns]);
 
   const toggle = useCallback((id: string) => {
     setOpenIds((prev) => {
@@ -82,7 +80,7 @@ export function ApplicationMobileAccordion({
   return (
     <div className="space-y-2">
       {columns.map((col) => {
-        const isOpen = openIds.has(col.id);
+        const isOpen = effectiveOpenIds.has(col.id);
         const colorClass =
           STATUS_LEFT_BORDER_COLORS[col.id] ?? "border-l-purple-500";
         const headerId = `accordion-header-${col.id}`;

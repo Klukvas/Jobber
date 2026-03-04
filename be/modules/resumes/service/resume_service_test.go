@@ -489,7 +489,7 @@ func TestResume_ToDTOWithCounts(t *testing.T) {
 	// Test with applications
 	dto := resume.ToDTOWithCounts(5)
 	assert.Equal(t, 5, dto.ApplicationsCount)
-	assert.False(t, dto.CanDelete) // Cannot delete if has applications
+	assert.True(t, dto.CanDelete) // Always deletable — deletion NULLs FK references in applications
 
 	// Test without applications
 	dto = resume.ToDTOWithCounts(0)
