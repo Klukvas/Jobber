@@ -2,15 +2,8 @@ import { memo } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { useTranslation } from "react-i18next";
 import { ApplicationKanbanCard } from "./ApplicationKanbanCard";
+import { STATUS_TOP_BORDER_COLORS } from "../lib/applicationStatusColors";
 import type { ApplicationDTO } from "@/shared/types/api";
-
-const COLUMN_COLORS: Record<string, string> = {
-  active: "border-t-green-500",
-  on_hold: "border-t-yellow-500",
-  offer: "border-t-blue-500",
-  rejected: "border-t-red-500",
-  archived: "border-t-gray-500",
-};
 
 interface ApplicationKanbanColumnProps {
   columnId: string;
@@ -32,7 +25,8 @@ export const ApplicationKanbanColumn = memo(function ApplicationKanbanColumn({
   const { t } = useTranslation();
   const { isOver, setNodeRef } = useDroppable({ id: columnId });
 
-  const colorClass = COLUMN_COLORS[columnId] ?? "border-t-purple-500";
+  const colorClass =
+    STATUS_TOP_BORDER_COLORS[columnId] ?? "border-t-purple-500";
 
   return (
     <div

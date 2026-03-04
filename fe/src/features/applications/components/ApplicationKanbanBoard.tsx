@@ -20,7 +20,10 @@ import {
 } from "@/shared/lib/notifications";
 import { ApplicationKanbanColumn } from "./ApplicationKanbanColumn";
 import { ApplicationKanbanCard } from "./ApplicationKanbanCard";
-import { ApplicationMobileAccordion } from "./ApplicationMobileAccordion";
+import {
+  ApplicationMobileAccordion,
+  type MobileColumnData,
+} from "./ApplicationMobileAccordion";
 import type {
   ApplicationDTO,
   ApplicationStatus,
@@ -310,11 +313,8 @@ export function ApplicationKanbanBoard({
   );
 }
 
-interface ColumnData {
-  id: string;
-  label: string;
-  applications: ApplicationDTO[];
-}
+// ColumnData is the same shape as MobileColumnData — re-export for consumers
+export type { MobileColumnData as ColumnData };
 
 const STATUS_I18N_MAP: Record<ApplicationStatus, string> = {
   active: "active",
@@ -327,7 +327,7 @@ const STATUS_I18N_MAP: Record<ApplicationStatus, string> = {
 function buildStatusColumns(
   applications: ApplicationDTO[],
   t: (key: string) => string,
-): ColumnData[] {
+): MobileColumnData[] {
   return STATUS_COLUMNS.map((status) => ({
     id: status,
     label: t(`applications.board.${STATUS_I18N_MAP[status]}`),
@@ -339,26 +339,19 @@ function buildStageColumns(
   applications: ApplicationDTO[],
   stageTemplates: { id: string; name: string }[],
   t: (key: string) => string,
-): ColumnData[] {
-  const noStageApps = applications.filter((a) => !a.current_stage_name);
-
-  const columns: ColumnData[] = [
+): MobileColumnData[] {
+  return [
     {
       id: NO_STAGE_COLUMN_ID,
       label: t("applications.board.noStage"),
-      applications: noStageApps,
+      applications: applications.filter((a) => !a.current_stage_name),
     },
-  ];
-
-  for (const template of stageTemplates) {
-    columns.push({
+    ...stageTemplates.map((template) => ({
       id: template.id,
       label: template.name,
       applications: applications.filter(
         (a) => a.current_stage_name === template.name,
       ),
-    });
-  }
-
-  return columns;
+    })),
+  ];
 }
