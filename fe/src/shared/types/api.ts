@@ -96,7 +96,7 @@ export interface ApplicationDTO {
 
 export interface CreateApplicationRequest {
   job_id: string;
-  resume_id: string;
+  resume_id?: string;
   name: string;
   applied_at?: string;
 }
