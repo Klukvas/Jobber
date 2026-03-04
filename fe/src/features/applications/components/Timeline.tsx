@@ -29,6 +29,7 @@ import {
 import { UpdateStageStatusModal } from "../modals/UpdateStageStatusModal";
 import { AddCommentModal } from "../modals/AddCommentModal";
 import { ScheduleStageModal } from "@/features/calendar/modals/ScheduleStageModal";
+import { FEATURES } from "@/shared/lib/features";
 
 interface TimelineProps {
   stages: ApplicationStageDTO[];
@@ -271,19 +272,21 @@ export function Timeline({
                             <MessageSquare className="h-4 w-4" />
                             {t("applications.addComment")}
                           </button>
-                          <button
-                            onClick={() => {
-                              setScheduleStage({
-                                id: stage.id,
-                                name: stage.stage_name,
-                              });
-                              setMenuOpen(null);
-                            }}
-                            className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-accent"
-                          >
-                            <CalendarPlus className="h-4 w-4" />
-                            {t("applications.schedule.button")}
-                          </button>
+                          {FEATURES.GOOGLE_CALENDAR && (
+                            <button
+                              onClick={() => {
+                                setScheduleStage({
+                                  id: stage.id,
+                                  name: stage.stage_name,
+                                });
+                                setMenuOpen(null);
+                              }}
+                              className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-accent"
+                            >
+                              <CalendarPlus className="h-4 w-4" />
+                              {t("applications.schedule.button")}
+                            </button>
+                          )}
                           <button
                             onClick={() => handleDeleteClick(stage)}
                             className="flex w-full items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-accent"

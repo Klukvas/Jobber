@@ -461,4 +461,20 @@ MIT License - See LICENSE file for details
 
 ---
 
+---
+
+## 🚧 Hidden Features (implemented but not visible to users)
+
+### Google Calendar Integration
+**Flag:** `fe/src/shared/lib/features.ts` → `FEATURES.GOOGLE_CALENDAR = false`
+
+Fully implemented — users can connect Google Calendar in Settings and schedule interviews directly from application stages. Hidden because the OAuth app hasn't passed Google's verification process (unverified apps show "Access blocked" to all users).
+
+**To re-enable:**
+1. Google Cloud Console → OAuth consent screen → **Publish App**
+2. Set `FEATURES.GOOGLE_CALENDAR = true` in `fe/src/shared/lib/features.ts`
+3. Deploy
+
+---
+
 **Built with ❤️ for job seekers**

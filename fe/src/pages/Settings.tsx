@@ -4,6 +4,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { authService } from "@/services/authService";
 import { calendarService } from "@/services/calendarService";
+import { FEATURES } from "@/shared/lib/features";
 import { subscriptionService } from "@/services/subscriptionService";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
@@ -59,6 +60,7 @@ export default function Settings() {
   const { data: calendarStatus } = useQuery({
     queryKey: ["calendar-status"],
     queryFn: calendarService.getStatus,
+    enabled: FEATURES.GOOGLE_CALENDAR,
   });
 
   const connectMutation = useMutation({
@@ -87,7 +89,9 @@ export default function Settings() {
   });
 
   // Handle OAuth callback result from URL params
-  const calendarParam = searchParams.get("calendar");
+  const calendarParam = FEATURES.GOOGLE_CALENDAR
+    ? searchParams.get("calendar")
+    : null;
   const subscriptionParam = searchParams.get("subscription");
   useEffect(() => {
     if (calendarParam === "connected") {
@@ -295,50 +299,52 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("settings.calendar.title")}</CardTitle>
-          <CardDescription>
-            {t("settings.calendar.description")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {calendarStatus?.connected ? (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-                <span className="text-sm">
-                  {t("settings.calendar.connected")}
-                  {calendarStatus.email && (
-                    <span className="text-muted-foreground ml-1">
-                      ({calendarStatus.email})
-                    </span>
-                  )}
-                </span>
+      {FEATURES.GOOGLE_CALENDAR && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("settings.calendar.title")}</CardTitle>
+            <CardDescription>
+              {t("settings.calendar.description")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {calendarStatus?.connected ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+                  <span className="text-sm">
+                    {t("settings.calendar.connected")}
+                    {calendarStatus.email && (
+                      <span className="text-muted-foreground ml-1">
+                        ({calendarStatus.email})
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => disconnectMutation.mutate()}
+                  disabled={disconnectMutation.isPending}
+                >
+                  {disconnectMutation.isPending
+                    ? t("common.loading")
+                    : t("settings.calendar.disconnect")}
+                </Button>
               </div>
+            ) : (
               <Button
-                variant="outline"
-                size="sm"
-                onClick={() => disconnectMutation.mutate()}
-                disabled={disconnectMutation.isPending}
+                onClick={() => connectMutation.mutate()}
+                disabled={connectMutation.isPending}
               >
-                {disconnectMutation.isPending
+                {connectMutation.isPending
                   ? t("common.loading")
-                  : t("settings.calendar.disconnect")}
+                  : t("settings.calendar.connect")}
               </Button>
-            </div>
-          ) : (
-            <Button
-              onClick={() => connectMutation.mutate()}
-              disabled={connectMutation.isPending}
-            >
-              {connectMutation.isPending
-                ? t("common.loading")
-                : t("settings.calendar.connect")}
-            </Button>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
