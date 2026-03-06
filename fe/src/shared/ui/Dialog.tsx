@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 
@@ -86,10 +87,7 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         tabIndex={-1}
-        className={cn(
-          "relative z-50 w-full max-w-lg outline-none",
-          className,
-        )}
+        className={cn("relative z-50 w-full max-w-lg outline-none", className)}
         onClick={(e) => e.stopPropagation()}
       >
         {children}
@@ -104,6 +102,7 @@ export function DialogContent({
   onClose,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & { onClose?: () => void }) {
+  const { t } = useTranslation();
   return (
     <div
       className={cn(
@@ -116,7 +115,7 @@ export function DialogContent({
       {onClose && (
         <button
           onClick={onClose}
-          aria-label="Close"
+          aria-label={t("common.close")}
           className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
         >
           <X className="h-4 w-4" />

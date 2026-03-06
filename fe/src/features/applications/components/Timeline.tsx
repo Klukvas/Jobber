@@ -249,7 +249,7 @@ export function Timeline({
                       onClick={() =>
                         setMenuOpen(menuOpen === stage.id ? null : stage.id)
                       }
-                      title={t("applications.stageOptions")}
+                      aria-label={t("applications.stageOptions")}
                     >
                       <MoreVertical className="h-4 w-4" />
                     </Button>

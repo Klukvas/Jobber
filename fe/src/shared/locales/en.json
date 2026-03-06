@@ -25,7 +25,8 @@
     "inactive": "Inactive",
     "backToHome": "Back to home",
     "addToFavorites": "Add to favorites",
-    "removeFromFavorites": "Remove from favorites"
+    "removeFromFavorites": "Remove from favorites",
+    "changeLanguage": "Change language"
   },
   "auth": {
     "login": "Login",
@@ -508,7 +509,7 @@
     "createSuccess": "Stage template created successfully",
     "createError": "Failed to create stage template",
     "stageNamePlaceholder": "e.g., Applied, Phone Screen, Interview, Offer",
-    "orderPlaceholder": "e.g., 1, 2, 3...",
+    "orderPlaceholder": "e.g., 0, 1, 2...",
     "orderDescription": "The position of this stage in the application process (0-based)",
     "deleteStage": "Delete Stage",
     "deleteConfirm": "Are you sure you want to delete the stage \"{{name}}\"?",

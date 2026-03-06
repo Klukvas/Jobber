@@ -15,7 +15,7 @@ interface LanguageSwitcherProps {
 }
 
 export function LanguageSwitcher({ iconSize = "md" }: LanguageSwitcherProps) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -38,7 +38,7 @@ export function LanguageSwitcher({ iconSize = "md" }: LanguageSwitcherProps) {
         variant="ghost"
         size="icon"
         onClick={() => setOpen(!open)}
-        aria-label="Change language"
+        aria-label={t("common.changeLanguage")}
         aria-haspopup="menu"
         aria-expanded={open}
         className={iconSize === "sm" ? "h-9 w-9" : undefined}
@@ -47,10 +47,7 @@ export function LanguageSwitcher({ iconSize = "md" }: LanguageSwitcherProps) {
       </Button>
       {open && (
         <>
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setOpen(false)}
-          />
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div
             role="menu"
             className="absolute right-0 top-full z-50 mt-2 w-32 rounded-md border bg-popover p-1 shadow-md"

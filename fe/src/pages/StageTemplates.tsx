@@ -239,6 +239,7 @@ export default function StageTemplates() {
                     variant="ghost"
                     size="icon"
                     onClick={() => setEditingTemplate(stage)}
+                    aria-label={t("common.edit")}
                   >
                     <Edit2 className="h-4 w-4" />
                   </Button>
@@ -247,6 +248,7 @@ export default function StageTemplates() {
                     size="icon"
                     onClick={() => handleDelete(stage)}
                     disabled={deleteMutation.isPending}
+                    aria-label={t("common.delete")}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

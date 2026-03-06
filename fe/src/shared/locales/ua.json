@@ -25,7 +25,8 @@
     "inactive": "Неактивне",
     "backToHome": "На головну",
     "addToFavorites": "Додати до обраного",
-    "removeFromFavorites": "Прибрати з обраного"
+    "removeFromFavorites": "Прибрати з обраного",
+    "changeLanguage": "Змінити мову"
   },
   "auth": {
     "login": "Увійти",
@@ -368,7 +369,7 @@
     "createSuccess": "Шаблон етапу успішно створено",
     "createError": "Не вдалося створити шаблон етапу",
     "stageNamePlaceholder": "напр., Подано, Телефонний скринінг, Інтерв'ю, Оффер",
-    "orderPlaceholder": "напр., 1, 2, 3...",
+    "orderPlaceholder": "напр., 0, 1, 2...",
     "orderDescription": "Позиція цього етапу в процесі подання заявок (починаючи з 0)",
     "deleteStage": "Видалити етап",
     "deleteConfirm": "Ви впевнені, що хочете видалити етап \"{{name}}\"?",
