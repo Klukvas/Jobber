@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 interface SidebarState {
   isExpanded: boolean;
@@ -15,11 +15,13 @@ export const useSidebarStore = create<SidebarState>()(
       isExpanded: true,
       isMobileOpen: false,
       toggleExpanded: () => set((state) => ({ isExpanded: !state.isExpanded })),
-      toggleMobile: () => set((state) => ({ isMobileOpen: !state.isMobileOpen })),
+      toggleMobile: () =>
+        set((state) => ({ isMobileOpen: !state.isMobileOpen })),
       closeMobile: () => set({ isMobileOpen: false }),
     }),
     {
-      name: 'jobber-sidebar',
-    }
-  )
+      name: "jobber-sidebar",
+      partialize: (state) => ({ isExpanded: state.isExpanded }),
+    },
+  ),
 );

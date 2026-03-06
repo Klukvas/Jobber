@@ -17,6 +17,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { Button } from "@/shared/ui/Button";
 import {
   Dialog,
@@ -43,6 +44,7 @@ export function Timeline({
   stageComments,
 }: TimelineProps) {
   const { t } = useTranslation();
+  const dateLocale = useDateLocale();
   const queryClient = useQueryClient();
   const [selectedStage, setSelectedStage] =
     useState<ApplicationStageDTO | null>(null);
@@ -195,6 +197,7 @@ export function Timeline({
                   <p className="text-xs text-muted-foreground mt-2">
                     {formatDistanceToNow(new Date(comment.created_at), {
                       addSuffix: true,
+                      locale: dateLocale,
                     })}
                   </p>
                 </div>
@@ -304,6 +307,7 @@ export function Timeline({
                 {t("applications.started")}{" "}
                 {formatDistanceToNow(new Date(stage.started_at), {
                   addSuffix: true,
+                  locale: dateLocale,
                 })}
               </p>
               {stage.completed_at && (
@@ -311,6 +315,7 @@ export function Timeline({
                   {t("applications.completed")}{" "}
                   {formatDistanceToNow(new Date(stage.completed_at), {
                     addSuffix: true,
+                    locale: dateLocale,
                   })}
                 </p>
               )}

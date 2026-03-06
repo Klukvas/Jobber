@@ -25,6 +25,7 @@ import {
   Kanban,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { CreateApplicationModal } from "@/features/applications/modals/CreateApplicationModal";
 import { AddCommentModal } from "@/features/applications/modals/AddCommentModal";
 import { AddStageModal } from "@/features/applications/modals/AddStageModal";
@@ -47,6 +48,7 @@ function getInitialViewMode(): ViewMode {
 
 export default function Applications() {
   const { t } = useTranslation();
+  const dateLocale = useDateLocale();
   usePageMeta({ titleKey: "applications.title", noindex: true });
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [page, setPage] = useState(0);
@@ -282,7 +284,7 @@ export default function Applications() {
                               );
                             }}
                             className="p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground"
-                            aria-label="Application actions"
+                            aria-label={t("applications.actionsMenu")}
                           >
                             <MoreVertical className="h-4 w-4" />
                           </button>
@@ -369,6 +371,7 @@ export default function Applications() {
                               new Date(application.applied_at),
                               {
                                 addSuffix: true,
+                                locale: dateLocale,
                               },
                             )}
                           </span>
@@ -382,6 +385,7 @@ export default function Applications() {
                                 new Date(application.last_activity_at),
                                 {
                                   addSuffix: true,
+                                  locale: dateLocale,
                                 },
                               )}
                             </span>

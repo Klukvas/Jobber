@@ -26,7 +26,11 @@
     "backToHome": "На головну",
     "addToFavorites": "Додати до обраного",
     "removeFromFavorites": "Прибрати з обраного",
-    "changeLanguage": "Змінити мову"
+    "changeLanguage": "Змінити мову",
+    "openMenu": "Відкрити меню",
+    "collapseSidebar": "Згорнути бічну панель",
+    "expandSidebar": "Розгорнути бічну панель",
+    "closeSidebar": "Закрити бічну панель"
   },
   "auth": {
     "login": "Увійти",
@@ -224,6 +228,7 @@
     "sortCreatedDate": "Дата створення",
     "sortTitle": "Назва",
     "sortActiveStatus": "Статус активності",
+    "actionsMenu": "Дії з резюме",
     "cannotDeleteInUse": "Неможливо видалити резюме, яке використовується у заявках",
     "cloudStorage": "Хмарне сховище (PDF)",
     "generatingLink": "Генерація посилання...",
@@ -256,7 +261,14 @@
     "uploadSuccess": "Резюме успішно завантажено",
     "uploadError": "Не вдалося завантажити резюме",
     "onlyPdfAllowed": "Дозволені лише PDF файли",
-    "fileSizeLimit": "Розмір файлу не повинен перевищувати 10 МБ"
+    "fileSizeLimit": "Розмір файлу не повинен перевищувати 10 МБ",
+    "editDescription": "Оновіть інформацію про резюме",
+    "storageType": "Тип сховища",
+    "fileCannotBeChanged": "Файл не можна змінити",
+    "leaveEmptyToRemove": "Залиште порожнім, щоб видалити зовнішнє посилання",
+    "markAsActive": "Позначити як активне резюме",
+    "updateSuccess": "Резюме успішно оновлено",
+    "updateError": "Не вдалося оновити резюме"
   },
   "companies": {
     "title": "Компанії",
@@ -282,11 +294,21 @@
     "statusIdle": "Неактивна",
     "statusActive": "Активна",
     "statusInterviewing": "Співбесіда",
+    "actionsMenu": "Дії з компанією",
     "totalApplications": "Всього заявок:",
     "activeApplications": "Активні:",
     "lastActivity": "Остання активність",
     "noApplicationsYet": "Заявок поки немає",
-    "viewApplications": "Переглянути заявки ({{count}})"
+    "viewApplications": "Переглянути заявки ({{count}})",
+    "createDescription": "Додайте нову компанію для відстеження",
+    "editDescription": "Оновіть інформацію про компанію",
+    "createSuccess": "Компанію успішно створено",
+    "createError": "Не вдалося створити компанію",
+    "updateSuccess": "Компанію успішно оновлено",
+    "updateError": "Не вдалося оновити компанію",
+    "namePlaceholder": "напр., Google, Microsoft, Startup Inc.",
+    "locationPlaceholder": "напр., Київ, Україна",
+    "notesPlaceholder": "Додаткові нотатки про компанію..."
   },
   "jobs": {
     "title": "Вакансії",
@@ -340,6 +362,7 @@
     "noRelatedApplications": "Заявок для цієї вакансії ще немає",
     "viewApplications": "Переглянути заявки",
     "statusArchived": "Архівовано",
+    "actionsMenu": "Дії з вакансією",
     "selectResume": "Оберіть резюме"
   },
   "stages": {

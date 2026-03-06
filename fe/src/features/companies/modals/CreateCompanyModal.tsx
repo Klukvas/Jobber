@@ -44,11 +44,11 @@ function ModalContent({
     mutationFn: companiesService.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["companies"] });
-      showSuccessNotification("Company created successfully");
+      showSuccessNotification(t("companies.createSuccess"));
       onOpenChange(false);
     },
     onError: (error: Error) => {
-      showErrorNotification(error.message || "Failed to create company");
+      showErrorNotification(error.message || t("companies.createError"));
     },
   });
 
@@ -57,11 +57,11 @@ function ModalContent({
       companiesService.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["companies"] });
-      showSuccessNotification("Company updated successfully");
+      showSuccessNotification(t("companies.updateSuccess"));
       onOpenChange(false);
     },
     onError: (error: Error) => {
-      showErrorNotification(error.message || "Failed to update company");
+      showErrorNotification(error.message || t("companies.updateError"));
     },
   });
 
@@ -97,8 +97,8 @@ function ModalContent({
         </DialogTitle>
         <DialogDescription>
           {isEditMode
-            ? "Update company information"
-            : "Add a new company to your database"}
+            ? t("companies.editDescription")
+            : t("companies.createDescription")}
         </DialogDescription>
       </DialogHeader>
       <form onSubmit={handleSubmit}>
@@ -109,7 +109,7 @@ function ModalContent({
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., Google, Microsoft, Startup Inc."
+              placeholder={t("companies.namePlaceholder")}
               required
             />
           </div>
@@ -119,7 +119,7 @@ function ModalContent({
               id="location"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              placeholder="e.g., San Francisco, CA"
+              placeholder={t("companies.locationPlaceholder")}
             />
           </div>
           <div className="space-y-2">
@@ -128,7 +128,7 @@ function ModalContent({
               id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Any additional notes about the company..."
+              placeholder={t("companies.notesPlaceholder")}
               className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>

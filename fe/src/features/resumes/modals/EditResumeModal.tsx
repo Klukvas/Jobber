@@ -46,11 +46,11 @@ function ModalContent({
     }) => resumesService.update(resume.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["resumes"] });
-      showSuccessNotification("Resume updated successfully");
+      showSuccessNotification(t("resumes.updateSuccess"));
       onOpenChange(false);
     },
     onError: (error: Error) => {
-      showErrorNotification(error?.message || "Failed to update resume");
+      showErrorNotification(error?.message || t("resumes.updateError"));
     },
   });
 
@@ -77,34 +77,38 @@ function ModalContent({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Edit Resume</DialogTitle>
-        <DialogDescription>Update your resume information</DialogDescription>
+        <DialogTitle>{t("resumes.edit")}</DialogTitle>
+        <DialogDescription>{t("resumes.editDescription")}</DialogDescription>
       </DialogHeader>
       <form onSubmit={handleSubmit}>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="edit-title">Title *</Label>
+            <Label htmlFor="edit-title">{t("resumes.titleLabel")} *</Label>
             <Input
               id="edit-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., Software Engineer Resume - 2024"
+              placeholder={t("resumes.titlePlaceholder")}
               required
             />
           </div>
 
           {/* Storage Type Indicator */}
           <div className="space-y-2">
-            <Label>Storage Type</Label>
+            <Label>{t("resumes.storageType")}</Label>
             <div className="text-sm text-muted-foreground">
               {resume.storage_type === "s3" ? (
                 <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-md">
-                  <span className="font-medium">Cloud Storage (PDF)</span>
-                  <span className="text-xs">• File cannot be changed</span>
+                  <span className="font-medium">
+                    {t("resumes.cloudStorage")}
+                  </span>
+                  <span className="text-xs">
+                    • {t("resumes.fileCannotBeChanged")}
+                  </span>
                 </div>
               ) : (
                 <span className="px-3 py-2 bg-muted rounded-md inline-block">
-                  External URL
+                  {t("resumes.externalUrl")}
                 </span>
               )}
             </div>
@@ -113,16 +117,16 @@ function ModalContent({
           {/* File URL - Only editable for external resumes */}
           {resume.storage_type === "external" && (
             <div className="space-y-2">
-              <Label htmlFor="edit-fileUrl">File URL</Label>
+              <Label htmlFor="edit-fileUrl">{t("resumes.fileUrlLabel")}</Label>
               <Input
                 id="edit-fileUrl"
                 type="url"
                 value={fileUrl}
                 onChange={(e) => setFileUrl(e.target.value)}
-                placeholder="https://example.com/my-resume.pdf"
+                placeholder={t("resumes.fileUrlPlaceholder")}
               />
               <p className="text-xs text-muted-foreground">
-                Leave empty to remove the external link
+                {t("resumes.leaveEmptyToRemove")}
               </p>
             </div>
           )}
@@ -134,7 +138,7 @@ function ModalContent({
               onCheckedChange={(checked) => setIsActive(checked as boolean)}
             />
             <Label htmlFor="edit-isActive" className="cursor-pointer">
-              Mark as active resume
+              {t("resumes.markAsActive")}
             </Label>
           </div>
         </div>
@@ -153,7 +157,7 @@ function ModalContent({
                 {t("common.loading")}
               </>
             ) : (
-              "Save Changes"
+              t("common.save")
             )}
           </Button>
         </DialogFooter>

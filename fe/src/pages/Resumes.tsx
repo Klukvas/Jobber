@@ -25,6 +25,7 @@ import {
   Link as LinkIcon,
 } from "lucide-react";
 import { format } from "date-fns";
+import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { CreateResumeModal } from "@/features/resumes/modals/CreateResumeModal";
 import { EditResumeModal } from "@/features/resumes/modals/EditResumeModal";
 import { DeleteResumeModal } from "@/features/resumes/modals/DeleteResumeModal";
@@ -37,6 +38,7 @@ type SortDir = "asc" | "desc";
 
 export default function Resumes() {
   const { t } = useTranslation();
+  const dateLocale = useDateLocale();
   usePageMeta({ titleKey: "resumes.title", noindex: true });
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [sortBy, setSortBy] = useState<SortBy>("created_at");
@@ -221,7 +223,7 @@ export default function Resumes() {
                           );
                         }}
                         className="p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground"
-                        aria-label="Resume actions"
+                        aria-label={t("resumes.actionsMenu")}
                       >
                         <MoreVertical className="h-4 w-4" />
                       </button>
@@ -338,7 +340,9 @@ export default function Resumes() {
 
                   <div className="text-sm text-muted-foreground">
                     {t("resumes.created")}{" "}
-                    {format(new Date(resume.created_at), "MMM d, yyyy")}
+                    {format(new Date(resume.created_at), "PPP", {
+                      locale: dateLocale,
+                    })}
                   </div>
                 </CardContent>
               </Card>

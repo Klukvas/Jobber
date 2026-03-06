@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { formatDistanceToNow } from "date-fns";
+import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { jobsService } from "@/services/jobsService";
 import { Button } from "@/shared/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
@@ -40,6 +41,7 @@ const EXTENSION_BANNER_KEY = "jobber-ext-banner-dismissed";
 
 export default function Jobs() {
   const { t } = useTranslation();
+  const dateLocale = useDateLocale();
   const navigate = useNavigate();
   usePageMeta({ titleKey: "jobs.title", noindex: true });
   const queryClient = useQueryClient();
@@ -168,7 +170,7 @@ export default function Jobs() {
       </div>
 
       {showExtBanner && (
-        <div className="flex items-center gap-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3 dark:border-cyan-800 dark:bg-cyan-950">
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3 dark:border-cyan-800 dark:bg-cyan-950">
           <Chrome className="h-5 w-5 shrink-0 text-cyan-600 dark:text-cyan-400" />
           <p className="flex-1 text-sm text-cyan-800 dark:text-cyan-200">
             {t("jobs.extensionBanner")}
@@ -296,7 +298,7 @@ export default function Jobs() {
                             );
                           }}
                           className="p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground"
-                          aria-label="Job actions"
+                          aria-label={t("jobs.actionsMenu")}
                         >
                           <MoreVertical className="h-4 w-4" />
                         </button>
@@ -371,6 +373,7 @@ export default function Jobs() {
                         {t("jobs.createdDate")}{" "}
                         {formatDistanceToNow(new Date(job.created_at), {
                           addSuffix: true,
+                          locale: dateLocale,
                         })}
                       </span>
                     </div>

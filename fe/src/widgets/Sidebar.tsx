@@ -112,7 +112,11 @@ export function Sidebar() {
             <button
               onClick={toggleExpanded}
               className="hidden rounded-md p-2 hover:bg-accent md:block"
-              aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+              aria-label={
+                isExpanded
+                  ? t("common.collapseSidebar")
+                  : t("common.expandSidebar")
+              }
             >
               {isExpanded ? (
                 <ChevronLeft className="h-5 w-5" />
@@ -123,7 +127,7 @@ export function Sidebar() {
             <button
               onClick={closeMobile}
               className="rounded-md p-2 hover:bg-accent md:hidden"
-              aria-label="Close sidebar"
+              aria-label={t("common.closeSidebar")}
             >
               <X className="h-5 w-5" />
             </button>

@@ -26,7 +26,11 @@
     "backToHome": "На главную",
     "addToFavorites": "Добавить в избранное",
     "removeFromFavorites": "Убрать из избранного",
-    "changeLanguage": "Сменить язык"
+    "changeLanguage": "Сменить язык",
+    "openMenu": "Открыть меню",
+    "collapseSidebar": "Свернуть боковую панель",
+    "expandSidebar": "Развернуть боковую панель",
+    "closeSidebar": "Закрыть боковую панель"
   },
   "auth": {
     "login": "Войти",
@@ -224,6 +228,7 @@
     "sortCreatedDate": "Дата создания",
     "sortTitle": "Название",
     "sortActiveStatus": "Статус активности",
+    "actionsMenu": "Действия с резюме",
     "cannotDeleteInUse": "Невозможно удалить резюме, используемое в заявках",
     "cloudStorage": "Облачное хранилище (PDF)",
     "generatingLink": "Генерация ссылки...",
@@ -256,7 +261,14 @@
     "uploadSuccess": "Резюме успешно загружено",
     "uploadError": "Не удалось загрузить резюме",
     "onlyPdfAllowed": "Допускаются только PDF файлы",
-    "fileSizeLimit": "Размер файла не должен превышать 10 МБ"
+    "fileSizeLimit": "Размер файла не должен превышать 10 МБ",
+    "editDescription": "Обновите информацию о резюме",
+    "storageType": "Тип хранилища",
+    "fileCannotBeChanged": "Файл нельзя изменить",
+    "leaveEmptyToRemove": "Оставьте пустым, чтобы удалить внешнюю ссылку",
+    "markAsActive": "Отметить как активное резюме",
+    "updateSuccess": "Резюме успешно обновлено",
+    "updateError": "Не удалось обновить резюме"
   },
   "companies": {
     "title": "Компании",
@@ -279,14 +291,24 @@
     "sortName": "Название",
     "sortLastActivity": "Последняя активность",
     "sortApplications": "Заявки",
-    "statusIdle": "Неактивна",
-    "statusActive": "Активна",
+    "statusIdle": "Неактивная",
+    "statusActive": "Активная",
     "statusInterviewing": "Собеседование",
+    "actionsMenu": "Действия с компанией",
     "totalApplications": "Всего заявок:",
     "activeApplications": "Активные:",
     "lastActivity": "Последняя активность",
     "noApplicationsYet": "Заявок пока нет",
-    "viewApplications": "Просмотреть заявки ({{count}})"
+    "viewApplications": "Просмотреть заявки ({{count}})",
+    "createDescription": "Добавьте новую компанию для отслеживания",
+    "editDescription": "Обновите информацию о компании",
+    "createSuccess": "Компания успешно создана",
+    "createError": "Не удалось создать компанию",
+    "updateSuccess": "Компания успешно обновлена",
+    "updateError": "Не удалось обновить компанию",
+    "namePlaceholder": "напр., Google, Microsoft, Startup Inc.",
+    "locationPlaceholder": "напр., Москва, Россия",
+    "notesPlaceholder": "Дополнительные заметки о компании..."
   },
   "jobs": {
     "title": "Вакансии",
@@ -340,6 +362,7 @@
     "noRelatedApplications": "Заявок для этой вакансии пока нет",
     "viewApplications": "Просмотреть заявки",
     "statusArchived": "В архиве",
+    "actionsMenu": "Действия с вакансией",
     "selectResume": "Выберите резюме"
   },
   "settings": {

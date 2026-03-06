@@ -22,6 +22,7 @@ import {
   Heart,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { CreateCompanyModal } from "@/features/companies/modals/CreateCompanyModal";
 import { DeleteCompanyDialog } from "@/features/companies/modals/DeleteCompanyDialog";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
@@ -32,6 +33,7 @@ type SortDir = "asc" | "desc";
 
 export default function Companies() {
   const { t } = useTranslation();
+  const dateLocale = useDateLocale();
   usePageMeta({ titleKey: "companies.title", noindex: true });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -285,7 +287,7 @@ export default function Companies() {
                                 );
                               }}
                               className="p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground"
-                              aria-label="Company actions"
+                              aria-label={t("companies.actionsMenu")}
                             >
                               <MoreVertical className="h-4 w-4" />
                             </button>
@@ -365,6 +367,7 @@ export default function Companies() {
                                   new Date(company.last_activity_at),
                                   {
                                     addSuffix: true,
+                                    locale: dateLocale,
                                   },
                                 )}
                               </span>

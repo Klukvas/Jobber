@@ -128,7 +128,9 @@ export function HomeNavbar({
             variant="ghost"
             size="icon"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
-            aria-label="Toggle mobile menu"
+            aria-label={
+              mobileMenuOpen ? t("common.close") : t("common.openMenu")
+            }
             className="h-9 w-9 md:hidden"
           >
             {mobileMenuOpen ? (

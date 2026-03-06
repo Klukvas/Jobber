@@ -21,6 +21,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { Timeline } from "@/features/applications/components/Timeline";
 import { AddStageModal } from "@/features/applications/modals/AddStageModal";
 import { UpdateApplicationStatusModal } from "@/features/applications/modals/UpdateApplicationStatusModal";
@@ -36,6 +37,7 @@ export default function ApplicationDetail() {
   usePageMeta({ titleKey: "applications.details", noindex: true });
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
+  const dateLocale = useDateLocale();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isAddStageModalOpen, setIsAddStageModalOpen] = useState(false);
@@ -202,6 +204,7 @@ export default function ApplicationDetail() {
               {t("applications.applied")}{" "}
               {formatDistanceToNow(new Date(application.applied_at), {
                 addSuffix: true,
+                locale: dateLocale,
               })}
             </span>
           </div>
@@ -213,7 +216,7 @@ export default function ApplicationDetail() {
                 </p>
                 <StatusBadge status={application.status as ApplicationStatus} />
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -263,6 +266,7 @@ export default function ApplicationDetail() {
                     <p className="text-xs text-muted-foreground mt-2">
                       {formatDistanceToNow(new Date(comment.created_at), {
                         addSuffix: true,
+                        locale: dateLocale,
                       })}
                     </p>
                   </div>

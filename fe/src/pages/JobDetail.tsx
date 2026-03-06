@@ -29,6 +29,7 @@ import {
   Heart,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 import {
   showSuccessNotification,
@@ -71,6 +72,7 @@ export default function JobDetail() {
   usePageMeta({ titleKey: "jobs.details", noindex: true });
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
+  const dateLocale = useDateLocale();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -370,6 +372,7 @@ export default function JobDetail() {
               {t("jobs.createdDate")}{" "}
               {formatDistanceToNow(new Date(job.created_at), {
                 addSuffix: true,
+                locale: dateLocale,
               })}
             </span>
           </div>

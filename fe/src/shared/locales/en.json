@@ -26,7 +26,11 @@
     "backToHome": "Back to home",
     "addToFavorites": "Add to favorites",
     "removeFromFavorites": "Remove from favorites",
-    "changeLanguage": "Change language"
+    "changeLanguage": "Change language",
+    "openMenu": "Open menu",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
+    "closeSidebar": "Close sidebar"
   },
   "auth": {
     "login": "Login",
@@ -224,6 +228,7 @@
     "sortCreatedDate": "Created Date",
     "sortTitle": "Title",
     "sortActiveStatus": "Active Status",
+    "actionsMenu": "Resume actions",
     "cannotDeleteInUse": "Cannot delete resume used in applications",
     "cloudStorage": "Cloud Storage (PDF)",
     "generatingLink": "Generating link...",
@@ -256,7 +261,14 @@
     "uploadSuccess": "Resume uploaded successfully",
     "uploadError": "Failed to upload resume",
     "onlyPdfAllowed": "Only PDF files are allowed",
-    "fileSizeLimit": "File size must be less than 10MB"
+    "fileSizeLimit": "File size must be less than 10MB",
+    "editDescription": "Update your resume information",
+    "storageType": "Storage Type",
+    "fileCannotBeChanged": "File cannot be changed",
+    "leaveEmptyToRemove": "Leave empty to remove the external link",
+    "markAsActive": "Mark as active resume",
+    "updateSuccess": "Resume updated successfully",
+    "updateError": "Failed to update resume"
   },
   "companies": {
     "title": "Companies",
@@ -282,11 +294,21 @@
     "statusIdle": "Idle",
     "statusActive": "Active",
     "statusInterviewing": "Interviewing",
+    "actionsMenu": "Company actions",
     "totalApplications": "Total Applications:",
     "activeApplications": "Active:",
     "lastActivity": "Last activity",
     "noApplicationsYet": "No applications yet",
-    "viewApplications": "View Applications ({{count}})"
+    "viewApplications": "View Applications ({{count}})",
+    "createDescription": "Add a new company to track",
+    "editDescription": "Update company information",
+    "createSuccess": "Company created successfully",
+    "createError": "Failed to create company",
+    "updateSuccess": "Company updated successfully",
+    "updateError": "Failed to update company",
+    "namePlaceholder": "e.g., Google, Microsoft, Startup Inc.",
+    "locationPlaceholder": "e.g., San Francisco, CA",
+    "notesPlaceholder": "Any additional notes about the company..."
   },
   "jobs": {
     "title": "Jobs",
@@ -340,6 +362,7 @@
     "noRelatedApplications": "No applications for this job yet",
     "viewApplications": "View Applications",
     "statusArchived": "Archived",
+    "actionsMenu": "Job actions",
     "selectResume": "Select a resume"
   },
   "settings": {

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { format } from "date-fns";
+import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { stageTemplatesService } from "@/services/stageTemplatesService";
 import { Button } from "@/shared/ui/Button";
 import {
@@ -49,8 +51,9 @@ const RECOMMENDED_STAGES = [
 
 export default function StageTemplates() {
   usePageMeta({ titleKey: "nav.stages", noindex: true });
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
+  const dateLocale = useDateLocale();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] =
     useState<StageTemplateDTO | null>(null);
@@ -107,17 +110,24 @@ export default function StageTemplates() {
     const existingNames = new Set(stages.map((s) => s.name.toLowerCase()));
 
     RECOMMENDED_STAGES.forEach((rec) => {
-      const name = t(rec.nameKey);
-      if (!existingNames.has(name.toLowerCase())) {
+      const allNames = getAllTranslations(rec.nameKey);
+      const alreadyExists = allNames.some((n) => existingNames.has(n));
+      if (!alreadyExists) {
+        const name = t(rec.nameKey);
         createMutation.mutate({ name, order: rec.order });
       }
     });
   };
 
+  const getAllTranslations = (nameKey: string) => {
+    const languages = ["en", "ua", "ru"];
+    return languages.map((lang) => i18n.getFixedT(lang)(nameKey).toLowerCase());
+  };
+
   const isRecommendedAdded = (nameKey: string) => {
     const stages = data?.items || [];
-    const name = t(nameKey).toLowerCase();
-    return stages.some((s) => s.name.toLowerCase() === name);
+    const allNames = getAllTranslations(nameKey);
+    return stages.some((s) => allNames.includes(s.name.toLowerCase()));
   };
 
   if (isLoading) {
@@ -257,7 +267,9 @@ export default function StageTemplates() {
               <CardContent className="pt-0 pb-3">
                 <p className="text-sm text-muted-foreground">
                   {t("stages.created", {
-                    date: new Date(stage.created_at).toLocaleDateString(),
+                    date: format(new Date(stage.created_at), "PP", {
+                      locale: dateLocale,
+                    }),
                   })}
                 </p>
               </CardContent>

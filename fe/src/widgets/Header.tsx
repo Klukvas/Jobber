@@ -18,7 +18,7 @@ export function Header() {
         size="icon"
         onClick={toggleMobile}
         className="md:hidden"
-        aria-label="Open menu"
+        aria-label={t("common.openMenu")}
       >
         <Menu className="h-5 w-5" />
       </Button>
