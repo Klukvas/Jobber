@@ -1,4 +1,6 @@
 import { useTranslation } from "react-i18next";
+import { format } from "date-fns";
+import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { useThemeStore } from "@/stores/themeStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -28,6 +30,7 @@ import { PricingModal } from "@/features/subscription/components/PricingModal";
 
 export default function Settings() {
   const { t, i18n } = useTranslation();
+  const dateLocale = useDateLocale();
   usePageMeta({ titleKey: "settings.title", noindex: true });
   const { theme, setTheme } = useThemeStore();
   const clearAuth = useAuthStore((state) => state.clearAuth);
@@ -194,7 +197,9 @@ export default function Settings() {
               {subscription?.cancel_at && (
                 <p className="text-sm text-muted-foreground">
                   {t("settings.subscription.cancelledOn", {
-                    date: new Date(subscription.cancel_at).toLocaleDateString(),
+                    date: format(new Date(subscription.cancel_at), "PP", {
+                      locale: dateLocale,
+                    }),
                   })}
                 </p>
               )}
@@ -203,9 +208,11 @@ export default function Settings() {
                 !subscription?.cancel_at && (
                   <p className="text-sm text-muted-foreground">
                     {t("settings.subscription.renewsOn", {
-                      date: new Date(
-                        subscription.current_period_end,
-                      ).toLocaleDateString(),
+                      date: format(
+                        new Date(subscription.current_period_end),
+                        "PP",
+                        { locale: dateLocale },
+                      ),
                     })}
                   </p>
                 )}

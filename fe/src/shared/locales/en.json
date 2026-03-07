@@ -47,7 +47,9 @@
     "logoutSuccess": "Logout successful",
     "invalidCredentials": "Invalid credentials",
     "loginDescription": "Enter your email and password to access your account",
-    "registerDescription": "Create an account to start tracking your job applications"
+    "registerDescription": "Create an account to start tracking your job applications",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "nav": {
     "applications": "Applications",
@@ -539,6 +541,8 @@
     "deleteError": "Failed to delete stage template",
     "deleteInUseError": "Cannot delete stage template: it is still used in active applications",
     "deleteSuccess": "Stage template deleted successfully",
+    "updateSuccess": "Stage template updated successfully",
+    "updateError": "Failed to update stage template",
     "created": "Created {{date}}"
   },
   "home": {

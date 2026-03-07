@@ -48,11 +48,11 @@ export function EditStageTemplateModal({
       stageTemplatesService.update(template!.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stage-templates"] });
-      showSuccessNotification("Stage template updated successfully");
+      showSuccessNotification(t("stages.updateSuccess"));
       onOpenChange(false);
     },
     onError: (error: Error) => {
-      showErrorNotification(error.message || "Failed to update stage template");
+      showErrorNotification(error.message || t("stages.updateError"));
     },
   });
 
