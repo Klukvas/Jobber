@@ -420,7 +420,7 @@ jobs:
         run: |
           # Build temp file with non-empty secrets only
           ENV_FILE=$(mktemp)
-          add() { [ -n "$2" ] && printf '%s=%s\n' "$1" "$2" >> "$ENV_FILE"; }
+          add() { if [ -n "$2" ]; then printf '%s=%s\n' "$1" "$2" >> "$ENV_FILE"; fi; }
 
           # Infrastructure
           add "JWT_ACCESS_SECRET" "$V_JWT_ACCESS_SECRET"
