@@ -4,10 +4,11 @@ import "time"
 
 // CreateApplicationRequest represents a create application request
 type CreateApplicationRequest struct {
-	JobID     string    `json:"job_id" binding:"required"`
-	ResumeID  *string   `json:"resume_id"`
-	Name      string    `json:"name" binding:"max=255"` // Optional: auto-generated from job title if empty
-	AppliedAt time.Time `json:"applied_at"`
+	JobID           string    `json:"job_id" binding:"required"`
+	ResumeID        *string   `json:"resume_id"`
+	ResumeBuilderID *string   `json:"resume_builder_id"`
+	Name            string    `json:"name" binding:"max=255"` // Optional: auto-generated from job title if empty
+	AppliedAt       time.Time `json:"applied_at"`
 }
 
 // UpdateApplicationRequest represents an update application request

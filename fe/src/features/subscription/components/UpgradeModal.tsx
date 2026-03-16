@@ -11,6 +11,7 @@ import {
 } from "@/shared/ui/Dialog";
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { usePaddleCheckout } from "@/features/subscription/usePaddleCheckout";
+import { FEATURES } from "@/shared/lib/features";
 
 interface UpgradeModalProps {
   open: boolean;
@@ -18,6 +19,7 @@ interface UpgradeModalProps {
 }
 
 export function UpgradeModal({ open, onOpenChange }: UpgradeModalProps) {
+  if (!FEATURES.PAYMENTS) return null;
   const { t, i18n } = useTranslation();
   const { nextPlan } = useSubscription();
   const { openCheckout, isReady } = usePaddleCheckout();

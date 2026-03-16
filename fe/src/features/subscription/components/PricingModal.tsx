@@ -8,6 +8,7 @@ import {
 } from "@/shared/ui/Dialog";
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { usePaddleCheckout } from "@/features/subscription/usePaddleCheckout";
+import { FEATURES } from "@/shared/lib/features";
 import type { SubscriptionPlan } from "@/shared/types/api";
 
 interface PricingModalProps {
@@ -90,6 +91,7 @@ function PlanCard({
 }
 
 export function PricingModal({ open, onOpenChange }: PricingModalProps) {
+  if (!FEATURES.PAYMENTS) return null;
   const { t } = useTranslation();
   const { plan } = useSubscription();
   const { openCheckout } = usePaddleCheckout();

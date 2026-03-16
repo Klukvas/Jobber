@@ -75,12 +75,15 @@ func (h *SubscriptionHandler) CreatePortalSession(c *gin.Context) {
 }
 
 // RegisterRoutes registers subscription routes (auth required).
-func (h *SubscriptionHandler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.HandlerFunc) {
+// When paymentsEnabled is false, checkout and portal endpoints are not registered.
+func (h *SubscriptionHandler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.HandlerFunc, paymentsEnabled bool) {
 	sub := router.Group("/subscription")
 	sub.Use(authMiddleware)
 	{
 		sub.GET("", h.GetSubscription)
-		sub.GET("/checkout-config", h.GetCheckoutConfig)
-		sub.POST("/portal", h.CreatePortalSession)
+		if paymentsEnabled {
+			sub.GET("/checkout-config", h.GetCheckoutConfig)
+			sub.POST("/portal", h.CreatePortalSession)
+		}
 	}
 }

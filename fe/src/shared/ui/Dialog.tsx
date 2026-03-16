@@ -87,7 +87,10 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         tabIndex={-1}
-        className={cn("relative z-50 w-full max-w-lg outline-none", className)}
+        className={cn(
+          "relative z-50 mx-auto w-full max-w-lg outline-none",
+          className,
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         {children}
@@ -106,7 +109,7 @@ export function DialogContent({
   return (
     <div
       className={cn(
-        "relative m-4 rounded-lg border bg-background p-6 shadow-lg",
+        "relative m-4 max-w-lg rounded-lg border bg-background p-6 shadow-lg",
         "max-h-[90vh] overflow-y-auto",
         className,
       )}

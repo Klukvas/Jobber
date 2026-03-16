@@ -102,10 +102,12 @@ export default function Jobs() {
       });
       return { previous, queryKey };
     },
-    onError: (_err, _jobId, context) => {
+    onError: (err, _jobId, context) => {
       if (context?.previous && context?.queryKey) {
         queryClient.setQueryData(context.queryKey, context.previous);
       }
+      console.error("[Jobs] toggleFavorite failed:", err);
+      showErrorNotification(t("common.error"));
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });

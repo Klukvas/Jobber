@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import * as Sentry from "@sentry/react";
 import { useAuthStore } from "@/stores/authStore";
+import { FEATURES } from "@/shared/lib/features";
 
 interface AuthProviderProps {
   children: React.ReactNode;
@@ -7,6 +9,17 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [isInitialized, setIsInitialized] = useState(false);
+  const user = useAuthStore((s) => s.user);
+
+  // Sync Sentry user context with auth state
+  useEffect(() => {
+    if (!FEATURES.SENTRY) return;
+    if (user) {
+      Sentry.setUser({ id: user.id, email: user.email });
+    } else {
+      Sentry.setUser(null);
+    }
+  }, [user]);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -36,8 +49,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
             // Refresh failed, clear auth
             clearAuth();
           }
-        } catch {
-          // Refresh failed, clear auth
+        } catch (err) {
+          console.error("[AuthProvider] token refresh failed:", err);
           clearAuth();
         }
       }

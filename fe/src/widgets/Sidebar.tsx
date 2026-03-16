@@ -18,6 +18,7 @@ import {
   X,
   BarChart3,
   LogOut,
+  Mail,
 } from "lucide-react";
 
 const navItems = [
@@ -25,6 +26,7 @@ const navItems = [
   { path: "/app/resumes", icon: FileText, labelKey: "nav.resumes" },
   { path: "/app/companies", icon: Building2, labelKey: "nav.companies" },
   { path: "/app/jobs", icon: Search, labelKey: "nav.jobs" },
+  { path: "/app/cover-letters", icon: Mail, labelKey: "nav.coverLetters" },
   { path: "/app/stages", icon: ListOrdered, labelKey: "nav.stages" },
   { path: "/app/analytics", icon: BarChart3, labelKey: "nav.analytics" },
 ];

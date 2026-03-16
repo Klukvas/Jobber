@@ -23,8 +23,9 @@ FROM alpine:latest
 
 WORKDIR /app
 
-# Install ca-certificates for HTTPS requests (needed for S3)
-RUN apk --no-cache add ca-certificates tzdata
+# Install ca-certificates for HTTPS requests (needed for S3) and chromium for PDF generation
+RUN apk --no-cache add ca-certificates tzdata chromium
+ENV CHROME_BIN=/usr/bin/chromium-browser
 
 # Create non-root user
 RUN addgroup -g 1000 appuser && \

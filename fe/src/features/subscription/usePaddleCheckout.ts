@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { subscriptionService } from "@/services/subscriptionService";
 import { useAuthStore } from "@/stores/authStore";
+import { FEATURES } from "@/shared/lib/features";
 import type { SubscriptionPlan } from "@/shared/types/api";
 
 // Paddle.js types (loaded via script tag)
@@ -41,11 +42,13 @@ export function usePaddleCheckout() {
     queryKey: ["checkout-config"],
     queryFn: subscriptionService.getCheckoutConfig,
     staleTime: 300_000, // 5 minutes
+    enabled: FEATURES.PAYMENTS,
   });
 
   // Load and initialize Paddle.js
   useEffect(() => {
-    if (!config?.client_token || initializedRef.current) return;
+    if (!FEATURES.PAYMENTS || !config?.client_token || initializedRef.current)
+      return;
 
     const existingScript = document.querySelector('script[src*="paddle.com"]');
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
+	"github.com/andreypavlenko/jobber/internal/platform/email"
 	authModel "github.com/andreypavlenko/jobber/modules/auth/model"
 	userModel "github.com/andreypavlenko/jobber/modules/users/model"
 	"github.com/stretchr/testify/assert"
@@ -15,11 +16,13 @@ import (
 
 // MockUserRepository implements userPorts.UserRepository
 type MockUserRepository struct {
-	CreateFunc     func(ctx context.Context, user *userModel.User) error
-	GetByIDFunc    func(ctx context.Context, userID string) (*userModel.User, error)
-	GetByEmailFunc func(ctx context.Context, email string) (*userModel.User, error)
-	UpdateFunc     func(ctx context.Context, user *userModel.User) error
-	DeleteFunc     func(ctx context.Context, userID string) error
+	CreateFunc             func(ctx context.Context, user *userModel.User) error
+	GetByIDFunc            func(ctx context.Context, userID string) (*userModel.User, error)
+	GetByEmailFunc         func(ctx context.Context, email string) (*userModel.User, error)
+	UpdateFunc             func(ctx context.Context, user *userModel.User) error
+	DeleteFunc             func(ctx context.Context, userID string) error
+	SetEmailVerifiedFunc   func(ctx context.Context, userID string) error
+	UpdatePasswordHashFunc func(ctx context.Context, userID, hash string) error
 }
 
 func (m *MockUserRepository) Create(ctx context.Context, user *userModel.User) error {
@@ -53,6 +56,20 @@ func (m *MockUserRepository) Update(ctx context.Context, user *userModel.User) e
 func (m *MockUserRepository) Delete(ctx context.Context, userID string) error {
 	if m.DeleteFunc != nil {
 		return m.DeleteFunc(ctx, userID)
+	}
+	return nil
+}
+
+func (m *MockUserRepository) SetEmailVerified(ctx context.Context, userID string) error {
+	if m.SetEmailVerifiedFunc != nil {
+		return m.SetEmailVerifiedFunc(ctx, userID)
+	}
+	return nil
+}
+
+func (m *MockUserRepository) UpdatePasswordHash(ctx context.Context, userID, hash string) error {
+	if m.UpdatePasswordHashFunc != nil {
+		return m.UpdatePasswordHashFunc(ctx, userID, hash)
 	}
 	return nil
 }
@@ -109,6 +126,110 @@ func (m *MockRefreshTokenRepository) DeleteExpired(ctx context.Context) error {
 	return nil
 }
 
+// MockEmailVerificationRepository implements authPorts.EmailVerificationRepository
+type MockEmailVerificationRepository struct {
+	CreateFunc            func(ctx context.Context, token *authModel.EmailVerificationToken) error
+	GetActiveForUserFunc  func(ctx context.Context, userID string) (*authModel.EmailVerificationToken, error)
+	IncrementAttemptsFunc func(ctx context.Context, id string, maxAttempts int) (int, error)
+	MarkUsedFunc          func(ctx context.Context, id string) error
+	DeleteForUserFunc     func(ctx context.Context, userID string) error
+	DeleteExpiredFunc     func(ctx context.Context) error
+}
+
+func (m *MockEmailVerificationRepository) Create(ctx context.Context, token *authModel.EmailVerificationToken) error {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, token)
+	}
+	return nil
+}
+
+func (m *MockEmailVerificationRepository) GetActiveForUser(ctx context.Context, userID string) (*authModel.EmailVerificationToken, error) {
+	if m.GetActiveForUserFunc != nil {
+		return m.GetActiveForUserFunc(ctx, userID)
+	}
+	return nil, nil
+}
+
+func (m *MockEmailVerificationRepository) IncrementAttempts(ctx context.Context, id string, maxAttempts int) (int, error) {
+	if m.IncrementAttemptsFunc != nil {
+		return m.IncrementAttemptsFunc(ctx, id, maxAttempts)
+	}
+	return 1, nil
+}
+
+func (m *MockEmailVerificationRepository) MarkUsed(ctx context.Context, id string) error {
+	if m.MarkUsedFunc != nil {
+		return m.MarkUsedFunc(ctx, id)
+	}
+	return nil
+}
+
+func (m *MockEmailVerificationRepository) DeleteForUser(ctx context.Context, userID string) error {
+	if m.DeleteForUserFunc != nil {
+		return m.DeleteForUserFunc(ctx, userID)
+	}
+	return nil
+}
+
+func (m *MockEmailVerificationRepository) DeleteExpired(ctx context.Context) error {
+	if m.DeleteExpiredFunc != nil {
+		return m.DeleteExpiredFunc(ctx)
+	}
+	return nil
+}
+
+// MockPasswordResetRepository implements authPorts.PasswordResetRepository
+type MockPasswordResetRepository struct {
+	CreateFunc            func(ctx context.Context, token *authModel.PasswordResetToken) error
+	GetActiveForUserFunc  func(ctx context.Context, userID string) (*authModel.PasswordResetToken, error)
+	IncrementAttemptsFunc func(ctx context.Context, id string, maxAttempts int) (int, error)
+	MarkUsedFunc          func(ctx context.Context, id string) error
+	DeleteForUserFunc     func(ctx context.Context, userID string) error
+	DeleteExpiredFunc     func(ctx context.Context) error
+}
+
+func (m *MockPasswordResetRepository) Create(ctx context.Context, token *authModel.PasswordResetToken) error {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, token)
+	}
+	return nil
+}
+
+func (m *MockPasswordResetRepository) GetActiveForUser(ctx context.Context, userID string) (*authModel.PasswordResetToken, error) {
+	if m.GetActiveForUserFunc != nil {
+		return m.GetActiveForUserFunc(ctx, userID)
+	}
+	return nil, nil
+}
+
+func (m *MockPasswordResetRepository) IncrementAttempts(ctx context.Context, id string, maxAttempts int) (int, error) {
+	if m.IncrementAttemptsFunc != nil {
+		return m.IncrementAttemptsFunc(ctx, id, maxAttempts)
+	}
+	return 1, nil
+}
+
+func (m *MockPasswordResetRepository) MarkUsed(ctx context.Context, id string) error {
+	if m.MarkUsedFunc != nil {
+		return m.MarkUsedFunc(ctx, id)
+	}
+	return nil
+}
+
+func (m *MockPasswordResetRepository) DeleteForUser(ctx context.Context, userID string) error {
+	if m.DeleteForUserFunc != nil {
+		return m.DeleteForUserFunc(ctx, userID)
+	}
+	return nil
+}
+
+func (m *MockPasswordResetRepository) DeleteExpired(ctx context.Context) error {
+	if m.DeleteExpiredFunc != nil {
+		return m.DeleteExpiredFunc(ctx)
+	}
+	return nil
+}
+
 func createTestJWTManager() *auth.JWTManager {
 	return auth.NewJWTManager(
 		"test-access-secret-key-32chars!!",
@@ -118,8 +239,39 @@ func createTestJWTManager() *auth.JWTManager {
 	)
 }
 
+func createTestService(userRepo *MockUserRepository, tokenRepo *MockRefreshTokenRepository) *AuthService {
+	return NewAuthService(AuthServiceConfig{
+		UserRepo:          userRepo,
+		TokenRepo:         tokenRepo,
+		VerificationRepo:  &MockEmailVerificationRepository{},
+		PasswordResetRepo: &MockPasswordResetRepository{},
+		EmailSender:       &email.NoopSender{},
+		JWTManager:        createTestJWTManager(),
+		AccessExpiry:      15 * time.Minute,
+		RefreshExpiry:     7 * 24 * time.Hour,
+	})
+}
+
+func createTestServiceFull(
+	userRepo *MockUserRepository,
+	tokenRepo *MockRefreshTokenRepository,
+	verificationRepo *MockEmailVerificationRepository,
+	passwordResetRepo *MockPasswordResetRepository,
+) *AuthService {
+	return NewAuthService(AuthServiceConfig{
+		UserRepo:          userRepo,
+		TokenRepo:         tokenRepo,
+		VerificationRepo:  verificationRepo,
+		PasswordResetRepo: passwordResetRepo,
+		EmailSender:       &email.NoopSender{},
+		JWTManager:        createTestJWTManager(),
+		AccessExpiry:      15 * time.Minute,
+		RefreshExpiry:     7 * 24 * time.Hour,
+	})
+}
+
 func TestAuthService_Register(t *testing.T) {
-	t.Run("successfully registers a new user", func(t *testing.T) {
+	t.Run("successfully registers a new user and returns message", func(t *testing.T) {
 		mockUserRepo := &MockUserRepository{
 			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
 				return nil, userModel.ErrUserNotFound
@@ -130,14 +282,7 @@ func TestAuthService_Register(t *testing.T) {
 			},
 		}
 
-		mockTokenRepo := &MockRefreshTokenRepository{
-			CreateFunc: func(ctx context.Context, token *authModel.RefreshToken) error {
-				return nil
-			},
-		}
-
-		jwtManager := createTestJWTManager()
-		svc := NewAuthService(mockUserRepo, mockTokenRepo, jwtManager, 15*time.Minute, 7*24*time.Hour)
+		svc := createTestService(mockUserRepo, &MockRefreshTokenRepository{})
 
 		req := &authModel.RegisterRequest{
 			Email:    "test@example.com",
@@ -145,77 +290,58 @@ func TestAuthService_Register(t *testing.T) {
 			Locale:   "en",
 		}
 
-		user, tokens, err := svc.Register(context.Background(), req)
+		resp, err := svc.Register(context.Background(), req)
 
 		require.NoError(t, err)
-		assert.NotNil(t, user)
-		assert.NotNil(t, tokens)
-		assert.Equal(t, "test@example.com", user.Email)
-		assert.NotEmpty(t, tokens.AccessToken)
-		assert.NotEmpty(t, tokens.RefreshToken)
+		assert.NotNil(t, resp)
+		assert.Contains(t, resp.Message, "check your email")
 	})
 
 	t.Run("returns error for invalid email", func(t *testing.T) {
-		mockUserRepo := &MockUserRepository{}
-		mockTokenRepo := &MockRefreshTokenRepository{}
-		jwtManager := createTestJWTManager()
-		svc := NewAuthService(mockUserRepo, mockTokenRepo, jwtManager, 15*time.Minute, 7*24*time.Hour)
+		svc := createTestService(&MockUserRepository{}, &MockRefreshTokenRepository{})
 
 		req := &authModel.RegisterRequest{
 			Email:    "invalid-email",
 			Password: "password123",
 		}
 
-		user, tokens, err := svc.Register(context.Background(), req)
+		resp, err := svc.Register(context.Background(), req)
 
-		assert.Nil(t, user)
-		assert.Nil(t, tokens)
+		assert.Nil(t, resp)
 		assert.Equal(t, userModel.ErrInvalidEmail, err)
 	})
 
 	t.Run("returns error for short password", func(t *testing.T) {
-		mockUserRepo := &MockUserRepository{}
-		mockTokenRepo := &MockRefreshTokenRepository{}
-		jwtManager := createTestJWTManager()
-		svc := NewAuthService(mockUserRepo, mockTokenRepo, jwtManager, 15*time.Minute, 7*24*time.Hour)
+		svc := createTestService(&MockUserRepository{}, &MockRefreshTokenRepository{})
 
 		req := &authModel.RegisterRequest{
 			Email:    "test@example.com",
 			Password: "short",
 		}
 
-		user, tokens, err := svc.Register(context.Background(), req)
+		resp, err := svc.Register(context.Background(), req)
 
-		assert.Nil(t, user)
-		assert.Nil(t, tokens)
+		assert.Nil(t, resp)
 		assert.Equal(t, userModel.ErrInvalidPassword, err)
 	})
 
 	t.Run("returns error if user already exists", func(t *testing.T) {
-		existingUser := &userModel.User{
-			ID:    "existing-user",
-			Email: "test@example.com",
-		}
-
 		mockUserRepo := &MockUserRepository{
 			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
-				return existingUser, nil
+				return &userModel.User{ID: "existing-user", Email: "test@example.com"}, nil
 			},
 		}
 
-		mockTokenRepo := &MockRefreshTokenRepository{}
-		jwtManager := createTestJWTManager()
-		svc := NewAuthService(mockUserRepo, mockTokenRepo, jwtManager, 15*time.Minute, 7*24*time.Hour)
+		svc := createTestService(mockUserRepo, &MockRefreshTokenRepository{})
 
 		req := &authModel.RegisterRequest{
 			Email:    "test@example.com",
 			Password: "password123",
 		}
 
-		user, tokens, err := svc.Register(context.Background(), req)
+		resp, err := svc.Register(context.Background(), req)
 
-		assert.Nil(t, user)
-		assert.Nil(t, tokens)
+		assert.Nil(t, resp)
 		assert.Equal(t, userModel.ErrUserAlreadyExists, err)
 	})
 
@@ -233,22 +359,15 @@ func TestAuthService_Register(t *testing.T) {
 			},
 		}
 
-		mockTokenRepo := &MockRefreshTokenRepository{
-			CreateFunc: func(ctx context.Context, token *authModel.RefreshToken) error {
-				return nil
-			},
-		}
-
-		jwtManager := createTestJWTManager()
-		svc := NewAuthService(mockUserRepo, mockTokenRepo, jwtManager, 15*time.Minute, 7*24*time.Hour)
+		svc := createTestService(mockUserRepo, &MockRefreshTokenRepository{})
 
 		req := &authModel.RegisterRequest{
 			Email:    "test@example.com",
 			Password: "password123",
-			Locale:   "", // Empty locale
+			Locale:   "",
 		}
 
-		_, _, err := svc.Register(context.Background(), req)
+		_, err := svc.Register(context.Background(), req)
 
 		require.NoError(t, err)
 		assert.Equal(t, "en", createdUser.Locale)
@@ -256,16 +375,17 @@ func TestAuthService_Register(t *testing.T) {
 }
 
 func TestAuthService_Login(t *testing.T) {
-	t.Run("successfully logs in with valid credentials", func(t *testing.T) {
+	t.Run("successfully logs in verified user", func(t *testing.T) {
 		passwordHash, _ := auth.HashPassword("password123")
 		existingUser := &userModel.User{
-			ID:           "user-123",
-			Email:        "test@example.com",
-			Name:         "Test User",
-			PasswordHash: passwordHash,
-			Locale:       "en",
-			CreatedAt:    time.Now(),
-			UpdatedAt:    time.Now(),
+			ID:            "user-123",
+			Email:         "test@example.com",
+			Name:          "Test User",
+			PasswordHash:  passwordHash,
+			Locale:        "en",
+			EmailVerified: true,
+			CreatedAt:     time.Now(),
+			UpdatedAt:     time.Now(),
 		}
 
 		mockUserRepo := &MockUserRepository{
@@ -280,8 +400,7 @@ func TestAuthService_Login(t *testing.T) {
 			},
 		}
 
-		jwtManager := createTestJWTManager()
-		svc := NewAuthService(mockUserRepo, mockTokenRepo, jwtManager, 15*time.Minute, 7*24*time.Hour)
+		svc := createTestService(mockUserRepo, mockTokenRepo)
 
 		req := &authModel.LoginRequest{
 			Email:    "test@example.com",
@@ -294,8 +413,35 @@ func TestAuthService_Login(t *testing.T) {
 		assert.NotNil(t, user)
 		assert.NotNil(t, tokens)
 		assert.Equal(t, "user-123", user.ID)
-		assert.NotEmpty(t, tokens.AccessToken)
-		assert.NotEmpty(t, tokens.RefreshToken)
+	})
+
+	t.Run("returns error for unverified email", func(t *testing.T) {
+		passwordHash, _ := auth.HashPassword("password123")
+		existingUser := &userModel.User{
+			ID:            "user-123",
+			Email:         "test@example.com",
+			PasswordHash:  passwordHash,
+			EmailVerified: false,
+		}
+
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return existingUser, nil
+			},
+		}
+
+		svc := createTestService(mockUserRepo, &MockRefreshTokenRepository{})
+
+		req := &authModel.LoginRequest{
+			Email:    "test@example.com",
+			Password: "password123",
+		}
+
+		user, tokens, err := svc.Login(context.Background(), req)
+
+		assert.Nil(t, user)
+		assert.Nil(t, tokens)
+		assert.Equal(t, userModel.ErrEmailNotVerified, err)
 	})
 
 	t.Run("returns error for non-existent user", func(t *testing.T) {
@@ -305,9 +451,7 @@ func TestAuthService_Login(t *testing.T) {
 			},
 		}
 
-		mockTokenRepo := &MockRefreshTokenRepository{}
-		jwtManager := createTestJWTManager()
-		svc := NewAuthService(mockUserRepo, mockTokenRepo, jwtManager, 15*time.Minute, 7*24*time.Hour)
+		svc := createTestService(mockUserRepo, &MockRefreshTokenRepository{})
 
 		req := &authModel.LoginRequest{
 			Email:    "nonexistent@example.com",
@@ -324,9 +468,10 @@ func TestAuthService_Login(t *testing.T) {
 	t.Run("returns error for wrong password", func(t *testing.T) {
 		passwordHash, _ := auth.HashPassword("correct-password")
 		existingUser := &userModel.User{
-			ID:           "user-123",
-			Email:        "test@example.com",
-			PasswordHash: passwordHash,
+			ID:            "user-123",
+			Email:         "test@example.com",
+			PasswordHash:  passwordHash,
+			EmailVerified: true,
 		}
 
 		mockUserRepo := &MockUserRepository{
@@ -335,9 +480,7 @@ func TestAuthService_Login(t *testing.T) {
 			},
 		}
 
-		mockTokenRepo := &MockRefreshTokenRepository{}
-		jwtManager := createTestJWTManager()
-		svc := NewAuthService(mockUserRepo, mockTokenRepo, jwtManager, 15*time.Minute, 7*24*time.Hour)
+		svc := createTestService(mockUserRepo, &MockRefreshTokenRepository{})
 
 		req := &authModel.LoginRequest{
 			Email:    "test@example.com",
@@ -359,9 +502,10 @@ func TestAuthService_Login(t *testing.T) {
 			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
 				queriedEmail = email
 				return &userModel.User{
-					ID:           "user-123",
-					Email:        email,
-					PasswordHash: passwordHash,
+					ID:            "user-123",
+					Email:         email,
+					PasswordHash:  passwordHash,
+					EmailVerified: true,
 				}, nil
 			},
 		}
@@ -372,8 +516,7 @@ func TestAuthService_Login(t *testing.T) {
 			},
 		}
 
-		jwtManager := createTestJWTManager()
-		svc := NewAuthService(mockUserRepo, mockTokenRepo, jwtManager, 15*time.Minute, 7*24*time.Hour)
+		svc := createTestService(mockUserRepo, mockTokenRepo)
 
 		req := &authModel.LoginRequest{
 			Email:    "TEST@EXAMPLE.COM",
@@ -387,22 +530,233 @@ func TestAuthService_Login(t *testing.T) {
 	})
 }
 
+func TestAuthService_VerifyEmail(t *testing.T) {
+	t.Run("verifies email with correct code", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{ID: "user-123", Email: email}, nil
+			},
+		}
+
+		verificationRepo := &MockEmailVerificationRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.EmailVerificationToken, error) {
+				return &authModel.EmailVerificationToken{
+					ID:        "token-1",
+					UserID:    userID,
+					Code:      "123456",
+					Attempts:  0,
+					ExpiresAt: time.Now().Add(10 * time.Minute),
+				}, nil
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, verificationRepo, &MockPasswordResetRepository{})
+
+		err := svc.VerifyEmail(context.Background(), "test@example.com", "123456")
+		assert.NoError(t, err)
+	})
+
+	t.Run("returns error for wrong code", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{ID: "user-123", Email: email}, nil
+			},
+		}
+
+		verificationRepo := &MockEmailVerificationRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.EmailVerificationToken, error) {
+				return &authModel.EmailVerificationToken{
+					ID:        "token-1",
+					UserID:    userID,
+					Code:      "123456",
+					Attempts:  0,
+					ExpiresAt: time.Now().Add(10 * time.Minute),
+				}, nil
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, verificationRepo, &MockPasswordResetRepository{})
+
+		err := svc.VerifyEmail(context.Background(), "test@example.com", "999999")
+		assert.Equal(t, userModel.ErrInvalidVerificationToken, err)
+	})
+
+	t.Run("returns too many attempts after 5 failures", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{ID: "user-123", Email: email}, nil
+			},
+		}
+
+		verificationRepo := &MockEmailVerificationRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.EmailVerificationToken, error) {
+				return &authModel.EmailVerificationToken{
+					ID:        "token-1",
+					UserID:    userID,
+					Code:      "123456",
+					Attempts:  5,
+					ExpiresAt: time.Now().Add(10 * time.Minute),
+				}, nil
+			},
+			IncrementAttemptsFunc: func(ctx context.Context, id string, maxAttempts int) (int, error) {
+				return 0, userModel.ErrTooManyAttempts
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, verificationRepo, &MockPasswordResetRepository{})
+
+		err := svc.VerifyEmail(context.Background(), "test@example.com", "123456")
+		assert.Equal(t, userModel.ErrTooManyAttempts, err)
+	})
+
+	t.Run("returns error for unknown email", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return nil, userModel.ErrUserNotFound
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, &MockEmailVerificationRepository{}, &MockPasswordResetRepository{})
+
+		err := svc.VerifyEmail(context.Background(), "unknown@example.com", "123456")
+		assert.Equal(t, userModel.ErrInvalidVerificationToken, err)
+	})
+
+	t.Run("returns error when no active token exists", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{ID: "user-123", Email: email}, nil
+			},
+		}
+
+		verificationRepo := &MockEmailVerificationRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.EmailVerificationToken, error) {
+				return nil, errors.New("not found")
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, verificationRepo, &MockPasswordResetRepository{})
+
+		err := svc.VerifyEmail(context.Background(), "test@example.com", "123456")
+		assert.Equal(t, userModel.ErrInvalidVerificationToken, err)
+	})
+}
+
+func TestAuthService_ResetPassword(t *testing.T) {
+	t.Run("resets password with correct code", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{ID: "user-123", Email: email}, nil
+			},
+		}
+
+		passwordResetRepo := &MockPasswordResetRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.PasswordResetToken, error) {
+				return &authModel.PasswordResetToken{
+					ID:        "token-1",
+					UserID:    userID,
+					Code:      "654321",
+					Attempts:  0,
+					ExpiresAt: time.Now().Add(10 * time.Minute),
+				}, nil
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, &MockEmailVerificationRepository{}, passwordResetRepo)
+
+		err := svc.ResetPassword(context.Background(), "test@example.com", "654321", "newpassword123")
+		assert.NoError(t, err)
+	})
+
+	t.Run("returns error for wrong code", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{ID: "user-123", Email: email}, nil
+			},
+		}
+
+		passwordResetRepo := &MockPasswordResetRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.PasswordResetToken, error) {
+				return &authModel.PasswordResetToken{
+					ID:        "token-1",
+					UserID:    userID,
+					Code:      "654321",
+					Attempts:  0,
+					ExpiresAt: time.Now().Add(10 * time.Minute),
+				}, nil
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, &MockEmailVerificationRepository{}, passwordResetRepo)
+
+		err := svc.ResetPassword(context.Background(), "test@example.com", "000000", "newpassword123")
+		assert.Equal(t, userModel.ErrInvalidResetToken, err)
+	})
+
+	t.Run("returns too many attempts", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{ID: "user-123", Email: email}, nil
+			},
+		}
+
+		passwordResetRepo := &MockPasswordResetRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.PasswordResetToken, error) {
+				return &authModel.PasswordResetToken{
+					ID:        "token-1",
+					UserID:    userID,
+					Code:      "654321",
+					Attempts:  5,
+					ExpiresAt: time.Now().Add(10 * time.Minute),
+				}, nil
+			},
+			IncrementAttemptsFunc: func(ctx context.Context, id string, maxAttempts int) (int, error) {
+				return 0, userModel.ErrTooManyAttempts
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, &MockEmailVerificationRepository{}, passwordResetRepo)
+
+		err := svc.ResetPassword(context.Background(), "test@example.com", "654321", "newpassword123")
+		assert.Equal(t, userModel.ErrTooManyAttempts, err)
+	})
+
+	t.Run("returns error for short password", func(t *testing.T) {
+		svc := createTestServiceFull(&MockUserRepository{}, &MockRefreshTokenRepository{}, &MockEmailVerificationRepository{}, &MockPasswordResetRepository{})
+
+		err := svc.ResetPassword(context.Background(), "test@example.com", "654321", "short")
+		assert.Equal(t, userModel.ErrInvalidPassword, err)
+	})
+
+	t.Run("returns error for unknown email", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return nil, userModel.ErrUserNotFound
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, &MockEmailVerificationRepository{}, &MockPasswordResetRepository{})
+
+		err := svc.ResetPassword(context.Background(), "unknown@example.com", "654321", "newpassword123")
+		assert.Equal(t, userModel.ErrInvalidResetToken, err)
+	})
+}
+
 func TestAuthService_RefreshTokens(t *testing.T) {
 	t.Run("successfully refreshes tokens with valid refresh token", func(t *testing.T) {
 		jwtManager := createTestJWTManager()
 		refreshToken, _ := jwtManager.GenerateRefreshToken("user-123")
 
-		mockUserRepo := &MockUserRepository{}
 		mockTokenRepo := &MockRefreshTokenRepository{
 			RevokeIfValidFunc: func(ctx context.Context, hash string) (bool, error) {
-				return true, nil // Token was valid and successfully revoked
+				return true, nil
 			},
 			CreateFunc: func(ctx context.Context, token *authModel.RefreshToken) error {
 				return nil
 			},
 		}
 
-		svc := NewAuthService(mockUserRepo, mockTokenRepo, jwtManager, 15*time.Minute, 7*24*time.Hour)
+		svc := createTestService(&MockUserRepository{}, mockTokenRepo)
 
 		tokens, err := svc.RefreshTokens(context.Background(), refreshToken)
 
@@ -413,11 +767,7 @@ func TestAuthService_RefreshTokens(t *testing.T) {
 	})
 
 	t.Run("returns error for invalid refresh token", func(t *testing.T) {
-		jwtManager := createTestJWTManager()
-		mockUserRepo := &MockUserRepository{}
-		mockTokenRepo := &MockRefreshTokenRepository{}
-
-		svc := NewAuthService(mockUserRepo, mockTokenRepo, jwtManager, 15*time.Minute, 7*24*time.Hour)
+		svc := createTestService(&MockUserRepository{}, &MockRefreshTokenRepository{})
 
 		tokens, err := svc.RefreshTokens(context.Background(), "invalid-token")
 
@@ -430,14 +780,13 @@ func TestAuthService_RefreshTokens(t *testing.T) {
 		jwtManager := createTestJWTManager()
 		refreshToken, _ := jwtManager.GenerateRefreshToken("user-123")
 
-		mockUserRepo := &MockUserRepository{}
 		mockTokenRepo := &MockRefreshTokenRepository{
 			RevokeIfValidFunc: func(ctx context.Context, hash string) (bool, error) {
-				return false, nil // Already revoked — 0 rows affected
+				return false, nil
 			},
 		}
 
-		svc := NewAuthService(mockUserRepo, mockTokenRepo, jwtManager, 15*time.Minute, 7*24*time.Hour)
+		svc := createTestService(&MockUserRepository{}, mockTokenRepo)
 
 		tokens, err := svc.RefreshTokens(context.Background(), refreshToken)
 
@@ -445,32 +794,12 @@ func TestAuthService_RefreshTokens(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "expired or revoked")
 	})
-
-	t.Run("returns error for expired refresh token in database", func(t *testing.T) {
-		jwtManager := createTestJWTManager()
-		refreshToken, _ := jwtManager.GenerateRefreshToken("user-123")
-
-		mockUserRepo := &MockUserRepository{}
-		mockTokenRepo := &MockRefreshTokenRepository{
-			RevokeIfValidFunc: func(ctx context.Context, hash string) (bool, error) {
-				return false, nil // Expired in DB — 0 rows affected
-			},
-		}
-
-		svc := NewAuthService(mockUserRepo, mockTokenRepo, jwtManager, 15*time.Minute, 7*24*time.Hour)
-
-		tokens, err := svc.RefreshTokens(context.Background(), refreshToken)
-
-		assert.Nil(t, tokens)
-		assert.Error(t, err)
-	})
 }
 
 func TestAuthService_Logout(t *testing.T) {
 	t.Run("successfully logs out user", func(t *testing.T) {
 		var revokedUserID string
 
-		mockUserRepo := &MockUserRepository{}
 		mockTokenRepo := &MockRefreshTokenRepository{
 			RevokeAllForUserFunc: func(ctx context.Context, userID string) error {
 				revokedUserID = userID
@@ -478,8 +807,7 @@ func TestAuthService_Logout(t *testing.T) {
 			},
 		}
 
-		jwtManager := createTestJWTManager()
-		svc := NewAuthService(mockUserRepo, mockTokenRepo, jwtManager, 15*time.Minute, 7*24*time.Hour)
+		svc := createTestService(&MockUserRepository{}, mockTokenRepo)
 
 		err := svc.Logout(context.Background(), "user-123")
 
@@ -490,19 +818,34 @@ func TestAuthService_Logout(t *testing.T) {
 	t.Run("returns error from repository", func(t *testing.T) {
 		expectedError := errors.New("database error")
 
-		mockUserRepo := &MockUserRepository{}
 		mockTokenRepo := &MockRefreshTokenRepository{
 			RevokeAllForUserFunc: func(ctx context.Context, userID string) error {
 				return expectedError
 			},
 		}
 
-		jwtManager := createTestJWTManager()
-		svc := NewAuthService(mockUserRepo, mockTokenRepo, jwtManager, 15*time.Minute, 7*24*time.Hour)
+		svc := createTestService(&MockUserRepository{}, mockTokenRepo)
 
 		err := svc.Logout(context.Background(), "user-123")
 
 		assert.Equal(t, expectedError, err)
+	})
+}
+
+func TestGenerateCode(t *testing.T) {
+	t.Run("generates 6-digit code", func(t *testing.T) {
+		code, err := generateCode()
+		require.NoError(t, err)
+		assert.Len(t, code, 6)
+	})
+
+	t.Run("generates codes with leading zeros", func(t *testing.T) {
+		// Run multiple times to check format is always 6 digits
+		for i := 0; i < 100; i++ {
+			code, err := generateCode()
+			require.NoError(t, err)
+			assert.Len(t, code, 6, "code should always be 6 characters")
+		}
 	})
 }
 

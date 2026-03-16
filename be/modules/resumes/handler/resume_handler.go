@@ -47,7 +47,7 @@ func (h *ResumeHandler) Create(c *gin.Context) {
 	resume, err := h.service.Create(c.Request.Context(), userID, &req)
 	if err != nil {
 		if errors.Is(err, subModel.ErrLimitReached) {
-			httpPlatform.RespondWithError(c, http.StatusForbidden, "PLAN_LIMIT_REACHED", "Plan limit reached. Upgrade to Pro for unlimited access.")
+			httpPlatform.RespondWithError(c, http.StatusForbidden, "PLAN_LIMIT_REACHED", "You have reached the limit for your current plan.")
 			return
 		}
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, string(model.GetErrorCode(err)), model.GetErrorMessage(err))
@@ -228,7 +228,7 @@ func (h *ResumeHandler) GenerateUploadURL(c *gin.Context) {
 	response, err := h.service.GenerateUploadURL(c.Request.Context(), userID, &req)
 	if err != nil {
 		if errors.Is(err, subModel.ErrLimitReached) {
-			httpPlatform.RespondWithError(c, http.StatusForbidden, "PLAN_LIMIT_REACHED", "Plan limit reached. Upgrade to Pro for unlimited access.")
+			httpPlatform.RespondWithError(c, http.StatusForbidden, "PLAN_LIMIT_REACHED", "You have reached the limit for your current plan.")
 			return
 		}
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, "UPLOAD_URL_GENERATION_FAILED", err.Error())

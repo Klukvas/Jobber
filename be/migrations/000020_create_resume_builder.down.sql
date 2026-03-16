@@ -1,0 +1,15 @@
+DROP TABLE IF EXISTS content_library;
+DROP TABLE IF EXISTS cover_letters;
+DROP TABLE IF EXISTS resume_section_orders;
+DROP TABLE IF EXISTS resume_custom_sections;
+DROP TABLE IF EXISTS resume_volunteering;
+DROP TABLE IF EXISTS resume_projects;
+DROP TABLE IF EXISTS resume_certifications;
+DROP TABLE IF EXISTS resume_languages;
+DROP TABLE IF EXISTS resume_skills;
+DROP TABLE IF EXISTS resume_educations;
+DROP TABLE IF EXISTS resume_experiences;
+DROP TABLE IF EXISTS resume_summaries;
+DROP TABLE IF EXISTS resume_contacts;
+DROP TABLE IF EXISTS resume_builders;
+DROP TABLE IF EXISTS resume_templates;

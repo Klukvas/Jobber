@@ -4,6 +4,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { LoginModal } from "@/features/auth/modals/LoginModal";
 import { RegisterModal } from "@/features/auth/modals/RegisterModal";
+import { ForgotPasswordModal } from "@/features/auth/modals/ForgotPasswordModal";
 import { HomeNavbar } from "@/features/home/components/HomeNavbar";
 import { JsonLd } from "@/features/home/components/JsonLd";
 import { HeroSection } from "@/features/home/components/HeroSection";
@@ -12,7 +13,7 @@ import { HowItWorksSection } from "@/features/home/components/HowItWorksSection"
 import { DemoPreviewSection } from "@/features/home/components/DemoPreviewSection";
 import { FooterSection } from "@/features/home/components/FooterSection";
 
-type AuthModal = "login" | "register" | null;
+type AuthModal = "login" | "register" | "forgot-password" | null;
 
 export default function Home() {
   const location = useLocation();
@@ -37,13 +38,16 @@ export default function Home() {
       ? "login"
       : location.pathname === "/register"
         ? "register"
-        : null;
+        : location.pathname === "/forgot-password"
+          ? "forgot-password"
+          : null;
 
   const openLogin = () => navigate("/login");
   const openRegister = () => navigate("/register");
   const closeModal = () => navigate("/");
   const switchToRegister = () => navigate("/register");
   const switchToLogin = () => navigate("/login");
+  const openForgotPassword = () => navigate("/forgot-password");
   const goPlatform = () => navigate("/app/applications");
 
   return (
@@ -70,11 +74,17 @@ export default function Home() {
         open={activeModal === "login"}
         onOpenChange={(open) => !open && closeModal()}
         onSwitchToRegister={switchToRegister}
+        onForgotPassword={openForgotPassword}
       />
       <RegisterModal
         open={activeModal === "register"}
         onOpenChange={(open) => !open && closeModal()}
         onSwitchToLogin={switchToLogin}
+      />
+      <ForgotPasswordModal
+        open={activeModal === "forgot-password"}
+        onOpenChange={(open) => !open && closeModal()}
+        onBackToLogin={switchToLogin}
       />
     </div>
   );

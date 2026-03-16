@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
 import { authService } from "@/services/authService";
 import { useAuthStore } from "@/stores/authStore";
+import { useResendCode } from "@/features/auth/hooks/useResendCode";
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { PasswordInput } from "@/shared/ui/PasswordInput";
@@ -16,7 +17,7 @@ import {
   DialogDescription,
 } from "@/shared/ui/Dialog";
 import { ApiError } from "@/services/api";
-import { Loader2 } from "lucide-react";
+import { Loader2, Mail } from "lucide-react";
 
 interface RegisterModalProps {
   open: boolean;
@@ -34,21 +35,52 @@ function ModalContent({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
+  const [code, setCode] = useState("");
   const [errors, setErrors] = useState<{
     email?: string;
     password?: string;
     confirmPassword?: string;
+    code?: string;
   }>({});
 
   const registerMutation = useMutation({
     mutationFn: authService.register,
+    onSuccess: () => {
+      setRegisteredEmail(email);
+    },
+    onError: (error: ApiError) => {
+      setErrors({ email: error.message });
+    },
+  });
+
+  const resend = useResendCode({
+    mutationFn: () =>
+      authService.resendVerification({ email: registeredEmail! }),
+    storageKey: `verify_${email}`,
+  });
+
+  const loginMutation = useMutation({
+    mutationFn: authService.login,
     onSuccess: (data) => {
       setAuth(data.tokens.access_token, data.tokens.refresh_token, data.user);
       onOpenChange(false);
       navigate("/app");
     },
+  });
+
+  const verifyMutation = useMutation({
+    mutationFn: authService.verifyEmail,
+    onSuccess: () => {
+      // Auto-login after verification
+      loginMutation.mutate({ email, password });
+    },
     onError: (error: ApiError) => {
-      setErrors({ email: error.message });
+      if (error.code === "TOO_MANY_ATTEMPTS") {
+        setErrors({ code: t("auth.tooManyAttempts") });
+      } else {
+        setErrors({ code: t("auth.invalidCode") });
+      }
     },
   });
 
@@ -85,6 +117,108 @@ function ModalContent({
       registerMutation.mutate({ email, password });
     }
   };
+
+  const handleVerify = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrors({});
+
+    if (code.length !== 6) {
+      setErrors({ code: t("auth.invalidCode") });
+      return;
+    }
+
+    verifyMutation.mutate({ email: registeredEmail!, code });
+  };
+
+  if (registeredEmail) {
+    return (
+      <>
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold">
+            {t("auth.enterCode")}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col items-center gap-4 py-4 text-center">
+          <Mail className="h-12 w-12 text-primary" />
+          <p className="text-muted-foreground">
+            {t("auth.verificationCodeSent", { email: registeredEmail })}
+          </p>
+          <form onSubmit={handleVerify} className="w-full space-y-4">
+            <Input
+              value={code}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                setCode(val);
+                setErrors({});
+              }}
+              placeholder="000000"
+              inputMode="numeric"
+              maxLength={6}
+              autoFocus
+              className="text-center text-2xl font-mono tracking-[0.3em]"
+              aria-invalid={!!errors.code}
+            />
+            {errors.code && (
+              <p className="text-sm text-destructive">{errors.code}</p>
+            )}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={
+                verifyMutation.isPending ||
+                loginMutation.isPending ||
+                code.length !== 6
+              }
+            >
+              {verifyMutation.isPending || loginMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
+              {loginMutation.isPending
+                ? t("common.loading")
+                : t("auth.verifyCode")}
+            </Button>
+          </form>
+          {resend.isLimitReached ? (
+            <p className="text-sm text-destructive">
+              {t("auth.resendLimitReached")}
+            </p>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                onClick={resend.resend}
+                disabled={resend.isDisabled}
+              >
+                {resend.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : null}
+                {resend.cooldown > 0
+                  ? t("auth.resendCodeCooldown", {
+                      seconds: resend.cooldown,
+                    })
+                  : t("auth.resendCode")}
+              </Button>
+              {resend.isSuccess && (
+                <p className="text-sm text-green-600">{t("auth.codeResent")}</p>
+              )}
+              {resend.resendError && (
+                <p className="text-sm text-destructive">
+                  {t(resend.resendError)}
+                </p>
+              )}
+            </>
+          )}
+          <button
+            type="button"
+            onClick={onSwitchToLogin}
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            {t("auth.backToLogin")}
+          </button>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

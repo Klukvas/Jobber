@@ -1,0 +1,1 @@
+ALTER TABLE resume_builders ADD COLUMN font_size INT NOT NULL DEFAULT 12;

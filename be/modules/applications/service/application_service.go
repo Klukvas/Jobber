@@ -16,6 +16,7 @@ import (
 	jobPorts "github.com/andreypavlenko/jobber/modules/jobs/ports"
 	resumeModel "github.com/andreypavlenko/jobber/modules/resumes/model"
 	resumePorts "github.com/andreypavlenko/jobber/modules/resumes/ports"
+	rbPorts "github.com/andreypavlenko/jobber/modules/resumebuilder/ports"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
@@ -27,16 +28,17 @@ type LimitChecker interface {
 }
 
 type ApplicationService struct {
-	pool         *pgxpool.Pool
-	appRepo      ports.ApplicationRepository
-	stageRepo    ports.ApplicationStageRepository
-	templateRepo ports.StageTemplateRepository
-	jobRepo      jobPorts.JobRepository
-	companyRepo  companyPorts.CompanyRepository
-	resumeRepo   resumePorts.ResumeRepository
-	commentRepo  commentPorts.CommentRepository
-	log          *logger.Logger
-	limitChecker LimitChecker
+	pool            *pgxpool.Pool
+	appRepo         ports.ApplicationRepository
+	stageRepo       ports.ApplicationStageRepository
+	templateRepo    ports.StageTemplateRepository
+	jobRepo         jobPorts.JobRepository
+	companyRepo     companyPorts.CompanyRepository
+	resumeRepo      resumePorts.ResumeRepository
+	resumeBuilderRepo rbPorts.ResumeBuilderRepository
+	commentRepo     commentPorts.CommentRepository
+	log             *logger.Logger
+	limitChecker    LimitChecker
 }
 
 func NewApplicationService(
@@ -47,6 +49,7 @@ func NewApplicationService(
 	jobRepo jobPorts.JobRepository,
 	companyRepo companyPorts.CompanyRepository,
 	resumeRepo resumePorts.ResumeRepository,
+	resumeBuilderRepo rbPorts.ResumeBuilderRepository,
 	commentRepo commentPorts.CommentRepository,
 	log *logger.Logger,
 	limitChecker ...LimitChecker,
@@ -55,15 +58,16 @@ func NewApplicationService(
 		log = &logger.Logger{Logger: zap.NewNop()}
 	}
 	svc := &ApplicationService{
-		pool:         pool,
-		appRepo:      appRepo,
-		stageRepo:    stageRepo,
-		templateRepo: templateRepo,
-		jobRepo:      jobRepo,
-		companyRepo:  companyRepo,
-		resumeRepo:   resumeRepo,
-		commentRepo:  commentRepo,
-		log:          log,
+		pool:              pool,
+		appRepo:           appRepo,
+		stageRepo:         stageRepo,
+		templateRepo:      templateRepo,
+		jobRepo:           jobRepo,
+		companyRepo:       companyRepo,
+		resumeRepo:        resumeRepo,
+		resumeBuilderRepo: resumeBuilderRepo,
+		commentRepo:       commentRepo,
+		log:               log,
 	}
 	if len(limitChecker) > 0 {
 		svc.limitChecker = limitChecker[0]
@@ -72,6 +76,11 @@ func NewApplicationService(
 }
 
 func (s *ApplicationService) Create(ctx context.Context, userID string, req *model.CreateApplicationRequest) (*model.ApplicationDTO, error) {
+	// Validate mutual exclusivity of resume types
+	if req.ResumeID != nil && req.ResumeBuilderID != nil {
+		return nil, model.ErrBothResumeTypesSet
+	}
+
 	// Check subscription limit
 	if s.limitChecker != nil {
 		if err := s.limitChecker.CheckLimit(ctx, userID, "applications"); err != nil {
@@ -96,12 +105,13 @@ func (s *ApplicationService) Create(ctx context.Context, userID string, req *mod
 	}
 
 	app := &model.Application{
-		UserID:    userID,
-		JobID:     req.JobID,
-		ResumeID:  req.ResumeID,
-		Name:      name,
-		Status:    "active",
-		AppliedAt: appliedAt,
+		UserID:          userID,
+		JobID:           req.JobID,
+		ResumeID:        req.ResumeID,
+		ResumeBuilderID: req.ResumeBuilderID,
+		Name:            name,
+		Status:          "active",
+		AppliedAt:       appliedAt,
 	}
 
 	if err := s.appRepo.Create(ctx, app); err != nil {
@@ -183,6 +193,16 @@ func (s *ApplicationService) buildApplicationDTO(ctx context.Context, userID str
 		}
 	}
 
+	// Fetch resume builder title (optional — mutually exclusive with uploaded resume)
+	var resumeBuilderTitle *string
+	if app.ResumeBuilderID != nil {
+		if rb, fetchErr := s.resumeBuilderRepo.GetByID(ctx, *app.ResumeBuilderID); fetchErr != nil {
+			s.log.Warn("failed to fetch resume builder", zap.String("resume_builder_id", *app.ResumeBuilderID), zap.Error(fetchErr))
+		} else {
+			resumeBuilderTitle = &rb.Title
+		}
+	}
+
 	// Get last activity
 	lastActivity, err := s.appRepo.GetLastActivityAt(ctx, app.ID)
 	if err != nil {
@@ -190,7 +210,7 @@ func (s *ApplicationService) buildApplicationDTO(ctx context.Context, userID str
 		lastActivity = app.UpdatedAt
 	}
 
-	dto := model.NewApplicationDTO(app, job, company, resume, lastActivity)
+	dto := model.NewApplicationDTO(app, job, company, resume, resumeBuilderTitle, lastActivity)
 
 	// Resolve current stage name
 	if app.CurrentStageID != nil && *app.CurrentStageID != "" {

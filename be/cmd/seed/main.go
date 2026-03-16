@@ -85,6 +85,203 @@ func main() {
 	must(err, "create user")
 	fmt.Printf("created user: %s / password123\n", seedEmail)
 
+	// ── 1b. subscription (pro) ──────────────────────────────────────────
+	_, err = tx.Exec(ctx,
+		`INSERT INTO subscriptions (id, user_id, status, plan, created_at, updated_at)
+		 VALUES ($1, $2, 'active', 'pro', $3, $3)
+		 ON CONFLICT (user_id) DO UPDATE SET plan = 'pro', status = 'active', updated_at = $3`,
+		newID(), userID, createdAt,
+	)
+	must(err, "create subscription")
+	fmt.Println("created pro subscription")
+
+	// ── 1c. resume builders (4 different templates) ─────────────────────
+	type rbDef struct {
+		id, title, templateID, font, color, layout string
+		spacing, marginTop, marginBot, marginL, marginR, sidebarW int
+	}
+	resumeBuilders := []rbDef{
+		{
+			newID(), "Senior Software Engineer", "00000000-0000-0000-0000-000000000001",
+			"Georgia", "#1e40af", "single", 100, 40, 40, 40, 40, 35,
+		},
+		{
+			newID(), "Frontend Developer", "00000000-0000-0000-0000-000000000005",
+			"Inter", "#e11d48", "double-left", 90, 36, 36, 36, 36, 32,
+		},
+		{
+			newID(), "Full-Stack Engineer", "00000000-0000-0000-0000-000000000009",
+			"Roboto", "#7c3aed", "single", 100, 40, 40, 40, 40, 35,
+		},
+		{
+			newID(), "DevOps & Cloud Resume", "00000000-0000-0000-0000-00000000000c",
+			"Open Sans", "#059669", "double-right", 95, 32, 32, 32, 32, 38,
+		},
+	}
+
+	type rbContact struct {
+		fullName, email, phone, location, website, linkedin, github string
+	}
+	contacts := []rbContact{
+		{"Alex Jobseeker", "alex@example.com", "+1 (555) 123-4567", "San Francisco, CA", "alexdev.io", "linkedin.com/in/alexjobseeker", "github.com/alexjob"},
+		{"Alex Jobseeker", "alex@example.com", "+1 (555) 123-4567", "San Francisco, CA", "alexdev.io", "linkedin.com/in/alexjobseeker", "github.com/alexjob"},
+		{"Alex Jobseeker", "alex@example.com", "+1 (555) 123-4567", "San Francisco, CA", "alexdev.io", "linkedin.com/in/alexjobseeker", "github.com/alexjob"},
+		{"Alex Jobseeker", "alex@example.com", "+1 (555) 123-4567", "San Francisco, CA", "", "linkedin.com/in/alexjobseeker", "github.com/alexjob"},
+	}
+
+	summaries := []string{
+		"Results-driven senior software engineer with 8+ years of experience building scalable distributed systems. Proven track record of leading cross-functional teams and delivering high-impact products at top-tier tech companies. Passionate about clean architecture, performance optimization, and mentoring junior engineers.",
+		"Creative frontend developer with 5 years of experience crafting beautiful, accessible, and performant user interfaces. Specialized in React, TypeScript, and modern CSS. Strong eye for design with experience collaborating closely with UX teams to deliver pixel-perfect implementations.",
+		"Versatile full-stack engineer with 6 years of experience across the entire web stack. Proficient in Go, TypeScript, React, and PostgreSQL. Experienced in building and deploying microservices, REST APIs, and real-time applications. Comfortable wearing many hats in fast-paced startup environments.",
+		"DevOps engineer with 7 years of experience designing and maintaining cloud infrastructure at scale. Expert in AWS, Kubernetes, Terraform, and CI/CD pipelines. Passionate about reliability engineering, infrastructure as code, and enabling development teams to ship faster with confidence.",
+	}
+
+	type expDef struct {
+		company, position, location, startDate, endDate, description string
+		isCurrent                                                    bool
+	}
+	experienceSets := [][]expDef{
+		{
+			{"TechNova Inc.", "Senior Software Engineer", "San Francisco, CA", "2021-03", "", "Led the redesign of the core data processing pipeline, improving throughput by 40%. Mentored a team of 4 junior engineers. Architected a new event-driven microservices system handling 50K+ events/second.", true},
+			{"CloudScale Systems", "Software Engineer", "Remote", "2018-06", "2021-02", "Built and maintained Go microservices for the cloud orchestration platform. Implemented distributed caching layer reducing API latency by 60%. Contributed to open-source Kubernetes operators.", false},
+			{"DataPulse Analytics", "Junior Software Engineer", "New York, NY", "2016-08", "2018-05", "Developed RESTful APIs using Python/Django for the analytics dashboard. Wrote comprehensive test suites achieving 90%+ code coverage. Participated in on-call rotation for production systems.", false},
+		},
+		{
+			{"PixelCraft Studios", "Senior Frontend Developer", "Los Angeles, CA", "2022-01", "", "Lead frontend architect for the design collaboration platform serving 100K+ users. Built a custom component library with 50+ accessible React components. Implemented real-time collaborative editing using WebSocket.", true},
+			{"DataPulse Analytics", "Frontend Developer", "New York, NY", "2019-09", "2021-12", "Developed the analytics dashboard using React and D3.js with complex data visualizations. Improved Lighthouse performance score from 45 to 92. Built responsive layouts supporting mobile, tablet, and desktop.", false},
+		},
+		{
+			{"GreenByte Solutions", "Full-Stack Engineer", "Austin, TX", "2020-06", "", "Building sustainability tracking platform with Go backend and React frontend. Designed PostgreSQL schema handling 10M+ daily measurements. Implemented real-time WebSocket dashboards for IoT sensor data.", true},
+			{"FinEdge", "Software Developer", "Chicago, IL", "2018-01", "2020-05", "Developed payment processing microservices handling $2M+ daily transactions. Built React-based admin portal for transaction monitoring. Implemented end-to-end encryption for sensitive financial data.", false},
+		},
+		{
+			{"Quantum Labs", "Senior DevOps Engineer", "Seattle, WA", "2021-07", "", "Managing Kubernetes clusters across 3 AWS regions serving 5M+ daily active users. Built Terraform modules reducing infrastructure provisioning time from days to minutes. Designed zero-downtime deployment pipeline with automated canary releases.", true},
+			{"InfraCore", "DevOps Engineer", "Denver, CO", "2019-03", "2021-06", "Migrated legacy monolith to containerized microservices on EKS. Implemented GitOps workflow with ArgoCD reducing deployment errors by 80%. Built comprehensive monitoring stack with Prometheus, Grafana, and PagerDuty.", false},
+			{"CloudScale Systems", "Junior SRE", "Remote", "2017-05", "2019-02", "Maintained 99.95% uptime SLA for production services. Automated incident response playbooks reducing MTTR by 50%. Managed CI/CD pipelines using Jenkins and GitHub Actions.", false},
+		},
+	}
+
+	type eduDef struct {
+		institution, degree, field, startDate, endDate, gpa string
+	}
+	educationSets := [][]eduDef{
+		{{"Stanford University", "M.S.", "Computer Science", "2014-09", "2016-06", "3.9"}, {"UC Berkeley", "B.S.", "Computer Science", "2010-09", "2014-06", "3.7"}},
+		{{"Rhode Island School of Design", "B.F.A.", "Graphic Design", "2015-09", "2019-06", "3.8"}},
+		{{"University of Texas at Austin", "B.S.", "Computer Engineering", "2014-09", "2018-05", "3.6"}},
+		{{"Georgia Tech", "M.S.", "Computer Science", "2013-09", "2015-05", "3.8"}, {"University of Washington", "B.S.", "Information Systems", "2009-09", "2013-06", "3.5"}},
+	}
+
+	type skillDef struct{ name, level string }
+	skillSets := [][]skillDef{
+		{{"Go", "Expert"}, {"Python", "Advanced"}, {"PostgreSQL", "Expert"}, {"Kubernetes", "Advanced"}, {"gRPC", "Advanced"}, {"Redis", "Advanced"}, {"Docker", "Expert"}, {"AWS", "Advanced"}},
+		{{"React", "Expert"}, {"TypeScript", "Expert"}, {"CSS/Tailwind", "Expert"}, {"Next.js", "Advanced"}, {"Figma", "Advanced"}, {"Storybook", "Advanced"}, {"Vitest", "Advanced"}, {"Accessibility", "Advanced"}},
+		{{"Go", "Advanced"}, {"TypeScript", "Advanced"}, {"React", "Advanced"}, {"PostgreSQL", "Advanced"}, {"Docker", "Intermediate"}, {"GraphQL", "Intermediate"}, {"Redis", "Intermediate"}, {"Node.js", "Advanced"}},
+		{{"Kubernetes", "Expert"}, {"Terraform", "Expert"}, {"AWS", "Expert"}, {"Docker", "Expert"}, {"GitHub Actions", "Expert"}, {"Prometheus", "Advanced"}, {"ArgoCD", "Advanced"}, {"Linux", "Expert"}},
+	}
+
+	type langDef struct{ name, proficiency string }
+	langSets := [][]langDef{
+		{{"English", "Native"}, {"Spanish", "Intermediate"}},
+		{{"English", "Native"}, {"French", "Conversational"}},
+		{{"English", "Native"}, {"German", "Intermediate"}, {"Ukrainian", "Native"}},
+		{{"English", "Native"}, {"Japanese", "Conversational"}},
+	}
+
+	type certDef struct{ name, issuer, issueDate, url string }
+	certSets := [][]certDef{
+		{{"AWS Solutions Architect - Professional", "Amazon Web Services", "2023-04", "https://aws.amazon.com/certification/"}},
+		{},
+		{{"Google Cloud Professional Developer", "Google", "2022-11", "https://cloud.google.com/certification"}},
+		{{"CKA: Certified Kubernetes Administrator", "CNCF", "2023-01", "https://www.cncf.io/certification/cka/"}, {"AWS DevOps Engineer - Professional", "Amazon Web Services", "2022-08", "https://aws.amazon.com/certification/"}},
+	}
+
+	sectionKeys := []string{"summary", "experience", "education", "skills", "languages", "certifications", "projects", "volunteering", "custom"}
+
+	for i, rb := range resumeBuilders {
+		rbCreated := daysAgo(randBetween(30, 90))
+		_, err = tx.Exec(ctx,
+			`INSERT INTO resume_builders (id, user_id, title, template_id, font_family, primary_color, spacing, margin_top, margin_bottom, margin_left, margin_right, layout_mode, sidebar_width, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)`,
+			rb.id, userID, rb.title, rb.templateID, rb.font, rb.color, rb.spacing, rb.marginTop, rb.marginBot, rb.marginL, rb.marginR, rb.layout, rb.sidebarW, rbCreated,
+		)
+		must(err, "create resume builder "+rb.title)
+
+		// Contact
+		c := contacts[i]
+		_, err = tx.Exec(ctx,
+			`INSERT INTO resume_contacts (id, resume_builder_id, full_name, email, phone, location, website, linkedin, github)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			newID(), rb.id, c.fullName, c.email, c.phone, c.location, c.website, c.linkedin, c.github,
+		)
+		must(err, "create contact for "+rb.title)
+
+		// Summary
+		_, err = tx.Exec(ctx,
+			`INSERT INTO resume_summaries (id, resume_builder_id, content) VALUES ($1, $2, $3)`,
+			newID(), rb.id, summaries[i],
+		)
+		must(err, "create summary for "+rb.title)
+
+		// Experiences
+		for j, exp := range experienceSets[i] {
+			_, err = tx.Exec(ctx,
+				`INSERT INTO resume_experiences (id, resume_builder_id, company, position, location, start_date, end_date, is_current, description, sort_order)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+				newID(), rb.id, exp.company, exp.position, exp.location, exp.startDate, exp.endDate, exp.isCurrent, exp.description, j,
+			)
+			must(err, "create experience for "+rb.title)
+		}
+
+		// Educations
+		for j, edu := range educationSets[i] {
+			_, err = tx.Exec(ctx,
+				`INSERT INTO resume_educations (id, resume_builder_id, institution, degree, field_of_study, start_date, end_date, gpa, sort_order)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+				newID(), rb.id, edu.institution, edu.degree, edu.field, edu.startDate, edu.endDate, edu.gpa, j,
+			)
+			must(err, "create education for "+rb.title)
+		}
+
+		// Skills
+		for j, sk := range skillSets[i] {
+			_, err = tx.Exec(ctx,
+				`INSERT INTO resume_skills (id, resume_builder_id, name, level, sort_order) VALUES ($1, $2, $3, $4, $5)`,
+				newID(), rb.id, sk.name, sk.level, j,
+			)
+			must(err, "create skill for "+rb.title)
+		}
+
+		// Languages
+		for j, lang := range langSets[i] {
+			_, err = tx.Exec(ctx,
+				`INSERT INTO resume_languages (id, resume_builder_id, name, proficiency, sort_order) VALUES ($1, $2, $3, $4, $5)`,
+				newID(), rb.id, lang.name, lang.proficiency, j,
+			)
+			must(err, "create language for "+rb.title)
+		}
+
+		// Certifications
+		for j, cert := range certSets[i] {
+			_, err = tx.Exec(ctx,
+				`INSERT INTO resume_certifications (id, resume_builder_id, name, issuer, issue_date, url, sort_order)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+				newID(), rb.id, cert.name, cert.issuer, cert.issueDate, cert.url, j,
+			)
+			must(err, "create certification for "+rb.title)
+		}
+
+		// Section order
+		for j, key := range sectionKeys {
+			_, err = tx.Exec(ctx,
+				`INSERT INTO resume_section_orders (id, resume_builder_id, section_key, sort_order, is_visible, column_placement)
+				 VALUES ($1, $2, $3, $4, true, 'main')`,
+				newID(), rb.id, key, j,
+			)
+			must(err, "create section order for "+rb.title)
+		}
+	}
+	fmt.Printf("created %d resume builders with full content\n", len(resumeBuilders))
+
 	// ── 2. resumes ───────────────────────────────────────────────────────
 	type resume struct{ id, title string }
 	resumes := []resume{

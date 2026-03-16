@@ -6,13 +6,14 @@ import (
 
 // User represents a platform user
 type User struct {
-	ID           string
-	Email        string
-	Name         string
-	PasswordHash string
-	Locale       string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID            string
+	Email         string
+	Name          string
+	PasswordHash  string
+	Locale        string
+	EmailVerified bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // NewUser creates a new user

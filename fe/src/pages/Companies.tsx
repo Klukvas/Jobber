@@ -26,6 +26,7 @@ import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { CreateCompanyModal } from "@/features/companies/modals/CreateCompanyModal";
 import { DeleteCompanyDialog } from "@/features/companies/modals/DeleteCompanyDialog";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
+import { showErrorNotification } from "@/shared/lib/notifications";
 import type { CompanyDTO } from "@/shared/types/api";
 
 type SortBy = "name" | "last_activity" | "applications_count";
@@ -83,10 +84,12 @@ export default function Companies() {
       });
       return { previous, queryKey };
     },
-    onError: (_err, _companyId, context) => {
+    onError: (err, _companyId, context) => {
       if (context?.previous && context?.queryKey) {
         queryClient.setQueryData(context.queryKey, context.previous);
       }
+      console.error("[Companies] toggleFavorite failed:", err);
+      showErrorNotification(t("common.error"));
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["companies"] });

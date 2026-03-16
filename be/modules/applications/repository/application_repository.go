@@ -25,8 +25,8 @@ func NewApplicationRepository(pool *pgxpool.Pool) *ApplicationRepository {
 
 func (r *ApplicationRepository) Create(ctx context.Context, app *model.Application) error {
 	query := `
-		INSERT INTO applications (id, user_id, job_id, resume_id, name, current_stage_id, status, applied_at, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO applications (id, user_id, job_id, resume_id, resume_builder_id, name, current_stage_id, status, applied_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 
 	app.ID = uuid.New().String()
@@ -35,20 +35,20 @@ func (r *ApplicationRepository) Create(ctx context.Context, app *model.Applicati
 	app.UpdatedAt = now
 
 	_, err := r.pool.Exec(ctx, query,
-		app.ID, app.UserID, app.JobID, app.ResumeID, app.Name, app.CurrentStageID, app.Status, app.AppliedAt, app.CreatedAt, app.UpdatedAt,
+		app.ID, app.UserID, app.JobID, app.ResumeID, app.ResumeBuilderID, app.Name, app.CurrentStageID, app.Status, app.AppliedAt, app.CreatedAt, app.UpdatedAt,
 	)
 	return err
 }
 
 func (r *ApplicationRepository) GetByID(ctx context.Context, userID, appID string) (*model.Application, error) {
 	query := `
-		SELECT id, user_id, job_id, resume_id, name, current_stage_id, status, applied_at, created_at, updated_at
+		SELECT id, user_id, job_id, resume_id, resume_builder_id, name, current_stage_id, status, applied_at, created_at, updated_at
 		FROM applications WHERE id = $1 AND user_id = $2
 	`
 
 	app := &model.Application{}
 	err := r.pool.QueryRow(ctx, query, appID, userID).Scan(
-		&app.ID, &app.UserID, &app.JobID, &app.ResumeID, &app.Name, &app.CurrentStageID, &app.Status, &app.AppliedAt, &app.CreatedAt, &app.UpdatedAt,
+		&app.ID, &app.UserID, &app.JobID, &app.ResumeID, &app.ResumeBuilderID, &app.Name, &app.CurrentStageID, &app.Status, &app.AppliedAt, &app.CreatedAt, &app.UpdatedAt,
 	)
 
 	if err != nil {
@@ -116,7 +116,7 @@ func (r *ApplicationRepository) List(ctx context.Context, userID string, opts *p
 			WHERE a.user_id = $1%s
 		)
 		SELECT
-			a.id, a.user_id, a.job_id, a.resume_id, a.name,
+			a.id, a.user_id, a.job_id, a.resume_id, a.resume_builder_id, a.name,
 			a.current_stage_id, a.status, a.applied_at, a.created_at, a.updated_at
 		FROM applications a
 		JOIN last_activities la ON a.id = la.app_id
@@ -135,7 +135,7 @@ func (r *ApplicationRepository) List(ctx context.Context, userID string, opts *p
 	var apps []*model.Application
 	for rows.Next() {
 		app := &model.Application{}
-		if err := rows.Scan(&app.ID, &app.UserID, &app.JobID, &app.ResumeID, &app.Name, &app.CurrentStageID, &app.Status, &app.AppliedAt, &app.CreatedAt, &app.UpdatedAt); err != nil {
+		if err := rows.Scan(&app.ID, &app.UserID, &app.JobID, &app.ResumeID, &app.ResumeBuilderID, &app.Name, &app.CurrentStageID, &app.Status, &app.AppliedAt, &app.CreatedAt, &app.UpdatedAt); err != nil {
 			return nil, 0, err
 		}
 		apps = append(apps, app)
@@ -200,6 +200,7 @@ func (r *ApplicationRepository) ListEnriched(ctx context.Context, userID string,
 			j.id, j.title,
 			c.id, c.name, c.location, c.notes, c.is_favorite, c.created_at, c.updated_at,
 			r.id, r.title,
+			rb.id, rb.title,
 			st.name as current_stage_name,
 			COUNT(*) OVER() as total_count
 		FROM applications a
@@ -208,6 +209,7 @@ func (r *ApplicationRepository) ListEnriched(ctx context.Context, userID string,
 		LEFT JOIN jobs j ON j.id = a.job_id
 		LEFT JOIN companies c ON j.company_id = c.id
 		LEFT JOIN resumes r ON r.id = a.resume_id
+		LEFT JOIN resume_builders rb ON rb.id = a.resume_builder_id
 		LEFT JOIN application_stages cur_stage ON cur_stage.id = a.current_stage_id
 		LEFT JOIN stage_templates st ON st.id = cur_stage.stage_template_id
 		WHERE a.user_id = $1%s
@@ -233,6 +235,7 @@ func (r *ApplicationRepository) ListEnriched(ctx context.Context, userID string,
 		var companyIsFavorite *bool
 		var companyCreatedAt, companyUpdatedAt *time.Time
 		var resumeID, resumeTitle *string
+		var resumeBuilderID, resumeBuilderTitle *string
 		var currentStageName *string
 
 		if err := rows.Scan(
@@ -242,6 +245,7 @@ func (r *ApplicationRepository) ListEnriched(ctx context.Context, userID string,
 			&jobID, &jobTitle,
 			&companyID, &companyName, &companyLocation, &companyNotes, &companyIsFavorite, &companyCreatedAt, &companyUpdatedAt,
 			&resumeID, &resumeTitle,
+			&resumeBuilderID, &resumeBuilderTitle,
 			&currentStageName,
 			&total,
 		); err != nil {
@@ -274,11 +278,18 @@ func (r *ApplicationRepository) ListEnriched(ctx context.Context, userID string,
 			}
 		}
 
-		// Build nested Resume
+		// Build nested Resume (uploaded or builder — mutually exclusive)
 		if resumeID != nil {
 			dto.Resume = &model.ResumeNestedDTO{
 				ID:   *resumeID,
 				Name: safeString(resumeTitle),
+				Type: "uploaded",
+			}
+		} else if resumeBuilderID != nil {
+			dto.Resume = &model.ResumeNestedDTO{
+				ID:   *resumeBuilderID,
+				Name: safeString(resumeBuilderTitle),
+				Type: "builder",
 			}
 		}
 

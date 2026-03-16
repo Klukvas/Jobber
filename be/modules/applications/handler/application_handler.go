@@ -46,8 +46,12 @@ func (h *ApplicationHandler) Create(c *gin.Context) {
 
 	app, err := h.service.Create(c.Request.Context(), userID, &req)
 	if err != nil {
+		if errors.Is(err, model.ErrBothResumeTypesSet) {
+			httpPlatform.RespondWithError(c, http.StatusBadRequest, string(model.CodeBothResumeTypesSet), model.GetErrorMessage(err))
+			return
+		}
 		if errors.Is(err, subModel.ErrLimitReached) {
-			httpPlatform.RespondWithError(c, http.StatusForbidden, "PLAN_LIMIT_REACHED", "Plan limit reached. Upgrade to Pro for unlimited access.")
+			httpPlatform.RespondWithError(c, http.StatusForbidden, "PLAN_LIMIT_REACHED", "You have reached the application limit for your current plan.")
 			return
 		}
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, string(model.GetErrorCode(err)), model.GetErrorMessage(err))

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
 
 // RateLimitConfig holds rate limiting configuration
@@ -33,7 +34,7 @@ return count
 // RateLimitMiddleware creates a Redis-based rate limiting middleware.
 // Limits requests by client IP using a fixed-window counter in Redis.
 // Uses a Lua script for atomic INCR + EXPIRE to prevent TTL-less keys on crashes.
-func RateLimitMiddleware(rdb *redis.Client, cfg RateLimitConfig) gin.HandlerFunc {
+func RateLimitMiddleware(rdb *redis.Client, cfg RateLimitConfig, logger *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		clientIP := c.ClientIP()
 		key := fmt.Sprintf("ratelimit:%s:%s", cfg.KeyPrefix, clientIP)
@@ -43,7 +44,11 @@ func RateLimitMiddleware(rdb *redis.Client, cfg RateLimitConfig) gin.HandlerFunc
 		windowSeconds := int(cfg.Window.Seconds())
 		result, err := rateLimitScript.Run(ctx, rdb, []string{key}, windowSeconds).Int64()
 		if err != nil {
-			// On Redis error, allow the request (fail open)
+			// On Redis error, allow the request (fail open) but log
+			logger.Warn("rate limiter fail-open: redis error",
+				zap.String("key", key),
+				zap.Error(err),
+			)
 			c.Next()
 			return
 		}

@@ -30,6 +30,8 @@ export function useSubscription() {
     max_applications: 5,
     max_ai_requests: 1,
     max_job_parses: 5,
+    max_resume_builders: 1,
+    max_cover_letters: 0,
   };
 
   const usage: SubscriptionUsage = subscription?.usage ?? {
@@ -38,10 +40,18 @@ export function useSubscription() {
     applications: 0,
     ai_requests: 0,
     job_parses: 0,
+    resume_builders: 0,
+    cover_letters: 0,
   };
 
   const canCreate = (
-    resource: "jobs" | "resumes" | "applications" | "ai",
+    resource:
+      | "jobs"
+      | "resumes"
+      | "applications"
+      | "ai"
+      | "resume_builders"
+      | "cover_letters",
   ): boolean => {
     switch (resource) {
       case "jobs":
@@ -57,6 +67,17 @@ export function useSubscription() {
         if (limits.max_ai_requests < 0) return true;
         if (limits.max_ai_requests === 0) return false;
         return usage.ai_requests < limits.max_ai_requests;
+      case "resume_builders":
+        return (
+          limits.max_resume_builders < 0 ||
+          usage.resume_builders < limits.max_resume_builders
+        );
+      case "cover_letters":
+        if (limits.max_cover_letters === 0) return false;
+        return (
+          limits.max_cover_letters < 0 ||
+          usage.cover_letters < limits.max_cover_letters
+        );
       default:
         return true;
     }

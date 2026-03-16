@@ -2,10 +2,24 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
+
+// PlanLimitsYAML mirrors model.PlanLimits with yaml tags for config loading.
+type PlanLimitsYAML struct {
+	MaxJobs           int `yaml:"max_jobs"`
+	MaxResumes        int `yaml:"max_resumes"`
+	MaxApplications   int `yaml:"max_applications"`
+	MaxAIRequests     int `yaml:"max_ai_requests"`
+	MaxJobParses      int `yaml:"max_job_parses"`
+	MaxResumeBuilders int `yaml:"max_resume_builders"`
+	MaxCoverLetters   int `yaml:"max_cover_letters"`
+}
 
 // Config holds all configuration for the application
 type Config struct {
@@ -18,6 +32,29 @@ type Config struct {
 	GoogleCalendar GoogleCalendarConfig
 	Anthropic      AnthropicConfig
 	Paddle         PaddleConfig
+	Sentry         SentryConfig
+	Resend         ResendConfig
+	Features       FeaturesConfig
+	Plans          map[string]PlanLimitsYAML
+}
+
+// FeaturesConfig holds feature flags that can be toggled per environment.
+type FeaturesConfig struct {
+	SentryEnabled   bool
+	EmailEnabled    bool
+	PaymentsEnabled bool
+}
+
+// SentryConfig holds Sentry error tracking configuration
+type SentryConfig struct {
+	DSN     string
+	Release string
+}
+
+// ResendConfig holds Resend email service configuration
+type ResendConfig struct {
+	APIKey      string
+	FromAddress string
 }
 
 // PaddleConfig holds Paddle payment configuration
@@ -49,6 +86,7 @@ type ServerConfig struct {
 	Port           string
 	Env            string
 	AllowedOrigins string
+	FrontendURL    string
 }
 
 // DatabaseConfig holds database configuration
@@ -102,6 +140,7 @@ func Load() (*Config, error) {
 			Port:           getEnv("SERVER_PORT", "8080"),
 			Env:            getEnv("SERVER_ENV", "development"),
 			AllowedOrigins: getEnv("ALLOWED_ORIGINS", "*"),
+			FrontendURL:    getEnv("FRONTEND_URL", ""),
 		},
 		Database: DatabaseConfig{
 			Host:            getEnv("DB_HOST", "localhost"),
@@ -155,7 +194,24 @@ func Load() (*Config, error) {
 			EnterprisePriceID: getEnv("PADDLE_ENTERPRISE_PRICE_ID", ""),
 			ClientToken:       getEnv("PADDLE_CLIENT_TOKEN", ""),
 		},
+		Sentry: SentryConfig{
+			DSN:     getEnv("SENTRY_DSN", ""),
+			Release: getEnv("SENTRY_RELEASE", ""),
+		},
+		Resend: ResendConfig{
+			APIKey:      getEnv("RESEND_API_KEY", ""),
+			FromAddress: getEnv("RESEND_FROM_ADDRESS", ""),
+		},
+		Features: FeaturesConfig{
+			SentryEnabled:   getEnvAsBool("FEATURE_SENTRY_ENABLED", true),
+			EmailEnabled:    getEnvAsBool("FEATURE_EMAIL_ENABLED", true),
+			PaymentsEnabled: getEnvAsBool("FEATURE_PAYMENTS_ENABLED", false),
+		},
 	}
+
+	// Load plan limits from YAML (optional — falls back to hardcoded defaults)
+	plansPath := getEnv("PLANS_CONFIG_PATH", "config/plans.yaml")
+	cfg.Plans = loadPlansConfig(plansPath)
 
 	// Validate required fields
 	if cfg.JWT.AccessSecret == "" {
@@ -194,6 +250,25 @@ func (c *RedisConfig) Addr() string {
 	return fmt.Sprintf("%s:%s", c.Host, c.Port)
 }
 
+// loadPlansConfig reads plan limits from a YAML file.
+// Returns nil if the file is missing (hardcoded defaults will be used).
+func loadPlansConfig(path string) map[string]PlanLimitsYAML {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		log.Printf("[config] plans config not found at %s, using hardcoded defaults", path)
+		return nil
+	}
+
+	var plans map[string]PlanLimitsYAML
+	if err := yaml.Unmarshal(data, &plans); err != nil {
+		log.Printf("[config] failed to parse plans config %s: %v — using hardcoded defaults", path, err)
+		return nil
+	}
+
+	log.Printf("[config] loaded plan limits from %s (%d plans)", path, len(plans))
+	return plans
+}
+
 // Helper functions
 
 func getEnv(key, defaultValue string) string {
@@ -207,6 +282,15 @@ func getEnvAsInt(key string, defaultValue int) int {
 	if value := os.Getenv(key); value != "" {
 		if intVal, err := strconv.Atoi(value); err == nil {
 			return intVal
+		}
+	}
+	return defaultValue
+}
+
+func getEnvAsBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		if b, err := strconv.ParseBool(value); err == nil {
+			return b
 		}
 	}
 	return defaultValue

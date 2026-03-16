@@ -1,105 +1,157 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { resumesService } from "@/services/resumesService";
-import { Button } from "@/shared/ui/Button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
-import { SkeletonList } from "@/shared/ui/Skeleton";
-import { EmptyState } from "@/shared/ui/EmptyState";
-import { ErrorState } from "@/shared/ui/ErrorState";
 import {
   Plus,
   FileText,
-  ExternalLink,
-  CheckCircle,
-  XCircle,
   Calendar,
-  MoreVertical,
-  Edit,
-  Trash2,
   ArrowUp,
   ArrowDown,
-  Briefcase,
-  Download,
-  Cloud,
-  Link as LinkIcon,
+  Import,
+  ChevronDown,
+  Upload,
+  PenTool,
 } from "lucide-react";
-import { format } from "date-fns";
-import { useDateLocale } from "@/shared/lib/dateFnsLocale";
+import { Button } from "@/shared/ui/Button";
+import { SkeletonList } from "@/shared/ui/Skeleton";
+import { EmptyState } from "@/shared/ui/EmptyState";
+import { ErrorState } from "@/shared/ui/ErrorState";
 import { CreateResumeModal } from "@/features/resumes/modals/CreateResumeModal";
 import { EditResumeModal } from "@/features/resumes/modals/EditResumeModal";
 import { DeleteResumeModal } from "@/features/resumes/modals/DeleteResumeModal";
-import { showErrorNotification } from "@/shared/lib/notifications";
+import { ImportResumeModal } from "@/features/resume-builder/components/ImportResumeModal";
+import { UploadedResumeCard } from "@/features/resumes/components/UploadedResumeCard";
+import { BuilderResumeCard } from "@/features/resumes/components/BuilderResumeCard";
+import {
+  useUnifiedResumes,
+  type ResumeKindFilter,
+  type UnifiedSortBy,
+} from "@/features/resumes/hooks/useUnifiedResumes";
+import { resumeBuilderService } from "@/services/resumeBuilderService";
+import { useSubscription } from "@/shared/hooks/useSubscription";
+import { UpgradeBanner } from "@/features/subscription/components/UpgradeBanner";
+import { ApiError } from "@/services/api";
+import {
+  showSuccessNotification,
+  showErrorNotification,
+} from "@/shared/lib/notifications";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/shared/ui/Dialog";
 import type { ResumeDTO } from "@/shared/types/api";
+import type { ResumeBuilderDTO } from "@/shared/types/resume-builder";
 
-type SortBy = "created_at" | "title" | "is_active";
-type SortDir = "asc" | "desc";
+const FILTER_OPTIONS: { value: ResumeKindFilter; labelKey: string }[] = [
+  { value: "all", labelKey: "resumes.filterAll" },
+  { value: "uploaded", labelKey: "resumes.filterUploaded" },
+  { value: "built", labelKey: "resumes.filterBuilt" },
+];
+
+const SORT_OPTIONS: { value: UnifiedSortBy; labelKey: string }[] = [
+  { value: "updated_at", labelKey: "resumes.sortLastModified" },
+  { value: "created_at", labelKey: "resumes.sortCreatedDate" },
+  { value: "title", labelKey: "resumes.sortTitle" },
+];
 
 export default function Resumes() {
   const { t } = useTranslation();
-  const dateLocale = useDateLocale();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
   usePageMeta({ titleKey: "resumes.title", noindex: true });
+
+  const { canCreate } = useSubscription();
+  const uploadLimitReached = !canCreate("resumes");
+  const builderLimitReached = !canCreate("resume_builders");
+
+  const {
+    items,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    kindFilter,
+    setKindFilter,
+    sortBy,
+    sortDir,
+    toggleSort,
+  } = useUnifiedResumes();
+
+  // Modals state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [sortBy, setSortBy] = useState<SortBy>("created_at");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [isCreateDropdownOpen, setIsCreateDropdownOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [editingResume, setEditingResume] = useState<ResumeDTO | null>(null);
   const [deletingResume, setDeletingResume] = useState<ResumeDTO | null>(null);
+  const [deleteBuilderTarget, setDeleteBuilderTarget] =
+    useState<ResumeBuilderDTO | null>(null);
 
-  // Close context menu when clicking outside
+  // Close dropdowns on outside click
   useEffect(() => {
-    if (!openMenuId) return;
-    const handleClickOutside = () => setOpenMenuId(null);
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, [openMenuId]);
+    if (!openMenuId && !isCreateDropdownOpen) return;
+    const handleClick = () => {
+      setOpenMenuId(null);
+      setIsCreateDropdownOpen(false);
+    };
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [openMenuId, isCreateDropdownOpen]);
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["resumes", sortBy, sortDir],
-    queryFn: () =>
-      resumesService.list({
-        limit: 100,
-        offset: 0,
-        sort_by: sortBy,
-        sort_dir: sortDir,
-      }),
-  });
-
-  const toggleSort = (field: SortBy) => {
-    if (sortBy === field) {
-      setSortDir(sortDir === "desc" ? "asc" : "desc");
-    } else {
-      setSortBy(field);
-      setSortDir("desc");
-    }
-  };
-
-  const handleEdit = (resume: ResumeDTO) => {
-    setEditingResume(resume);
-    setOpenMenuId(null);
-  };
-
-  const handleDelete = (resume: ResumeDTO) => {
-    setDeletingResume(resume);
-    setOpenMenuId(null);
-  };
-
-  // Handle S3 resume download
-  const downloadMutation = useMutation({
-    mutationFn: resumesService.generateDownloadURL,
+  // Builder mutations
+  const createBuilderMutation = useMutation({
+    mutationFn: () => resumeBuilderService.create({}),
     onSuccess: (data) => {
-      // Open download URL in new tab
-      window.open(data.download_url, "_blank");
+      queryClient.invalidateQueries({ queryKey: ["resume-builders"] });
+      navigate(`/app/resume-builder/${data.id}`);
     },
-    onError: (error: Error) => {
-      showErrorNotification(error?.message || t("resumes.downloadError"));
+    onError: (err) => {
+      if (err instanceof ApiError && err.code === "PLAN_LIMIT_REACHED") {
+        queryClient.invalidateQueries({ queryKey: ["subscription"] });
+        return;
+      }
+      showErrorNotification(
+        err instanceof Error ? err.message : t("common.error"),
+      );
     },
   });
 
-  const handleDownload = (resumeId: string) => {
-    downloadMutation.mutate(resumeId);
-  };
+  const duplicateBuilderMutation = useMutation({
+    mutationFn: (id: string) => resumeBuilderService.duplicate(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["resume-builders"] });
+      showSuccessNotification(t("resumeBuilder.duplicated"));
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.code === "PLAN_LIMIT_REACHED") {
+        queryClient.invalidateQueries({ queryKey: ["subscription"] });
+        return;
+      }
+      showErrorNotification(
+        err instanceof Error ? err.message : t("common.error"),
+      );
+    },
+  });
+
+  const deleteBuilderMutation = useMutation({
+    mutationFn: (id: string) => resumeBuilderService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["resume-builders"] });
+      setDeleteBuilderTarget(null);
+      showSuccessNotification(t("resumeBuilder.deleted"));
+    },
+    onError: (err) => {
+      showErrorNotification(
+        err instanceof Error ? err.message : t("common.error"),
+      );
+    },
+  });
 
   if (isLoading) {
     return (
@@ -116,24 +168,79 @@ export default function Resumes() {
     return (
       <div className="space-y-4">
         <h1 className="text-3xl font-bold">{t("resumes.title")}</h1>
-        <ErrorState message={error.message} onRetry={() => refetch()} />
+        <ErrorState
+          message={error instanceof Error ? error.message : t("common.error")}
+          onRetry={refetch}
+        />
       </div>
     );
   }
 
-  const resumes = data?.items || [];
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-3xl font-bold">{t("resumes.title")}</h1>
-        <Button onClick={() => setIsCreateModalOpen(true)}>
-          <Plus className="h-4 w-4" />
-          {t("resumes.create")}
-        </Button>
+
+        {/* Create dropdown */}
+        <div className="relative" onClick={(e) => e.stopPropagation()}>
+          <Button
+            onClick={() => {
+              setOpenMenuId(null);
+              setIsCreateDropdownOpen((prev) => !prev);
+            }}
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            {t("resumes.create")}
+            <ChevronDown className="h-4 w-4 ml-1" />
+          </Button>
+          {isCreateDropdownOpen && (
+            <div className="absolute right-0 mt-1 w-56 bg-popover border rounded-md shadow-lg z-10">
+              <button
+                onClick={() => {
+                  setIsCreateDropdownOpen(false);
+                  setIsCreateModalOpen(true);
+                }}
+                disabled={uploadLimitReached}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Upload className="h-4 w-4" />
+                {t("resumes.uploadResume")}
+              </button>
+              <button
+                onClick={() => {
+                  setIsCreateDropdownOpen(false);
+                  createBuilderMutation.mutate();
+                }}
+                disabled={
+                  builderLimitReached || createBuilderMutation.isPending
+                }
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <PenTool className="h-4 w-4" />
+                {t("resumes.buildResume")}
+              </button>
+              <button
+                onClick={() => {
+                  setIsCreateDropdownOpen(false);
+                  setShowImportModal(true);
+                }}
+                disabled={builderLimitReached}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Import className="h-4 w-4" />
+                {t("resumes.importResume")}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {resumes.length === 0 ? (
+      {/* Upgrade banners */}
+      {uploadLimitReached && <UpgradeBanner resource="resumes" />}
+      {builderLimitReached && <UpgradeBanner resource="resume_builders" />}
+
+      {items.length === 0 && kindFilter === "all" ? (
         <EmptyState
           icon={<FileText className="h-12 w-12" />}
           title={t("resumes.noResumes")}
@@ -147,210 +254,98 @@ export default function Resumes() {
         />
       ) : (
         <>
-          {/* Sorting Controls */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-muted-foreground">
-              {t("common.sortBy")}
-            </span>
-            <Button
-              variant={sortBy === "created_at" ? "default" : "outline"}
-              size="sm"
-              onClick={() => toggleSort("created_at")}
-            >
-              <Calendar className="h-3 w-3 mr-1" />
-              {t("resumes.sortCreatedDate")}
-              {sortBy === "created_at" &&
-                (sortDir === "desc" ? (
-                  <ArrowDown className="h-3 w-3 ml-1" />
-                ) : (
-                  <ArrowUp className="h-3 w-3 ml-1" />
-                ))}
-            </Button>
-            <Button
-              variant={sortBy === "title" ? "default" : "outline"}
-              size="sm"
-              onClick={() => toggleSort("title")}
-            >
-              <FileText className="h-3 w-3 mr-1" />
-              {t("resumes.sortTitle")}
-              {sortBy === "title" &&
-                (sortDir === "desc" ? (
-                  <ArrowDown className="h-3 w-3 ml-1" />
-                ) : (
-                  <ArrowUp className="h-3 w-3 ml-1" />
-                ))}
-            </Button>
-            <Button
-              variant={sortBy === "is_active" ? "default" : "outline"}
-              size="sm"
-              onClick={() => toggleSort("is_active")}
-            >
-              {t("resumes.sortActiveStatus")}
-              {sortBy === "is_active" &&
-                (sortDir === "desc" ? (
-                  <ArrowDown className="h-3 w-3 ml-1" />
-                ) : (
-                  <ArrowUp className="h-3 w-3 ml-1" />
-                ))}
-            </Button>
+          {/* Filter & Sort Controls */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {/* Filter tabs */}
+            <div className="flex items-center gap-1">
+              {FILTER_OPTIONS.map((opt) => (
+                <Button
+                  key={opt.value}
+                  variant={kindFilter === opt.value ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setKindFilter(opt.value)}
+                >
+                  {t(opt.labelKey)}
+                </Button>
+              ))}
+            </div>
+
+            {/* Sort buttons */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-muted-foreground">
+                {t("common.sortBy")}
+              </span>
+              {SORT_OPTIONS.map((opt) => (
+                <Button
+                  key={opt.value}
+                  variant={sortBy === opt.value ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => toggleSort(opt.value)}
+                >
+                  {opt.value === "created_at" && (
+                    <Calendar className="h-3 w-3 mr-1" />
+                  )}
+                  {opt.value === "title" && (
+                    <FileText className="h-3 w-3 mr-1" />
+                  )}
+                  {t(opt.labelKey)}
+                  {sortBy === opt.value &&
+                    (sortDir === "desc" ? (
+                      <ArrowDown className="h-3 w-3 ml-1" />
+                    ) : (
+                      <ArrowUp className="h-3 w-3 ml-1" />
+                    ))}
+                </Button>
+              ))}
+            </div>
           </div>
 
-          {/* Resume Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {resumes.map((resume) => (
-              <Card
-                key={resume.id}
-                className={`transition-all hover:shadow-md h-full group relative ${
-                  !resume.is_active ? "opacity-60" : ""
-                }`}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-lg font-bold leading-tight flex-1">
-                      {resume.title}
-                    </CardTitle>
-                    {/* Context Menu */}
-                    <div
-                      className="relative"
-                      onClick={(e) => e.preventDefault()}
-                    >
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          setOpenMenuId(
-                            openMenuId === resume.id ? null : resume.id,
-                          );
-                        }}
-                        className="p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground"
-                        aria-label={t("resumes.actionsMenu")}
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </button>
-                      {openMenuId === resume.id && (
-                        <div className="absolute right-0 mt-1 w-48 bg-popover border rounded-md shadow-lg z-10">
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleEdit(resume);
-                            }}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
-                          >
-                            <Edit className="h-4 w-4" />
-                            {t("common.edit")}
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleDelete(resume);
-                            }}
-                            disabled={resume.can_delete === false}
-                            className={`flex items-center gap-2 w-full px-3 py-2 text-sm text-left ${
-                              resume.can_delete !== false
-                                ? "hover:bg-accent text-destructive"
-                                : "opacity-50 cursor-not-allowed"
-                            }`}
-                            title={
-                              resume.can_delete === false
-                                ? t("resumes.cannotDeleteInUse")
-                                : ""
-                            }
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            {t("common.delete")}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Active/Inactive Badge */}
-                  <div className="flex items-center gap-2 mt-2">
-                    {resume.is_active ? (
-                      <div className="flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 dark:bg-green-900/30 dark:text-green-400 px-2 py-1 rounded">
-                        <CheckCircle className="h-3 w-3" />
-                        {t("common.active")}
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded">
-                        <XCircle className="h-3 w-3" />
-                        {t("common.inactive")}
-                      </div>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {/* File Access Section */}
-                  <div className="space-y-2">
-                    {resume.storage_type === "s3" ? (
-                      <>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Cloud className="h-3 w-3" />
-                          <span>{t("resumes.cloudStorage")}</span>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownload(resume.id)}
-                          disabled={downloadMutation.isPending}
-                          className="w-full"
-                        >
-                          <Download className="h-3 w-3 mr-2" />
-                          {downloadMutation.isPending
-                            ? t("resumes.generatingLink")
-                            : t("resumes.downloadResume")}
-                        </Button>
-                      </>
-                    ) : resume.file_url ? (
-                      <>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <LinkIcon className="h-3 w-3" />
-                          <span>{t("resumes.externalUrl")}</span>
-                        </div>
-                        <a
-                          href={resume.file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-center gap-2 text-sm hover:underline w-full px-4 py-2 border rounded-md hover:bg-accent transition-colors"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          {t("resumes.viewResume")}
-                        </a>
-                      </>
-                    ) : (
-                      <div className="text-sm text-muted-foreground italic">
-                        {t("resumes.noFileAttached")}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Usage Indicator */}
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Briefcase className="h-4 w-4" />
-                    <span>
-                      {(resume.applications_count ?? 0) === 0
-                        ? t("resumes.notUsedYet")
-                        : t("resumes.usedInApplications", {
-                            count: resume.applications_count,
-                          })}
-                    </span>
-                  </div>
-
-                  <div className="text-sm text-muted-foreground">
-                    {t("resumes.created")}{" "}
-                    {format(new Date(resume.created_at), "PPP", {
-                      locale: dateLocale,
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          {/* Cards grid */}
+          {items.length === 0 ? (
+            <EmptyState
+              icon={<FileText className="h-12 w-12" />}
+              title={t("resumes.noResumesForFilter")}
+              description={t("resumes.tryOtherFilter")}
+            />
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {items.map((item) =>
+                item.kind === "uploaded" ? (
+                  <UploadedResumeCard
+                    key={`uploaded-${item.data.id}`}
+                    resume={item.data}
+                    isMenuOpen={openMenuId === item.data.id}
+                    onToggleMenu={() => {
+                      setIsCreateDropdownOpen(false);
+                      setOpenMenuId(
+                        openMenuId === item.data.id ? null : item.data.id,
+                      );
+                    }}
+                    onEdit={(resume) => {
+                      setEditingResume(resume);
+                      setOpenMenuId(null);
+                    }}
+                    onDelete={(resume) => {
+                      setDeletingResume(resume);
+                      setOpenMenuId(null);
+                    }}
+                  />
+                ) : (
+                  <BuilderResumeCard
+                    key={`built-${item.data.id}`}
+                    resume={item.data}
+                    limitReached={builderLimitReached}
+                    onDuplicate={(id) => duplicateBuilderMutation.mutate(id)}
+                    onDelete={(resume) => setDeleteBuilderTarget(resume)}
+                  />
+                ),
+              )}
+            </div>
+          )}
         </>
       )}
 
+      {/* Uploaded resume modals */}
       <CreateResumeModal
         open={isCreateModalOpen}
         onOpenChange={setIsCreateModalOpen}
@@ -371,6 +366,47 @@ export default function Resumes() {
           resume={deletingResume}
         />
       )}
+
+      {/* Builder delete dialog */}
+      <Dialog
+        open={!!deleteBuilderTarget}
+        onOpenChange={(open) => !open && setDeleteBuilderTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("resumeBuilder.deleteConfirmTitle")}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {t("resumeBuilder.deleteConfirmDescription", {
+              title: deleteBuilderTarget?.title,
+            })}
+          </p>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteBuilderTarget(null)}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() =>
+                deleteBuilderTarget &&
+                deleteBuilderMutation.mutate(deleteBuilderTarget.id)
+              }
+              disabled={deleteBuilderMutation.isPending}
+            >
+              {t("common.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import modal */}
+      <ImportResumeModal
+        open={showImportModal}
+        onOpenChange={setShowImportModal}
+      />
     </div>
   );
 }

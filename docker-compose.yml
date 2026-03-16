@@ -95,6 +95,9 @@ services:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY}
 
+      # Frontend URL (enables React-based PDF rendering; must be internal hostname in production)
+      FRONTEND_URL: ${FRONTEND_URL:-http://frontend}
+
       # Anthropic AI (optional - for job import parsing)
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
 
@@ -104,6 +107,30 @@ services:
       GOOGLE_CALENDAR_REDIRECT_URL: ${GOOGLE_CALENDAR_REDIRECT_URL:-}
       GOOGLE_CALENDAR_FRONTEND_URL: ${GOOGLE_CALENDAR_FRONTEND_URL:-}
       GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY: ${GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY:-}
+
+      # Sentry (optional - error tracking)
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+
+      # CORS
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+
+      # Resend (optional - email service)
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_ADDRESS: ${RESEND_FROM_ADDRESS:-}
+
+      # Paddle (optional - payment processing)
+      PADDLE_API_KEY: ${PADDLE_API_KEY:-}
+      PADDLE_WEBHOOK_SECRET: ${PADDLE_WEBHOOK_SECRET:-}
+      PADDLE_ENVIRONMENT: ${PADDLE_ENVIRONMENT:-sandbox}
+      PADDLE_PRO_PRICE_ID: ${PADDLE_PRO_PRICE_ID:-}
+      PADDLE_ENTERPRISE_PRICE_ID: ${PADDLE_ENTERPRISE_PRICE_ID:-}
+      PADDLE_CLIENT_TOKEN: ${PADDLE_CLIENT_TOKEN:-}
+
+      # Feature flags
+      FEATURE_SENTRY_ENABLED: ${FEATURE_SENTRY_ENABLED:-true}
+      FEATURE_EMAIL_ENABLED: ${FEATURE_EMAIL_ENABLED:-true}
+      FEATURE_PAYMENTS_ENABLED: ${FEATURE_PAYMENTS_ENABLED:-false}
     depends_on:
       postgres:
         condition: service_healthy
@@ -129,6 +156,10 @@ services:
       args:
         # Use relative path - nginx will proxy /api/ requests to backend
         VITE_API_BASE_URL: /api/v1
+        VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
+        VITE_FEATURE_SENTRY: ${VITE_FEATURE_SENTRY:-false}
+        VITE_FEATURE_PAYMENTS: ${VITE_FEATURE_PAYMENTS:-false}
+        VITE_FEATURE_EMAIL_NOTIFICATIONS: ${VITE_FEATURE_EMAIL_NOTIFICATIONS:-true}
     container_name: jobber-frontend
     restart: unless-stopped
     expose:

@@ -38,7 +38,10 @@ func init() {
 		"::1/128",
 		"fc00::/7",
 	} {
-		_, block, _ := net.ParseCIDR(cidr)
+		_, block, err := net.ParseCIDR(cidr)
+		if err != nil {
+			panic(fmt.Sprintf("invalid CIDR in SSRF protection list: %s: %v", cidr, err))
+		}
 		privateCIDRs = append(privateCIDRs, block)
 	}
 }
@@ -194,7 +197,9 @@ func (s *MatchScoreService) CheckMatch(ctx context.Context, userID string, req *
 
 	// Record AI usage
 	if s.limitChecker != nil {
-		_ = s.limitChecker.RecordAIUsage(ctx, userID)
+		if err := s.limitChecker.RecordAIUsage(ctx, userID); err != nil {
+			log.Printf("[ERROR] failed to record AI usage for user=%s: %v", userID, err)
+		}
 	}
 
 	// Map AI result to response

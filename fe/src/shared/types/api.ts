@@ -49,12 +49,30 @@ export interface LoginResponse {
 }
 
 export interface RegisterResponse {
-  user: UserDTO;
-  tokens: AuthTokens;
+  message: string;
 }
 
 export interface RefreshRequest {
   refresh_token: string;
+}
+
+export interface VerifyEmailRequest {
+  email: string;
+  code: string;
+}
+
+export interface ResendVerificationRequest {
+  email: string;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  email: string;
+  code: string;
+  password: string;
 }
 
 // Application Status
@@ -75,6 +93,7 @@ export interface JobNestedDTO {
 export interface ResumeNestedDTO {
   id: string;
   name: string;
+  type: "uploaded" | "builder";
 }
 
 // Application
@@ -97,6 +116,7 @@ export interface ApplicationDTO {
 export interface CreateApplicationRequest {
   job_id: string;
   resume_id?: string;
+  resume_builder_id?: string;
   name: string;
   applied_at?: string;
 }
@@ -322,6 +342,8 @@ export interface PlanLimits {
   max_applications: number;
   max_ai_requests: number;
   max_job_parses: number;
+  max_resume_builders: number;
+  max_cover_letters: number;
 }
 
 export interface SubscriptionUsage {
@@ -330,6 +352,8 @@ export interface SubscriptionUsage {
   applications: number;
   ai_requests: number;
   job_parses: number;
+  resume_builders: number;
+  cover_letters: number;
 }
 
 export type SubscriptionPlan = "free" | "pro" | "enterprise";

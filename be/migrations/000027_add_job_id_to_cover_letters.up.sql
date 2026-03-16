@@ -1,0 +1,1 @@
+ALTER TABLE cover_letters ADD COLUMN job_id UUID REFERENCES jobs(id) ON DELETE SET NULL;

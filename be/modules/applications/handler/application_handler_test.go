@@ -290,7 +290,7 @@ func createTestHandler() (*ApplicationHandler, *MockApplicationRepository, *Mock
 	resumeRepo := &MockResumeRepository{}
 	commentRepo := &MockCommentRepository{}
 
-	svc := service.NewApplicationService(nil, appRepo, stageRepo, templateRepo, jobRepo, companyRepo, resumeRepo, commentRepo, nil)
+	svc := service.NewApplicationService(nil, appRepo, stageRepo, templateRepo, jobRepo, companyRepo, resumeRepo, nil, commentRepo, nil)
 	handler := NewApplicationHandler(svc)
 	return handler, appRepo, stageRepo, templateRepo, jobRepo, resumeRepo, commentRepo
 }

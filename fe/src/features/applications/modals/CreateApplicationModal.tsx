@@ -8,6 +8,7 @@ import {
   showErrorNotification,
 } from "@/shared/lib/notifications";
 import { resumesService } from "@/services/resumesService";
+import { resumeBuilderService } from "@/services/resumeBuilderService";
 import { jobsService } from "@/services/jobsService";
 import {
   Dialog,
@@ -37,7 +38,7 @@ export function CreateApplicationModal({
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [jobId, setJobId] = useState("");
-  const [resumeId, setResumeId] = useState("");
+  const [selectedResume, setSelectedResume] = useState("");
   const [isCreateJobOpen, setIsCreateJobOpen] = useState(false);
   const [isCreateResumeOpen, setIsCreateResumeOpen] = useState(false);
 
@@ -53,6 +54,12 @@ export function CreateApplicationModal({
     enabled: open,
   });
 
+  const { data: builderResumes } = useQuery({
+    queryKey: ["resume-builder"],
+    queryFn: () => resumeBuilderService.list(),
+    enabled: open,
+  });
+
   const createMutation = useMutation({
     mutationFn: applicationsService.create,
     onSuccess: () => {
@@ -61,7 +68,7 @@ export function CreateApplicationModal({
       onOpenChange(false);
       setName("");
       setJobId("");
-      setResumeId("");
+      setSelectedResume("");
     },
     onError: (error: Error) => {
       showErrorNotification(error.message || t("applications.createError"));
@@ -70,14 +77,21 @@ export function CreateApplicationModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (jobId) {
-      createMutation.mutate({
-        name: name,
-        job_id: jobId,
-        ...(resumeId ? { resume_id: resumeId } : {}),
-        applied_at: new Date().toISOString(),
-      });
+    if (!jobId) return;
+
+    const resumeField: { resume_id?: string; resume_builder_id?: string } = {};
+    if (selectedResume.startsWith("uploaded:")) {
+      resumeField.resume_id = selectedResume.slice("uploaded:".length);
+    } else if (selectedResume.startsWith("builder:")) {
+      resumeField.resume_builder_id = selectedResume.slice("builder:".length);
     }
+
+    createMutation.mutate({
+      name,
+      job_id: jobId,
+      ...resumeField,
+      applied_at: new Date().toISOString(),
+    });
   };
 
   const handleJobCreated = (job: JobDTO) => {
@@ -85,8 +99,11 @@ export function CreateApplicationModal({
   };
 
   const handleResumeCreated = (resume: ResumeDTO) => {
-    setResumeId(resume.id);
+    setSelectedResume(`uploaded:${resume.id}`);
   };
+
+  const uploadedResumes = resumesData?.items ?? [];
+  const builderResumesList = builderResumes ?? [];
 
   return (
     <>
@@ -160,16 +177,35 @@ export function CreateApplicationModal({
                 </div>
                 <select
                   id="resume"
-                  value={resumeId}
-                  onChange={(e) => setResumeId(e.target.value)}
+                  value={selectedResume}
+                  onChange={(e) => setSelectedResume(e.target.value)}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <option value="">{t("applications.selectResume")}</option>
-                  {resumesData?.items?.map((resume) => (
-                    <option key={resume.id} value={resume.id}>
-                      {resume.title}
-                    </option>
-                  ))}
+                  {uploadedResumes.length > 0 && (
+                    <optgroup label={t("applications.uploadedResumes")}>
+                      {uploadedResumes.map((resume) => (
+                        <option
+                          key={`uploaded:${resume.id}`}
+                          value={`uploaded:${resume.id}`}
+                        >
+                          {resume.title}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {builderResumesList.length > 0 && (
+                    <optgroup label={t("applications.builderResumes")}>
+                      {builderResumesList.map((rb) => (
+                        <option
+                          key={`builder:${rb.id}`}
+                          value={`builder:${rb.id}`}
+                        >
+                          {rb.title}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </div>
             </div>

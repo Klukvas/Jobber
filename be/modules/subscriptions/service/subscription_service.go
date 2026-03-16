@@ -135,6 +135,24 @@ func (s *SubscriptionService) CheckLimit(ctx context.Context, userID, resource s
 			return model.ErrLimitReached
 		}
 		current, err = s.repo.CountUserJobParsesThisMonth(ctx, userID)
+	case "resume_builders":
+		max = limits.MaxResumeBuilders
+		if max < 0 {
+			return nil
+		}
+		if max == 0 {
+			return model.ErrLimitReached
+		}
+		current, err = s.repo.CountUserResumeBuilders(ctx, userID)
+	case "cover_letters":
+		max = limits.MaxCoverLetters
+		if max < 0 {
+			return nil
+		}
+		if max == 0 {
+			return model.ErrLimitReached
+		}
+		current, err = s.repo.CountUserCoverLetters(ctx, userID)
 	default:
 		return nil
 	}
@@ -244,7 +262,10 @@ func (s *SubscriptionService) CreatePortalSession(ctx context.Context, userID st
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		if readErr != nil {
+			return "", fmt.Errorf("paddle API error (status %d), failed to read body: %w", resp.StatusCode, readErr)
+		}
 		return "", fmt.Errorf("paddle API error (status %d): %s", resp.StatusCode, string(respBody))
 	}
 
@@ -270,17 +291,19 @@ func (s *SubscriptionService) CreatePortalSession(ctx context.Context, userID st
 
 // getUsage returns current resource usage for a user in a single query.
 func (s *SubscriptionService) getUsage(ctx context.Context, userID string) (model.Usage, error) {
-	jobs, resumes, apps, aiReqs, jobParses, err := s.repo.GetAllCounts(ctx, userID)
+	jobs, resumes, apps, aiReqs, jobParses, resumeBuilders, coverLetters, err := s.repo.GetAllCounts(ctx, userID)
 	if err != nil {
 		return model.Usage{}, err
 	}
 
 	return model.Usage{
-		Jobs:         jobs,
-		Resumes:      resumes,
-		Applications: apps,
-		AIRequests:   aiReqs,
-		JobParses:    jobParses,
+		Jobs:           jobs,
+		Resumes:        resumes,
+		Applications:   apps,
+		AIRequests:     aiReqs,
+		JobParses:      jobParses,
+		ResumeBuilders: resumeBuilders,
+		CoverLetters:   coverLetters,
 	}, nil
 }
 

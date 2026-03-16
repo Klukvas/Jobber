@@ -69,5 +69,11 @@ docker-compose.deploy.yml
 cors-config.json
 cors-config-fixed.json
 
-*.shclient_secret_*.json
+*.sh
+client_secret_*.json
 ext.zip
+
+# Playwright
+fe/.auth/
+fe/playwright-report/
+fe/test-results/

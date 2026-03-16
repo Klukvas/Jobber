@@ -272,7 +272,7 @@ func createTestService() (*ApplicationService, *MockApplicationRepository, *Mock
 	resumeRepo := &MockResumeRepository{}
 	commentRepo := &MockCommentRepository{}
 
-	svc := NewApplicationService(nil, appRepo, stageRepo, templateRepo, jobRepo, companyRepo, resumeRepo, commentRepo, nil)
+	svc := NewApplicationService(nil, appRepo, stageRepo, templateRepo, jobRepo, companyRepo, resumeRepo, nil, commentRepo, nil)
 	return svc, appRepo, stageRepo, templateRepo, jobRepo, companyRepo, resumeRepo, commentRepo
 }
 

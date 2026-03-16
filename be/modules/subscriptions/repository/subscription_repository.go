@@ -164,16 +164,36 @@ func (r *SubscriptionRepository) RecordJobParseUsage(ctx context.Context, userID
 	return err
 }
 
-// GetAllCounts returns all resource counts in a single query (5 sub-selects, 1 round-trip).
-func (r *SubscriptionRepository) GetAllCounts(ctx context.Context, userID string) (jobs, resumes, apps, aiReqs, jobParses int, err error) {
+// CountUserResumeBuilders counts resume builders for a user.
+func (r *SubscriptionRepository) CountUserResumeBuilders(ctx context.Context, userID string) (int, error) {
+	var count int
+	err := r.pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM resume_builders WHERE user_id = $1`, userID,
+	).Scan(&count)
+	return count, err
+}
+
+// CountUserCoverLetters counts cover letters for a user.
+func (r *SubscriptionRepository) CountUserCoverLetters(ctx context.Context, userID string) (int, error) {
+	var count int
+	err := r.pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM cover_letters WHERE user_id = $1`, userID,
+	).Scan(&count)
+	return count, err
+}
+
+// GetAllCounts returns all resource counts in a single query (7 sub-selects, 1 round-trip).
+func (r *SubscriptionRepository) GetAllCounts(ctx context.Context, userID string) (jobs, resumes, apps, aiReqs, jobParses, resumeBuilders, coverLetters int, err error) {
 	query := `
 		SELECT
 			(SELECT COUNT(*) FROM jobs WHERE user_id = $1 AND status = 'active'),
 			(SELECT COUNT(*) FROM resumes WHERE user_id = $1),
 			(SELECT COUNT(*) FROM applications WHERE user_id = $1 AND status != 'archived'),
 			(SELECT COUNT(*) FROM ai_usage WHERE user_id = $1 AND usage_type = 'match_score' AND created_at >= date_trunc('month', NOW())),
-			(SELECT COUNT(*) FROM ai_usage WHERE user_id = $1 AND usage_type = 'job_parse' AND created_at >= date_trunc('month', NOW()))
+			(SELECT COUNT(*) FROM ai_usage WHERE user_id = $1 AND usage_type = 'job_parse' AND created_at >= date_trunc('month', NOW())),
+			(SELECT COUNT(*) FROM resume_builders WHERE user_id = $1),
+			(SELECT COUNT(*) FROM cover_letters WHERE user_id = $1)
 	`
-	err = r.pool.QueryRow(ctx, query, userID).Scan(&jobs, &resumes, &apps, &aiReqs, &jobParses)
+	err = r.pool.QueryRow(ctx, query, userID).Scan(&jobs, &resumes, &apps, &aiReqs, &jobParses, &resumeBuilders, &coverLetters)
 	return
 }

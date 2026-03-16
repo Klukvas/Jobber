@@ -10,11 +10,13 @@ COPY package*.json ./
 # Install dependencies
 RUN npm install
 
-# Build argument for API URL (baked into build)
-# IMPORTANT: Set this BEFORE copying source to ensure cache invalidation when it changes
-# Use relative path /api/v1 so nginx can proxy to backend
+# Build arguments for Vite env vars (read at npm run build time via ARG)
+# ARG-only: values are NOT persisted in the final image (no ENV promotion)
 ARG VITE_API_BASE_URL=/api/v1
-ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ARG VITE_FEATURE_SENTRY=false
+ARG VITE_FEATURE_PAYMENTS=false
+ARG VITE_FEATURE_EMAIL_NOTIFICATIONS=true
+ARG VITE_SENTRY_DSN=
 
 # Copy source code
 COPY . .

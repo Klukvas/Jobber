@@ -294,6 +294,10 @@ jobs:
           # For production deploys, consider making this configurable via GitHub Secret.
           build-args: |
             VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL || '/api/v1' }}
+            VITE_SENTRY_DSN=${{ secrets.VITE_SENTRY_DSN || '' }}
+            VITE_FEATURE_SENTRY=${{ secrets.VITE_FEATURE_SENTRY || 'false' }}
+            VITE_FEATURE_PAYMENTS=${{ secrets.VITE_FEATURE_PAYMENTS || 'false' }}
+            VITE_FEATURE_EMAIL_NOTIFICATIONS=${{ secrets.VITE_FEATURE_EMAIL_NOTIFICATIONS || 'true' }}
             GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
 
       - name: Set build tag output
@@ -371,23 +375,111 @@ jobs:
 
       - name: Sync secrets to server .env
         env:
-          ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GCAL_CLIENT_ID: ${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}
-          GCAL_CLIENT_SECRET: ${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}
-          GCAL_REDIRECT_URL: ${{ secrets.GOOGLE_CALENDAR_REDIRECT_URL }}
-          GCAL_FRONTEND_URL: ${{ secrets.GOOGLE_CALENDAR_FRONTEND_URL }}
-          GCAL_ENCRYPTION_KEY: ${{ secrets.GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY }}
+          # Infrastructure
+          V_JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET }}
+          V_JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          V_DB_USER: ${{ secrets.DB_USER }}
+          V_DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          V_DB_NAME: ${{ secrets.DB_NAME }}
+          V_REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          V_SERVER_ENV: ${{ secrets.SERVER_ENV }}
+          V_ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
+          V_FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+          V_LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
+          # S3
+          V_S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          V_S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          V_S3_REGION: ${{ secrets.S3_REGION }}
+          V_S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
+          V_S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
+          # AI
+          V_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Google Calendar
+          V_GOOGLE_CALENDAR_CLIENT_ID: ${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}
+          V_GOOGLE_CALENDAR_CLIENT_SECRET: ${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}
+          V_GOOGLE_CALENDAR_REDIRECT_URL: ${{ secrets.GOOGLE_CALENDAR_REDIRECT_URL }}
+          V_GOOGLE_CALENDAR_FRONTEND_URL: ${{ secrets.GOOGLE_CALENDAR_FRONTEND_URL }}
+          V_GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY: ${{ secrets.GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY }}
+          # Email
+          V_RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          V_RESEND_FROM_ADDRESS: ${{ secrets.RESEND_FROM_ADDRESS }}
+          # Payments
+          V_PADDLE_API_KEY: ${{ secrets.PADDLE_API_KEY }}
+          V_PADDLE_WEBHOOK_SECRET: ${{ secrets.PADDLE_WEBHOOK_SECRET }}
+          V_PADDLE_ENVIRONMENT: ${{ secrets.PADDLE_ENVIRONMENT }}
+          V_PADDLE_PRO_PRICE_ID: ${{ secrets.PADDLE_PRO_PRICE_ID }}
+          V_PADDLE_ENTERPRISE_PRICE_ID: ${{ secrets.PADDLE_ENTERPRISE_PRICE_ID }}
+          V_PADDLE_CLIENT_TOKEN: ${{ secrets.PADDLE_CLIENT_TOKEN }}
+          # Sentry
+          V_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          V_SENTRY_RELEASE: ${{ secrets.SENTRY_RELEASE }}
+          # Feature flags
+          V_FEATURE_SENTRY_ENABLED: ${{ secrets.FEATURE_SENTRY_ENABLED }}
+          V_FEATURE_EMAIL_ENABLED: ${{ secrets.FEATURE_EMAIL_ENABLED }}
+          V_FEATURE_PAYMENTS_ENABLED: ${{ secrets.FEATURE_PAYMENTS_ENABLED }}
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+          # Build temp file with non-empty secrets only
+          ENV_FILE=$(mktemp)
+          add() { [ -n "$2" ] && printf '%s=%s\n' "$1" "$2" >> "$ENV_FILE"; }
+
+          # Infrastructure
+          add "JWT_ACCESS_SECRET" "$V_JWT_ACCESS_SECRET"
+          add "JWT_REFRESH_SECRET" "$V_JWT_REFRESH_SECRET"
+          add "DB_USER" "$V_DB_USER"
+          add "DB_PASSWORD" "$V_DB_PASSWORD"
+          add "DB_NAME" "$V_DB_NAME"
+          add "REDIS_PASSWORD" "$V_REDIS_PASSWORD"
+          add "SERVER_ENV" "$V_SERVER_ENV"
+          add "ALLOWED_ORIGINS" "$V_ALLOWED_ORIGINS"
+          add "FRONTEND_URL" "$V_FRONTEND_URL"
+          add "LOG_LEVEL" "$V_LOG_LEVEL"
+          # S3
+          add "S3_ENDPOINT" "$V_S3_ENDPOINT"
+          add "S3_BUCKET" "$V_S3_BUCKET"
+          add "S3_REGION" "$V_S3_REGION"
+          add "S3_ACCESS_KEY" "$V_S3_ACCESS_KEY"
+          add "S3_SECRET_KEY" "$V_S3_SECRET_KEY"
+          # AI
+          add "ANTHROPIC_API_KEY" "$V_ANTHROPIC_API_KEY"
+          # Google Calendar
+          add "GOOGLE_CALENDAR_CLIENT_ID" "$V_GOOGLE_CALENDAR_CLIENT_ID"
+          add "GOOGLE_CALENDAR_CLIENT_SECRET" "$V_GOOGLE_CALENDAR_CLIENT_SECRET"
+          add "GOOGLE_CALENDAR_REDIRECT_URL" "$V_GOOGLE_CALENDAR_REDIRECT_URL"
+          add "GOOGLE_CALENDAR_FRONTEND_URL" "$V_GOOGLE_CALENDAR_FRONTEND_URL"
+          add "GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY" "$V_GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY"
+          # Email
+          add "RESEND_API_KEY" "$V_RESEND_API_KEY"
+          add "RESEND_FROM_ADDRESS" "$V_RESEND_FROM_ADDRESS"
+          # Payments
+          add "PADDLE_API_KEY" "$V_PADDLE_API_KEY"
+          add "PADDLE_WEBHOOK_SECRET" "$V_PADDLE_WEBHOOK_SECRET"
+          add "PADDLE_ENVIRONMENT" "$V_PADDLE_ENVIRONMENT"
+          add "PADDLE_PRO_PRICE_ID" "$V_PADDLE_PRO_PRICE_ID"
+          add "PADDLE_ENTERPRISE_PRICE_ID" "$V_PADDLE_ENTERPRISE_PRICE_ID"
+          add "PADDLE_CLIENT_TOKEN" "$V_PADDLE_CLIENT_TOKEN"
+          # Sentry
+          add "SENTRY_DSN" "$V_SENTRY_DSN"
+          add "SENTRY_RELEASE" "$V_SENTRY_RELEASE"
+          # Feature flags
+          add "FEATURE_SENTRY_ENABLED" "$V_FEATURE_SENTRY_ENABLED"
+          add "FEATURE_EMAIL_ENABLED" "$V_FEATURE_EMAIL_ENABLED"
+          add "FEATURE_PAYMENTS_ENABLED" "$V_FEATURE_PAYMENTS_ENABLED"
+
+          SYNCED=$(wc -l < "$ENV_FILE" | tr -d ' ')
+          echo "Syncing $SYNCED variables to server..."
+
+          # Pipe secrets directly via stdin — no temp file on the server
+          cat "$ENV_FILE" | ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} '
             cd ~/jobber && touch .env
-            sed -i '/^ANTHROPIC_API_KEY=/d' .env && echo 'ANTHROPIC_API_KEY=${ANTHROPIC_KEY}' >> .env
-            sed -i '/^GOOGLE_CALENDAR_CLIENT_ID=/d' .env && echo 'GOOGLE_CALENDAR_CLIENT_ID=${GCAL_CLIENT_ID}' >> .env
-            sed -i '/^GOOGLE_CALENDAR_CLIENT_SECRET=/d' .env && echo 'GOOGLE_CALENDAR_CLIENT_SECRET=${GCAL_CLIENT_SECRET}' >> .env
-            sed -i '/^GOOGLE_CALENDAR_REDIRECT_URL=/d' .env && echo 'GOOGLE_CALENDAR_REDIRECT_URL=${GCAL_REDIRECT_URL}' >> .env
-            sed -i '/^GOOGLE_CALENDAR_FRONTEND_URL=/d' .env && echo 'GOOGLE_CALENDAR_FRONTEND_URL=${GCAL_FRONTEND_URL}' >> .env
-            sed -i '/^GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY=/d' .env && echo 'GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY=${GCAL_ENCRYPTION_KEY}' >> .env
-            echo '✅ Secrets synced'
-          "
+            while IFS= read -r line; do
+              key="${line%%=*}"
+              [ -z "$key" ] && continue
+              grep -v "^${key}=" .env > .env.tmp && mv .env.tmp .env || true
+              echo "$line" >> .env
+            done
+            echo "✅ Secrets synced"
+          '
+          rm -f "$ENV_FILE"
 
       - name: Deploy via SSH
         run: |

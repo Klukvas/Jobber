@@ -54,7 +54,7 @@ func GetErrorCode(err error) ErrorCode {
 func GetErrorMessage(err error) string {
 	switch {
 	case errors.Is(err, subModel.ErrLimitReached):
-		return "Plan limit reached. Upgrade for more AI job parsing."
+		return "You have reached the job parsing limit for your current plan."
 	case errors.Is(err, ErrAINotConfigured):
 		return "AI job parsing is not available. Please contact support."
 	case errors.Is(err, ErrParsingFailed):

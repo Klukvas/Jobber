@@ -22,16 +22,17 @@ const (
 
 // Application represents a job application (CORE AGGREGATE)
 type Application struct {
-	ID             string
-	UserID         string
-	JobID          string
-	ResumeID       *string
-	Name           string
-	CurrentStageID *string
-	Status         string // active, on_hold, rejected, offer, archived
-	AppliedAt      time.Time
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID              string
+	UserID          string
+	JobID           string
+	ResumeID        *string
+	ResumeBuilderID *string
+	Name            string
+	CurrentStageID  *string
+	Status          string // active, on_hold, rejected, offer, archived
+	AppliedAt       time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // JobNestedDTO represents a job with company information for application list
@@ -45,6 +46,7 @@ type JobNestedDTO struct {
 type ResumeNestedDTO struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+	Type string `json:"type"` // "uploaded" or "builder"
 }
 
 // ApplicationDTO represents application data transfer object
@@ -70,6 +72,7 @@ func NewApplicationDTO(
 	job *jobModel.Job,
 	company *companyModel.Company,
 	resume *resumeModel.Resume,
+	resumeBuilderTitle *string,
 	lastActivityAt time.Time,
 ) *ApplicationDTO {
 	dto := &ApplicationDTO{
@@ -94,11 +97,18 @@ func NewApplicationDTO(
 		}
 	}
 
-	// Add resume
+	// Add resume (uploaded or builder — mutually exclusive)
 	if resume != nil {
 		dto.Resume = &ResumeNestedDTO{
 			ID:   resume.ID,
 			Name: resume.Title,
+			Type: "uploaded",
+		}
+	} else if app.ResumeBuilderID != nil && resumeBuilderTitle != nil {
+		dto.Resume = &ResumeNestedDTO{
+			ID:   *app.ResumeBuilderID,
+			Name: *resumeBuilderTitle,
+			Type: "builder",
 		}
 	}
 

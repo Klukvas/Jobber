@@ -23,26 +23,20 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 	}
 }
 
-// RegisterResponse represents the registration response
-type RegisterResponse struct {
-	User   *userModel.UserDTO      `json:"user"`
-	Tokens *authModel.AuthTokens   `json:"tokens"`
-}
-
 // LoginResponse represents the login response
 type LoginResponse struct {
-	User   *userModel.UserDTO      `json:"user"`
-	Tokens *authModel.AuthTokens   `json:"tokens"`
+	User   *userModel.UserDTO    `json:"user"`
+	Tokens *authModel.AuthTokens `json:"tokens"`
 }
 
 // Register godoc
 // @Summary Register a new user
-// @Description Create a new user account with email and password
+// @Description Create a new user account with email and password. A verification email will be sent.
 // @Tags auth
 // @Accept json
 // @Produce json
 // @Param request body authModel.RegisterRequest true "Registration request"
-// @Success 201 {object} RegisterResponse
+// @Success 202 {object} service.RegisterResponse
 // @Failure 400 {object} httpPlatform.ErrorResponse
 // @Failure 409 {object} httpPlatform.ErrorResponse "User already exists"
 // @Failure 500 {object} httpPlatform.ErrorResponse
@@ -54,26 +48,23 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	user, tokens, err := h.authService.Register(c.Request.Context(), &req)
+	resp, err := h.authService.Register(c.Request.Context(), &req)
 	if err != nil {
 		errorCode := userModel.GetErrorCode(err)
 		errorMessage := userModel.GetErrorMessage(err)
-		
+
 		statusCode := http.StatusInternalServerError
 		if errorCode == userModel.CodeUserAlreadyExists {
 			statusCode = http.StatusConflict
 		} else if errorCode == userModel.CodeInvalidEmail || errorCode == userModel.CodeInvalidPassword {
 			statusCode = http.StatusBadRequest
 		}
-		
+
 		httpPlatform.RespondWithError(c, statusCode, string(errorCode), errorMessage)
 		return
 	}
 
-	httpPlatform.RespondWithData(c, http.StatusCreated, RegisterResponse{
-		User:   user,
-		Tokens: tokens,
-	})
+	httpPlatform.RespondWithData(c, http.StatusAccepted, resp)
 }
 
 // Login godoc
@@ -86,6 +77,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 // @Success 200 {object} LoginResponse
 // @Failure 400 {object} httpPlatform.ErrorResponse
 // @Failure 401 {object} httpPlatform.ErrorResponse "Invalid credentials"
+// @Failure 403 {object} httpPlatform.ErrorResponse "Email not verified"
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -99,12 +91,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	if err != nil {
 		errorCode := userModel.GetErrorCode(err)
 		errorMessage := userModel.GetErrorMessage(err)
-		
+
 		statusCode := http.StatusUnauthorized
-		if errorCode != userModel.CodeInvalidCredentials {
+		if errorCode == userModel.CodeEmailNotVerified {
+			statusCode = http.StatusForbidden
+		} else if errorCode != userModel.CodeInvalidCredentials {
 			statusCode = http.StatusInternalServerError
 		}
-		
+
 		httpPlatform.RespondWithError(c, statusCode, string(errorCode), errorMessage)
 		return
 	}
@@ -113,6 +107,120 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		User:   user,
 		Tokens: tokens,
 	})
+}
+
+// VerifyEmail godoc
+// @Summary Verify email address
+// @Description Verify a user's email address using the 6-digit code from the verification email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body verifyEmailRequest true "Email and verification code"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} httpPlatform.ErrorResponse
+// @Failure 429 {object} httpPlatform.ErrorResponse "Too many attempts"
+// @Router /auth/verify-email [post]
+func (h *AuthHandler) VerifyEmail(c *gin.Context) {
+	var req verifyEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, string(userModel.CodeValidationError), "Invalid request payload")
+		return
+	}
+
+	if err := h.authService.VerifyEmail(c.Request.Context(), req.Email, req.Code); err != nil {
+		errorCode := userModel.GetErrorCode(err)
+		errorMessage := userModel.GetErrorMessage(err)
+
+		statusCode := http.StatusBadRequest
+		if errorCode == userModel.CodeTooManyAttempts {
+			statusCode = http.StatusTooManyRequests
+		}
+
+		httpPlatform.RespondWithError(c, statusCode, string(errorCode), errorMessage)
+		return
+	}
+
+	httpPlatform.RespondWithData(c, http.StatusOK, gin.H{"message": "Email verified successfully"})
+}
+
+// ResendVerification godoc
+// @Summary Resend verification email
+// @Description Resend the verification email to the user
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body resendVerificationRequest true "Email address"
+// @Success 202 {object} map[string]string
+// @Failure 400 {object} httpPlatform.ErrorResponse
+// @Router /auth/resend-verification [post]
+func (h *AuthHandler) ResendVerification(c *gin.Context) {
+	var req resendVerificationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, string(userModel.CodeValidationError), "Invalid request payload")
+		return
+	}
+
+	_ = h.authService.ResendVerification(c.Request.Context(), req.Email)
+
+	httpPlatform.RespondWithData(c, http.StatusAccepted, gin.H{"message": "If your email is registered, you will receive a verification code"})
+}
+
+// ForgotPassword godoc
+// @Summary Request password reset
+// @Description Send a password reset code to the user's email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body forgotPasswordRequest true "Email address"
+// @Success 202 {object} map[string]string
+// @Failure 400 {object} httpPlatform.ErrorResponse
+// @Router /auth/forgot-password [post]
+func (h *AuthHandler) ForgotPassword(c *gin.Context) {
+	var req forgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, string(userModel.CodeValidationError), "Invalid request payload")
+		return
+	}
+
+	_ = h.authService.ForgotPassword(c.Request.Context(), req.Email)
+
+	httpPlatform.RespondWithData(c, http.StatusAccepted, gin.H{"message": "If your email is registered, you will receive a password reset code"})
+}
+
+// ResetPassword godoc
+// @Summary Reset password
+// @Description Reset the user's password using the 6-digit code from the reset email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body resetPasswordRequest true "Email, reset code, and new password"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} httpPlatform.ErrorResponse
+// @Failure 429 {object} httpPlatform.ErrorResponse "Too many attempts"
+// @Router /auth/reset-password [post]
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var req resetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, string(userModel.CodeValidationError), "Invalid request payload")
+		return
+	}
+
+	if err := h.authService.ResetPassword(c.Request.Context(), req.Email, req.Code, req.Password); err != nil {
+		errorCode := userModel.GetErrorCode(err)
+		errorMessage := userModel.GetErrorMessage(err)
+
+		statusCode := http.StatusBadRequest
+		if errorCode == userModel.CodeInternalError {
+			statusCode = http.StatusInternalServerError
+		} else if errorCode == userModel.CodeTooManyAttempts {
+			statusCode = http.StatusTooManyRequests
+		}
+
+		httpPlatform.RespondWithError(c, statusCode, string(errorCode), errorMessage)
+		return
+	}
+
+	httpPlatform.RespondWithData(c, http.StatusOK, gin.H{"message": "Password reset successfully"})
 }
 
 // Refresh godoc
@@ -168,20 +276,74 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	httpPlatform.RespondWithData(c, http.StatusOK, gin.H{"message": "Logged out successfully"})
 }
 
+// AuthRouteConfig holds middleware for auth route registration.
+type AuthRouteConfig struct {
+	AuthMiddleware    gin.HandlerFunc
+	RateLimiter       gin.HandlerFunc
+	EmailRateLimiter  gin.HandlerFunc // stricter limiter for email-sending endpoints
+	CodeRateLimiter   gin.HandlerFunc // stricter limiter for code verification endpoints
+}
+
 // RegisterRoutes registers auth routes.
-// Optional rateLimiter middleware is applied to login, register, and refresh endpoints.
-func (h *AuthHandler) RegisterRoutes(router *gin.RouterGroup, rateLimiter ...gin.HandlerFunc) {
+func (h *AuthHandler) RegisterRoutes(router *gin.RouterGroup, cfg AuthRouteConfig) {
 	authGroup := router.Group("/auth")
-	{
-		if len(rateLimiter) > 0 {
-			authGroup.POST("/register", rateLimiter[0], h.Register)
-			authGroup.POST("/login", rateLimiter[0], h.Login)
-			authGroup.POST("/refresh", rateLimiter[0], h.Refresh)
-		} else {
-			authGroup.POST("/register", h.Register)
-			authGroup.POST("/login", h.Login)
-			authGroup.POST("/refresh", h.Refresh)
+
+	withRL := func(handlers ...gin.HandlerFunc) []gin.HandlerFunc {
+		if cfg.RateLimiter != nil {
+			return append([]gin.HandlerFunc{cfg.RateLimiter}, handlers...)
 		}
-		authGroup.POST("/logout", h.Logout)
+		return handlers
 	}
+
+	withEmailRL := func(handlers ...gin.HandlerFunc) []gin.HandlerFunc {
+		var mw []gin.HandlerFunc
+		if cfg.RateLimiter != nil {
+			mw = append(mw, cfg.RateLimiter)
+		}
+		if cfg.EmailRateLimiter != nil {
+			mw = append(mw, cfg.EmailRateLimiter)
+		}
+		return append(mw, handlers...)
+	}
+
+	withCodeRL := func(handlers ...gin.HandlerFunc) []gin.HandlerFunc {
+		var mw []gin.HandlerFunc
+		if cfg.RateLimiter != nil {
+			mw = append(mw, cfg.RateLimiter)
+		}
+		if cfg.CodeRateLimiter != nil {
+			mw = append(mw, cfg.CodeRateLimiter)
+		}
+		return append(mw, handlers...)
+	}
+
+	authGroup.POST("/register", withRL(h.Register)...)
+	authGroup.POST("/login", withRL(h.Login)...)
+	authGroup.POST("/refresh", withRL(h.Refresh)...)
+	authGroup.POST("/verify-email", withCodeRL(h.VerifyEmail)...)
+	authGroup.POST("/resend-verification", withEmailRL(h.ResendVerification)...)
+	authGroup.POST("/forgot-password", withEmailRL(h.ForgotPassword)...)
+	authGroup.POST("/reset-password", withCodeRL(h.ResetPassword)...)
+	authGroup.POST("/logout", cfg.AuthMiddleware, h.Logout)
+}
+
+// Request DTOs
+
+type verifyEmailRequest struct {
+	Email string `json:"email" binding:"required,email"`
+	Code  string `json:"code" binding:"required,len=6"`
+}
+
+type resendVerificationRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+type forgotPasswordRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+type resetPasswordRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Code     string `json:"code" binding:"required,len=6"`
+	Password string `json:"password" binding:"required,min=8,max=72"`
 }

@@ -31,7 +31,11 @@ class ApiClient {
         afterResponse: [
           async (request, _options, response) => {
             // Handle 401 Unauthorized - try to refresh token
-            if (response.status === 401) {
+            // Skip for auth endpoints (login/register return 401 on bad credentials)
+            const url = new URL(request.url);
+            const isAuthEndpoint = url.pathname.includes("/auth/");
+
+            if (response.status === 401 && !isAuthEndpoint) {
               const refreshed = await this.tryRefreshToken();
               if (refreshed) {
                 // Retry the original request with new token
@@ -87,7 +91,8 @@ class ApiClient {
       const { setAuth } = useAuthStore.getState();
       setAuth(response.access_token, response.refresh_token, user);
       return true;
-    } catch {
+    } catch (err) {
+      console.error("[ApiClient] token refresh failed:", err);
       return false;
     }
   }
@@ -137,9 +142,46 @@ class ApiClient {
     }
   }
 
+  async put<T>(url: string, data?: unknown): Promise<T> {
+    try {
+      return await this.client.put(url, { json: data }).json<T>();
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
   async delete<T>(url: string): Promise<T> {
     try {
       return await this.client.delete(url).json<T>();
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  async postBlob(url: string, data?: unknown, timeout?: number): Promise<Blob> {
+    try {
+      const response = await this.client.post(url, {
+        json: data,
+        timeout: timeout ?? 60000,
+      });
+      return await response.blob();
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  async postFormData<T>(
+    url: string,
+    formData: FormData,
+    timeout?: number,
+  ): Promise<T> {
+    try {
+      return await this.client
+        .post(url, {
+          body: formData,
+          timeout: timeout ?? 60000,
+        })
+        .json<T>();
     } catch (error) {
       return this.handleError(error);
     }

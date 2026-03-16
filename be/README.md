@@ -13,47 +13,60 @@ This is a **modular monolith** designed with clear module boundaries for future 
 
 ## Technology Stack
 
-- **Language**: Go 1.22+
+- **Language**: Go 1.25
 - **HTTP Framework**: Gin
-- **Database**: PostgreSQL (pgx driver)
+- **Database**: PostgreSQL 15 (pgx driver)
 - **SQL Generator**: sqlc
 - **Migrations**: golang-migrate
-- **Cache/Queue**: Redis
+- **Cache/Queue**: Redis 7
 - **Auth**: JWT (access + refresh tokens)
-- **Logging**: zap (structured)
+- **Logging**: zap (structured JSON)
+- **Storage**: S3-compatible (Hetzner Object Storage)
+- **AI**: Anthropic Claude SDK (job import parsing, match score)
+- **Calendar**: Google Calendar v3 OAuth2
+- **Payments**: Paddle (subscription webhooks)
 
 ## Project Structure
 
 ```
 jobber/
 ├── cmd/
-│   └── api/              # Application entry point
+│   ├── api/              # Application entry point
+│   └── seed/             # Database seeding for development
 ├── internal/
 │   ├── config/           # Configuration management
 │   └── platform/         # Shared infrastructure
-│       ├── logger/       # Structured logging
-│       ├── postgres/     # Database client
+│       ├── logger/       # Structured logging (zap)
+│       ├── postgres/     # Database client & connection pool
 │       ├── redis/        # Redis client
 │       ├── auth/         # JWT utilities
-│       └── http/         # HTTP utilities & middleware
-└── modules/
-    ├── applications/     # Core: Application aggregate
-    ├── users/            # User management
-    ├── auth/             # Authentication
-    ├── resumes/          # Resume management
-    ├── companies/        # Company management
-    ├── jobs/             # Job postings
-    ├── comments/         # Comments on applications
-    ├── reminders/        # Reminder system
-    ├── tags/             # Tagging system
-    └── notifications/    # Notifications (future)
+│       ├── http/         # HTTP utilities & middleware
+│       ├── ai/           # Anthropic Claude SDK wrapper
+│       └── storage/      # S3 file storage client
+├── modules/
+│   ├── auth/             # Authentication (register, login, JWT)
+│   ├── users/            # User profile management
+│   ├── applications/     # Core: Application aggregate
+│   ├── jobs/             # Job postings + Kanban board columns
+│   ├── companies/        # Company management + derived stats
+│   ├── resumes/          # Resume versions + S3 file storage
+│   ├── comments/         # Comments on applications/stages
+│   ├── analytics/        # Dashboard statistics
+│   ├── calendar/         # Google Calendar OAuth2 integration
+│   ├── jobimport/        # Import jobs by URL (JSON-LD + Claude AI)
+│   ├── matchscore/       # AI resume-to-job matching + cache
+│   ├── subscriptions/    # Plans, billing, Paddle webhooks
+│   ├── reminders/        # Reminder system (model + repository)
+│   └── tags/             # Tagging system (model + repository)
+├── migrations/           # Database schema (golang-migrate)
+└── docs/                 # Swagger/OpenAPI spec
 ```
 
 ## Getting Started
 
 ### Prerequisites
 
-- Go 1.22+
+- Go 1.25+
 - PostgreSQL 15+
 - Redis 7+
 - golang-migrate CLI
@@ -115,7 +128,7 @@ Base URL: `http://localhost:8080/api/v1`
 
 **📖 Interactive API Documentation:** Swagger UI available at `http://localhost:8080/swagger/index.html`
 
-**📄 Pagination:** All list endpoints support pagination with `limit` (max 500) and `offset` parameters. See [PAGINATION_GUIDE.md](PAGINATION_GUIDE.md) for details.
+**📄 Pagination:** All list endpoints support pagination with `limit` (max 500) and `offset` parameters.
 
 ### Health Check
 - `GET /health` - Health status of all services
@@ -199,7 +212,7 @@ make test-coverage
 
 ## Deployment
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for production deployment guidelines.
+See the root [Makefile](../Makefile) and [terraform/](../terraform/) for production deployment.
 
 ## License
 

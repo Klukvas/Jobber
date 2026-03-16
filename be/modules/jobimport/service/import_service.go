@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"github.com/andreypavlenko/jobber/modules/jobimport/model"
@@ -47,7 +48,9 @@ func (s *ImportService) ParseJobPage(ctx context.Context, userID string, req *mo
 
 	// Record usage after successful parse
 	if s.limitChecker != nil {
-		_ = s.limitChecker.RecordJobParseUsage(ctx, userID)
+		if err := s.limitChecker.RecordJobParseUsage(ctx, userID); err != nil {
+			log.Printf("[ERROR] failed to record job parse usage for user=%s: %v", userID, err)
+		}
 	}
 
 	return &model.ParseJobResponse{

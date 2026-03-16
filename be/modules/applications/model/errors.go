@@ -9,6 +9,7 @@ var (
 	ErrApplicationStageNotFound = errors.New("application stage not found")
 	ErrInvalidStatus            = errors.New("invalid status")
 	ErrStageNameRequired        = errors.New("stage name is required")
+	ErrBothResumeTypesSet       = errors.New("only one of resume_id or resume_builder_id can be set")
 )
 
 type ErrorCode string
@@ -20,6 +21,7 @@ const (
 	CodeApplicationStageNotFound ErrorCode = "APPLICATION_STAGE_NOT_FOUND"
 	CodeInvalidStatus            ErrorCode = "INVALID_STATUS"
 	CodeStageNameRequired        ErrorCode = "STAGE_NAME_REQUIRED"
+	CodeBothResumeTypesSet       ErrorCode = "BOTH_RESUME_TYPES_SET"
 	CodeInternalError            ErrorCode = "INTERNAL_ERROR"
 )
 
@@ -37,6 +39,8 @@ func GetErrorCode(err error) ErrorCode {
 		return CodeInvalidStatus
 	case errors.Is(err, ErrStageNameRequired):
 		return CodeStageNameRequired
+	case errors.Is(err, ErrBothResumeTypesSet):
+		return CodeBothResumeTypesSet
 	default:
 		return CodeInternalError
 	}
@@ -56,6 +60,8 @@ func GetErrorMessage(err error) string {
 		return "Invalid status"
 	case errors.Is(err, ErrStageNameRequired):
 		return "Stage name is required"
+	case errors.Is(err, ErrBothResumeTypesSet):
+		return "Only one of resume_id or resume_builder_id can be set"
 	default:
 		return "Internal server error"
 	}

@@ -168,19 +168,9 @@ func (s *ResumeService) Delete(ctx context.Context, userID, resumeID string) err
 	// If resume uses S3 storage, delete the file from S3 first
 	// This prevents orphaned files in S3 if database deletion succeeds but S3 deletion was skipped
 	if resume.StorageType == model.StorageTypeS3 && resume.StorageKey != nil && s.s3Enabled {
-		// Attempt to delete S3 object
 		if err := s.s3Client.DeleteObject(ctx, *resume.StorageKey); err != nil {
-			// Log the error but continue with database deletion
-			// Rationale: Better to have orphaned S3 file than orphaned DB record
-			// Orphaned S3 files can be cleaned up via bucket lifecycle policies
-			// TODO: Add structured logging
-			// logger.Error("Failed to delete S3 object", 
-			//     zap.String("resume_id", resumeID), 
-			//     zap.String("storage_key", *resume.StorageKey), 
-			//     zap.Error(err))
-			
-			// For now, just print to stderr (will appear in server logs)
-			log.Printf("[WARN] Failed to delete S3 object for resume %s: %v", resumeID, err)
+			// Continue with database deletion — orphaned S3 files are less harmful than orphaned DB records
+			log.Printf("[ERROR] failed to delete S3 object key=%s for resume=%s: %v", *resume.StorageKey, resumeID, err)
 		}
 	}
 

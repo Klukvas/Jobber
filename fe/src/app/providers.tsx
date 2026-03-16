@@ -6,6 +6,7 @@ import i18n from "@/shared/lib/i18n";
 import { useEffect } from "react";
 import { useThemeStore } from "@/stores/themeStore";
 import { AuthProvider } from "./providers/AuthProvider";
+import { GlobalErrorBoundary } from "@/shared/ui/GlobalErrorBoundary";
 import { Toaster } from "sonner";
 
 const queryClient = new QueryClient({
@@ -28,13 +29,15 @@ export function Providers() {
   }, [theme]);
 
   return (
-    <I18nextProvider i18n={i18n}>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <RouterProvider router={router} />
-          <Toaster position="top-right" richColors closeButton />
-        </AuthProvider>
-      </QueryClientProvider>
-    </I18nextProvider>
+    <GlobalErrorBoundary>
+      <I18nextProvider i18n={i18n}>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <RouterProvider router={router} />
+            <Toaster position="top-right" richColors closeButton />
+          </AuthProvider>
+        </QueryClientProvider>
+      </I18nextProvider>
+    </GlobalErrorBoundary>
   );
 }

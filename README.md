@@ -8,26 +8,43 @@ A comprehensive platform for tracking job applications, managing interview stage
 
 ```
 /Jobber/
-├── be/                      # Backend (Go)
-│   ├── cmd/                 # Application entry points
-│   ├── internal/            # Internal packages (config, platform)
-│   ├── modules/             # Business domains (applications, jobs, etc.)
-│   ├── migrations/          # Database migrations
-│   ├── docs/                # Swagger documentation
-│   ├── go.mod               # Go dependencies
-│   ├── Makefile             # Backend build commands
-│   └── docker-compose.yml   # Infrastructure (PostgreSQL, Redis)
+├── be/                      # Backend (Go modular monolith)
+│   ├── cmd/                 # Entry points (api, seed)
+│   ├── internal/            # Shared infrastructure (config, auth, db, redis, ai, s3)
+│   ├── modules/             # 12 business domains
+│   │   ├── auth/            # Authentication (register, login, JWT)
+│   │   ├── users/           # User profiles
+│   │   ├── applications/    # Core: application tracking
+│   │   ├── jobs/            # Job postings + Kanban board
+│   │   ├── companies/       # Company management + stats
+│   │   ├── resumes/         # Resume versions + S3 storage
+│   │   ├── comments/        # Notes on applications/stages
+│   │   ├── analytics/       # Dashboard statistics
+│   │   ├── calendar/        # Google Calendar integration
+│   │   ├── jobimport/       # Import jobs by URL (JSON-LD + AI)
+│   │   ├── matchscore/      # AI resume-to-job matching
+│   │   └── subscriptions/   # Plans + Paddle webhooks
+│   ├── migrations/          # Database migrations (golang-migrate)
+│   ├── docs/                # Swagger/OpenAPI documentation
+│   └── Makefile             # Backend build commands
 │
 ├── fe/                      # Frontend (React + TypeScript)
-│   ├── src/                 # Source code
-│   │   ├── pages/           # Page components
-│   │   ├── features/        # Feature modules
-│   │   ├── services/        # API services
-│   │   └── shared/          # Shared utilities
+│   ├── src/
+│   │   ├── pages/           # Route-level pages (15 pages)
+│   │   ├── features/        # Domain feature modules
+│   │   ├── services/        # API client layer (ky)
+│   │   ├── stores/          # Zustand state stores
+│   │   ├── shared/          # UI components, i18n, utilities
+│   │   └── entities/        # Domain entity types
 │   ├── package.json         # Frontend dependencies
 │   └── vite.config.ts       # Vite configuration
 │
-└── *.md                     # Project documentation
+├── ext/                     # Chrome Extension (early stage)
+├── terraform/               # Infrastructure as Code (Hetzner Cloud)
+├── docker-compose.yml       # Production: PostgreSQL + Redis + Backend + Frontend + Caddy
+├── Caddyfile                # Reverse proxy config (automatic HTTPS)
+├── Makefile                 # Root-level commands (deploy, terraform, db)
+└── SYSTEM_SPECIFICATION.md  # Complete system architecture reference
 ```
 
 ---
@@ -37,8 +54,8 @@ A comprehensive platform for tracking job applications, managing interview stage
 ### Prerequisites
 
 **For Local Development:**
-- Go 1.21+
-- Node.js 18+
+- Go 1.25+
+- Node.js 20+
 - Docker & Docker Compose
 
 **For Production Deployment:**
@@ -106,33 +123,16 @@ make deploy
 # Your app is now live at http://<server-ip>
 ```
 
-**Detailed deployment guide:** See [DEPLOYMENT.md](./DEPLOYMENT.md)
-
 **Infrastructure details:** See [terraform/README.md](./terraform/README.md)
 
 ---
 
 ## 📚 Documentation
 
-### Getting Started
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - 🚀 **Production deployment guide (Hetzner Cloud + Docker)**
 - **[SYSTEM_SPECIFICATION.md](./SYSTEM_SPECIFICATION.md)** - Complete system architecture and feature documentation
-- **[be/START_HERE.md](./be/START_HERE.md)** - Backend quick start guide
-- **[be/SETUP.md](./be/SETUP.md)** - Detailed backend setup instructions
-
-### Infrastructure
+- **[be/README.md](./be/README.md)** - Backend architecture, API endpoints, development guide
 - **[terraform/README.md](./terraform/README.md)** - Terraform infrastructure documentation
-- **[Makefile](./Makefile)** - All available commands and shortcuts
-
-### Backend Guides
-- **[be/SWAGGER_GUIDE.md](./be/SWAGGER_GUIDE.md)** - API documentation with Swagger
-- **[be/PAGINATION_GUIDE.md](./be/PAGINATION_GUIDE.md)** - Pagination usage
-- **[be/MIGRATIONS_GUIDE.md](./be/MIGRATIONS_GUIDE.md)** - Database migrations
-
-### Architecture
-- **[ARCHITECTURE_DECISIONS.md](./ARCHITECTURE_DECISIONS.md)** - Architecture Decision Records (ADRs)
-- **[TECHNICAL_ROADMAP.md](./TECHNICAL_ROADMAP.md)** - Future evolution path
-- **[PR_REVIEW_RESPONSE.md](./PR_REVIEW_RESPONSE.md)** - Architectural discussion
+- **[Makefile](./Makefile)** - All available deployment and database commands
 
 ---
 
@@ -231,22 +231,27 @@ npm run lint      # Run ESLint
 ## 📦 Tech Stack
 
 ### Backend
-- **Language:** Go 1.21
+- **Language:** Go 1.25
 - **Framework:** Gin (HTTP router)
 - **Database:** PostgreSQL 15
 - **Cache:** Redis 7
-- **Auth:** JWT tokens
+- **Auth:** JWT tokens (access + refresh)
+- **SQL Generator:** sqlc
 - **Docs:** Swagger/OpenAPI
+- **Storage:** S3 (Hetzner Object Storage)
+- **AI:** Anthropic Claude (job import, match score)
+- **Calendar:** Google Calendar v3 OAuth2
 
 ### Frontend
-- **Language:** TypeScript
-- **Framework:** React 18
-- **Build:** Vite
-- **Styling:** Tailwind CSS
-- **State:** Zustand
-- **HTTP:** Axios
+- **Language:** TypeScript (strict mode)
+- **Framework:** React 19
+- **Build:** Vite 7
+- **Styling:** Tailwind CSS 3
+- **State:** Zustand 5 (client) + TanStack React Query 5 (server)
+- **HTTP:** ky
 - **Drag & Drop:** @dnd-kit
-- **Routing:** React Router
+- **Routing:** React Router v7
+- **i18n:** i18next (EN, RU, UA)
 
 ---
 
@@ -254,34 +259,47 @@ npm run lint      # Run ESLint
 
 ### Backend (`be/.env`)
 
-```env
-# Server
-SERVER_PORT=8080
-SERVER_ENV=development
-
-# Database
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=jobber
-DB_PASSWORD=jobber
-DB_NAME=jobber
-
-# Redis
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-# JWT
-JWT_ACCESS_SECRET=your-access-secret-here
-JWT_REFRESH_SECRET=your-refresh-secret-here
-JWT_ACCESS_EXPIRY=15m
-JWT_REFRESH_EXPIRY=7d
-```
+| Variable | Required | Description | Default |
+|----------|----------|-------------|---------|
+| `SERVER_PORT` | No | HTTP server port | `8080` |
+| `SERVER_ENV` | No | Environment (`development` / `production`) | `development` |
+| `DB_HOST` | Yes | PostgreSQL host | `localhost` |
+| `DB_PORT` | Yes | PostgreSQL port | `5432` |
+| `DB_USER` | Yes | PostgreSQL user | `jobber` |
+| `DB_PASSWORD` | Yes | PostgreSQL password | `jobber` |
+| `DB_NAME` | Yes | PostgreSQL database name | `jobber` |
+| `DB_SSL_MODE` | No | PostgreSQL SSL mode | `disable` |
+| `DB_MAX_CONNS` | No | Max open connections | `25` |
+| `DB_MAX_IDLE_CONNS` | No | Max idle connections | `5` |
+| `DB_CONN_MAX_LIFETIME` | No | Connection max lifetime | `5m` |
+| `REDIS_HOST` | Yes | Redis host | `localhost` |
+| `REDIS_PORT` | Yes | Redis port | `6379` |
+| `REDIS_PASSWORD` | No | Redis password | _(empty)_ |
+| `REDIS_DB` | No | Redis database number | `0` |
+| `JWT_ACCESS_SECRET` | **Yes** | JWT access token signing key | — |
+| `JWT_REFRESH_SECRET` | **Yes** | JWT refresh token signing key | — |
+| `JWT_ACCESS_EXPIRY` | No | Access token TTL | `15m` |
+| `JWT_REFRESH_EXPIRY` | No | Refresh token TTL | `168h` |
+| `ALLOWED_ORIGINS` | No | CORS origins (comma-separated, `*` in dev) | `*` |
+| `LOG_LEVEL` | No | Log level (`debug`, `info`, `warn`, `error`) | `debug` |
+| `LOG_FORMAT` | No | Log format (`json` / `text`) | `json` |
+| `S3_ENDPOINT` | **Yes** | S3-compatible storage endpoint | — |
+| `S3_BUCKET` | **Yes** | S3 bucket name | — |
+| `S3_REGION` | No | S3 region | `eu-central` |
+| `S3_ACCESS_KEY` | **Yes** | S3 access key | — |
+| `S3_SECRET_KEY` | **Yes** | S3 secret key | — |
+| `ANTHROPIC_API_KEY` | No | Anthropic API key (enables AI features) | _(empty)_ |
+| `GOOGLE_CALENDAR_CLIENT_ID` | No | Google OAuth client ID | _(empty)_ |
+| `GOOGLE_CALENDAR_CLIENT_SECRET` | No | Google OAuth client secret | _(empty)_ |
+| `GOOGLE_CALENDAR_REDIRECT_URL` | No | Google OAuth redirect URL | _(empty)_ |
+| `GOOGLE_CALENDAR_FRONTEND_URL` | No | Frontend URL for Calendar callback | _(empty)_ |
+| `GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY` | No | Encryption key for stored OAuth tokens | _(empty)_ |
 
 ### Frontend (`fe/.env`)
 
-```env
-VITE_API_BASE_URL=http://localhost:8080/api/v1
-```
+| Variable | Required | Description | Default |
+|----------|----------|-------------|---------|
+| `VITE_API_BASE_URL` | Yes | Backend API URL | `http://localhost:8080/api/v1` |
 
 ---
 
@@ -295,17 +313,14 @@ cd be/
 # Run all tests
 make test
 
-# Run with coverage
+# Run unit tests only
+make test-unit
+
+# Run integration tests only
+make test-integration
+
+# Run with coverage report
 make test-coverage
-```
-
-### Frontend Tests
-
-```bash
-cd fe/
-
-# Run tests (when implemented)
-npm run test
 ```
 
 ---
@@ -325,18 +340,22 @@ npm run test
 
 ## 🗂️ Key Features
 
-- **Authentication** - JWT-based user registration and login
-- **Company Management** - Track companies you're interested in
-- **Job Management** - Save job postings with Kanban board view (drag-and-drop)
-- **Resume Management** - Multiple resume versions
-- **Application Tracking** - Core feature for tracking job applications
-- **Stage Management** - Customizable interview stages
-- **Comments** - Notes on applications and stages
+- **Authentication** - JWT-based registration/login with access + refresh tokens
+- **Company Management** - Track companies with derived stats (active apps, last activity)
+- **Job Management** - Save job postings with Kanban board (drag-and-drop) and grid views
+- **Resume Management** - Multiple resume versions with S3 file storage
+- **Application Tracking** - Core feature: link job + resume, track through interview pipeline
+- **Stage Templates** - Customizable interview stage definitions
+- **Comments** - Append-only notes on applications and stages
 - **Timeline** - Visual history of application progress
-- **Reminders** - Schedule follow-ups (model ready, API pending)
-- **Tags** - Categorize entities (model ready, API pending)
-- **Job Import** - Import jobs from LinkedIn, DOU, Indeed by URL
-- **Google Calendar** - Schedule interviews directly from the app
+- **Analytics** - Dashboard with pipeline stats and conversion metrics
+- **Job Import** - Import jobs from LinkedIn, Indeed, DOU by URL (JSON-LD + Claude AI fallback)
+- **AI Match Score** - Resume-to-job matching with Claude Haiku (score, categories, missing keywords)
+- **Subscriptions** - Free/Pro/Enterprise plans with Paddle integration
+- **Google Calendar** - Schedule interviews from app (hidden behind feature flag, pending Google verification)
+- **i18n** - Full localization: English, Russian, Ukrainian
+- **Reminders** - Schedule follow-ups (model + repository ready, API pending)
+- **Tags** - Categorize entities (model + repository ready, API pending)
 
 ---
 
@@ -455,9 +474,7 @@ MIT License - See LICENSE file for details
 ## 🔗 Links
 
 - **System Specification:** [SYSTEM_SPECIFICATION.md](./SYSTEM_SPECIFICATION.md)
-- **Backend Docs:** [be/START_HERE.md](./be/START_HERE.md)
-- **Architecture Decisions:** [ARCHITECTURE_DECISIONS.md](./ARCHITECTURE_DECISIONS.md)
-- **Technical Roadmap:** [TECHNICAL_ROADMAP.md](./TECHNICAL_ROADMAP.md)
+- **Backend Docs:** [be/README.md](./be/README.md)
 
 ---
 

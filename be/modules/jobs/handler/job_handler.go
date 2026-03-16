@@ -51,7 +51,7 @@ func (h *JobHandler) Create(c *gin.Context) {
 	job, err := h.service.Create(c.Request.Context(), userID, &req)
 	if err != nil {
 		if errors.Is(err, subModel.ErrLimitReached) {
-			httpPlatform.RespondWithError(c, http.StatusForbidden, "PLAN_LIMIT_REACHED", "Plan limit reached. Upgrade to Pro for unlimited access.")
+			httpPlatform.RespondWithError(c, http.StatusForbidden, "PLAN_LIMIT_REACHED", "You have reached the job limit for your current plan.")
 			return
 		}
 

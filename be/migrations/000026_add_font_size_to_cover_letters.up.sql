@@ -1,0 +1,1 @@
+ALTER TABLE cover_letters ADD COLUMN font_size INT NOT NULL DEFAULT 12;
