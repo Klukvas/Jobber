@@ -468,15 +468,16 @@ jobs:
           SYNCED=$(wc -l < "$ENV_FILE" | tr -d ' ')
           echo "Syncing $SYNCED variables to server..."
 
-          # Pipe secrets directly via stdin — no temp file on the server
-          cat "$ENV_FILE" | ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} '
-            cd ~/jobber && touch .env
+          scp -p "$ENV_FILE" ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/tmp/.env.sync
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} '
+            cd ~/jobber && touch .env && chmod 600 .env
             while IFS= read -r line; do
               key="${line%%=*}"
               [ -z "$key" ] && continue
               grep -v "^${key}=" .env > .env.tmp && mv .env.tmp .env || true
               echo "$line" >> .env
-            done
+            done < /tmp/.env.sync
+            rm -f /tmp/.env.sync
             echo "✅ Secrets synced"
           '
           rm -f "$ENV_FILE"
