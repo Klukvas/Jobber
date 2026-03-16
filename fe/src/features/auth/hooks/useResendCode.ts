@@ -65,13 +65,10 @@ export function useResendCode({
   useEffect(() => {
     if (blockedUntil <= 0) return;
     const remaining = blockedUntil - Date.now();
-    if (remaining <= 0) {
-      setBlockedUntilState(0);
-      return;
-    }
+    const delay = remaining <= 0 ? 0 : Math.min(remaining, 60_000);
     const timer = setTimeout(
       () => setBlockedUntilState(getBlockedUntil(storageKey)),
-      Math.min(remaining, 60_000),
+      delay,
     );
     return () => clearTimeout(timer);
   }, [blockedUntil, storageKey]);
@@ -87,7 +84,7 @@ export function useResendCode({
 
       if (newCount >= maxResends) {
         setBlockedUntil(storageKey);
-        setBlockedUntilState(Date.now() + BLOCK_DURATION_MS);
+        setBlockedUntilState(() => Date.now() + BLOCK_DURATION_MS);
       }
     },
     onError: () => {
@@ -95,7 +92,7 @@ export function useResendCode({
     },
   });
 
-  const isBlocked = blockedUntil > Date.now();
+  const isBlocked = blockedUntil > 0;
   const isLimitReached = resendCount >= maxResends || isBlocked;
   const isDisabled = mutation.isPending || cooldown > 0 || isLimitReached;
 

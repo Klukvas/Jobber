@@ -113,6 +113,7 @@ export function clearServerIds(resumeId: string) {
 type CreateFn<T> = (resumeId: string, data: Omit<T, "id">) => Promise<T>;
 type DeleteFn = (resumeId: string, entryId: string) => Promise<void>;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const createFns: Record<SectionType, CreateFn<any>> = {
   experiences: (id, data) => resumeBuilderService.createExperience(id, data),
   educations: (id, data) => resumeBuilderService.createEducation(id, data),
@@ -161,6 +162,7 @@ const sectionToStoreKey: Record<SectionType, StoreKey> = {
 };
 
 /** Maps store key to the batch setter method on the store. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const storeSetters: Record<StoreKey, (items: any[]) => void> = {
   experiences: (v) => useResumeBuilderStore.getState().setExperiences(v),
   educations: (v) => useResumeBuilderStore.getState().setEducations(v),
@@ -190,6 +192,7 @@ export function useSectionPersistence<T extends DTOMap[SectionType]>(
 
       pendingRef.current = true;
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
         const { id: _localId, ...data } = localItem as any;
         const serverItem = await (createFns[sectionType] as CreateFn<T>)(
           resume.id,
@@ -203,14 +206,16 @@ export function useSectionPersistence<T extends DTOMap[SectionType]>(
         if (!currentResume) return;
 
         const items = [...(currentResume[storeKey] as T[])];
-        const idx = items.findIndex((i: any) => i.id === (localItem as any).id);
+        const idx = items.findIndex(
+          (i) => (i as { id: string }).id === (localItem as { id: string }).id,
+        );
         if (idx !== -1) {
           items[idx] = serverItem;
         }
 
         storeSetters[storeKey](items);
 
-        getOrCreateSet(resume.id).add((serverItem as any).id);
+        getOrCreateSet(resume.id).add((serverItem as { id: string }).id);
       } catch {
         useResumeBuilderStore.getState().setSaveStatus("error");
       } finally {

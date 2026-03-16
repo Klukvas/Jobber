@@ -31,16 +31,11 @@ test.describe("Resume Builder — List Page", () => {
 });
 
 test.describe("Resume Builder — CRUD", () => {
-  let resumeId: string;
-
   test.beforeEach(async ({ page }) => {
     // Create a fresh resume for each test
     const listPage = new ResumeBuilderListPage(page);
     await listPage.goto();
     await listPage.createResume();
-    // Extract ID from URL
-    const url = page.url();
-    resumeId = url.split("/").pop()!;
   });
 
   test("new resume appears in list with 'Untitled Resume' title", async ({
@@ -58,7 +53,9 @@ test.describe("Resume Builder — CRUD", () => {
     const countBefore = await new ResumeBuilderListPage(page).getResumeCount();
 
     // Find and duplicate
-    const duplicateBtn = page.getByRole("button", { name: /duplicate/i }).first();
+    const duplicateBtn = page
+      .getByRole("button", { name: /duplicate/i })
+      .first();
     await duplicateBtn.click();
     await page.waitForLoadState("networkidle");
 

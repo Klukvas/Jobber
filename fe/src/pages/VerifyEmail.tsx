@@ -10,15 +10,13 @@ type Status = "loading" | "success" | "error";
 export default function VerifyEmail() {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
-  const [status, setStatus] = useState<Status>("loading");
-
   const token = searchParams.get("token");
+  const [status, setStatus] = useState<Status>(() =>
+    token ? "loading" : "error",
+  );
 
   useEffect(() => {
-    if (!token) {
-      setStatus("error");
-      return;
-    }
+    if (!token) return;
 
     authService
       .verifyEmail({ token })

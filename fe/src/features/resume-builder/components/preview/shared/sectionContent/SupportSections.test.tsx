@@ -100,7 +100,7 @@ describe("CertificationsContent", () => {
   describe("modern variant", () => {
     it("renders name and issuer with opacity-70", () => {
       const setup = makeSetup([sampleCert]);
-      const { container } = render(
+      render(
         <CertificationsContent
           setup={setup}
           config={makeConfig("modern")}

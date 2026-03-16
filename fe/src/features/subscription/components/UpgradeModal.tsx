@@ -19,7 +19,6 @@ interface UpgradeModalProps {
 }
 
 export function UpgradeModal({ open, onOpenChange }: UpgradeModalProps) {
-  if (!FEATURES.PAYMENTS) return null;
   const { t, i18n } = useTranslation();
   const { nextPlan } = useSubscription();
   const { openCheckout, isReady } = usePaddleCheckout();
@@ -33,6 +32,8 @@ export function UpgradeModal({ open, onOpenChange }: UpgradeModalProps) {
       day: "numeric",
     });
   }, [i18n.language]);
+
+  if (!FEATURES.PAYMENTS) return null;
 
   const handleUpgrade = () => {
     if (nextPlan) {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { EditableField } from "./EditableField";
 
@@ -88,7 +88,6 @@ describe("EditableField", () => {
     render(<EditableField {...defaultProps} />);
 
     await user.click(screen.getByText("John Doe"));
-    const input = screen.getByDisplayValue("John Doe");
     await user.tab(); // blur without changing
 
     expect(defaultProps.onChange).not.toHaveBeenCalled();

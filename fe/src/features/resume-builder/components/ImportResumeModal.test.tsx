@@ -39,18 +39,16 @@ describe("ImportResumeModal", () => {
   });
 
   it("renders nothing when open is false", () => {
-    const { container } = render(
-      <ImportResumeModal open={false} onOpenChange={vi.fn()} />,
-    );
+    render(<ImportResumeModal open={false} onOpenChange={vi.fn()} />);
     // The Dialog component should not render content when open is false
-    expect(screen.queryByText("resumeBuilder.import.title")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("resumeBuilder.import.title"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the modal title when open", () => {
     render(<ImportResumeModal {...defaultProps} />);
-    expect(
-      screen.getByText("resumeBuilder.import.title"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("resumeBuilder.import.title")).toBeInTheDocument();
   });
 
   it("renders text and PDF tab buttons", () => {

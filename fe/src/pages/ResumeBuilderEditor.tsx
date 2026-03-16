@@ -108,7 +108,8 @@ export default function ResumeBuilderEditorPage() {
   }
 
   if (error) {
-    const status = (error as any)?.response?.status;
+    const status = (error as { response?: { status?: number } })?.response
+      ?.status;
     let message = t("resumeBuilder.notFound");
     if (status === 403) {
       message = t("common.accessDenied", "Access denied");

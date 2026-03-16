@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
@@ -158,7 +159,9 @@ func (h *CoverLetterHandler) handleError(c *gin.Context, err error) {
 		httpPlatform.RespondWithError(c, http.StatusNotFound, "COVER_LETTER_NOT_FOUND", "Cover letter not found")
 	case errors.Is(err, model.ErrInvalidFont),
 		errors.Is(err, model.ErrInvalidColor),
-		errors.Is(err, model.ErrInvalidFontSize):
+		errors.Is(err, model.ErrInvalidFontSize),
+		strings.Contains(err.Error(), "invalid font family"),
+		strings.Contains(err.Error(), "invalid color format"):
 		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
 	default:
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error")

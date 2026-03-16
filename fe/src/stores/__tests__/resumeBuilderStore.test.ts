@@ -5,7 +5,6 @@ import type {
   ContactDTO,
   SummaryDTO,
   ExperienceDTO,
-  SkillDTO,
   SectionOrderDTO,
 } from "@/shared/types/resume-builder";
 
@@ -13,9 +12,7 @@ import type {
 // Mock factory
 // ---------------------------------------------------------------------------
 
-function createMockResume(
-  overrides?: Partial<FullResumeDTO>,
-): FullResumeDTO {
+function createMockResume(overrides?: Partial<FullResumeDTO>): FullResumeDTO {
   return {
     id: "resume-1",
     title: "My Resume",
@@ -254,9 +251,24 @@ describe("resumeBuilderStore", () => {
     useResumeBuilderStore.getState().setResume(mockResume);
 
     const newOrder: SectionOrderDTO[] = [
-      { section_key: "experience", sort_order: 0, is_visible: true, column: "main" },
-      { section_key: "education", sort_order: 1, is_visible: true, column: "main" },
-      { section_key: "skills", sort_order: 2, is_visible: false, column: "sidebar" },
+      {
+        section_key: "experience",
+        sort_order: 0,
+        is_visible: true,
+        column: "main",
+      },
+      {
+        section_key: "education",
+        sort_order: 1,
+        is_visible: true,
+        column: "main",
+      },
+      {
+        section_key: "skills",
+        sort_order: 2,
+        is_visible: false,
+        column: "sidebar",
+      },
     ];
 
     useResumeBuilderStore.getState().setSectionOrder(newOrder);
@@ -284,7 +296,9 @@ describe("resumeBuilderStore", () => {
     useResumeBuilderStore.getState().updateSummary({ content: "Test" });
     useResumeBuilderStore.getState().updateDesign({ font_family: "Arial" });
     useResumeBuilderStore.getState().addExperience(createMockExperience());
-    useResumeBuilderStore.getState().updateExperience("exp-1", { company: "X" });
+    useResumeBuilderStore
+      .getState()
+      .updateExperience("exp-1", { company: "X" });
     useResumeBuilderStore.getState().removeExperience("exp-1");
     useResumeBuilderStore.getState().setSectionOrder([]);
 

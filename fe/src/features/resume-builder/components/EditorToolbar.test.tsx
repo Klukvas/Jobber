@@ -86,9 +86,7 @@ describe("EditorToolbar", () => {
 
   it("disables redo button when canRedo is false", () => {
     render(<EditorToolbar {...defaultProps} />);
-    expect(
-      screen.getByLabelText("resumeBuilder.toolbar.redo"),
-    ).toBeDisabled();
+    expect(screen.getByLabelText("resumeBuilder.toolbar.redo")).toBeDisabled();
   });
 
   it("enables undo button when canUndo is true", () => {
@@ -126,9 +124,7 @@ describe("EditorToolbar", () => {
     const user = userEvent.setup();
     render(<EditorToolbar {...defaultProps} />);
 
-    await user.click(
-      screen.getByLabelText("resumeBuilder.toolbar.atsCheck"),
-    );
+    await user.click(screen.getByLabelText("resumeBuilder.toolbar.atsCheck"));
     expect(defaultProps.onToggleATS).toHaveBeenCalledTimes(1);
   });
 
@@ -150,7 +146,6 @@ describe("EditorToolbar", () => {
   });
 
   it("shows export dropdown when export button is clicked", async () => {
-    const user = userEvent.setup();
     render(<EditorToolbar {...defaultProps} />);
 
     // The export button contains the export text
