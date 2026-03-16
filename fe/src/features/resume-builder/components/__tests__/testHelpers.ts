@@ -19,6 +19,7 @@ export function createMockResume(
     layout_mode: "single",
     sidebar_width: 35,
     font_size: 12,
+    skill_display: "",
     created_at: "2024-01-01T00:00:00Z",
     updated_at: "2024-01-01T00:00:00Z",
     contact: {

@@ -1,3 +1,4 @@
+import React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
@@ -14,7 +15,7 @@ vi.mock("../../../inline/EditableField", () => ({
     as?: string;
     className?: string;
   }) => {
-    const El = Tag as keyof JSX.IntrinsicElements;
+    const El = Tag as keyof React.JSX.IntrinsicElements;
     return (
       <El data-testid={`field-${placeholder}`} className={className}>
         {value}

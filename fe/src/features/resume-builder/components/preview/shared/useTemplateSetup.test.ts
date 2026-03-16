@@ -99,6 +99,7 @@ function makeResume(overrides: Partial<FullResumeDTO> = {}): FullResumeDTO {
     layout_mode: "single",
     sidebar_width: 35,
     font_size: 12,
+    skill_display: "",
     created_at: "2024-01-01",
     updated_at: "2024-01-01",
     contact: {
@@ -128,6 +129,7 @@ describe("useTemplateSetup", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     initServerIds({
+      id: "resume-1",
       experiences: [],
       educations: [],
       skills: [],

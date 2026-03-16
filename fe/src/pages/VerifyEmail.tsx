@@ -10,19 +10,20 @@ type Status = "loading" | "success" | "error";
 export default function VerifyEmail() {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
-  const token = searchParams.get("token");
+  const email = searchParams.get("email") ?? "";
+  const code = searchParams.get("code") ?? "";
   const [status, setStatus] = useState<Status>(() =>
-    token ? "loading" : "error",
+    code ? "loading" : "error",
   );
 
   useEffect(() => {
-    if (!token) return;
+    if (!code) return;
 
     authService
-      .verifyEmail({ token })
+      .verifyEmail({ email, code })
       .then(() => setStatus("success"))
       .catch(() => setStatus("error"));
-  }, [token]);
+  }, [email, code]);
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">

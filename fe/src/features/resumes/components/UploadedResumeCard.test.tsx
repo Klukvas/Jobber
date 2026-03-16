@@ -98,7 +98,7 @@ describe("UploadedResumeCard", () => {
       <UploadedResumeCard
         {...defaultProps}
         resume={createResume({
-          storage_type: "url",
+          storage_type: "external",
           file_url: "https://example.com/resume.pdf",
         })}
       />,
@@ -111,7 +111,7 @@ describe("UploadedResumeCard", () => {
     render(
       <UploadedResumeCard
         {...defaultProps}
-        resume={createResume({ storage_type: "url", file_url: null })}
+        resume={createResume({ storage_type: "external", file_url: null })}
       />,
     );
     expect(screen.getByText("resumes.noFileAttached")).toBeInTheDocument();
@@ -124,7 +124,9 @@ describe("UploadedResumeCard", () => {
         resume={createResume({ applications_count: 3 })}
       />,
     );
-    expect(screen.getByText("resumes.usedInApplications:3")).toBeInTheDocument();
+    expect(
+      screen.getByText("resumes.usedInApplications:3"),
+    ).toBeInTheDocument();
   });
 
   it("shows 'not used yet' when applications_count is 0", () => {

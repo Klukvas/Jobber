@@ -12,7 +12,8 @@ import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 export default function ResetPassword() {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
-  const token = searchParams.get("token");
+  const email = searchParams.get("email") ?? "";
+  const code = searchParams.get("code") ?? "";
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -30,7 +31,7 @@ export default function ResetPassword() {
     },
   });
 
-  if (!token) {
+  if (!code) {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="flex w-full max-w-md flex-col items-center gap-4 text-center">
@@ -81,14 +82,16 @@ export default function ResetPassword() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validate()) {
-      resetMutation.mutate({ token, password });
+      resetMutation.mutate({ email, code, password });
     }
   };
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <h1 className="mb-2 text-2xl font-bold">{t("auth.resetPasswordTitle")}</h1>
+        <h1 className="mb-2 text-2xl font-bold">
+          {t("auth.resetPasswordTitle")}
+        </h1>
         <p className="mb-6 text-muted-foreground">
           {t("auth.resetPasswordDescription")}
         </p>
