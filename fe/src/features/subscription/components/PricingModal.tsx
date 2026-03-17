@@ -148,9 +148,12 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      className="sm:max-w-4xl max-w-[calc(100vw-2rem)]"
+      className="max-w-[calc(100vw-2rem)] sm:max-w-4xl"
     >
-      <DialogContent onClose={() => onOpenChange(false)}>
+      <DialogContent
+        onClose={() => onOpenChange(false)}
+        className="max-w-[calc(100vw-2rem)] sm:max-w-4xl"
+      >
         <DialogHeader className="text-center">
           <DialogTitle className="text-center text-2xl">
             {t("settings.subscription.pricing.modalTitle")}
