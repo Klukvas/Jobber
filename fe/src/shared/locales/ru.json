@@ -450,6 +450,12 @@
       "proPlan": "Pro",
       "enterprisePlan": "Enterprise",
       "paymentsDisabled": "Платежи временно отключены. Все пользователи сейчас имеют доступ к функциям бесплатного плана.",
+      "upgradeSuccess": {
+        "title": "Поздравляем!",
+        "description": "Добро пожаловать в план {{plan}}. Наслаждайтесь новыми возможностями!",
+        "cta": "Поехали"
+      },
+      "activating": "Активируем вашу подписку...",
       "upgrade": "Обновить",
       "upgradeToPro": "Обновить до Pro",
       "upgradeToEnterprise": "Обновить до Enterprise",
@@ -478,6 +484,20 @@
       "aiLimitTitle": "Лимит AI исчерпан",
       "aiLimitMessage": "Вы использовали бесплатный AI запрос в этом месяце. Лимит обновится {{date}}.",
       "upgradeForMore": "Обновить для безлимитного AI",
+      "manage": {
+        "title": "Управление подпиской",
+        "description": "Измените план или отмените подписку.",
+        "planChanged": "План успешно изменён",
+        "changePlanError": "Не удалось изменить план. Попробуйте ещё раз.",
+        "cancelScheduled": "Подписка будет отменена в конце текущего платёжного периода.",
+        "cancelError": "Не удалось отменить подписку. Попробуйте ещё раз.",
+        "proratedNote": "Изменения пропорциональны и вступают в силу немедленно.",
+        "switchToPro": "Перейти на Pro",
+        "switchToEnterprise": "Перейти на Enterprise",
+        "cancelSubscription": "Отменить подписку",
+        "cancelConfirmText": "Подписка останется активной до конца текущего платёжного периода. После этого вы будете переведены на план Free.",
+        "confirmCancel": "Да, отменить"
+      },
       "pricing": {
         "modalTitle": "Выберите план",
         "currentPlanBadge": "Текущий план",

@@ -488,6 +488,12 @@
       "proPlan": "Pro",
       "enterprisePlan": "Enterprise",
       "paymentsDisabled": "Платежі тимчасово вимкнені. Усі користувачі наразі мають доступ до функцій безкоштовного плану.",
+      "upgradeSuccess": {
+        "title": "Вітаємо!",
+        "description": "Ласкаво просимо до плану {{plan}}. Насолоджуйтесь новими можливостями!",
+        "cta": "Почнемо"
+      },
+      "activating": "Активуємо вашу підписку...",
       "upgrade": "Оновити",
       "upgradeToPro": "Оновити до Pro",
       "upgradeToEnterprise": "Оновити до Enterprise",
@@ -516,6 +522,20 @@
       "aiLimitTitle": "Ліміт AI вичерпано",
       "aiLimitMessage": "Ви використали безкоштовний AI запит цього місяця. Ліміт оновиться {{date}}.",
       "upgradeForMore": "Оновити для необмеженого AI",
+      "manage": {
+        "title": "Керування підпискою",
+        "description": "Змініть план або скасуйте підписку.",
+        "planChanged": "План успішно змінено",
+        "changePlanError": "Не вдалося змінити план. Спробуйте ще раз.",
+        "cancelScheduled": "Підписку буде скасовано наприкінці поточного платіжного циклу.",
+        "cancelError": "Не вдалося скасувати підписку. Спробуйте ще раз.",
+        "proratedNote": "Зміни пропорційні та набирають чинності негайно.",
+        "switchToPro": "Перейти на Pro",
+        "switchToEnterprise": "Перейти на Enterprise",
+        "cancelSubscription": "Скасувати підписку",
+        "cancelConfirmText": "Підписка залишатиметься активною до кінця поточного платіжного циклу. Після цього вас буде переведено на план Free.",
+        "confirmCancel": "Так, скасувати"
+      },
       "pricing": {
         "modalTitle": "Оберіть план",
         "currentPlanBadge": "Поточний план",

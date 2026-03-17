@@ -328,7 +328,7 @@ func main() {
 	applicationHdl := appHandler.NewApplicationHandler(applicationSvc)
 	commentHdl := commentHandler.NewCommentHandler(commentSvc)
 	analyticsHdl := analyticsHandler.NewAnalyticsHandler(analyticsSvc)
-	subscriptionHdl := subHandler.NewSubscriptionHandler(subscriptionSvc)
+	subscriptionHdl := subHandler.NewSubscriptionHandler(subscriptionSvc, logger.Logger)
 	webhookHdl := subHandler.NewWebhookHandler(subscriptionSvc, logger.Logger)
 
 	// Initialize calendar module (optional — only if all Google Calendar config is provided)

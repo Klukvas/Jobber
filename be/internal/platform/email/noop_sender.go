@@ -18,12 +18,18 @@ func (n *NoopSender) log() *zap.Logger {
 	return zap.NewNop()
 }
 
-func (n *NoopSender) SendVerificationEmail(_ context.Context, to, _, _ string) error {
-	n.log().Debug("noop: verification email skipped", zap.String("to", to))
+func (n *NoopSender) SendVerificationEmail(_ context.Context, to, code, _ string) error {
+	n.log().Info("[DEV] verification email skipped — use this code to verify",
+		zap.String("to", to),
+		zap.String("code", code),
+	)
 	return nil
 }
 
-func (n *NoopSender) SendPasswordResetEmail(_ context.Context, to, _, _ string) error {
-	n.log().Debug("noop: password reset email skipped", zap.String("to", to))
+func (n *NoopSender) SendPasswordResetEmail(_ context.Context, to, code, _ string) error {
+	n.log().Info("[DEV] password reset email skipped — use this code to reset",
+		zap.String("to", to),
+		zap.String("code", code),
+	)
 	return nil
 }

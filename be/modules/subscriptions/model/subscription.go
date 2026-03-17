@@ -177,3 +177,8 @@ type CheckoutConfigDTO struct {
 type PortalSessionDTO struct {
 	URL string `json:"url"`
 }
+
+// ChangePlanRequest is the request body for changing a subscription plan.
+type ChangePlanRequest struct {
+	Plan string `json:"plan" binding:"required"`
+}

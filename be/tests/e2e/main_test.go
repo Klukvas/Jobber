@@ -265,7 +265,7 @@ func TestMain(m *testing.M) {
 	resumeBuilderHdl := rbHandler.NewResumeBuilderHandler(resumeBuilderSvc)
 	contentLibraryHdl := clHandler.NewContentLibraryHandler(contentLibrarySvc)
 	coverLetterHdl := cvHandler.NewCoverLetterHandler(coverLetterSvc)
-	subscriptionHdl := subHandler.NewSubscriptionHandler(subscriptionSvc)
+	subscriptionHdl := subHandler.NewSubscriptionHandler(subscriptionSvc, zapLogger.Logger)
 	webhookHdl := subHandler.NewWebhookHandler(subscriptionSvc)
 
 	// Register routes

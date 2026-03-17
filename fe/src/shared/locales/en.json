@@ -450,6 +450,12 @@
       "proPlan": "Pro",
       "enterprisePlan": "Enterprise",
       "paymentsDisabled": "Payments are temporarily disabled. All users currently have access to the Free plan features.",
+      "upgradeSuccess": {
+        "title": "You're all set!",
+        "description": "Welcome to the {{plan}} plan. Enjoy your new features!",
+        "cta": "Let's go"
+      },
+      "activating": "Activating your subscription...",
       "upgrade": "Upgrade",
       "upgradeToPro": "Upgrade to Pro",
       "upgradeToEnterprise": "Upgrade to Enterprise",
@@ -478,6 +484,20 @@
       "aiLimitTitle": "AI Limit Reached",
       "aiLimitMessage": "You've used your free AI request this month. Your limit resets on {{date}}.",
       "upgradeForMore": "Upgrade for unlimited AI",
+      "manage": {
+        "title": "Manage Subscription",
+        "description": "Change your plan or cancel your subscription.",
+        "planChanged": "Plan changed successfully",
+        "changePlanError": "Failed to change plan. Please try again.",
+        "cancelScheduled": "Subscription will be cancelled at the end of the billing period.",
+        "cancelError": "Failed to cancel subscription. Please try again.",
+        "proratedNote": "Changes are prorated and take effect immediately.",
+        "switchToPro": "Switch to Pro",
+        "switchToEnterprise": "Switch to Enterprise",
+        "cancelSubscription": "Cancel subscription",
+        "cancelConfirmText": "Your subscription will remain active until the end of the current billing period. After that you will be moved to the Free plan.",
+        "confirmCancel": "Yes, cancel"
+      },
       "pricing": {
         "modalTitle": "Choose Your Plan",
         "currentPlanBadge": "Current Plan",

@@ -9,16 +9,18 @@ import (
 	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/service"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 // SubscriptionHandler handles subscription HTTP requests (auth required).
 type SubscriptionHandler struct {
 	service *service.SubscriptionService
+	logger  *zap.Logger
 }
 
 // NewSubscriptionHandler creates a new SubscriptionHandler.
-func NewSubscriptionHandler(service *service.SubscriptionService) *SubscriptionHandler {
-	return &SubscriptionHandler{service: service}
+func NewSubscriptionHandler(svc *service.SubscriptionService, logger *zap.Logger) *SubscriptionHandler {
+	return &SubscriptionHandler{service: svc, logger: logger}
 }
 
 // GetSubscription returns the current user's subscription.
@@ -67,11 +69,57 @@ func (h *SubscriptionHandler) CreatePortalSession(c *gin.Context) {
 
 	portalURL, err := h.service.CreatePortalSession(c.Request.Context(), userID)
 	if err != nil {
+		h.logger.Error("failed to create portal session", zap.String("user_id", userID), zap.Error(err))
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, "PORTAL_ERROR", "Failed to create portal session")
 		return
 	}
 
 	httpPlatform.RespondWithData(c, http.StatusOK, model.PortalSessionDTO{URL: portalURL})
+}
+
+// ChangePlan changes the user's subscription to a different plan.
+func (h *SubscriptionHandler) ChangePlan(c *gin.Context) {
+	userID, exists := auth.GetUserID(c)
+	if !exists {
+		httpPlatform.RespondWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized")
+		return
+	}
+
+	var req model.ChangePlanRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request body")
+		return
+	}
+
+	if req.Plan != "pro" && req.Plan != "enterprise" {
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid plan")
+		return
+	}
+
+	if err := h.service.ChangePlan(c.Request.Context(), userID, req.Plan); err != nil {
+		h.logger.Error("failed to change plan", zap.String("user_id", userID), zap.Error(err))
+		httpPlatform.RespondWithError(c, http.StatusInternalServerError, "CHANGE_PLAN_ERROR", "Failed to change plan")
+		return
+	}
+
+	httpPlatform.RespondWithData(c, http.StatusOK, gin.H{"success": true})
+}
+
+// CancelSubscription schedules cancellation at the end of the billing period.
+func (h *SubscriptionHandler) CancelSubscription(c *gin.Context) {
+	userID, exists := auth.GetUserID(c)
+	if !exists {
+		httpPlatform.RespondWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized")
+		return
+	}
+
+	if err := h.service.CancelSubscription(c.Request.Context(), userID); err != nil {
+		h.logger.Error("failed to cancel subscription", zap.String("user_id", userID), zap.Error(err))
+		httpPlatform.RespondWithError(c, http.StatusInternalServerError, "CANCEL_ERROR", "Failed to cancel subscription")
+		return
+	}
+
+	httpPlatform.RespondWithData(c, http.StatusOK, gin.H{"success": true})
 }
 
 // RegisterRoutes registers subscription routes (auth required).
@@ -84,6 +132,8 @@ func (h *SubscriptionHandler) RegisterRoutes(router *gin.RouterGroup, authMiddle
 		if paymentsEnabled {
 			sub.GET("/checkout-config", h.GetCheckoutConfig)
 			sub.POST("/portal", h.CreatePortalSession)
+			sub.POST("/change-plan", h.ChangePlan)
+			sub.POST("/cancel", h.CancelSubscription)
 		}
 	}
 }

@@ -7,7 +7,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { authService } from "@/services/authService";
 import { calendarService } from "@/services/calendarService";
 import { FEATURES } from "@/shared/lib/features";
-import { subscriptionService } from "@/services/subscriptionService";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import {
@@ -27,6 +26,7 @@ import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { useOnboarding } from "@/features/onboarding/useOnboarding";
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { PricingModal } from "@/features/subscription/components/PricingModal";
+import { ManageSubscriptionModal } from "@/features/subscription/components/ManageSubscriptionModal";
 
 export default function Settings() {
   const { t, i18n } = useTranslation();
@@ -41,16 +41,7 @@ export default function Settings() {
   const { subscription, isPro, isEnterprise, nextPlan, usage, limits } =
     useSubscription();
   const [pricingOpen, setPricingOpen] = useState(false);
-
-  const portalMutation = useMutation({
-    mutationFn: subscriptionService.createPortalSession,
-    onSuccess: (data) => {
-      window.open(data.url, "_blank");
-    },
-    onError: (error: Error) => {
-      showErrorNotification(error.message);
-    },
-  });
+  const [manageOpen, setManageOpen] = useState(false);
 
   const logoutMutation = useMutation({
     mutationFn: authService.logout,
@@ -222,12 +213,9 @@ export default function Settings() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => portalMutation.mutate()}
-                  disabled={portalMutation.isPending}
+                  onClick={() => setManageOpen(true)}
                 >
-                  {portalMutation.isPending
-                    ? t("common.loading")
-                    : t("settings.subscription.managePlan")}
+                  {t("settings.subscription.managePlan")}
                 </Button>
               )}
               {FEATURES.PAYMENTS && nextPlan && (
@@ -390,6 +378,7 @@ export default function Settings() {
       </Card>
 
       <PricingModal open={pricingOpen} onOpenChange={setPricingOpen} />
+      <ManageSubscriptionModal open={manageOpen} onOpenChange={setManageOpen} />
     </div>
   );
 }

@@ -216,6 +216,104 @@ func (s *SubscriptionService) HandleWebhook(ctx context.Context, body []byte, si
 	}
 }
 
+// paddleBaseURL returns the Paddle API base URL for the configured environment.
+func (s *SubscriptionService) paddleBaseURL() string {
+	if s.environment == "sandbox" {
+		return "https://sandbox-api.paddle.com"
+	}
+	return "https://api.paddle.com"
+}
+
+// paddleRequest executes an authenticated HTTP request against the Paddle API.
+func (s *SubscriptionService) paddleRequest(ctx context.Context, method, path string, body []byte) (*http.Response, error) {
+	var bodyReader io.Reader
+	if body != nil {
+		bodyReader = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, s.paddleBaseURL()+path, bodyReader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+s.paddleAPIKey)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return (&http.Client{Timeout: 15 * time.Second}).Do(req)
+}
+
+// ChangePlan switches the user's subscription to a different plan via Paddle API.
+// The change is prorated immediately.
+func (s *SubscriptionService) ChangePlan(ctx context.Context, userID, newPlan string) error {
+	sub, err := s.repo.GetByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if sub.PaddleSubscriptionID == nil || *sub.PaddleSubscriptionID == "" {
+		return fmt.Errorf("no active paddle subscription found")
+	}
+
+	var priceID string
+	switch newPlan {
+	case "pro":
+		priceID = s.proPriceID
+	case "enterprise":
+		priceID = s.enterprisePriceID
+	default:
+		return fmt.Errorf("invalid plan: %s", newPlan)
+	}
+	if priceID == "" {
+		return fmt.Errorf("price not configured for plan: %s", newPlan)
+	}
+
+	reqBody, err := json.Marshal(map[string]interface{}{
+		"items":                  []map[string]interface{}{{"price_id": priceID, "quantity": 1}},
+		"proration_billing_mode": "prorated_immediately",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	resp, err := s.paddleRequest(ctx, http.MethodPatch, "/subscriptions/"+*sub.PaddleSubscriptionID, reqBody)
+	if err != nil {
+		return fmt.Errorf("failed to call Paddle API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("paddle API error (status %d): %s", resp.StatusCode, string(respBody))
+	}
+	return nil
+}
+
+// CancelSubscription schedules cancellation at the end of the current billing period.
+func (s *SubscriptionService) CancelSubscription(ctx context.Context, userID string) error {
+	sub, err := s.repo.GetByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if sub.PaddleSubscriptionID == nil || *sub.PaddleSubscriptionID == "" {
+		return fmt.Errorf("no active paddle subscription found")
+	}
+
+	reqBody, err := json.Marshal(map[string]string{"effective_from": "next_billing_period"})
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	resp, err := s.paddleRequest(ctx, http.MethodPost, "/subscriptions/"+*sub.PaddleSubscriptionID+"/cancel", reqBody)
+	if err != nil {
+		return fmt.Errorf("failed to call Paddle API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("paddle API error (status %d): %s", resp.StatusCode, string(respBody))
+	}
+	return nil
+}
+
 // CreatePortalSession creates a Paddle customer portal session URL.
 func (s *SubscriptionService) CreatePortalSession(ctx context.Context, userID string) (string, error) {
 	sub, err := s.repo.GetByUserID(ctx, userID)
@@ -230,13 +328,6 @@ func (s *SubscriptionService) CreatePortalSession(ctx context.Context, userID st
 		return "", fmt.Errorf("no paddle customer ID found")
 	}
 
-	// Determine API base URL
-	baseURL := "https://api.paddle.com"
-	if s.environment == "sandbox" {
-		baseURL = "https://sandbox-api.paddle.com"
-	}
-
-	// Call Paddle API to create a portal session
 	reqBody, err := json.Marshal(map[string][]string{
 		"subscription_ids": {*sub.PaddleSubscriptionID},
 	})
@@ -244,18 +335,10 @@ func (s *SubscriptionService) CreatePortalSession(ctx context.Context, userID st
 		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		baseURL+"/customers/"+*sub.PaddleCustomerID+"/portal-sessions",
-		bytes.NewReader(reqBody),
+	resp, err := s.paddleRequest(ctx, http.MethodPost,
+		"/customers/"+*sub.PaddleCustomerID+"/portal-sessions",
+		reqBody,
 	)
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
-	httpReq.Header.Set("Authorization", "Bearer "+s.paddleAPIKey)
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	httpClient := &http.Client{Timeout: 15 * time.Second}
-	resp, err := httpClient.Do(httpReq)
 	if err != nil {
 		return "", fmt.Errorf("failed to call Paddle API: %w", err)
 	}
@@ -272,7 +355,7 @@ func (s *SubscriptionService) CreatePortalSession(ctx context.Context, userID st
 	var portalResp struct {
 		Data struct {
 			URLs struct {
-				General []struct {
+				General struct {
 					Overview string `json:"overview"`
 				} `json:"general"`
 			} `json:"urls"`
@@ -282,11 +365,11 @@ func (s *SubscriptionService) CreatePortalSession(ctx context.Context, userID st
 		return "", fmt.Errorf("failed to decode portal response: %w", err)
 	}
 
-	if len(portalResp.Data.URLs.General) == 0 {
+	if portalResp.Data.URLs.General.Overview == "" {
 		return "", fmt.Errorf("no portal URL returned")
 	}
 
-	return portalResp.Data.URLs.General[0].Overview, nil
+	return portalResp.Data.URLs.General.Overview, nil
 }
 
 // getUsage returns current resource usage for a user in a single query.
@@ -407,7 +490,10 @@ func (s *SubscriptionService) handleSubscriptionActivated(ctx context.Context, e
 		return fmt.Errorf("invalid user_id in custom_data: %w", err)
 	}
 
-	plan := s.determinePlanFromEvent(data)
+	plan, err := s.determinePlanFromEvent(data)
+	if err != nil {
+		return fmt.Errorf("handleSubscriptionActivated: %w", err)
+	}
 
 	sub := &model.Subscription{
 		UserID:               data.CustomData.UserID,
@@ -442,7 +528,11 @@ func (s *SubscriptionService) handleSubscriptionUpdated(ctx context.Context, eve
 	}
 
 	existing.Status = mapPaddleStatus(data.Status)
-	existing.Plan = s.determinePlanFromEvent(data)
+	plan, err := s.determinePlanFromEvent(data)
+	if err != nil {
+		return fmt.Errorf("handleSubscriptionUpdated: %w", err)
+	}
+	existing.Plan = plan
 
 	if data.CurrentBillingPeriod != nil {
 		if start, err := time.Parse(time.RFC3339, data.CurrentBillingPeriod.StartsAt); err == nil {
@@ -457,6 +547,9 @@ func (s *SubscriptionService) handleSubscriptionUpdated(ctx context.Context, eve
 		if cancelAt, err := time.Parse(time.RFC3339, data.ScheduledChange.EffectiveAt); err == nil {
 			existing.CancelAt = &cancelAt
 		}
+	} else {
+		// No scheduled cancellation — clear any previously stored cancel date
+		existing.CancelAt = nil
 	}
 
 	return s.repo.Upsert(ctx, existing)
@@ -497,13 +590,17 @@ func (s *SubscriptionService) handleSubscriptionPastDue(ctx context.Context, eve
 }
 
 // determinePlanFromEvent determines the plan based on price IDs in the subscription items.
-func (s *SubscriptionService) determinePlanFromEvent(data *paddleSubscriptionData) string {
+// Returns an error if no recognised price ID is found.
+func (s *SubscriptionService) determinePlanFromEvent(data *paddleSubscriptionData) (string, error) {
 	for _, item := range data.Items {
 		if s.enterprisePriceID != "" && item.Price.ID == s.enterprisePriceID {
-			return "enterprise"
+			return "enterprise", nil
+		}
+		if item.Price.ID == s.proPriceID {
+			return "pro", nil
 		}
 	}
-	return "pro"
+	return "", fmt.Errorf("no recognised price ID in subscription items (got %d items)", len(data.Items))
 }
 
 // parseUUID validates that a string is a valid UUID format.

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+
+export const PRE_CHECKOUT_PLAN_KEY = "paddle_pre_checkout_plan";
 import { subscriptionService } from "@/services/subscriptionService";
 import { useAuthStore } from "@/stores/authStore";
 import { FEATURES } from "@/shared/lib/features";
@@ -21,7 +23,8 @@ interface PaddleInstance {
 }
 
 interface PaddleGlobal {
-  Initialize: (options: { token: string; environment?: string }) => void;
+  Initialize: (options: { token: string }) => void;
+  Environment: { set: (env: "sandbox" | "production") => void };
   Checkout: PaddleInstance["Checkout"];
 }
 
@@ -32,11 +35,9 @@ declare global {
 }
 
 export function usePaddleCheckout() {
-  const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
+  const queryClient = useQueryClient();
   const initializedRef = useRef(false);
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: config } = useQuery({
     queryKey: ["checkout-config"],
@@ -54,10 +55,10 @@ export function usePaddleCheckout() {
 
     const initPaddle = () => {
       if (window.Paddle && !initializedRef.current) {
-        window.Paddle.Initialize({
-          token: config.client_token,
-          environment: config.environment === "sandbox" ? "sandbox" : undefined,
-        });
+        if (config.environment === "sandbox") {
+          window.Paddle.Environment.set("sandbox");
+        }
+        window.Paddle.Initialize({ token: config.client_token });
         initializedRef.current = true;
       }
     };
@@ -74,14 +75,6 @@ export function usePaddleCheckout() {
     document.head.appendChild(script);
   }, [config]);
 
-  // Clean up polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-      if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
-    };
-  }, []);
-
   const openCheckout = useCallback(
     (plan: SubscriptionPlan = "pro") => {
       const priceId = config?.prices?.[plan];
@@ -89,10 +82,17 @@ export function usePaddleCheckout() {
         console.warn("[Paddle] openCheckout blocked", {
           paddleLoaded: !!window.Paddle,
           priceId,
-          config,
         });
         return;
       }
+
+      // Save current plan before redirect so AppLayout can detect upgrade on return
+      const subData = queryClient.getQueryData<{ plan: SubscriptionPlan }>([
+        "subscription",
+      ]);
+      const baseline = subData?.plan ?? "free";
+      console.log("[Checkout] saving baseline to sessionStorage:", baseline);
+      sessionStorage.setItem(PRE_CHECKOUT_PLAN_KEY, baseline);
 
       window.Paddle.Checkout.open({
         items: [{ priceId, quantity: 1 }],
@@ -103,25 +103,8 @@ export function usePaddleCheckout() {
             window.location.origin + "/app/applications?subscription=success",
         },
       });
-
-      // Clear any existing poll before starting a new one
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-      if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
-
-      // Poll for subscription changes after checkout opens
-      pollIntervalRef.current = setInterval(() => {
-        queryClient.invalidateQueries({ queryKey: ["subscription"] });
-      }, 5000);
-
-      // Stop polling after 10 minutes
-      pollTimeoutRef.current = setTimeout(() => {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-        }
-      }, 600_000);
     },
-    [config, user, queryClient],
+    [config, user],
   );
 
   return {
