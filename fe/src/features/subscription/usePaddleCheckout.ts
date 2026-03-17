@@ -9,7 +9,7 @@ import type { SubscriptionPlan } from "@/shared/types/api";
 interface PaddleInstance {
   Checkout: {
     open: (options: {
-      items: Array<{ priceId: string }>;
+      items: Array<{ priceId: string; quantity: number }>;
       customer?: { email: string };
       customData?: Record<string, string>;
       settings?: {
@@ -95,7 +95,7 @@ export function usePaddleCheckout() {
       }
 
       window.Paddle.Checkout.open({
-        items: [{ priceId }],
+        items: [{ priceId, quantity: 1 }],
         customer: user?.email ? { email: user.email } : undefined,
         customData: user?.id ? { user_id: user.id } : undefined,
         settings: {
