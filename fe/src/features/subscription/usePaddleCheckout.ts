@@ -85,7 +85,14 @@ export function usePaddleCheckout() {
   const openCheckout = useCallback(
     (plan: SubscriptionPlan = "pro") => {
       const priceId = config?.prices?.[plan];
-      if (!window.Paddle || !priceId) return;
+      if (!window.Paddle || !priceId) {
+        console.warn("[Paddle] openCheckout blocked", {
+          paddleLoaded: !!window.Paddle,
+          priceId,
+          config,
+        });
+        return;
+      }
 
       window.Paddle.Checkout.open({
         items: [{ priceId }],

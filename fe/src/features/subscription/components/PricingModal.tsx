@@ -93,7 +93,7 @@ function PlanCard({
 export function PricingModal({ open, onOpenChange }: PricingModalProps) {
   const { t } = useTranslation();
   const { plan } = useSubscription();
-  const { openCheckout } = usePaddleCheckout();
+  const { openCheckout, isReady } = usePaddleCheckout();
 
   if (!FEATURES.PAYMENTS) return null;
 
@@ -186,7 +186,7 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
               isCurrent={plan === p.id}
               isHighlighted={p.highlighted}
               onSelect={() => handleSelect(p.id)}
-              disabled={!FEATURES.PAYMENTS}
+              disabled={!FEATURES.PAYMENTS || !isReady}
               currentBadge={t("settings.subscription.pricing.currentPlanBadge")}
               ctaLabel={t("settings.subscription.pricing.choosePlan")}
               popularLabel={t("settings.subscription.pricing.popular")}
