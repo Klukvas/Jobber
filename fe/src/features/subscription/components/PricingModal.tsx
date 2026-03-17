@@ -166,13 +166,15 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
           </DialogTitle>
         </DialogHeader>
 
-        {/* Payments disabled notice */}
-        <div className="mt-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
-          <Info className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-          <p className="text-sm text-amber-800 dark:text-amber-200">
-            {t("settings.subscription.paymentsDisabled")}
-          </p>
-        </div>
+        {/* Payments disabled notice — only shown when payments are off */}
+        {!FEATURES.PAYMENTS && (
+          <div className="mt-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
+            <Info className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              {t("settings.subscription.paymentsDisabled")}
+            </p>
+          </div>
+        )}
 
         <div className="mt-6 grid grid-cols-1 gap-4 pt-4 md:grid-cols-3">
           {plans.map((p) => (
@@ -184,7 +186,7 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
               isCurrent={plan === p.id}
               isHighlighted={p.highlighted}
               onSelect={() => handleSelect(p.id)}
-              disabled={true}
+              disabled={!FEATURES.PAYMENTS}
               currentBadge={t("settings.subscription.pricing.currentPlanBadge")}
               ctaLabel={t("settings.subscription.pricing.choosePlan")}
               popularLabel={t("settings.subscription.pricing.popular")}
