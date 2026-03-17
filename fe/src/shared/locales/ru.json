@@ -491,16 +491,22 @@
         "freeApplications": "5 заявок",
         "freeAI": "1 AI-анализ / месяц",
         "freeJobParses": "5 AI-парсингов / месяц",
+        "freeResumeBuilders": "1 конструктор резюме",
+        "freeCoverLetters": "Сопроводительные письма недоступны",
         "proJobs": "50 вакансий",
         "proResumes": "10 резюме",
         "proApplications": "50 заявок",
         "proAI": "Безлимитный AI-анализ",
         "proJobParses": "Безлимитный AI-парсинг",
+        "proResumeBuilders": "10 конструкторов резюме",
+        "proCoverLetters": "10 сопроводительных писем / месяц",
         "enterpriseJobs": "Безлимитные вакансии",
         "enterpriseResumes": "Безлимитные резюме",
         "enterpriseApplications": "Безлимитные заявки",
         "enterpriseAI": "Безлимитный AI-анализ",
-        "enterpriseJobParses": "Безлимитный AI-парсинг"
+        "enterpriseJobParses": "Безлимитный AI-парсинг",
+        "enterpriseResumeBuilders": "Безлимитные конструкторы резюме",
+        "enterpriseCoverLetters": "Безлимитные сопроводительные письма"
       }
     }
   },

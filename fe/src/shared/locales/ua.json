@@ -529,16 +529,22 @@
         "freeApplications": "5 заявок",
         "freeAI": "1 AI-аналіз / місяць",
         "freeJobParses": "5 AI-парсингів / місяць",
+        "freeResumeBuilders": "1 конструктор резюме",
+        "freeCoverLetters": "Супровідні листи недоступні",
         "proJobs": "50 вакансій",
         "proResumes": "10 резюме",
         "proApplications": "50 заявок",
         "proAI": "Необмежений AI-аналіз",
         "proJobParses": "Необмежений AI-парсинг",
+        "proResumeBuilders": "10 конструкторів резюме",
+        "proCoverLetters": "10 супровідних листів / місяць",
         "enterpriseJobs": "Необмежені вакансії",
         "enterpriseResumes": "Необмежені резюме",
         "enterpriseApplications": "Необмежені заявки",
         "enterpriseAI": "Необмежений AI-аналіз",
-        "enterpriseJobParses": "Необмежений AI-парсинг"
+        "enterpriseJobParses": "Необмежений AI-парсинг",
+        "enterpriseResumeBuilders": "Необмежені конструктори резюме",
+        "enterpriseCoverLetters": "Необмежені супровідні листи"
       }
     }
   },

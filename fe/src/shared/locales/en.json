@@ -491,16 +491,22 @@
         "freeApplications": "5 applications",
         "freeAI": "1 AI match score / month",
         "freeJobParses": "5 AI job parses / month",
+        "freeResumeBuilders": "1 resume builder",
+        "freeCoverLetters": "Cover letters not included",
         "proJobs": "50 jobs",
         "proResumes": "10 resumes",
         "proApplications": "50 applications",
         "proAI": "Unlimited AI match scores",
         "proJobParses": "Unlimited AI job parses",
+        "proResumeBuilders": "10 resume builders",
+        "proCoverLetters": "10 cover letters / month",
         "enterpriseJobs": "Unlimited jobs",
         "enterpriseResumes": "Unlimited resumes",
         "enterpriseApplications": "Unlimited applications",
         "enterpriseAI": "Unlimited AI match scores",
-        "enterpriseJobParses": "Unlimited AI job parses"
+        "enterpriseJobParses": "Unlimited AI job parses",
+        "enterpriseResumeBuilders": "Unlimited resume builders",
+        "enterpriseCoverLetters": "Unlimited cover letters"
       }
     }
   },
