@@ -1,4 +1,10 @@
-import { useState, useRef, useCallback, useEffect, type CSSProperties } from "react";
+import {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  type CSSProperties,
+} from "react";
 import { cn } from "@/shared/lib/utils";
 
 interface EditableDateRangeProps {
@@ -52,7 +58,10 @@ export function EditableDateRange({
   useEffect(() => {
     if (!isOpen) return;
     function handleClick(e: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(e.target as Node)
+      ) {
         setIsOpen(false);
       }
     }
@@ -61,12 +70,13 @@ export function EditableDateRange({
   }, [isOpen]);
 
   return (
-    <div className="relative inline-block" style={style}>
+    <span className="relative inline-block" style={style}>
       <span
         onClick={toggle}
         className={cn(
           className,
-          editable && "cursor-text transition-colors rounded hover:bg-blue-50/50",
+          editable &&
+            "cursor-text transition-colors rounded hover:bg-blue-50/50",
           !displayText && editable && "italic text-gray-400",
         )}
       >
@@ -119,6 +129,6 @@ export function EditableDateRange({
           </div>
         </div>
       )}
-    </div>
+    </span>
   );
 }

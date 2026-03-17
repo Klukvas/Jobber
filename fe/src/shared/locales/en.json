@@ -608,6 +608,10 @@
     "features": {
       "title": "Everything You Need",
       "subtitle": "Powerful tools to streamline your entire job search journey",
+      "applications": {
+        "title": "Application Tracker",
+        "description": "Track every job application with a Kanban board and never miss a follow-up"
+      },
       "track": {
         "title": "Track Progress",
         "description": "Visualize where each application stands in your job search pipeline with real-time status updates"
@@ -623,7 +627,16 @@
       "stages": {
         "title": "Custom Stages",
         "description": "Define your own application stages and track progress through each step of the hiring process"
-      }
+      },
+      "resumeBuilder": {
+        "title": "Resume Builder",
+        "description": "Build ATS-optimized resumes with AI-powered bullet suggestions and one-click PDF export"
+      },
+      "coverLetters": {
+        "title": "Cover Letters",
+        "description": "Generate personalized cover letters with AI, tailored to each job description"
+      },
+      "learnMore": "Learn more"
     },
     "howItWorks": {
       "title": "How It Works",
@@ -660,7 +673,12 @@
       "tagline": "Your job search, organized.",
       "terms": "Terms",
       "privacy": "Privacy",
-      "refund": "Refunds"
+      "refund": "Refunds",
+      "featuresTitle": "Features",
+      "featureApplications": "Application Tracker",
+      "featureResumeBuilder": "Resume Builder",
+      "featureCoverLetters": "Cover Letters",
+      "resourcesTitle": "Resources"
     }
   },
   "onboarding": {
@@ -1238,6 +1256,128 @@
     "updated": "Snippet updated",
     "insertSuccess": "Content copied to clipboard",
     "confirmDelete": "Are you sure you want to delete this snippet?"
+  },
+  "featurePages": {
+    "applications": {
+      "meta": {
+        "title": "Application Tracker - Jobber",
+        "description": "Track every job application with a Kanban board, custom stages, and analytics. Never lose track of your job search again."
+      },
+      "hero": {
+        "badge": "Trusted by 12,000+ job seekers",
+        "title": "Your entire job search, in one place",
+        "subtitle": "Track every application, never miss a follow-up, and know exactly where you stand — from first contact to final offer.",
+        "cta": "Start for free"
+      },
+      "stats": {
+        "users": "active job seekers",
+        "responseRate": "avg. response rate tracked",
+        "timeSaved": "saved per week"
+      },
+      "feature1": {
+        "label": "Applications",
+        "title": "See every application at a glance",
+        "desc": "List and Kanban views let you organize by status or custom stage. Filter, sort, and search across all your applications in seconds.",
+        "point1": "List view with sortable columns and inline status badges",
+        "point2": "Kanban board grouped by status or custom pipeline stage",
+        "point3": "Filter by company, role, status, date, and attached resume"
+      },
+      "feature2": {
+        "label": "Analytics",
+        "title": "Understand where applications go",
+        "desc": "See your full pipeline as a funnel — from applied to offer. Identify where you drop off and spot the patterns that lead to interviews.",
+        "point1": "Application funnel with conversion rates at each stage",
+        "point2": "Response rate and average time-to-response metrics",
+        "point3": "Resume effectiveness — see which version performs best"
+      },
+      "cta": {
+        "title": "Ready to organize your job search?",
+        "subtitle": "Join thousands of job seekers who use Jobber to stay focused and land offers faster.",
+        "button": "Get started for free"
+      }
+    },
+    "resumeBuilder": {
+      "meta": {
+        "title": "Resume Builder - Jobber",
+        "description": "Build ATS-optimized resumes with AI-powered bullet suggestions, multiple templates, and one-click PDF export."
+      },
+      "hero": {
+        "badge": "ATS-optimized templates",
+        "title": "Resumes that get past the bots",
+        "subtitle": "Build polished, ATS-friendly resumes with AI-powered bullet suggestions, multiple templates, and one-click PDF export.",
+        "cta": "Build your resume free"
+      },
+      "stats": {
+        "templates": "professional templates",
+        "atsScore": "optimized for ATS",
+        "timeToResume": "to build a resume"
+      },
+      "feature1": {
+        "label": "AI writing",
+        "title": "AI writes the bullets, you take the credit",
+        "desc": "Describe your role and let AI generate strong, metric-driven bullet points. Edit anything, or start from scratch — the choice is always yours.",
+        "point1": "Generate bullet points tailored to your role and seniority",
+        "point2": "AI-powered professional summary in seconds",
+        "point3": "ATS compatibility check — fix issues before applying"
+      },
+      "feature2": {
+        "label": "Multiple versions",
+        "title": "One resume doesn't fit all jobs",
+        "desc": "Create tailored versions for different roles and track which one you sent to each company. Never send the wrong resume again.",
+        "point1": "Duplicate and customize for every target role",
+        "point2": "Track which resume is linked to which application",
+        "point3": "Export any version as a polished PDF instantly"
+      },
+      "cta": {
+        "title": "Your best resume is one click away",
+        "subtitle": "Build a polished, ATS-friendly resume in minutes — no design skills needed.",
+        "button": "Start building for free"
+      }
+    },
+    "coverLetters": {
+      "meta": {
+        "title": "Cover Letters - Jobber",
+        "description": "Write cover letters that get you interviews. AI-powered generation tailored to each job description in seconds."
+      },
+      "hero": {
+        "badge": "AI-generated in seconds",
+        "title": "Cover letters that actually get read",
+        "subtitle": "Generate personalized cover letters with AI — tailored to each job description in seconds. Edit, export, and never start from scratch again.",
+        "cta": "Write your first letter free"
+      },
+      "stats": {
+        "generated": "AI-powered generation",
+        "timeToWrite": "average time to write",
+        "formats": "export formats (PDF, DOCX)"
+      },
+      "feature1": {
+        "label": "AI generation",
+        "title": "Tailored to every job, instantly",
+        "desc": "Paste a job description, select your resume, and hit generate. AI produces a cover letter that matches the role's tone, keywords, and requirements.",
+        "point1": "Extracts key requirements from the job description automatically",
+        "point2": "Matches tone to the company culture — formal or conversational",
+        "point3": "Uses your actual experience to personalize every letter"
+      },
+      "feature2": {
+        "label": "Export & apply",
+        "title": "Ready to send in one click",
+        "desc": "Edit the generated letter to add your personal touch, then export as PDF or DOCX. Attach directly to your application in Jobber.",
+        "point1": "Inline editor — click any sentence to edit",
+        "point2": "Export as PDF or DOCX, formatted and ready to attach",
+        "point3": "Link cover letters directly to applications in your tracker"
+      },
+      "mockLetter": {
+        "title": "Software Engineer — TechNova",
+        "company": "Generated from your resume",
+        "badge": "AI Generated",
+        "editBtn": "Edit"
+      },
+      "cta": {
+        "title": "Stop dreading cover letters",
+        "subtitle": "Let AI write the first draft. You make it yours in minutes.",
+        "button": "Try it for free"
+      }
+    }
   },
   "premium": {
     "title": "Premium Feature",

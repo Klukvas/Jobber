@@ -1,7 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Briefcase, Sun, Moon, Menu, X } from "lucide-react";
+import {
+  Briefcase,
+  Sun,
+  Moon,
+  Menu,
+  X,
+  ChevronDown,
+  LayoutList,
+  FileText,
+  Mail,
+} from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { LanguageSwitcher } from "@/shared/ui/LanguageSwitcher";
 import { useThemeStore } from "@/stores/themeStore";
@@ -11,13 +21,21 @@ interface HomeNavbarProps {
   onLogin: () => void;
   onRegister: () => void;
   onGoPlatform: () => void;
+  darkHero?: boolean;
 }
+
+const FEATURE_LINKS = [
+  { key: "applications", to: "/features/applications", Icon: LayoutList },
+  { key: "resumeBuilder", to: "/features/resume-builder", Icon: FileText },
+  { key: "coverLetters", to: "/features/cover-letters", Icon: Mail },
+] as const;
 
 export function HomeNavbar({
   isAuthenticated,
   onLogin,
   onRegister,
   onGoPlatform,
+  darkHero = false,
 }: HomeNavbarProps) {
   const { t } = useTranslation();
   const { theme, toggleTheme } = useThemeStore();
@@ -25,6 +43,8 @@ export function HomeNavbar({
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [featuresOpen, setFeaturesOpen] = useState(false);
+  const featuresRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -32,6 +52,19 @@ export function HomeNavbar({
     };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        featuresRef.current &&
+        !featuresRef.current.contains(e.target as Node)
+      ) {
+        setFeaturesOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const scrollTo = (id: string) => {
@@ -47,6 +80,12 @@ export function HomeNavbar({
     setMobileMenuOpen(false);
   };
 
+  // When the hero is dark and we haven't scrolled yet, use white text
+  const onDark = darkHero && !scrolled && !mobileMenuOpen;
+  const linkCls = onDark
+    ? "text-sm text-white/70 transition-colors hover:text-white"
+    : "text-sm text-muted-foreground transition-colors hover:text-foreground";
+
   return (
     <nav
       className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
@@ -57,33 +96,61 @@ export function HomeNavbar({
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
         <Link to="/" className="flex items-center gap-2">
-          <Briefcase className="h-6 w-6 text-primary" />
-          <span className="text-xl font-bold">Jobber</span>
+          <Briefcase
+            className={`h-6 w-6 ${onDark ? "text-white" : "text-primary"}`}
+          />
+          <span className={`text-xl font-bold ${onDark ? "text-white" : ""}`}>
+            Jobber
+          </span>
         </Link>
 
         <div className="hidden items-center gap-6 md:flex">
-          <button
-            onClick={() => scrollTo("features")}
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            {t("home.nav.features")}
-          </button>
-          <button
-            onClick={() => scrollTo("how-it-works")}
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
+          {/* Features dropdown */}
+          <div ref={featuresRef} className="relative">
+            <button
+              onClick={() => setFeaturesOpen((prev) => !prev)}
+              className={`flex items-center gap-1 ${linkCls}`}
+            >
+              {t("home.nav.features")}
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform duration-200 ${featuresOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+
+            {featuresOpen && (
+              <div className="absolute left-1/2 top-full mt-2 w-56 -translate-x-1/2 overflow-hidden rounded-xl border bg-background/95 shadow-lg backdrop-blur-md">
+                {FEATURE_LINKS.map(({ key, to, Icon }) => (
+                  <Link
+                    key={key}
+                    to={to}
+                    onClick={() => setFeaturesOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <Icon className="h-4 w-4 shrink-0 text-primary" />
+                    {t(`home.features.${key}.title`)}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button onClick={() => scrollTo("how-it-works")} className={linkCls}>
             {t("home.nav.howItWorks")}
           </button>
-          <Link
-            to="/blog"
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
+          <Link to="/blog" className={linkCls}>
             {t("blog.title")}
           </Link>
         </div>
 
         <div className="flex items-center gap-2">
-          <LanguageSwitcher iconSize="sm" />
+          <LanguageSwitcher
+            iconSize="sm"
+            className={
+              onDark
+                ? "text-white/70 hover:text-white hover:bg-white/10"
+                : undefined
+            }
+          />
           <Button
             variant="ghost"
             size="icon"
@@ -93,7 +160,11 @@ export function HomeNavbar({
                 ? t("settings.switchToDark")
                 : t("settings.switchToLight")
             }
-            className="h-9 w-9"
+            className={
+              onDark
+                ? "h-9 w-9 text-white/70 hover:text-white hover:bg-white/10"
+                : "h-9 w-9"
+            }
           >
             {theme === "light" ? (
               <Sun className="h-4 w-4" />
@@ -111,7 +182,11 @@ export function HomeNavbar({
                 variant="ghost"
                 size="sm"
                 onClick={onLogin}
-                className="hidden md:inline-flex"
+                className={
+                  onDark
+                    ? "hidden md:inline-flex text-white/70 hover:text-white hover:bg-white/10"
+                    : "hidden md:inline-flex"
+                }
               >
                 {t("auth.login")}
               </Button>
@@ -131,7 +206,11 @@ export function HomeNavbar({
             aria-label={
               mobileMenuOpen ? t("common.close") : t("common.openMenu")
             }
-            className="h-9 w-9 md:hidden"
+            className={
+              onDark
+                ? "h-9 w-9 md:hidden text-white/70 hover:text-white hover:bg-white/10"
+                : "h-9 w-9 md:hidden"
+            }
           >
             {mobileMenuOpen ? (
               <X className="h-5 w-5" />
@@ -145,12 +224,26 @@ export function HomeNavbar({
       {mobileMenuOpen && (
         <div className="border-t bg-background/95 backdrop-blur-md px-4 pb-4 md:hidden">
           <div className="flex flex-col gap-1 pt-2">
-            <button
-              onClick={() => scrollTo("features")}
-              className="rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              {t("home.nav.features")}
-            </button>
+            {/* Features group in mobile */}
+            <div className="rounded-md px-3 py-2">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+                {t("home.nav.features")}
+              </p>
+              <div className="flex flex-col gap-0.5">
+                {FEATURE_LINKS.map(({ key, to, Icon }) => (
+                  <Link
+                    key={key}
+                    to={to}
+                    onClick={handleLinkClick}
+                    className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <Icon className="h-4 w-4 shrink-0 text-primary" />
+                    {t(`home.features.${key}.title`)}
+                  </Link>
+                ))}
+              </div>
+            </div>
+
             <button
               onClick={() => scrollTo("how-it-works")}
               className="rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"

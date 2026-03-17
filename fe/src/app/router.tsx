@@ -17,6 +17,15 @@ const BlogPostPage = lazy(() => import("@/pages/BlogPost"));
 const PrivacyPage = lazy(() => import("@/pages/Privacy"));
 const TermsPage = lazy(() => import("@/pages/Terms"));
 const RefundPage = lazy(() => import("@/pages/Refund"));
+const FeatureApplicationsPage = lazy(
+  () => import("@/pages/FeatureApplications"),
+);
+const FeatureResumeBuilderPage = lazy(
+  () => import("@/pages/FeatureResumeBuilder"),
+);
+const FeatureCoverLettersPage = lazy(
+  () => import("@/pages/FeatureCoverLetters"),
+);
 
 // Protected pages
 const SettingsPage = lazy(() => import("@/pages/Settings"));
@@ -99,6 +108,23 @@ export const router = sentryCreateBrowserRouter([
       {
         path: "refund",
         element: <RefundPage />,
+      },
+      {
+        path: "features",
+        children: [
+          {
+            path: "applications",
+            element: <FeatureApplicationsPage />,
+          },
+          {
+            path: "resume-builder",
+            element: <FeatureResumeBuilderPage />,
+          },
+          {
+            path: "cover-letters",
+            element: <FeatureCoverLettersPage />,
+          },
+        ],
       },
       {
         path: "app",
