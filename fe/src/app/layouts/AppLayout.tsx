@@ -29,31 +29,36 @@ export function AppLayout() {
   const queryClient = useQueryClient();
   const { plan } = useSubscription();
 
-  // Baseline plan stored before checkout. null = not in a post-checkout flow,
-  // which prevents spurious modals on normal page loads.
+  // Read checkout redirect state once on mount (pure read — no side effects)
+  const [initialRedirect] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("subscription") !== "success") return null;
+    const stored = sessionStorage.getItem(
+      PRE_CHECKOUT_PLAN_KEY,
+    ) as SubscriptionPlan | null;
+    console.log("[Checkout] initial redirect detected, baseline:", stored);
+    return { baseline: (stored ?? "free") as SubscriptionPlan };
+  });
+
   const [preCheckoutPlan, setPreCheckoutPlan] =
-    useState<SubscriptionPlan | null>(null);
+    useState<SubscriptionPlan | null>(initialRedirect?.baseline ?? null);
   const [upgradedPlan, setUpgradedPlan] = useState<SubscriptionPlan | null>(
     null,
   );
-  const [isAwaitingUpgrade, setIsAwaitingUpgrade] = useState(false);
+  const [isAwaitingUpgrade, setIsAwaitingUpgrade] = useState(!!initialRedirect);
 
-  // Detect upgrade: re-evaluates whenever plan, isAwaitingUpgrade, or
-  // preCheckoutPlan change, so it works whether the plan was already "pro"
-  // at mount time (fast webhook) or arrives later (slow webhook).
-  useEffect(() => {
-    console.log("[Checkout] detect effect:", {
-      plan,
-      isAwaitingUpgrade,
-      preCheckoutPlan,
-    });
-    if (!isAwaitingUpgrade || preCheckoutPlan === null) return;
-    if (PLAN_RANK[plan] > PLAN_RANK[preCheckoutPlan]) {
-      setIsAwaitingUpgrade(false);
-      setPreCheckoutPlan(null);
-      setUpgradedPlan(plan);
-    }
-  }, [plan, isAwaitingUpgrade, preCheckoutPlan]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Detect upgrade during render (avoids setState-in-effect).
+  // Self-terminating: once triggered, isAwaitingUpgrade becomes false.
+  if (
+    isAwaitingUpgrade &&
+    preCheckoutPlan !== null &&
+    PLAN_RANK[plan] > PLAN_RANK[preCheckoutPlan]
+  ) {
+    console.log("[Checkout] upgrade detected:", preCheckoutPlan, "→", plan);
+    setIsAwaitingUpgrade(false);
+    setPreCheckoutPlan(null);
+    setUpgradedPlan(plan);
+  }
 
   // Polling: driven by isAwaitingUpgrade state so it's immune to React
   // StrictMode's double-invocation. State changes from the mount effect below
@@ -77,31 +82,15 @@ export function AppLayout() {
       clearInterval(intervalId);
       clearTimeout(timeoutId);
     };
-  }, [isAwaitingUpgrade, queryClient]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAwaitingUpgrade, queryClient]);
 
-  // On mount: detect Paddle success redirect. Only sets state — no cleanup
-  // needed, which makes this safe for StrictMode double-invocation (the second
-  // run sees an empty URL and exits early, leaving state from the first run).
+  // Clean up URL params and sessionStorage after checkout redirect
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    console.log("[Checkout] mount effect, search:", window.location.search);
-    if (params.get("subscription") !== "success") return;
-
-    setSearchParams({}, { replace: true });
-
-    const stored = sessionStorage.getItem(
-      PRE_CHECKOUT_PLAN_KEY,
-    ) as SubscriptionPlan | null;
-    sessionStorage.removeItem(PRE_CHECKOUT_PLAN_KEY);
-    console.log(
-      "[Checkout] stored baseline:",
-      stored,
-      "→ setting isAwaitingUpgrade",
-    );
-
-    setPreCheckoutPlan(stored ?? "free");
-    setIsAwaitingUpgrade(true);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (initialRedirect) {
+      setSearchParams({}, { replace: true });
+      sessionStorage.removeItem(PRE_CHECKOUT_PLAN_KEY);
+    }
+  }, [initialRedirect, setSearchParams]);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

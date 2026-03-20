@@ -104,7 +104,7 @@ export function usePaddleCheckout() {
         },
       });
     },
-    [config, user],
+    [config, user, queryClient],
   );
 
   return {
