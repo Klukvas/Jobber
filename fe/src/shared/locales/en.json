@@ -6,6 +6,7 @@
     "cancel": "Cancel",
     "delete": "Delete",
     "edit": "Edit",
+    "rename": "Rename",
     "create": "Create",
     "search": "Search",
     "filter": "Filter",
@@ -622,18 +623,49 @@
   "home": {
     "nav": {
       "features": "Features",
-      "howItWorks": "How It Works"
+      "howItWorks": "How It Works",
+      "pricing": "Pricing"
     },
     "hero": {
-      "title": "Track Your Job Applications with Confidence",
-      "subtitle": "Organize and manage your job search as a process, not a single action. Keep track of every stage, stay on top of deadlines, and never miss an opportunity.",
-      "cta": "Get Started Free",
-      "ctaSecondary": "Sign In",
+      "badge": "AI-powered job tracker",
+      "titleStart": "Your job search, finally ",
+      "titleAccent": "under control_",
+      "subtitle": "Track applications, match resumes with AI, and move through the interview pipeline — all in one place built for engineers.",
+      "cta": "Start for free",
+      "ctaSecondary": "See how it works",
       "ctaGoPlatform": "Go to Platform"
     },
+    "socialProof": {
+      "label": "Used by engineers at"
+    },
     "features": {
-      "title": "Everything You Need",
-      "subtitle": "Powerful tools to streamline your entire job search journey",
+      "label": "Features",
+      "title": "Everything your job search needs",
+      "subtitle": "Built for the full lifecycle — from finding the job to signing the offer.",
+      "kanban": {
+        "title": "Kanban Board",
+        "description": "Drag-and-drop pipeline for every application. Grid and board view toggle. Optimistic updates."
+      },
+      "aiMatch": {
+        "title": "AI Match Score",
+        "description": "Powered by Claude AI. Instant resume-to-job fit score, keyword gaps, and category breakdown."
+      },
+      "resume": {
+        "title": "Resume Manager",
+        "description": "Multiple resume versions stored securely with S3. Link different resumes to different jobs."
+      },
+      "jobImport": {
+        "title": "Job Import",
+        "description": "Paste a LinkedIn, Indeed, or DOU URL — we extract title, company, salary, and description automatically."
+      },
+      "analyticsCard": {
+        "title": "Analytics Dashboard",
+        "description": "Pipeline stats and conversion metrics. See where you drop off and improve your hit rate."
+      },
+      "calendar": {
+        "title": "Google Calendar",
+        "description": "Schedule interviews directly from the app. Syncs to your calendar without leaving Jobber."
+      },
       "applications": {
         "title": "Application Tracker",
         "description": "Track every job application with a Kanban board and never miss a follow-up"
@@ -665,37 +697,83 @@
       "learnMore": "Learn more"
     },
     "howItWorks": {
-      "title": "How It Works",
-      "subtitle": "Get started in minutes with a simple 4-step process",
+      "label": "How it works",
+      "title": "From URL to offer in four steps",
       "step1": {
-        "title": "Add Companies",
-        "description": "Create a list of companies you're interested in working for"
+        "title": "Import a job",
+        "description": "Paste any job URL — LinkedIn, Indeed, DOU. We extract everything automatically."
       },
       "step2": {
-        "title": "Upload Resumes",
-        "description": "Store multiple resume versions tailored to different roles"
+        "title": "Match your resume",
+        "description": "AI scores the fit instantly. See missing keywords and skill gaps before you apply."
       },
       "step3": {
-        "title": "Track Applications",
-        "description": "Log each application and monitor its progress through stages"
+        "title": "Track the pipeline",
+        "description": "Move cards through stages. Add comments, schedule interviews, set reminders."
       },
       "step4": {
-        "title": "Analyze Results",
-        "description": "Review analytics to understand what's working and improve your strategy"
+        "title": "Analyze & improve",
+        "description": "See your conversion rates at each stage. Know what's working and what isn't."
       }
     },
-    "demo": {
-      "title": "See It in Action",
-      "subtitle": "A powerful Kanban board to visualize your entire job search at a glance",
-      "columns": {
-        "applied": "Applied",
-        "interview": "Interview",
-        "offer": "Offer",
-        "rejected": "Rejected"
-      }
+    "ai": {
+      "label": "Powered by Claude AI",
+      "title": "Resume tailored to every job. In seconds.",
+      "description": "Jobber uses Claude Haiku to score your resume against any job posting — identifying missing keywords, skill gaps, and match percentage across five categories. Stop guessing, start iterating.",
+      "cta": "Try AI Match",
+      "scoreTitle": "Match Score",
+      "company": "PlanetScale",
+      "technicalSkills": "Technical Skills",
+      "experience": "Experience",
+      "keywords": "Keywords",
+      "cultureFit": "Culture Fit",
+      "seniority": "Seniority",
+      "missingKeywords": "Missing keywords"
+    },
+    "pricing": {
+      "label": "Pricing",
+      "title": "Simple. Honest. Affordable.",
+      "subtitle": "3–4× cheaper than Huntr or Teal. No feature gating on core tracking.",
+      "free": "Free",
+      "freePeriod": "forever",
+      "pro": "Pro",
+      "proPeriod": "per month",
+      "proBadge": "Most popular",
+      "enterprise": "Enterprise",
+      "enterprisePeriod": "per month",
+      "freeFeature1": "5 job postings",
+      "freeFeature2": "5 applications",
+      "freeFeature3": "1 resume",
+      "freeFeature4": "1 resume builder",
+      "freeFeature5": "5 AI job parses / month",
+      "freeFeature6": "1 AI match score / month",
+      "freeFeature7": "Cover letters not included",
+      "freeCta": "Get started free",
+      "proFeature1": "50 jobs",
+      "proFeature2": "50 applications",
+      "proFeature3": "10 resumes",
+      "proFeature4": "10 resume builders",
+      "proFeature5": "Unlimited AI job parses",
+      "proFeature6": "Unlimited AI match scores",
+      "proFeature7": "10 cover letters / month",
+      "proCta": "Start Pro trial",
+      "enterpriseFeature1": "Unlimited jobs",
+      "enterpriseFeature2": "Unlimited applications",
+      "enterpriseFeature3": "Unlimited resumes",
+      "enterpriseFeature4": "Unlimited resume builders",
+      "enterpriseFeature5": "Unlimited AI job parses",
+      "enterpriseFeature6": "Unlimited AI match scores",
+      "enterpriseFeature7": "Unlimited cover letters",
+      "enterpriseCta": "Go Enterprise",
+      "comparison": "vs. Huntr $40/mo · Teal $29/mo · JobHero $36/mo"
+    },
+    "cta": {
+      "title": "Ready to stop losing track of your dream job?",
+      "subtitle": "Join 3,000+ developers who track their job search with Jobber.",
+      "button": "Create free account"
     },
     "footer": {
-      "copyright": "Jobber. All rights reserved.",
+      "copyright": "Jobber. Built with \u2665 for engineers.",
       "tagline": "Your job search, organized.",
       "terms": "Terms",
       "privacy": "Privacy",
@@ -704,7 +782,9 @@
       "featureApplications": "Application Tracker",
       "featureResumeBuilder": "Resume Builder",
       "featureCoverLetters": "Cover Letters",
-      "resourcesTitle": "Resources"
+      "resourcesTitle": "Resources",
+      "github": "GitHub",
+      "status": "Status"
     }
   },
   "onboarding": {

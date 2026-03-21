@@ -17,11 +17,11 @@ import { LanguageSwitcher } from "@/shared/ui/LanguageSwitcher";
 import { useThemeStore } from "@/stores/themeStore";
 
 interface HomeNavbarProps {
-  isAuthenticated: boolean;
-  onLogin: () => void;
-  onRegister: () => void;
-  onGoPlatform: () => void;
-  darkHero?: boolean;
+  readonly isAuthenticated: boolean;
+  readonly onLogin: () => void;
+  readonly onRegister: () => void;
+  readonly onGoPlatform: () => void;
+  readonly darkHero?: boolean;
 }
 
 const FEATURE_LINKS = [
@@ -108,7 +108,12 @@ export function HomeNavbar({
           {/* Features dropdown */}
           <div ref={featuresRef} className="relative">
             <button
+              type="button"
               onClick={() => setFeaturesOpen((prev) => !prev)}
+              onKeyDown={(e) => e.key === "Escape" && setFeaturesOpen(false)}
+              aria-expanded={featuresOpen}
+              aria-haspopup="menu"
+              aria-controls="features-dropdown"
               className={`flex items-center gap-1 ${linkCls}`}
             >
               {t("home.nav.features")}
@@ -118,11 +123,16 @@ export function HomeNavbar({
             </button>
 
             {featuresOpen && (
-              <div className="absolute left-1/2 top-full mt-2 w-56 -translate-x-1/2 overflow-hidden rounded-xl border bg-background/95 shadow-lg backdrop-blur-md">
+              <div
+                id="features-dropdown"
+                role="menu"
+                className="absolute left-1/2 top-full mt-2 w-56 -translate-x-1/2 overflow-hidden rounded-xl border bg-background/95 shadow-lg backdrop-blur-md"
+              >
                 {FEATURE_LINKS.map(({ key, to, Icon }) => (
                   <Link
                     key={key}
                     to={to}
+                    role="menuitem"
                     onClick={() => setFeaturesOpen(false)}
                     className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   >
@@ -134,8 +144,19 @@ export function HomeNavbar({
             )}
           </div>
 
-          <button onClick={() => scrollTo("how-it-works")} className={linkCls}>
+          <button
+            type="button"
+            onClick={() => scrollTo("how-it-works")}
+            className={linkCls}
+          >
             {t("home.nav.howItWorks")}
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollTo("pricing")}
+            className={linkCls}
+          >
+            {t("home.nav.pricing")}
           </button>
           <Link to="/blog" className={linkCls}>
             {t("blog.title")}
@@ -173,7 +194,11 @@ export function HomeNavbar({
             )}
           </Button>
           {isAuthenticated ? (
-            <Button size="sm" onClick={onGoPlatform}>
+            <Button
+              size="sm"
+              onClick={onGoPlatform}
+              className="hidden sm:inline-flex"
+            >
               {t("home.hero.ctaGoPlatform")}
             </Button>
           ) : (
@@ -245,10 +270,18 @@ export function HomeNavbar({
             </div>
 
             <button
+              type="button"
               onClick={() => scrollTo("how-it-works")}
               className="rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               {t("home.nav.howItWorks")}
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollTo("pricing")}
+              className="rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              {t("home.nav.pricing")}
             </button>
             <Link
               to="/blog"
@@ -257,31 +290,44 @@ export function HomeNavbar({
             >
               {t("blog.title")}
             </Link>
-            {!isAuthenticated && (
-              <div className="mt-2 flex flex-col gap-2 border-t pt-3">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    onLogin();
-                  }}
-                  className="w-full justify-center"
-                >
-                  {t("auth.login")}
-                </Button>
+            <div className="mt-2 flex flex-col gap-2 border-t pt-3">
+              {isAuthenticated ? (
                 <Button
                   size="sm"
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    onRegister();
+                    onGoPlatform();
                   }}
                   className="w-full justify-center"
                 >
-                  {t("auth.register")}
+                  {t("home.hero.ctaGoPlatform")}
                 </Button>
-              </div>
-            )}
+              ) : (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onLogin();
+                    }}
+                    className="w-full justify-center"
+                  >
+                    {t("auth.login")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onRegister();
+                    }}
+                    className="w-full justify-center"
+                  >
+                    {t("auth.register")}
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

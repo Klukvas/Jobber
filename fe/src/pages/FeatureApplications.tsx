@@ -4,7 +4,7 @@ import { ArrowRight, CheckCircle } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { HomeNavbar } from "@/features/home/components/HomeNavbar";
 import { FooterSection } from "@/features/home/components/FooterSection";
-import { BrowserMockup } from "@/features/home/components/BrowserMockup";
+import { BrowserMockup } from "@/shared/ui/BrowserMockup";
 import { useAuthStore } from "@/stores/authStore";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 
@@ -46,7 +46,7 @@ export default function FeatureApplications() {
         <section className="relative overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-background pb-0 pt-32">
           <div className="pointer-events-none absolute inset-0">
             <div className="absolute -top-32 left-1/3 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
-            <div className="absolute right-1/4 top-16 h-72 w-72 rounded-full bg-blue-600/10 blur-3xl" />
+            <div className="absolute right-1/4 top-16 h-72 w-72 rounded-full bg-lime-500/10 blur-3xl" />
           </div>
 
           <div className="relative mx-auto max-w-6xl px-4">

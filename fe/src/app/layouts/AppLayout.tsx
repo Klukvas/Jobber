@@ -36,7 +36,6 @@ export function AppLayout() {
     const stored = sessionStorage.getItem(
       PRE_CHECKOUT_PLAN_KEY,
     ) as SubscriptionPlan | null;
-    console.log("[Checkout] initial redirect detected, baseline:", stored);
     return { baseline: (stored ?? "free") as SubscriptionPlan };
   });
 
@@ -54,7 +53,6 @@ export function AppLayout() {
     preCheckoutPlan !== null &&
     PLAN_RANK[plan] > PLAN_RANK[preCheckoutPlan]
   ) {
-    console.log("[Checkout] upgrade detected:", preCheckoutPlan, "→", plan);
     setIsAwaitingUpgrade(false);
     setPreCheckoutPlan(null);
     setUpgradedPlan(plan);
@@ -141,7 +139,7 @@ export function AppLayout() {
       {isAwaitingUpgrade && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-4 rounded-xl border bg-card p-8 shadow-lg">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-muted border-t-blue-600" />
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-muted border-t-primary" />
             <p className="text-sm font-medium text-muted-foreground">
               {t("settings.subscription.activating")}
             </p>

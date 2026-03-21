@@ -8,9 +8,12 @@ import { ForgotPasswordModal } from "@/features/auth/modals/ForgotPasswordModal"
 import { HomeNavbar } from "@/features/home/components/HomeNavbar";
 import { JsonLd } from "@/features/home/components/JsonLd";
 import { HeroSection } from "@/features/home/components/HeroSection";
+import { SocialProofBar } from "@/features/home/components/SocialProofBar";
 import { FeaturesSection } from "@/features/home/components/FeaturesSection";
 import { HowItWorksSection } from "@/features/home/components/HowItWorksSection";
-import { DemoPreviewSection } from "@/features/home/components/DemoPreviewSection";
+import { AiHighlightSection } from "@/features/home/components/AiHighlightSection";
+import { PricingSection } from "@/features/home/components/PricingSection";
+import { FooterCtaSection } from "@/features/home/components/FooterCtaSection";
 import { FooterSection } from "@/features/home/components/FooterSection";
 
 type AuthModal = "login" | "register" | "forgot-password" | null;
@@ -51,25 +54,46 @@ export default function Home() {
   const goPlatform = () => navigate("/app/applications");
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <JsonLd />
-      <HomeNavbar
-        isAuthenticated={isAuthenticated}
-        onLogin={openLogin}
-        onRegister={openRegister}
-        onGoPlatform={goPlatform}
-      />
-      <HeroSection
-        isAuthenticated={isAuthenticated}
-        onRegister={openRegister}
-        onLogin={openLogin}
-        onGoPlatform={goPlatform}
-      />
-      <FeaturesSection />
-      <HowItWorksSection />
-      <DemoPreviewSection />
-      <FooterSection />
+    <>
+      {/* Landing page — forced dark theme with custom palette */}
+      <div className="dark landing-override flex min-h-screen flex-col bg-background text-foreground">
+        <JsonLd />
+        <HomeNavbar
+          isAuthenticated={isAuthenticated}
+          onLogin={openLogin}
+          onRegister={openRegister}
+          onGoPlatform={goPlatform}
+          darkHero
+        />
+        <main>
+          <HeroSection
+            isAuthenticated={isAuthenticated}
+            onRegister={openRegister}
+            onGoPlatform={goPlatform}
+          />
+          <SocialProofBar />
+          <FeaturesSection />
+          <HowItWorksSection />
+          <AiHighlightSection
+            isAuthenticated={isAuthenticated}
+            onRegister={openRegister}
+            onGoPlatform={goPlatform}
+          />
+          <PricingSection
+            isAuthenticated={isAuthenticated}
+            onRegister={openRegister}
+            onGoPlatform={goPlatform}
+          />
+          <FooterCtaSection
+            isAuthenticated={isAuthenticated}
+            onRegister={openRegister}
+            onGoPlatform={goPlatform}
+          />
+        </main>
+        <FooterSection />
+      </div>
 
+      {/* Modals rendered outside landing-override to use the user's theme */}
       <LoginModal
         open={activeModal === "login"}
         onOpenChange={(open) => !open && closeModal()}
@@ -86,6 +110,6 @@ export default function Home() {
         onOpenChange={(open) => !open && closeModal()}
         onBackToLogin={switchToLogin}
       />
-    </div>
+    </>
   );
 }

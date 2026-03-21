@@ -33,8 +33,8 @@ export function SubscriptionSuccessModal({
         className="max-w-sm text-center sm:max-w-md"
       >
         <DialogHeader>
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-violet-600">
-            <Sparkles className="h-8 w-8 text-white" />
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary">
+            <Sparkles className="h-8 w-8 text-primary-foreground" />
           </div>
           <DialogTitle className="text-center text-2xl font-bold">
             {t("settings.subscription.upgradeSuccess.title")}
@@ -49,7 +49,7 @@ export function SubscriptionSuccessModal({
 
         <button
           onClick={onClose}
-          className="mt-6 w-full rounded-md bg-gradient-to-r from-blue-600 to-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:from-blue-700 hover:to-violet-700 hover:shadow-md"
+          className="mt-6 w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-md"
         >
           {t("settings.subscription.upgradeSuccess.cta")}
         </button>

@@ -40,13 +40,13 @@ function getPlanBadge(
       return {
         label: t("settings.subscription.enterprisePlan"),
         className:
-          "bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300",
+          "bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-300",
       };
     case "pro":
       return {
         label: t("settings.subscription.proPlan"),
         className:
-          "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+          "bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-300",
       };
     default:
       return {
@@ -103,14 +103,24 @@ export function Sidebar() {
         <div className="flex h-full flex-col">
           {/* Logo / Brand */}
           <div className="flex h-16 items-center justify-between border-b px-4">
-            {isExpanded && (
-              <Link to="/" className="hover:opacity-80 transition-opacity">
-                <span className="text-xl font-bold">Jobber</span>
-                <span className="block text-[10px] text-muted-foreground leading-tight">
-                  Powered By FluxLab
-                </span>
-              </Link>
-            )}
+            <Link
+              to="/"
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            >
+              <img
+                src="/favicon.svg"
+                alt="Jobber"
+                className="h-8 w-8 rounded-lg"
+              />
+              {isExpanded && (
+                <div>
+                  <span className="text-xl font-bold">Jobber</span>
+                  <span className="block text-[10px] text-muted-foreground leading-tight">
+                    Powered By FluxLab
+                  </span>
+                </div>
+              )}
+            </Link>
             <button
               onClick={toggleExpanded}
               className="hidden rounded-md p-2 hover:bg-accent md:block"

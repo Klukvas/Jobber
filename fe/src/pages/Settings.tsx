@@ -220,7 +220,7 @@ export default function Settings() {
               )}
               {FEATURES.PAYMENTS && nextPlan && (
                 <button
-                  className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-semibold shadow-sm transition-all bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => setPricingOpen(true)}
                 >
                   {t("settings.subscription.upgrade")}

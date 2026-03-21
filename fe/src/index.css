@@ -4,48 +4,48 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 0 0% 99%;
+    --foreground: 220 35% 7%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 220 35% 7%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --popover-foreground: 220 35% 7%;
+    --primary: 83 78% 44%;
+    --primary-foreground: 220 35% 7%;
+    --secondary: 220 14% 94%;
+    --secondary-foreground: 220 35% 7%;
+    --muted: 220 14% 94%;
+    --muted-foreground: 215 14% 46%;
+    --accent: 220 14% 94%;
+    --accent-foreground: 220 35% 7%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 90%;
+    --input: 220 13% 90%;
+    --ring: 83 78% 36%;
     --radius: 0.5rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --background: 220 35% 7%;
+    --foreground: 210 40% 96%;
+    --card: 221 39% 11%;
+    --card-foreground: 210 40% 96%;
+    --popover: 221 39% 11%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 83 78% 55%;
+    --primary-foreground: 220 35% 7%;
+    --secondary: 222 30% 16%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 222 30% 16%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 222 30% 16%;
+    --accent-foreground: 210 40% 96%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --border: 220 15% 15%;
+    --input: 222 30% 16%;
+    --ring: 83 78% 55%;
   }
 }
 
@@ -55,5 +55,206 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
 }
+
+/* ── Landing page override (Appwrite-style dark theme) ─────
+   KEEP IN SYNC with .dark block above — same values intentional.
+   Forces dark theme on the landing page regardless of user preference. */
+.landing-override {
+  --background: 220 35% 7%;
+  --foreground: 210 40% 96%;
+  --card: 221 39% 11%;
+  --card-foreground: 210 40% 96%;
+  --popover: 221 39% 11%;
+  --popover-foreground: 210 40% 96%;
+  --primary: 83 78% 55%;
+  --primary-foreground: 220 35% 7%;
+  --secondary: 222 30% 16%;
+  --secondary-foreground: 210 40% 96%;
+  --muted: 222 30% 16%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 222 30% 16%;
+  --accent-foreground: 210 40% 96%;
+  --border: 220 15% 15%;
+  --input: 222 30% 16%;
+  --ring: 83 78% 55%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+
+  color-scheme: dark;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Grid texture */
+.landing-grid {
+  background-image:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Hero radial glow */
+.landing-hero-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 70% 45% at 50% -5%, rgba(163,230,53,0.10) 0%, transparent 65%);
+  pointer-events: none;
+}
+
+/* AI section glow */
+.landing-ai-glow::before {
+  content: '';
+  position: absolute;
+  top: -40%;
+  right: -10%;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(163,230,53,0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Footer CTA glow */
+.landing-cta-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 80% at 50% 100%, rgba(163,230,53,0.07) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Landing fade-up animation */
+@keyframes landingFadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.landing-fade-up {
+  animation: landingFadeUp 0.5s ease forwards;
+}
+.landing-fade-up-1 { animation-delay: 0.1s; opacity: 0; }
+.landing-fade-up-2 { animation-delay: 0.2s; opacity: 0; }
+.landing-fade-up-3 { animation-delay: 0.3s; opacity: 0; }
+.landing-fade-up-4 { animation-delay: 0.45s; opacity: 0; }
+
+/* Pulsing dot */
+@keyframes landingPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.landing-pulse-dot {
+  animation: landingPulse 2s ease-in-out infinite;
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .landing-fade-up,
+  .landing-fade-up-1,
+  .landing-fade-up-2,
+  .landing-fade-up-3,
+  .landing-fade-up-4 {
+    animation: none;
+    opacity: 1;
+  }
+  .landing-pulse-dot {
+    animation: none;
+  }
+}
+
+/* Powered By flux-lab.dev badge */
+@keyframes fl1 { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-2px)} }
+@keyframes fl2 { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-2px)} }
+@keyframes fl3 { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-2px)} }
+
+.powered-by {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #f0eef9;
+  border: 1px solid rgba(123, 110, 246, 0.2);
+  border-radius: 100px;
+  padding: 6px 12px 6px 7px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity .15s, border-color .15s;
+  user-select: none;
+}
+.powered-by:hover {
+  opacity: .85;
+  border-color: rgba(123, 110, 246, 0.45);
+}
+.powered-by__icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  background: #e8e5f7;
+  border: 1px solid rgba(123, 110, 246, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.powered-by__icon::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 32% 24%, rgba(123,110,246,.15) 0%, transparent 60%);
+}
+.powered-by__icon svg { position: relative; z-index: 1; overflow: visible; }
+.powered-by__icon svg polygon { fill: #5b4fc7; }
+.powered-by__icon .l1 { animation: fl1 2.4s ease-in-out infinite; }
+.powered-by__icon .l2 { animation: fl2 2.4s ease-in-out infinite .32s; }
+.powered-by__icon .l3 { animation: fl3 2.4s ease-in-out infinite .64s; }
+.powered-by__text {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.powered-by__label {
+  font-family: 'DM Mono', 'Courier New', monospace;
+  font-size: 10px;
+  font-weight: 400;
+  color: rgba(0, 0, 0, 0.35);
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+.powered-by__brand {
+  font-family: 'Syne', Arial, sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  color: #1a1a2e;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.powered-by__tld {
+  font-family: 'DM Mono', 'Courier New', monospace;
+  font-size: 9px;
+  color: #7B6EF6;
+  letter-spacing: 1px;
+}
+
+/* Dark theme */
+.dark .powered-by {
+  background: #0a0916;
+  border-color: rgba(123, 110, 246, 0.25);
+}
+.dark .powered-by:hover {
+  border-color: rgba(123, 110, 246, 0.5);
+}
+.dark .powered-by__icon {
+  background: #0f0d22;
+  border-color: rgba(123, 110, 246, 0.28);
+}
+.dark .powered-by__icon::before {
+  background: radial-gradient(ellipse at 32% 24%, rgba(123,110,246,.22) 0%, transparent 60%);
+}
+.dark .powered-by__icon svg polygon { fill: white; opacity: .92; }
+.dark .powered-by__label { color: rgba(255, 255, 255, 0.35); }
+.dark .powered-by__brand { color: #ffffff; }

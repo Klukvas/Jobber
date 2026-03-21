@@ -45,12 +45,12 @@ function PlanCard({
     <div
       className={`relative flex flex-col rounded-xl border p-6 ${
         isHighlighted
-          ? "border-transparent bg-gradient-to-b from-blue-50 to-violet-50 shadow-lg ring-2 ring-blue-500/50 dark:from-blue-950/50 dark:to-violet-950/50 dark:ring-blue-400/50"
+          ? "border-transparent bg-primary/5 shadow-lg ring-2 ring-primary/50 dark:bg-primary/10 dark:ring-primary/40"
           : "border-border bg-card"
       }`}
     >
       {isHighlighted && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 px-3 py-0.5 text-xs font-medium text-white">
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-0.5 text-xs font-medium text-primary-foreground">
           {popularLabel}
         </div>
       )}
@@ -75,11 +75,7 @@ function PlanCard({
         </div>
       ) : (
         <button
-          className={`rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
-            isHighlighted
-              ? "bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 hover:shadow-md"
-              : "bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 hover:shadow-md"
-          }`}
+          className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
           onClick={onSelect}
           disabled={disabled}
         >

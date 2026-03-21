@@ -1,55 +1,48 @@
-import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
-import { Clock, CheckCircle, TrendingUp, Layers, FileText, Mail, ArrowRight } from 'lucide-react';
+import { useTranslation } from "react-i18next";
 
 const FEATURES = [
-  { key: 'track', icon: Clock, color: 'bg-blue-500/10 text-blue-500', route: '/features/applications' },
-  { key: 'organize', icon: CheckCircle, color: 'bg-green-500/10 text-green-500', route: null },
-  { key: 'analytics', icon: TrendingUp, color: 'bg-purple-500/10 text-purple-500', route: null },
-  { key: 'stages', icon: Layers, color: 'bg-orange-500/10 text-orange-500', route: null },
-  { key: 'resumeBuilder', icon: FileText, color: 'bg-indigo-500/10 text-indigo-500', route: '/features/resume-builder' },
-  { key: 'coverLetters', icon: Mail, color: 'bg-pink-500/10 text-pink-500', route: '/features/cover-letters' },
+  { key: "kanban", emoji: "\u{1F5C2}" },
+  { key: "aiMatch", emoji: "\u{1F916}" },
+  { key: "resume", emoji: "\u{1F4C4}" },
+  { key: "jobImport", emoji: "\u{1F517}" },
+  { key: "analyticsCard", emoji: "\u{1F4CA}" },
+  { key: "calendar", emoji: "\u{1F5D3}" },
 ] as const;
 
 export function FeaturesSection() {
   const { t } = useTranslation();
 
   return (
-    <section id="features" className="bg-muted/30 py-20 md:py-28">
-      <div className="mx-auto max-w-6xl px-4">
-        <div className="mb-16 text-center">
-          <h2 className="mb-4 text-3xl font-bold sm:text-4xl">
-            {t('home.features.title')}
-          </h2>
-          <p className="mx-auto max-w-2xl text-muted-foreground">
-            {t('home.features.subtitle')}
-          </p>
+    <section id="features" className="px-6 py-24">
+      <div className="mx-auto max-w-[1080px]">
+        <div className="mb-3.5 font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-lime-400">
+          {t("home.features.label")}
         </div>
+        <h2 className="mb-4 text-[clamp(28px,4vw,44px)] font-extrabold leading-[1.1] tracking-[-0.035em] text-slate-100">
+          {t("home.features.title")}
+        </h2>
+        <p className="max-w-[480px] text-[17px] leading-relaxed text-slate-400">
+          {t("home.features.subtitle")}
+        </p>
 
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map(({ key, icon: Icon, color, route }) => (
+        <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {FEATURES.map(({ key, emoji }) => (
             <div
               key={key}
-              className="rounded-xl border bg-card p-6 shadow-sm transition-shadow hover:shadow-md"
+              className="group rounded-xl border border-white/[0.07] bg-card p-7 transition-all hover:border-white/[0.14] hover:shadow-[0_0_0_1px_rgba(163,230,53,0.06),0_8px_32px_rgba(0,0,0,0.3)]"
             >
-              <div className={`mb-4 inline-flex rounded-lg p-3 ${color}`}>
-                <Icon className="h-6 w-6" />
+              <div
+                className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg border border-lime-400/20 bg-lime-400/[0.08] text-[17px]"
+                aria-hidden="true"
+              >
+                {emoji}
               </div>
-              <h3 className="mb-2 text-lg font-semibold">
+              <h3 className="mb-1.5 text-[15px] font-bold tracking-[-0.02em] text-slate-100">
                 {t(`home.features.${key}.title`)}
               </h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-[13px] leading-relaxed text-slate-400">
                 {t(`home.features.${key}.description`)}
               </p>
-              {route && (
-                <Link
-                  to={route}
-                  className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-                >
-                  {t('home.features.learnMore')}
-                  <ArrowRight className="h-3 w-3" />
-                </Link>
-              )}
             </div>
           ))}
         </div>

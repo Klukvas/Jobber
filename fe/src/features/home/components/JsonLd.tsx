@@ -1,22 +1,30 @@
-import { useEffect } from 'react';
+import { useEffect } from "react";
 
-const SITE_URL = import.meta.env.VITE_SITE_URL ?? 'https://jobber-app';
+const SCRIPT_ID = "jobber-jsonld";
 
-const jsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'WebApplication',
-  name: 'Jobber',
-  url: SITE_URL,
-  description: 'Job application tracking platform',
-  applicationCategory: 'BusinessApplication',
-  operatingSystem: 'Web',
-};
+const SITE_URL = import.meta.env.VITE_SITE_URL ?? "https://jobber-app.com";
+
+function buildJsonLd() {
+  const safeUrl = String(SITE_URL).replace(/<\/script>/gi, "");
+  return JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "Jobber",
+    url: safeUrl,
+    description: "Job application tracking platform",
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web",
+  });
+}
 
 export function JsonLd() {
   useEffect(() => {
-    const script = document.createElement('script');
-    script.type = 'application/ld+json';
-    script.text = JSON.stringify(jsonLd);
+    if (document.getElementById(SCRIPT_ID)) return;
+
+    const script = document.createElement("script");
+    script.id = SCRIPT_ID;
+    script.type = "application/ld+json";
+    script.text = buildJsonLd();
     document.head.appendChild(script);
     return () => {
       script.remove();

@@ -4,7 +4,7 @@ import { ArrowRight, CheckCircle } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { HomeNavbar } from "@/features/home/components/HomeNavbar";
 import { FooterSection } from "@/features/home/components/FooterSection";
-import { BrowserMockup } from "@/features/home/components/BrowserMockup";
+import { BrowserMockup } from "@/shared/ui/BrowserMockup";
 import { useAuthStore } from "@/stores/authStore";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 
@@ -43,16 +43,16 @@ export default function FeatureResumeBuilder() {
 
       <main className="flex-1">
         {/* Hero */}
-        <section className="relative overflow-hidden bg-gradient-to-b from-indigo-950 via-slate-900 to-background pb-0 pt-32">
+        <section className="relative overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-background pb-0 pt-32">
           <div className="pointer-events-none absolute inset-0">
-            <div className="absolute -top-24 left-1/4 h-96 w-96 rounded-full bg-indigo-500/10 blur-3xl" />
-            <div className="absolute right-1/4 top-32 h-64 w-64 rounded-full bg-purple-600/10 blur-3xl" />
+            <div className="absolute -top-24 left-1/4 h-96 w-96 rounded-full bg-lime-500/10 blur-3xl" />
+            <div className="absolute right-1/4 top-32 h-64 w-64 rounded-full bg-lime-600/10 blur-3xl" />
           </div>
 
           <div className="relative mx-auto max-w-6xl px-4">
             <div className="mx-auto mb-14 max-w-3xl text-center text-white">
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+                <span className="h-1.5 w-1.5 rounded-full bg-lime-400" />
                 {t(`${NS}.hero.badge`)}
               </div>
               <h1 className="mb-5 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
