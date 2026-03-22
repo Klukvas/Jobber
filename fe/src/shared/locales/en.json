@@ -582,6 +582,11 @@
     "unauthorized": "Unauthorized",
     "forbidden": "Forbidden"
   },
+  "notFound": {
+    "title": "Page not found",
+    "description": "The page you're looking for doesn't exist or has been moved. Check the URL or navigate back.",
+    "goToApp": "Go to dashboard"
+  },
   "stages": {
     "title": "Stage Templates",
     "description": "Define the stages for your application process",

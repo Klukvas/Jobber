@@ -42,6 +42,7 @@ const ResumeBuilderEditorPage = lazy(
 );
 const CoverLettersPage = lazy(() => import("@/pages/CoverLetters"));
 const CoverLetterEditorPage = lazy(() => import("@/pages/CoverLetterEditor"));
+const NotFoundPage = lazy(() => import("@/pages/NotFound"));
 
 export const router = sentryCreateBrowserRouter([
   {
@@ -187,6 +188,10 @@ export const router = sentryCreateBrowserRouter([
             element: <SettingsPage />,
           },
         ],
+      },
+      {
+        path: "*",
+        element: <NotFoundPage />,
       },
     ],
   },
