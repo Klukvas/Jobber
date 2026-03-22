@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andreypavlenko/jobber/internal/platform/circuitbreaker"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/ports"
 )
@@ -28,6 +29,7 @@ type SubscriptionService struct {
 	enterprisePriceID string
 	clientToken       string
 	environment       string
+	breaker           *circuitbreaker.Breaker
 }
 
 // NewSubscriptionService creates a new SubscriptionService.
@@ -48,6 +50,7 @@ func NewSubscriptionService(
 		enterprisePriceID: enterprisePriceID,
 		clientToken:       clientToken,
 		environment:       environment,
+		breaker:           circuitbreaker.New("paddle", 3, 30*time.Second),
 	}
 }
 
@@ -248,7 +251,8 @@ func (s *SubscriptionService) paddleBaseURL() string {
 	return "https://api.paddle.com"
 }
 
-// paddleRequest executes an authenticated HTTP request against the Paddle API.
+// paddleRequest executes an authenticated HTTP request against the Paddle API,
+// protected by a circuit breaker.
 func (s *SubscriptionService) paddleRequest(ctx context.Context, method, path string, body []byte) (*http.Response, error) {
 	var bodyReader io.Reader
 	if body != nil {
@@ -262,7 +266,24 @@ func (s *SubscriptionService) paddleRequest(ctx context.Context, method, path st
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	return (&http.Client{Timeout: 15 * time.Second}).Do(req)
+
+	var resp *http.Response
+	err = s.breaker.Execute(func() error {
+		var doErr error
+		resp, doErr = (&http.Client{Timeout: 15 * time.Second}).Do(req)
+		if doErr != nil {
+			return doErr
+		}
+		// Treat 5xx as failures for the circuit breaker
+		if resp.StatusCode >= 500 {
+			return fmt.Errorf("paddle API returned %d", resp.StatusCode)
+		}
+		return nil
+	})
+	if err != nil {
+		return resp, fmt.Errorf("paddle API call failed: %w", err)
+	}
+	return resp, nil
 }
 
 // ChangePlan switches the user's subscription to a different plan via Paddle API.

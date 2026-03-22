@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"time"
+
+	"github.com/andreypavlenko/jobber/internal/platform/circuitbreaker"
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
@@ -131,13 +134,34 @@ type ParsedJob struct {
 
 // AnthropicClient wraps the Anthropic SDK for job parsing.
 type AnthropicClient struct {
-	client anthropic.Client
+	client  anthropic.Client
+	breaker *circuitbreaker.Breaker
 }
 
 // NewAnthropicClient creates a new Anthropic API client.
 func NewAnthropicClient(apiKey string) *AnthropicClient {
 	client := anthropic.NewClient(option.WithAPIKey(apiKey))
-	return &AnthropicClient{client: client}
+	return &AnthropicClient{
+		client:  client,
+		breaker: circuitbreaker.New("anthropic", 5, 30*time.Second),
+	}
+}
+
+// callAPI wraps the Anthropic Messages API with the circuit breaker.
+func (c *AnthropicClient) callAPI(ctx context.Context, params anthropic.MessageNewParams) (*anthropic.Message, error) {
+	var result *anthropic.Message
+	err := c.breaker.Execute(func() error {
+		resp, apiErr := c.client.Messages.New(ctx, params)
+		if apiErr != nil {
+			return apiErr
+		}
+		result = resp
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // ParseJobPage sends page text to Claude Haiku and extracts structured job data.
@@ -160,7 +184,7 @@ If you cannot determine a field, set it to null. Do not include any text outside
 	sanitizedText := sanitizeForLLM(text, maxPageTextLength)
 	userMessage := fmt.Sprintf("Page URL: %s\n\nPage text:\n%s", pageURL, sanitizedText)
 
-	response, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
+	response, err := c.callAPI(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.ModelClaudeHaiku4_5_20251001,
 		MaxTokens: 2048,
 		System: []anthropic.TextBlockParam{
@@ -173,7 +197,7 @@ If you cannot determine a field, set it to null. Do not include any text outside
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("anthropic API call failed: %w", err)
+		return nil, err
 	}
 
 	if len(response.Content) == 0 {
@@ -234,7 +258,7 @@ Be objective and precise. Do not include any text outside the JSON object.` + an
 	sanitizedDesc := sanitizeForLLM(jobDescription, maxJobDescriptionLength)
 	jobText := fmt.Sprintf("Job Title: %s\n\nJob Description:\n%s", jobTitle, sanitizedDesc)
 
-	response, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
+	response, err := c.callAPI(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.ModelClaudeHaiku4_5_20251001,
 		MaxTokens: 4096,
 		System: []anthropic.TextBlockParam{
@@ -250,7 +274,7 @@ Be objective and precise. Do not include any text outside the JSON object.` + an
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("anthropic API call failed: %w", err)
+		return nil, err
 	}
 
 	if len(response.Content) == 0 {
@@ -290,7 +314,7 @@ Return ONLY valid JSON: {"bullets": ["bullet1", "bullet2", ...]}` + antiInjectio
 		truncateString(company, 200),
 		sanitizeForLLM(currentDescription, 5000))
 
-	response, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
+	response, err := c.callAPI(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.ModelClaudeHaiku4_5_20251001,
 		MaxTokens: 1024,
 		System: []anthropic.TextBlockParam{
@@ -301,7 +325,7 @@ Return ONLY valid JSON: {"bullets": ["bullet1", "bullet2", ...]}` + antiInjectio
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("anthropic API call failed: %w", err)
+		return nil, err
 	}
 
 	if len(response.Content) == 0 {
@@ -332,7 +356,7 @@ Return ONLY valid JSON: {"summary": "the summary text"}` + antiInjectionClause
 		truncateString(jobTitle, 200),
 		sanitizeForLLM(experienceContext, 10000))
 
-	response, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
+	response, err := c.callAPI(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.ModelClaudeHaiku4_5_20251001,
 		MaxTokens: 512,
 		System: []anthropic.TextBlockParam{
@@ -343,7 +367,7 @@ Return ONLY valid JSON: {"summary": "the summary text"}` + antiInjectionClause
 		},
 	})
 	if err != nil {
-		return "", fmt.Errorf("anthropic API call failed: %w", err)
+		return "", err
 	}
 
 	if len(response.Content) == 0 {
@@ -371,7 +395,7 @@ Return ONLY valid JSON: {"improved": "the improved text"}` + antiInjectionClause
 		truncateString(instruction, 500),
 		sanitizeForLLM(text, 5000))
 
-	response, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
+	response, err := c.callAPI(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.ModelClaudeHaiku4_5_20251001,
 		MaxTokens: 1024,
 		System: []anthropic.TextBlockParam{
@@ -382,7 +406,7 @@ Return ONLY valid JSON: {"improved": "the improved text"}` + antiInjectionClause
 		},
 	})
 	if err != nil {
-		return "", fmt.Errorf("anthropic API call failed: %w", err)
+		return "", err
 	}
 
 	if len(response.Content) == 0 {
@@ -439,7 +463,7 @@ Return ONLY valid JSON:
   "keywords_found": ["keyword1", "keyword2"]
 }` + langInstruction + antiInjectionClause
 
-	response, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
+	response, err := c.callAPI(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.ModelClaudeHaiku4_5_20251001,
 		MaxTokens: 2048,
 		System: []anthropic.TextBlockParam{
@@ -450,7 +474,7 @@ Return ONLY valid JSON:
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("anthropic API call failed: %w", err)
+		return nil, err
 	}
 
 	if len(response.Content) == 0 {
@@ -488,7 +512,7 @@ For missing fields, use empty strings. Do not include any text outside the JSON 
 
 	sanitizedText := sanitizeForLLM(text, maxResumeTextLength)
 
-	response, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
+	response, err := c.callAPI(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.ModelClaudeHaiku4_5_20251001,
 		MaxTokens: 4096,
 		System: []anthropic.TextBlockParam{
@@ -499,7 +523,7 @@ For missing fields, use empty strings. Do not include any text outside the JSON 
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("anthropic API call failed: %w", err)
+		return nil, err
 	}
 
 	if len(response.Content) == 0 {
@@ -562,7 +586,7 @@ You MUST respond with ONLY this JSON, no other text: {"greeting": "...", "paragr
 		userMessage = "Generate a generic professional cover letter."
 	}
 
-	response, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
+	response, err := c.callAPI(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.ModelClaudeHaiku4_5_20251001,
 		MaxTokens: 2048,
 		System: []anthropic.TextBlockParam{
@@ -574,7 +598,7 @@ You MUST respond with ONLY this JSON, no other text: {"greeting": "...", "paragr
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("anthropic API call failed: %w", err)
+		return nil, err
 	}
 
 	if len(response.Content) == 0 {

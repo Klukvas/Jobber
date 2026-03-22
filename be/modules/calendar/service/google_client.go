@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/andreypavlenko/jobber/internal/platform/circuitbreaker"
 	"github.com/andreypavlenko/jobber/modules/calendar/model"
 	"github.com/andreypavlenko/jobber/modules/calendar/ports"
 	"golang.org/x/oauth2"
@@ -14,11 +16,15 @@ import (
 // GoogleClient implements ports.GoogleCalendarClient using the real Google API
 type GoogleClient struct {
 	oauthConfig *oauth2.Config
+	breaker     *circuitbreaker.Breaker
 }
 
 // NewGoogleClient creates a new Google Calendar client
 func NewGoogleClient(oauthConfig *oauth2.Config) *GoogleClient {
-	return &GoogleClient{oauthConfig: oauthConfig}
+	return &GoogleClient{
+		oauthConfig: oauthConfig,
+		breaker:     circuitbreaker.New("google-calendar", 3, 30*time.Second),
+	}
 }
 
 // CreateEvent creates a calendar event
@@ -39,7 +45,12 @@ func (c *GoogleClient) CreateEvent(ctx context.Context, token *oauth2.Token, eve
 		},
 	}
 
-	created, err := srv.Events.Insert("primary", gcalEvent).Do()
+	var created *calendar.Event
+	err = c.breaker.Execute(func() error {
+		var apiErr error
+		created, apiErr = srv.Events.Insert("primary", gcalEvent).Do()
+		return apiErr
+	})
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", model.ErrCalendarAPI, err)
 	}
@@ -57,7 +68,10 @@ func (c *GoogleClient) DeleteEvent(ctx context.Context, token *oauth2.Token, eve
 		return err
 	}
 
-	if err := srv.Events.Delete("primary", eventID).Do(); err != nil {
+	err = c.breaker.Execute(func() error {
+		return srv.Events.Delete("primary", eventID).Do()
+	})
+	if err != nil {
 		return fmt.Errorf("%w: %v", model.ErrCalendarAPI, err)
 	}
 	return nil
@@ -70,7 +84,12 @@ func (c *GoogleClient) GetUserEmail(ctx context.Context, token *oauth2.Token) (s
 		return "", err
 	}
 
-	calendarList, err := srv.CalendarList.Get("primary").Do()
+	var calendarList *calendar.CalendarListEntry
+	err = c.breaker.Execute(func() error {
+		var apiErr error
+		calendarList, apiErr = srv.CalendarList.Get("primary").Do()
+		return apiErr
+	})
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", model.ErrCalendarAPI, err)
 	}
