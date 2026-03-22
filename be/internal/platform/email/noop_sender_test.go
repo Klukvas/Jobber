@@ -22,7 +22,7 @@ func TestNoopSender_SendVerificationEmail(t *testing.T) {
 	}
 
 	entry := logs.All()[0]
-	if entry.Message != "noop: verification email skipped" {
+	if entry.Message != "[DEV] verification email skipped — use this code to verify" {
 		t.Errorf("unexpected log message: %q", entry.Message)
 	}
 
@@ -46,7 +46,7 @@ func TestNoopSender_SendPasswordResetEmail(t *testing.T) {
 	}
 
 	entry := logs.All()[0]
-	if entry.Message != "noop: password reset email skipped" {
+	if entry.Message != "[DEV] password reset email skipped — use this code to reset" {
 		t.Errorf("unexpected log message: %q", entry.Message)
 	}
 }
