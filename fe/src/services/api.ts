@@ -80,7 +80,10 @@ class ApiClient {
       });
       return true;
     } catch (err) {
-      console.error("[ApiClient] token refresh failed:", err);
+      console.error(
+        "[ApiClient] token refresh failed:",
+        err instanceof Error ? err.message : "unknown error",
+      );
       return false;
     }
   }
