@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { companiesService } from "@/services/companiesService";
 import { Button } from "@/shared/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
-import { SkeletonList } from "@/shared/ui/Skeleton";
+import { ListPageSkeleton } from "@/shared/ui/PageSkeleton";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { ErrorState } from "@/shared/ui/ErrorState";
 import {
@@ -149,14 +149,7 @@ export default function Companies() {
   };
 
   if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">{t("companies.title")}</h1>
-        </div>
-        <SkeletonList count={3} />
-      </div>
-    );
+    return <ListPageSkeleton cards={6} />;
   }
 
   if (isError) {

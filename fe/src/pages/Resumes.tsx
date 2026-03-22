@@ -14,11 +14,12 @@ import {
   PenTool,
 } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
-import { SkeletonList } from "@/shared/ui/Skeleton";
+import { ListPageSkeleton } from "@/shared/ui/PageSkeleton";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { ErrorState } from "@/shared/ui/ErrorState";
 import { CreateResumeModal } from "@/features/resumes/modals/CreateResumeModal";
 import { EditResumeModal } from "@/features/resumes/modals/EditResumeModal";
+import { RenameBuilderResumeModal } from "@/features/resumes/modals/RenameBuilderResumeModal";
 import { DeleteResumeModal } from "@/features/resumes/modals/DeleteResumeModal";
 import { ImportResumeModal } from "@/features/resume-builder/components/ImportResumeModal";
 import { UploadedResumeCard } from "@/features/resumes/components/UploadedResumeCard";
@@ -92,6 +93,8 @@ export default function Resumes() {
   const [deletingResume, setDeletingResume] = useState<ResumeDTO | null>(null);
   const [deleteBuilderTarget, setDeleteBuilderTarget] =
     useState<ResumeBuilderDTO | null>(null);
+  const [renamingBuilder, setRenamingBuilder] =
+    useState<ResumeBuilderDTO | null>(null);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -154,14 +157,7 @@ export default function Resumes() {
   });
 
   if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">{t("resumes.title")}</h1>
-        </div>
-        <SkeletonList count={3} />
-      </div>
-    );
+    return <ListPageSkeleton cards={6} />;
   }
 
   if (isError) {
@@ -337,6 +333,7 @@ export default function Resumes() {
                     limitReached={builderLimitReached}
                     onDuplicate={(id) => duplicateBuilderMutation.mutate(id)}
                     onDelete={(resume) => setDeleteBuilderTarget(resume)}
+                    onRename={(resume) => setRenamingBuilder(resume)}
                   />
                 ),
               )}
@@ -364,6 +361,14 @@ export default function Resumes() {
           open={!!deletingResume}
           onOpenChange={(open) => !open && setDeletingResume(null)}
           resume={deletingResume}
+        />
+      )}
+
+      {renamingBuilder && (
+        <RenameBuilderResumeModal
+          open={!!renamingBuilder}
+          onOpenChange={(open) => !open && setRenamingBuilder(null)}
+          resume={renamingBuilder}
         />
       )}
 

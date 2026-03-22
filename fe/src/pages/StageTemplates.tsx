@@ -20,7 +20,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/shared/ui/Dialog";
-import { SkeletonList } from "@/shared/ui/Skeleton";
+import { StageTemplateListSkeleton } from "@/shared/ui/PageSkeleton";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { ErrorState } from "@/shared/ui/ErrorState";
 import {
@@ -131,14 +131,7 @@ export default function StageTemplates() {
   };
 
   if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">{t("stages.title")}</h1>
-        </div>
-        <SkeletonList count={3} />
-      </div>
-    );
+    return <StageTemplateListSkeleton />;
   }
 
   if (isError) {

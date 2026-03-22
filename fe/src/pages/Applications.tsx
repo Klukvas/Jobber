@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { applicationsService } from "@/services/applicationsService";
 import { Button } from "@/shared/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
-import { SkeletonList } from "@/shared/ui/Skeleton";
+import { ListPageSkeleton } from "@/shared/ui/PageSkeleton";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { ErrorState } from "@/shared/ui/ErrorState";
 import { StatusBadge } from "@/shared/ui/StatusBadge";
@@ -112,14 +112,7 @@ export default function Applications() {
   };
 
   if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">{t("applications.title")}</h1>
-        </div>
-        <SkeletonList count={5} />
-      </div>
-    );
+    return <ListPageSkeleton cards={6} />;
   }
 
   if (isError) {

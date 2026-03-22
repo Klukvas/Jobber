@@ -5,6 +5,7 @@ import { useTranslation, getI18n } from "react-i18next";
 import { Plus, Trash2, FileText, Pencil, Mail, Copy } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { Card, CardContent } from "@/shared/ui/Card";
+import { CoverLetterListSkeleton } from "@/shared/ui/PageSkeleton";
 import { coverLetterService } from "@/services/coverLetterService";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 import {
@@ -103,19 +104,7 @@ export default function CoverLettersPage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="h-8 w-48 animate-pulse rounded bg-muted" />
-          <div className="h-10 w-36 animate-pulse rounded bg-muted" />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-40 animate-pulse rounded-lg bg-muted" />
-          ))}
-        </div>
-      </div>
-    );
+    return <CoverLetterListSkeleton />;
   }
 
   if (isError) {

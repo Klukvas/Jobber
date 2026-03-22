@@ -246,8 +246,9 @@ func main() {
 		emailSender = &email.NoopSender{Logger: logger.Logger}
 		logger.Info("Email disabled via FEATURE_EMAIL_ENABLED=false, using no-op sender")
 	} else if cfg.Resend.APIKey != "" {
-		emailSender = email.NewResendSender(cfg.Resend.APIKey, cfg.Resend.FromAddress)
-		logger.Info("Resend email sender initialized")
+		resendSender := email.NewResendSender(cfg.Resend.APIKey, cfg.Resend.FromAddress)
+		emailSender = email.NewAsyncSender(resendSender, logger.Logger, 0)
+		logger.Info("Resend email sender initialized (async)")
 	} else {
 		emailSender = &email.NoopSender{Logger: logger.Logger}
 		logger.Info("Resend not configured, using no-op email sender")

@@ -257,8 +257,11 @@ describe("Resumes Page", () => {
   it("shows loading skeleton when isLoading", () => {
     mockIsLoading = true;
     render(<ResumesPage />);
-    // Loading renders title + SkeletonList, but no cards or empty state
-    expect(screen.getByText("resumes.title")).toBeInTheDocument();
+    // Loading renders skeleton placeholders, not cards or empty state
     expect(screen.queryByText("resumes.noResumes")).not.toBeInTheDocument();
+    expect(screen.queryByText("resumes.title")).not.toBeInTheDocument();
+    // Skeleton placeholders are aria-hidden divs
+    const skeletons = document.querySelectorAll('[aria-hidden="true"]');
+    expect(skeletons.length).toBeGreaterThan(0);
   });
 });
