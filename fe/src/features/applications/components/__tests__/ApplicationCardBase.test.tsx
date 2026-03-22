@@ -31,7 +31,9 @@ describe("ApplicationCardBase", () => {
 
   it("renders application name", () => {
     render(<ApplicationCardBase {...defaultProps} />);
-    expect(screen.getByText("Frontend Developer Application")).toBeInTheDocument();
+    expect(
+      screen.getByText("Frontend Developer Application"),
+    ).toBeInTheDocument();
   });
 
   it("renders status badge", () => {
@@ -53,7 +55,16 @@ describe("ApplicationCardBase", () => {
       job: {
         id: "j1",
         title: "Dev",
-        company: { id: "c1", name: "Acme Corp" },
+        company: {
+          id: "c1",
+          name: "Acme Corp",
+          is_favorite: false,
+          created_at: "2025-01-01T00:00:00Z",
+          updated_at: "2025-01-01T00:00:00Z",
+          applications_count: 0,
+          active_applications_count: 0,
+          derived_status: "idle",
+        },
       },
     });
     render(<ApplicationCardBase {...defaultProps} application={app} />);
@@ -65,7 +76,16 @@ describe("ApplicationCardBase", () => {
       job: {
         id: "j1",
         title: "Senior Engineer",
-        company: { id: "c1", name: "Co" },
+        company: {
+          id: "c1",
+          name: "Co",
+          is_favorite: false,
+          created_at: "2025-01-01T00:00:00Z",
+          updated_at: "2025-01-01T00:00:00Z",
+          applications_count: 0,
+          active_applications_count: 0,
+          derived_status: "idle",
+        },
       },
     });
     render(<ApplicationCardBase {...defaultProps} application={app} />);
@@ -74,7 +94,9 @@ describe("ApplicationCardBase", () => {
 
   it("renders actions menu button", () => {
     render(<ApplicationCardBase {...defaultProps} />);
-    expect(screen.getByLabelText("applications.actionsMenu")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("applications.actionsMenu"),
+    ).toBeInTheDocument();
   });
 
   it("shows action menu when menu button is clicked", () => {
@@ -97,9 +119,7 @@ describe("ApplicationCardBase", () => {
 
   it("calls onAddStage from menu", () => {
     const onAddStage = vi.fn();
-    render(
-      <ApplicationCardBase {...defaultProps} onAddStage={onAddStage} />,
-    );
+    render(<ApplicationCardBase {...defaultProps} onAddStage={onAddStage} />);
     fireEvent.click(screen.getByLabelText("applications.actionsMenu"));
     fireEvent.click(screen.getByText("applications.addStage"));
     expect(onAddStage).toHaveBeenCalledWith(defaultProps.application);

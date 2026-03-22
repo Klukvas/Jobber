@@ -28,9 +28,10 @@ vi.mock("@/shared/lib/notifications", () => ({
 const mockResume: ResumeDTO = {
   id: "r1",
   title: "My Resume",
-  file_name: "resume.pdf",
   file_url: "https://example.com/resume.pdf",
+  storage_type: "external",
   is_active: true,
+  can_delete: true,
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:00Z",
   applications_count: 0,

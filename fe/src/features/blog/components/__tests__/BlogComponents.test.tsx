@@ -48,6 +48,7 @@ describe("BlogPostCard", () => {
     description: "A test description",
     date: "2025-01-15T00:00:00Z",
     tags: ["React", "Testing"],
+    lang: "en",
     content: "# Content",
   };
 

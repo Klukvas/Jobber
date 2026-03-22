@@ -5,9 +5,14 @@ import { createMockStoreState } from "../__tests__/testHelpers";
 
 const mockState = createMockStoreState({
   section_order: [
-    { section_key: "contact", sort_order: 0, is_visible: true },
-    { section_key: "experience", sort_order: 1, is_visible: true },
-    { section_key: "skills", sort_order: 2, is_visible: true },
+    { section_key: "contact", sort_order: 0, is_visible: true, column: "main" },
+    {
+      section_key: "experience",
+      sort_order: 1,
+      is_visible: true,
+      column: "main",
+    },
+    { section_key: "skills", sort_order: 2, is_visible: true, column: "main" },
   ],
 });
 
@@ -62,9 +67,24 @@ describe("LayoutConfigurator", () => {
     vi.clearAllMocks();
     const freshState = createMockStoreState({
       section_order: [
-        { section_key: "contact", sort_order: 0, is_visible: true },
-        { section_key: "experience", sort_order: 1, is_visible: true },
-        { section_key: "skills", sort_order: 2, is_visible: true },
+        {
+          section_key: "contact",
+          sort_order: 0,
+          is_visible: true,
+          column: "main",
+        },
+        {
+          section_key: "experience",
+          sort_order: 1,
+          is_visible: true,
+          column: "main",
+        },
+        {
+          section_key: "skills",
+          sort_order: 2,
+          is_visible: true,
+          column: "main",
+        },
       ],
     });
     Object.assign(mockState, freshState);

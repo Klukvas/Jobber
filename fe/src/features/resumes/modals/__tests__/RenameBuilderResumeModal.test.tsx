@@ -34,6 +34,18 @@ const mockResume = {
   id: "resume-1",
   title: "My Resume",
   template_id: "tmpl-1",
+  font_family: "Georgia",
+  primary_color: "#2563eb",
+  text_color: "#111827",
+  spacing: 100,
+  margin_top: 40,
+  margin_bottom: 40,
+  margin_left: 40,
+  margin_right: 40,
+  layout_mode: "single" as const,
+  sidebar_width: 35,
+  font_size: 12,
+  skill_display: "" as const,
   created_at: "2024-01-01T00:00:00Z",
   updated_at: "2024-01-01T00:00:00Z",
 };
@@ -86,8 +98,6 @@ describe("RenameBuilderResumeModal", () => {
         resume={mockResume}
       />,
     );
-    expect(
-      screen.getByText("resumes.editDescription"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("resumes.editDescription")).toBeInTheDocument();
   });
 });

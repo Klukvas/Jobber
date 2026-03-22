@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { ResumeThumbnail } from "./ResumeThumbnail";
 
 beforeAll(() => {
-  global.ResizeObserver = class {
+  globalThis.ResizeObserver = class {
     observe() {}
     unobserve() {}
     disconnect() {}
@@ -107,13 +107,8 @@ describe("ResumeThumbnail", () => {
       spacing: 100,
     };
     render(
-      <ResumeThumbnail
-        resumeId="resume-1"
-        templateId="unknown-template"
-      />,
+      <ResumeThumbnail resumeId="resume-1" templateId="unknown-template" />,
     );
-    expect(
-      screen.getByTestId("professional-template"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("professional-template")).toBeInTheDocument();
   });
 });

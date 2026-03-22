@@ -4,7 +4,7 @@ import { PreviewPanel } from "./PreviewPanel";
 import { createMockStoreState } from "../__tests__/testHelpers";
 
 beforeAll(() => {
-  global.ResizeObserver = class {
+  globalThis.ResizeObserver = class {
     observe() {}
     unobserve() {}
     disconnect() {}

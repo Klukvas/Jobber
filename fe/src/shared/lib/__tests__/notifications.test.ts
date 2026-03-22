@@ -66,7 +66,6 @@ describe("requestNotificationPermission", () => {
 
   it("returns 'denied' when Notification is not supported", async () => {
     const saved = globalThis.Notification;
-    // @ts-expect-error -- removing Notification from window for test
     delete (globalThis as Record<string, unknown>).Notification;
 
     const result = await requestNotificationPermission();

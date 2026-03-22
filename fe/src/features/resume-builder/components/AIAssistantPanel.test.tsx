@@ -150,6 +150,7 @@ describe("AIAssistantPanel", () => {
             start_date: "2023-01",
             end_date: "",
             is_current: false,
+            sort_order: 0,
           },
         ],
       }),

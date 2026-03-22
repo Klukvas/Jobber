@@ -26,8 +26,26 @@ vi.mock("@/shared/lib/notifications", () => ({
 describe("CompanySelectWithQuickAdd", () => {
   it("renders select with companies", () => {
     const companies = [
-      { id: "c1", name: "Acme Corp" },
-      { id: "c2", name: "Beta Inc" },
+      {
+        id: "c1",
+        name: "Acme Corp",
+        is_favorite: false,
+        created_at: "2025-01-01T00:00:00Z",
+        updated_at: "2025-01-01T00:00:00Z",
+        applications_count: 0,
+        active_applications_count: 0,
+        derived_status: "idle" as const,
+      },
+      {
+        id: "c2",
+        name: "Beta Inc",
+        is_favorite: false,
+        created_at: "2025-01-01T00:00:00Z",
+        updated_at: "2025-01-01T00:00:00Z",
+        applications_count: 0,
+        active_applications_count: 0,
+        derived_status: "idle" as const,
+      },
     ];
     render(
       <CompanySelectWithQuickAdd

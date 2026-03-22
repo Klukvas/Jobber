@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { type ReactNode } from "react";
 import { GlobalErrorBoundary } from "../GlobalErrorBoundary";
 
 vi.mock("@sentry/react", () => ({
@@ -12,7 +13,7 @@ vi.mock("@/shared/lib/i18n", () => ({
   },
 }));
 
-function ThrowingChild() {
+function ThrowingChild(): ReactNode {
   throw new Error("Test error");
 }
 

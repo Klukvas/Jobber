@@ -8,7 +8,7 @@ import type { CoverLetterDTO } from "@/shared/types/cover-letter";
 
 // ResizeObserver is not available in jsdom
 beforeAll(() => {
-  global.ResizeObserver = class {
+  globalThis.ResizeObserver = class {
     observe() {}
     unobserve() {}
     disconnect() {}
@@ -57,18 +57,15 @@ vi.mock("@/features/resume-builder/components/inline/EditableField", () => ({
   }) => <span data-testid="editable-field">{value || placeholder}</span>,
 }));
 
-vi.mock(
-  "@/features/resume-builder/components/inline/EditableTextarea",
-  () => ({
-    EditableTextarea: ({
-      value,
-      placeholder,
-    }: {
-      value: string;
-      placeholder?: string;
-    }) => <span data-testid="editable-textarea">{value || placeholder}</span>,
-  }),
-);
+vi.mock("@/features/resume-builder/components/inline/EditableTextarea", () => ({
+  EditableTextarea: ({
+    value,
+    placeholder,
+  }: {
+    value: string;
+    placeholder?: string;
+  }) => <span data-testid="editable-textarea">{value || placeholder}</span>,
+}));
 
 function createMockCoverLetter(
   overrides?: Partial<CoverLetterDTO>,
@@ -121,12 +118,8 @@ describe("CoverLetterPreview", () => {
 
   it("renders paragraph content", () => {
     render(<CoverLetterPreview />);
-    expect(
-      screen.getByText("First paragraph content"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Second paragraph content"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("First paragraph content")).toBeInTheDocument();
+    expect(screen.getByText("Second paragraph content")).toBeInTheDocument();
   });
 
   it("renders with editable=false by default (no add paragraph button)", () => {
@@ -138,9 +131,7 @@ describe("CoverLetterPreview", () => {
 
   it("renders with editable=true showing add paragraph button", () => {
     render(<CoverLetterPreview editable />);
-    expect(
-      screen.getByText("coverLetter.addParagraph"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("coverLetter.addParagraph")).toBeInTheDocument();
   });
 });
 
@@ -166,16 +157,12 @@ describe("CoverLetterFullscreenPreview", () => {
   });
 
   it("renders the close button when open with cover letter", () => {
-    render(
-      <CoverLetterFullscreenPreview open={true} onClose={vi.fn()} />,
-    );
+    render(<CoverLetterFullscreenPreview open={true} onClose={vi.fn()} />);
     expect(screen.getByLabelText("common.close")).toBeInTheDocument();
   });
 
   it("renders cover letter content when open", () => {
-    render(
-      <CoverLetterFullscreenPreview open={true} onClose={vi.fn()} />,
-    );
+    render(<CoverLetterFullscreenPreview open={true} onClose={vi.fn()} />);
     expect(screen.getByText("Dear Hiring Manager,")).toBeInTheDocument();
   });
 });
