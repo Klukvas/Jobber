@@ -135,7 +135,7 @@ jobs:
       - name: Enforce coverage threshold
         working-directory: ./be
         run: |
-          THRESHOLD=40
+          THRESHOLD=55
           COVERAGE=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}' | tr -d '%')
           if [ -z "$COVERAGE" ]; then
             echo "::error::Could not parse coverage from coverage.out"
@@ -195,11 +195,26 @@ jobs:
           echo "📝 Running TypeScript type check..."
           npx tsc --noEmit
 
-      - name: Run tests
+      - name: Run tests with coverage
         working-directory: ./fe
         run: |
           echo "🧪 Running frontend tests..."
-          npx vitest run --reporter=verbose
+          npx vitest run --coverage --reporter=verbose
+
+      - name: Enforce coverage threshold
+        working-directory: ./fe
+        run: |
+          THRESHOLD=55
+          COVERAGE=$(npx vitest run --coverage 2>&1 | grep "^Statements" | awk '{print $3}' | tr -d '%(')
+          if [ -z "$COVERAGE" ]; then
+            echo "::error::Could not parse frontend coverage"
+            exit 1
+          fi
+          echo "Frontend coverage: ${COVERAGE}% (threshold: ${THRESHOLD}%)"
+          if awk "BEGIN {exit !($COVERAGE < $THRESHOLD)}"; then
+            echo "::error::Frontend coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
+            exit 1
+          fi
 
       - name: Build frontend
         working-directory: ./fe
