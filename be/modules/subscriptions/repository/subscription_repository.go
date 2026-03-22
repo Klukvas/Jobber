@@ -197,3 +197,21 @@ func (r *SubscriptionRepository) GetAllCounts(ctx context.Context, userID string
 	err = r.pool.QueryRow(ctx, query, userID).Scan(&jobs, &resumes, &apps, &aiReqs, &jobParses, &resumeBuilders, &coverLetters)
 	return
 }
+
+// WebhookEventExists checks if a webhook event has already been processed.
+func (r *SubscriptionRepository) WebhookEventExists(ctx context.Context, eventID string) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM webhook_events WHERE event_id = $1)`, eventID,
+	).Scan(&exists)
+	return exists, err
+}
+
+// RecordWebhookEvent stores a processed webhook event ID.
+func (r *SubscriptionRepository) RecordWebhookEvent(ctx context.Context, eventID, eventType string) error {
+	_, err := r.pool.Exec(ctx,
+		`INSERT INTO webhook_events (event_id, event_type) VALUES ($1, $2) ON CONFLICT (event_id) DO NOTHING`,
+		eventID, eventType,
+	)
+	return err
+}

@@ -21,4 +21,8 @@ type SubscriptionRepository interface {
 	CountUserResumeBuilders(ctx context.Context, userID string) (int, error)
 	CountUserCoverLetters(ctx context.Context, userID string) (int, error)
 	GetAllCounts(ctx context.Context, userID string) (jobs, resumes, apps, aiReqs, jobParses, resumeBuilders, coverLetters int, err error)
+	// WebhookEventExists returns true if the event ID has already been processed.
+	WebhookEventExists(ctx context.Context, eventID string) (bool, error)
+	// RecordWebhookEvent stores a processed event ID to prevent duplicate processing.
+	RecordWebhookEvent(ctx context.Context, eventID, eventType string) error
 }

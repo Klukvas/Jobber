@@ -13,6 +13,7 @@ type emailContent struct {
 // baseLayout wraps email body content in a responsive, table-based HTML layout
 // compatible with all major email clients (Gmail, Outlook, Apple Mail, Yahoo).
 func baseLayout(title, body string) string {
+	safeTitle := html.EscapeString(title)
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -83,7 +84,7 @@ This is an automated message. Please do not reply directly to this email.
 <!-- /Outer wrapper -->
 
 </body>
-</html>`, title, body)
+</html>`, safeTitle, body)
 }
 
 // codeBlockHTML returns a large, monospaced code block for email templates.
