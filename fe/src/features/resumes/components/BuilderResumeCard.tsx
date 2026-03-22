@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { format } from "date-fns";
 import { useDateLocale } from "@/shared/lib/dateFnsLocale";
-import { Copy, Trash2, PenTool } from "lucide-react";
+import { Copy, Trash2, PenTool, Pencil } from "lucide-react";
 import { ResumeThumbnail } from "@/features/resume-builder/components/ResumeThumbnail";
 import { Button } from "@/shared/ui/Button";
 import { Card, CardContent } from "@/shared/ui/Card";
@@ -13,6 +13,7 @@ interface BuilderResumeCardProps {
   readonly limitReached: boolean;
   readonly onDuplicate: (id: string) => void;
   readonly onDelete: (resume: ResumeBuilderDTO) => void;
+  readonly onRename?: (resume: ResumeBuilderDTO) => void;
 }
 
 export function BuilderResumeCard({
@@ -20,6 +21,7 @@ export function BuilderResumeCard({
   limitReached,
   onDuplicate,
   onDelete,
+  onRename,
 }: BuilderResumeCardProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -58,6 +60,20 @@ export function BuilderResumeCard({
             </p>
           </div>
           <div className="ml-2 flex gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+            {onRename && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRename(resume);
+                }}
+                aria-label={t("common.rename")}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
