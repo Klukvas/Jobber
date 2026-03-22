@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Briefcase, FileQuestion } from "lucide-react";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
-import { Button } from "@/shared/ui/button";
+import { Button } from "@/shared/ui/Button";
 
 export default function NotFound() {
   const { t } = useTranslation();
@@ -33,9 +33,7 @@ export default function NotFound() {
           404
         </h1>
 
-        <h2 className="mb-3 text-2xl font-semibold">
-          {t("notFound.title")}
-        </h2>
+        <h2 className="mb-3 text-2xl font-semibold">{t("notFound.title")}</h2>
 
         <p className="mb-8 max-w-md text-muted-foreground">
           {t("notFound.description")}
