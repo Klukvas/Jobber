@@ -35,9 +35,27 @@ return count
 // Limits requests by client IP using a fixed-window counter in Redis.
 // Uses a Lua script for atomic INCR + EXPIRE to prevent TTL-less keys on crashes.
 func RateLimitMiddleware(rdb *redis.Client, cfg RateLimitConfig, logger *zap.Logger) gin.HandlerFunc {
+	return rateLimitByKey(rdb, cfg, logger, func(c *gin.Context) string {
+		return c.ClientIP()
+	})
+}
+
+// UserRateLimitMiddleware creates a rate limiter keyed by authenticated user ID.
+// Falls back to client IP if user_id is not set in context (e.g. unauthenticated request).
+// Place this AFTER AuthMiddleware in the middleware chain.
+func UserRateLimitMiddleware(rdb *redis.Client, cfg RateLimitConfig, logger *zap.Logger) gin.HandlerFunc {
+	return rateLimitByKey(rdb, cfg, logger, func(c *gin.Context) string {
+		if userID, exists := c.Get("user_id"); exists {
+			return "user:" + userID.(string)
+		}
+		return c.ClientIP()
+	})
+}
+
+func rateLimitByKey(rdb *redis.Client, cfg RateLimitConfig, logger *zap.Logger, keyFn func(*gin.Context) string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		clientIP := c.ClientIP()
-		key := fmt.Sprintf("ratelimit:%s:%s", cfg.KeyPrefix, clientIP)
+		identity := keyFn(c)
+		key := fmt.Sprintf("ratelimit:%s:%s", cfg.KeyPrefix, identity)
 
 		ctx := c.Request.Context()
 

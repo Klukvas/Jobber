@@ -447,43 +447,38 @@ func main() {
 		KeyPrefix:   "auth",
 	}, logger.Logger)
 
-	// Rate limiting for AI import endpoint (20 requests per minute per IP)
-	importRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
+	// Per-user rate limiting for authenticated AI/export endpoints
+	importRateLimiter := httpPlatform.UserRateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
 		MaxRequests: 20,
 		Window:      1 * time.Minute,
 		KeyPrefix:   "ai_import",
 	}, logger.Logger)
 
-	// Rate limiting for match score endpoint (10 requests per minute per IP)
-	matchScoreRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
+	matchScoreRateLimiter := httpPlatform.UserRateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
 		MaxRequests: 10,
 		Window:      1 * time.Minute,
 		KeyPrefix:   "match_score",
 	}, logger.Logger)
 
-	// Rate limiting for PDF export endpoint (5 requests per minute per IP)
-	exportRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
+	exportRateLimiter := httpPlatform.UserRateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
 		MaxRequests: 5,
 		Window:      1 * time.Minute,
 		KeyPrefix:   "pdf_export",
 	}, logger.Logger)
 
-	// Rate limiting for resume AI endpoints (20 requests per minute per IP)
-	resumeAIRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
+	resumeAIRateLimiter := httpPlatform.UserRateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
 		MaxRequests: 20,
 		Window:      1 * time.Minute,
 		KeyPrefix:   "resume_ai",
 	}, logger.Logger)
 
-	// Rate limiting for resume import endpoints (20 requests per minute per IP)
-	resumeImportRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
+	resumeImportRateLimiter := httpPlatform.UserRateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
 		MaxRequests: 20,
 		Window:      1 * time.Minute,
 		KeyPrefix:   "resume_import",
 	}, logger.Logger)
 
-	// Rate limiting for cover letter AI endpoints (20 requests per minute per IP)
-	coverLetterAIRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
+	coverLetterAIRateLimiter := httpPlatform.UserRateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
 		MaxRequests: 20,
 		Window:      1 * time.Minute,
 		KeyPrefix:   "cover_letter_ai",

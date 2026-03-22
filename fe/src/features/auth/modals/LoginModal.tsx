@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { loginSchema, type LoginFormData } from "@/shared/lib/validation";
 import { authService } from "@/services/authService";
 import { useAuthStore } from "@/stores/authStore";
 import { useResendCode } from "@/features/auth/hooks/useResendCode";
@@ -34,14 +37,19 @@ function ModalContent({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [emailNotVerified, setEmailNotVerified] = useState(false);
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState("");
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
-    {},
-  );
+
+  const {
+    register,
+    handleSubmit,
+    getValues,
+    setError,
+    formState: { errors },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+  });
 
   const loginMutation = useMutation({
     mutationFn: authService.login,
@@ -54,14 +62,15 @@ function ModalContent({
       if (error.code === "EMAIL_NOT_VERIFIED") {
         setEmailNotVerified(true);
       } else {
-        setErrors({ password: error.message });
+        setError("password", { message: error.message });
       }
     },
   });
 
   const resend = useResendCode({
-    mutationFn: () => authService.resendVerification({ email }),
-    storageKey: `verify_${email}`,
+    mutationFn: () =>
+      authService.resendVerification({ email: getValues("email") }),
+    storageKey: `verify_${getValues("email")}`,
   });
 
   const verifyMutation = useMutation({
@@ -70,7 +79,7 @@ function ModalContent({
       setEmailNotVerified(false);
       setCode("");
       setCodeError("");
-      // Auto-login after verification
+      const { email, password } = getValues();
       loginMutation.mutate({ email, password });
     },
     onError: (error: ApiError) => {
@@ -82,31 +91,9 @@ function ModalContent({
     },
   });
 
-  const validate = () => {
-    const newErrors: { email?: string; password?: string } = {};
-
-    if (!email) {
-      newErrors.email = t("errors.required");
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = t("errors.invalidEmail");
-    }
-
-    if (!password) {
-      newErrors.password = t("errors.required");
-    } else if (password.length < 8) {
-      newErrors.password = t("errors.passwordTooShort");
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmit = (data: LoginFormData) => {
     setEmailNotVerified(false);
-    if (validate()) {
-      loginMutation.mutate({ email, password });
-    }
+    loginMutation.mutate(data);
   };
 
   const handleVerify = (e: React.FormEvent) => {
@@ -116,7 +103,7 @@ function ModalContent({
       setCodeError(t("auth.invalidCode"));
       return;
     }
-    verifyMutation.mutate({ email, code });
+    verifyMutation.mutate({ email: getValues("email"), code });
   };
 
   return (
@@ -202,7 +189,7 @@ function ModalContent({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="mt-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="mt-4">
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="login-email">{t("auth.email")}</Label>
@@ -210,14 +197,13 @@ function ModalContent({
               id="login-email"
               type="email"
               placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              {...register("email")}
               aria-invalid={!!errors.email}
               aria-describedby={errors.email ? "login-email-error" : undefined}
             />
             {errors.email && (
               <p id="login-email-error" className="text-sm text-destructive">
-                {errors.email}
+                {t(errors.email.message ?? "")}
               </p>
             )}
           </div>
@@ -236,8 +222,7 @@ function ModalContent({
             </div>
             <PasswordInput
               id="login-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              {...register("password")}
               aria-invalid={!!errors.password}
               aria-describedby={
                 errors.password ? "login-password-error" : undefined
@@ -245,7 +230,7 @@ function ModalContent({
             />
             {errors.password && (
               <p id="login-password-error" className="text-sm text-destructive">
-                {errors.password}
+                {t(errors.password.message ?? "")}
               </p>
             )}
           </div>
