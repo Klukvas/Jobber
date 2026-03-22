@@ -7,24 +7,33 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AuthMiddleware validates JWT access tokens
+// AuthMiddleware validates JWT access tokens.
+// It checks the Authorization header first, then falls back to the httpOnly access_token cookie.
 func AuthMiddleware(jwtManager *JWTManager) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			httpPlatform.RespondWithError(c, 401, "UNAUTHORIZED", "Authorization header required")
+		var tokenString string
+
+		// 1. Try Authorization header (for API clients, mobile, etc.)
+		if authHeader := c.GetHeader("Authorization"); authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) == 2 && parts[0] == "Bearer" {
+				tokenString = parts[1]
+			}
+		}
+
+		// 2. Fall back to httpOnly cookie (for browser SPA)
+		if tokenString == "" {
+			if cookie, err := c.Cookie(AccessTokenCookie); err == nil && cookie != "" {
+				tokenString = cookie
+			}
+		}
+
+		if tokenString == "" {
+			httpPlatform.RespondWithError(c, 401, "UNAUTHORIZED", "Authentication required")
 			c.Abort()
 			return
 		}
 
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			httpPlatform.RespondWithError(c, 401, "UNAUTHORIZED", "Invalid authorization header format")
-			c.Abort()
-			return
-		}
-
-		tokenString := parts[1]
 		claims, err := jwtManager.ValidateAccessToken(tokenString)
 		if err != nil {
 			httpPlatform.RespondWithError(c, 401, "UNAUTHORIZED", "Invalid or expired token")

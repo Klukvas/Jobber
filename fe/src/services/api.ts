@@ -12,15 +12,10 @@ class ApiClient {
     this.client = ky.create({
       prefixUrl: API_BASE_URL,
       timeout: 30000,
+      credentials: "include",
       hooks: {
         beforeRequest: [
           (request) => {
-            // Add Authorization header if access token exists
-            const { accessToken } = useAuthStore.getState();
-            if (accessToken) {
-              request.headers.set("Authorization", `Bearer ${accessToken}`);
-            }
-
             // Add request_id for tracing
             const requestId = this.generateRequestId();
             request.headers.set("X-Request-ID", requestId);
@@ -30,7 +25,7 @@ class ApiClient {
         ],
         afterResponse: [
           async (request, _options, response) => {
-            // Handle 401 Unauthorized - try to refresh token
+            // Handle 401 Unauthorized - try to refresh token via cookie
             // Skip for auth endpoints (login/register return 401 on bad credentials)
             const url = new URL(request.url);
             const isAuthEndpoint = url.pathname.includes("/auth/");
@@ -38,10 +33,8 @@ class ApiClient {
             if (response.status === 401 && !isAuthEndpoint) {
               const refreshed = await this.tryRefreshToken();
               if (refreshed) {
-                // Retry the original request with new token
-                const { accessToken } = useAuthStore.getState();
-                request.headers.set("Authorization", `Bearer ${accessToken}`);
-                return ky(request);
+                // Retry the original request — cookies are sent automatically
+                return ky(request, { credentials: "include" });
               } else {
                 // Refresh failed, clear auth and redirect to login
                 useAuthStore.getState().clearAuth();
@@ -76,20 +69,10 @@ class ApiClient {
 
   private async doRefreshToken(): Promise<boolean> {
     try {
-      const { refreshToken, user } = useAuthStore.getState();
-
-      if (!refreshToken || !user) {
-        return false;
-      }
-
-      const response = await ky
-        .post(`${API_BASE_URL}/auth/refresh`, {
-          json: { refresh_token: refreshToken },
-        })
-        .json<{ access_token: string; refresh_token: string }>();
-
-      const { setAuth } = useAuthStore.getState();
-      setAuth(response.access_token, response.refresh_token, user);
+      // Refresh token is sent automatically via httpOnly cookie
+      await ky.post(`${API_BASE_URL}/auth/refresh`, {
+        credentials: "include",
+      });
       return true;
     } catch (err) {
       console.error("[ApiClient] token refresh failed:", err);

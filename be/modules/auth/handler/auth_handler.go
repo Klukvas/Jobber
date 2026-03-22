@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
@@ -13,13 +14,19 @@ import (
 
 // AuthHandler handles authentication HTTP requests
 type AuthHandler struct {
-	authService *service.AuthService
+	authService   *service.AuthService
+	cookieCfg     auth.CookieConfig
+	accessExpiry  time.Duration
+	refreshExpiry time.Duration
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(authService *service.AuthService) *AuthHandler {
+func NewAuthHandler(authService *service.AuthService, cookieCfg auth.CookieConfig, accessExpiry, refreshExpiry time.Duration) *AuthHandler {
 	return &AuthHandler{
-		authService: authService,
+		authService:   authService,
+		cookieCfg:     cookieCfg,
+		accessExpiry:  accessExpiry,
+		refreshExpiry: refreshExpiry,
 	}
 }
 
@@ -102,6 +109,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		httpPlatform.RespondWithError(c, statusCode, string(errorCode), errorMessage)
 		return
 	}
+
+	auth.SetTokenCookies(c, h.cookieCfg, tokens.AccessToken, h.accessExpiry, tokens.RefreshToken, h.refreshExpiry)
 
 	httpPlatform.RespondWithData(c, http.StatusOK, LoginResponse{
 		User:   user,
@@ -236,17 +245,24 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /auth/refresh [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	var req authModel.RefreshRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httpPlatform.RespondWithError(c, http.StatusBadRequest, string(userModel.CodeValidationError), "Invalid request payload")
-		return
+	// Read refresh token from cookie first, fall back to request body.
+	refreshToken, _ := c.Cookie(auth.RefreshTokenCookie)
+	if refreshToken == "" {
+		var req authModel.RefreshRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			httpPlatform.RespondWithError(c, http.StatusBadRequest, string(userModel.CodeValidationError), "Invalid request payload")
+			return
+		}
+		refreshToken = req.RefreshToken
 	}
 
-	tokens, err := h.authService.RefreshTokens(c.Request.Context(), req.RefreshToken)
+	tokens, err := h.authService.RefreshTokens(c.Request.Context(), refreshToken)
 	if err != nil {
 		httpPlatform.RespondWithError(c, http.StatusUnauthorized, string(userModel.CodeUnauthorized), "Invalid or expired refresh token")
 		return
 	}
+
+	auth.SetTokenCookies(c, h.cookieCfg, tokens.AccessToken, h.accessExpiry, tokens.RefreshToken, h.refreshExpiry)
 
 	httpPlatform.RespondWithData(c, http.StatusOK, tokens)
 }
@@ -272,6 +288,8 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, string(userModel.CodeInternalError), "Failed to logout")
 		return
 	}
+
+	auth.ClearTokenCookies(c, h.cookieCfg)
 
 	httpPlatform.RespondWithData(c, http.StatusOK, gin.H{"message": "Logged out successfully"})
 }

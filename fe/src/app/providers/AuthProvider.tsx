@@ -23,35 +23,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     const initializeAuth = async () => {
-      // Read current auth state directly from the store so this effect
-      // runs only once on mount without needing reactive dependencies.
-      const { accessToken, refreshToken, user, setAuth, clearAuth } =
-        useAuthStore.getState();
+      const { user, clearAuth } = useAuthStore.getState();
 
-      // If we have tokens but no access token, try to refresh
-      if (!accessToken && refreshToken && user) {
+      // If we have a stored user, verify the session is still valid
+      // by making a lightweight request. If cookies are expired, the
+      // 401 interceptor in api.ts will attempt a refresh automatically.
+      if (user) {
         try {
           const response = await fetch(
-            `${import.meta.env.VITE_API_BASE_URL || "/api/v1"}/auth/refresh`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ refresh_token: refreshToken }),
-            },
+            `${import.meta.env.VITE_API_BASE_URL || "/api/v1"}/ping`,
+            { credentials: "include" },
           );
-
-          if (response.ok) {
-            const data = await response.json();
-            setAuth(data.access_token, data.refresh_token, user);
-          } else {
-            // Refresh failed, clear auth
-            clearAuth();
+          if (response.status === 401) {
+            // Try refresh
+            const refreshResponse = await fetch(
+              `${import.meta.env.VITE_API_BASE_URL || "/api/v1"}/auth/refresh`,
+              { method: "POST", credentials: "include" },
+            );
+            if (!refreshResponse.ok) {
+              clearAuth();
+            }
           }
-        } catch (err) {
-          console.error("[AuthProvider] token refresh failed:", err);
-          clearAuth();
+        } catch {
+          // Network error — keep user state, will retry on next API call
         }
       }
 
@@ -59,9 +53,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
 
     initializeAuth();
-  }, []); // Run only once on mount — values are read via getState() inside
+  }, []);
 
-  // Show loading state while checking auth
   if (!isInitialized) {
     return (
       <div className="flex items-center justify-center min-h-screen">

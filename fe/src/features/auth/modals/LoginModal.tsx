@@ -46,7 +46,7 @@ function ModalContent({
   const loginMutation = useMutation({
     mutationFn: authService.login,
     onSuccess: (data) => {
-      setAuth(data.tokens.access_token, data.tokens.refresh_token, data.user);
+      setAuth(data.user);
       onOpenChange(false);
       navigate("/app");
     },

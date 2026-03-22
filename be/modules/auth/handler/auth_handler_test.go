@@ -284,7 +284,7 @@ func TestAuthHandler_Register(t *testing.T) {
 		mockTokenRepo := &MockRefreshTokenRepository{}
 
 		svc := createTestAuthService(mockUserRepo, mockTokenRepo)
-		handler := NewAuthHandler(svc)
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
 
 		router := setupTestRouter()
 		router.POST("/auth/register", handler.Register)
@@ -305,7 +305,7 @@ func TestAuthHandler_Register(t *testing.T) {
 
 	t.Run("returns 400 for invalid request payload", func(t *testing.T) {
 		svc := createTestAuthService(&MockUserRepository{}, &MockRefreshTokenRepository{})
-		handler := NewAuthHandler(svc)
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
 
 		router := setupTestRouter()
 		router.POST("/auth/register", handler.Register)
@@ -327,7 +327,7 @@ func TestAuthHandler_Register(t *testing.T) {
 		}
 
 		svc := createTestAuthService(mockUserRepo, &MockRefreshTokenRepository{})
-		handler := NewAuthHandler(svc)
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
 
 		router := setupTestRouter()
 		router.POST("/auth/register", handler.Register)
@@ -343,7 +343,7 @@ func TestAuthHandler_Register(t *testing.T) {
 
 	t.Run("returns 400 for invalid email", func(t *testing.T) {
 		svc := createTestAuthService(&MockUserRepository{}, &MockRefreshTokenRepository{})
-		handler := NewAuthHandler(svc)
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
 
 		router := setupTestRouter()
 		router.POST("/auth/register", handler.Register)
@@ -385,7 +385,7 @@ func TestAuthHandler_Login(t *testing.T) {
 		}
 
 		svc := createTestAuthService(mockUserRepo, mockTokenRepo)
-		handler := NewAuthHandler(svc)
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
 
 		router := setupTestRouter()
 		router.POST("/auth/login", handler.Login)
@@ -425,7 +425,7 @@ func TestAuthHandler_Login(t *testing.T) {
 		}
 
 		svc := createTestAuthService(mockUserRepo, &MockRefreshTokenRepository{})
-		handler := NewAuthHandler(svc)
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
 
 		router := setupTestRouter()
 		router.POST("/auth/login", handler.Login)
@@ -447,7 +447,7 @@ func TestAuthHandler_Login(t *testing.T) {
 		}
 
 		svc := createTestAuthService(mockUserRepo, &MockRefreshTokenRepository{})
-		handler := NewAuthHandler(svc)
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
 
 		router := setupTestRouter()
 		router.POST("/auth/login", handler.Login)
@@ -463,7 +463,7 @@ func TestAuthHandler_Login(t *testing.T) {
 
 	t.Run("returns 400 for invalid request payload", func(t *testing.T) {
 		svc := createTestAuthService(&MockUserRepository{}, &MockRefreshTokenRepository{})
-		handler := NewAuthHandler(svc)
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
 
 		router := setupTestRouter()
 		router.POST("/auth/login", handler.Login)
@@ -481,7 +481,7 @@ func TestAuthHandler_Login(t *testing.T) {
 func TestAuthHandler_VerifyEmail(t *testing.T) {
 	t.Run("returns 400 for invalid payload", func(t *testing.T) {
 		svc := createTestAuthService(&MockUserRepository{}, &MockRefreshTokenRepository{})
-		handler := NewAuthHandler(svc)
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
 
 		router := setupTestRouter()
 		router.POST("/auth/verify-email", handler.VerifyEmail)
@@ -511,7 +511,7 @@ func TestAuthHandler_Refresh(t *testing.T) {
 		}
 
 		svc := createTestAuthService(&MockUserRepository{}, mockTokenRepo)
-		handler := NewAuthHandler(svc)
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
 
 		router := setupTestRouter()
 		router.POST("/auth/refresh", handler.Refresh)
@@ -533,7 +533,7 @@ func TestAuthHandler_Refresh(t *testing.T) {
 
 	t.Run("returns 401 for invalid refresh token", func(t *testing.T) {
 		svc := createTestAuthService(&MockUserRepository{}, &MockRefreshTokenRepository{})
-		handler := NewAuthHandler(svc)
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
 
 		router := setupTestRouter()
 		router.POST("/auth/refresh", handler.Refresh)
@@ -557,7 +557,7 @@ func TestAuthHandler_Logout(t *testing.T) {
 		}
 
 		svc := createTestAuthService(&MockUserRepository{}, mockTokenRepo)
-		handler := NewAuthHandler(svc)
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
 
 		router := setupTestRouter()
 		router.POST("/auth/logout", mockAuthMiddleware("user-123"), handler.Logout)
@@ -571,7 +571,7 @@ func TestAuthHandler_Logout(t *testing.T) {
 
 	t.Run("returns 401 when not authenticated", func(t *testing.T) {
 		svc := createTestAuthService(&MockUserRepository{}, &MockRefreshTokenRepository{})
-		handler := NewAuthHandler(svc)
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
 
 		router := setupTestRouter()
 		router.POST("/auth/logout", handler.Logout) // No auth middleware
@@ -597,7 +597,7 @@ func TestAuthHandler_RegisterRoutes(t *testing.T) {
 		},
 		&MockRefreshTokenRepository{},
 	)
-	handler := NewAuthHandler(svc)
+	handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
 
 	router := setupTestRouter()
 	v1 := router.Group("/api/v1")

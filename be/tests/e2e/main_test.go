@@ -255,7 +255,8 @@ func TestMain(m *testing.M) {
 	coverLetterSvc := cvService.NewCoverLetterService(coverLetterRepository, subscriptionSvc)
 
 	// Handlers
-	authHdl := authHandler.NewAuthHandler(authSvc)
+	testCookieCfg := auth.NewCookieConfig("test")
+	authHdl := authHandler.NewAuthHandler(authSvc, testCookieCfg, 15*time.Minute, 168*time.Hour)
 	companyHdl := companyHandler.NewCompanyHandler(companySvc)
 	jobHdl := jobHandler.NewJobHandler(jobSvc)
 	resumeHdl := resumeHandler.NewResumeHandler(resumeSvc)

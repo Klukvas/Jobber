@@ -10,31 +10,26 @@ interface User {
 }
 
 interface AuthState {
-  accessToken: string | null;
-  refreshToken: string | null;
   user: User | null;
   isAuthenticated: boolean;
-  setAuth: (accessToken: string, refreshToken: string, user: User) => void;
+  setAuth: (user: User) => void;
   clearAuth: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      accessToken: null,
-      refreshToken: null,
       user: null,
       isAuthenticated: false,
-      setAuth: (accessToken, refreshToken, user) =>
-        set({ accessToken, refreshToken, user, isAuthenticated: true }),
+      setAuth: (user) =>
+        set({ user, isAuthenticated: true }),
       clearAuth: () => {
-        set({ accessToken: null, refreshToken: null, user: null, isAuthenticated: false });
-        // Also clear localStorage explicitly
+        set({ user: null, isAuthenticated: false });
         localStorage.removeItem('jobber-auth');
       },
     }),
     {
-      name: 'jobber-auth', // localStorage key
+      name: 'jobber-auth',
     }
   )
 );

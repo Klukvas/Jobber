@@ -232,6 +232,9 @@ func Load() (*Config, error) {
 		if len(cfg.JWT.RefreshSecret) < 32 {
 			return nil, fmt.Errorf("JWT_REFRESH_SECRET must be at least 32 characters in production")
 		}
+		if cfg.Database.SSLMode == "disable" {
+			return nil, fmt.Errorf("DB_SSL_MODE must not be 'disable' in production")
+		}
 	}
 
 	return cfg, nil

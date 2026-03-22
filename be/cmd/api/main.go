@@ -321,7 +321,8 @@ func main() {
 	analyticsSvc := analyticsService.NewAnalyticsService(analyticsRepository)
 
 	// Initialize handlers
-	authHdl := authHandler.NewAuthHandler(authSvc)
+	cookieCfg := auth.NewCookieConfig(cfg.Server.Env)
+	authHdl := authHandler.NewAuthHandler(authSvc, cookieCfg, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
 	companyHdl := companyHandler.NewCompanyHandler(companySvc)
 	jobHdl := jobHandler.NewJobHandler(jobSvc)
 	resumeHdl := resumeHandler.NewResumeHandler(resumeSvc)
