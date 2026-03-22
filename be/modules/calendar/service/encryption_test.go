@@ -84,6 +84,50 @@ func TestEncryptor_TamperedCiphertext(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestEncryptor_Decrypt_InvalidCiphertextEncoding(t *testing.T) {
+	hexKey := generateTestKey()
+	enc, err := NewEncryptor(hexKey)
+	require.NoError(t, err)
+
+	_, err = enc.Decrypt("not-valid-base64!!!", "dGVzdA==")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid ciphertext encoding")
+}
+
+func TestEncryptor_Decrypt_InvalidNonceEncoding(t *testing.T) {
+	hexKey := generateTestKey()
+	enc, err := NewEncryptor(hexKey)
+	require.NoError(t, err)
+
+	// Valid base64 ciphertext, invalid base64 nonce
+	plaintext := []byte("test data")
+	ciphertext, _, err := enc.Encrypt(plaintext)
+	require.NoError(t, err)
+
+	_, err = enc.Decrypt(ciphertext, "not-valid-base64!!!")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid nonce encoding")
+}
+
+func TestEncryptor_Encrypt_InvalidKeyLength(t *testing.T) {
+	// Create an encryptor with an invalid key size (bypassing NewEncryptor validation)
+	enc := &Encryptor{key: []byte("short")}
+
+	_, _, err := enc.Encrypt([]byte("test data"))
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "encryption failed")
+}
+
+func TestEncryptor_Decrypt_InvalidKeyLength(t *testing.T) {
+	// Create an encryptor with an invalid key size
+	enc := &Encryptor{key: []byte("short")}
+
+	// Use valid base64 data so we get past the decode step
+	_, err := enc.Decrypt("dGVzdA==", "dGVzdA==")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "decryption failed")
+}
+
 func TestNewEncryptor_InvalidKey(t *testing.T) {
 	t.Run("invalid hex", func(t *testing.T) {
 		_, err := NewEncryptor("not-hex")

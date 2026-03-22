@@ -871,3 +871,699 @@ func TestIsValidEmail(t *testing.T) {
 		})
 	}
 }
+
+// --- ResendVerification tests ---
+
+func TestAuthService_ResendVerification(t *testing.T) {
+	t.Run("returns nil for non-existent email (no enumeration)", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return nil, userModel.ErrUserNotFound
+			},
+		}
+
+		svc := createTestService(mockUserRepo, &MockRefreshTokenRepository{})
+
+		err := svc.ResendVerification(context.Background(), "unknown@example.com")
+		assert.NoError(t, err)
+	})
+
+	t.Run("returns nil for already verified user", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{
+					ID:            "user-123",
+					Email:         email,
+					EmailVerified: true,
+				}, nil
+			},
+		}
+
+		svc := createTestService(mockUserRepo, &MockRefreshTokenRepository{})
+
+		err := svc.ResendVerification(context.Background(), "verified@example.com")
+		assert.NoError(t, err)
+	})
+
+	t.Run("sends verification email for unverified user", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{
+					ID:            "user-123",
+					Email:         email,
+					Locale:        "en",
+					EmailVerified: false,
+				}, nil
+			},
+		}
+
+		verificationRepo := &MockEmailVerificationRepository{}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, verificationRepo, &MockPasswordResetRepository{})
+
+		err := svc.ResendVerification(context.Background(), "unverified@example.com")
+		assert.NoError(t, err)
+	})
+
+	t.Run("normalizes email to lowercase", func(t *testing.T) {
+		var queriedEmail string
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				queriedEmail = email
+				return nil, userModel.ErrUserNotFound
+			},
+		}
+
+		svc := createTestService(mockUserRepo, &MockRefreshTokenRepository{})
+
+		_ = svc.ResendVerification(context.Background(), "  TEST@EXAMPLE.COM  ")
+		assert.Equal(t, "test@example.com", queriedEmail)
+	})
+}
+
+// --- ForgotPassword tests ---
+
+func TestAuthService_ForgotPassword(t *testing.T) {
+	t.Run("returns nil for non-existent email (no enumeration)", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return nil, userModel.ErrUserNotFound
+			},
+		}
+
+		svc := createTestService(mockUserRepo, &MockRefreshTokenRepository{})
+
+		err := svc.ForgotPassword(context.Background(), "unknown@example.com")
+		assert.NoError(t, err)
+	})
+
+	t.Run("creates reset token and sends email", func(t *testing.T) {
+		var createdToken *authModel.PasswordResetToken
+
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{
+					ID:     "user-123",
+					Email:  email,
+					Locale: "en",
+				}, nil
+			},
+		}
+
+		passwordResetRepo := &MockPasswordResetRepository{
+			CreateFunc: func(ctx context.Context, token *authModel.PasswordResetToken) error {
+				createdToken = token
+				return nil
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, &MockEmailVerificationRepository{}, passwordResetRepo)
+
+		err := svc.ForgotPassword(context.Background(), "test@example.com")
+
+		assert.NoError(t, err)
+		assert.NotNil(t, createdToken)
+		assert.Equal(t, "user-123", createdToken.UserID)
+		assert.Len(t, createdToken.Code, 6)
+	})
+
+	t.Run("deletes old reset tokens before creating new one", func(t *testing.T) {
+		deleteForUserCalled := false
+
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{
+					ID:    "user-123",
+					Email: email,
+				}, nil
+			},
+		}
+
+		passwordResetRepo := &MockPasswordResetRepository{
+			DeleteForUserFunc: func(ctx context.Context, userID string) error {
+				deleteForUserCalled = true
+				assert.Equal(t, "user-123", userID)
+				return nil
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, &MockEmailVerificationRepository{}, passwordResetRepo)
+
+		_ = svc.ForgotPassword(context.Background(), "test@example.com")
+		assert.True(t, deleteForUserCalled)
+	})
+
+	t.Run("returns nil when token creation fails", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{
+					ID:    "user-123",
+					Email: email,
+				}, nil
+			},
+		}
+
+		passwordResetRepo := &MockPasswordResetRepository{
+			CreateFunc: func(ctx context.Context, token *authModel.PasswordResetToken) error {
+				return errors.New("db error")
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, &MockEmailVerificationRepository{}, passwordResetRepo)
+
+		err := svc.ForgotPassword(context.Background(), "test@example.com")
+		assert.NoError(t, err) // always returns nil
+	})
+
+	t.Run("normalizes email to lowercase", func(t *testing.T) {
+		var queriedEmail string
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				queriedEmail = email
+				return nil, userModel.ErrUserNotFound
+			},
+		}
+
+		svc := createTestService(mockUserRepo, &MockRefreshTokenRepository{})
+
+		_ = svc.ForgotPassword(context.Background(), "  TEST@EXAMPLE.COM  ")
+		assert.Equal(t, "test@example.com", queriedEmail)
+	})
+}
+
+// --- ResetPassword additional edge cases ---
+
+func TestAuthService_ResetPassword_Additional(t *testing.T) {
+	t.Run("returns error for too long password (>72)", func(t *testing.T) {
+		svc := createTestServiceFull(&MockUserRepository{}, &MockRefreshTokenRepository{}, &MockEmailVerificationRepository{}, &MockPasswordResetRepository{})
+
+		longPassword := make([]byte, 73)
+		for i := range longPassword {
+			longPassword[i] = 'a'
+		}
+
+		err := svc.ResetPassword(context.Background(), "test@example.com", "654321", string(longPassword))
+		assert.Equal(t, userModel.ErrInvalidPassword, err)
+	})
+
+	t.Run("returns error when no active token exists", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{ID: "user-123", Email: email}, nil
+			},
+		}
+
+		passwordResetRepo := &MockPasswordResetRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.PasswordResetToken, error) {
+				return nil, errors.New("not found")
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, &MockEmailVerificationRepository{}, passwordResetRepo)
+
+		err := svc.ResetPassword(context.Background(), "test@example.com", "654321", "newpassword123")
+		assert.Equal(t, userModel.ErrInvalidResetToken, err)
+	})
+
+	t.Run("returns too many attempts on fast path", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{ID: "user-123", Email: email}, nil
+			},
+		}
+
+		passwordResetRepo := &MockPasswordResetRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.PasswordResetToken, error) {
+				return &authModel.PasswordResetToken{
+					ID:       "token-1",
+					UserID:   userID,
+					Code:     "654321",
+					Attempts: 5, // Already at max
+				}, nil
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, &MockEmailVerificationRepository{}, passwordResetRepo)
+
+		err := svc.ResetPassword(context.Background(), "test@example.com", "654321", "newpassword123")
+		assert.Equal(t, userModel.ErrTooManyAttempts, err)
+	})
+
+	t.Run("increment attempts DB error returns invalid token", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{ID: "user-123", Email: email}, nil
+			},
+		}
+
+		passwordResetRepo := &MockPasswordResetRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.PasswordResetToken, error) {
+				return &authModel.PasswordResetToken{
+					ID:       "token-1",
+					UserID:   userID,
+					Code:     "654321",
+					Attempts: 0,
+				}, nil
+			},
+			IncrementAttemptsFunc: func(ctx context.Context, id string, maxAttempts int) (int, error) {
+				return 0, errors.New("db connection lost")
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, &MockEmailVerificationRepository{}, passwordResetRepo)
+
+		err := svc.ResetPassword(context.Background(), "test@example.com", "654321", "newpassword123")
+		assert.Equal(t, userModel.ErrInvalidResetToken, err)
+	})
+
+	t.Run("wrong code at max attempts returns too many attempts", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{ID: "user-123", Email: email}, nil
+			},
+		}
+
+		passwordResetRepo := &MockPasswordResetRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.PasswordResetToken, error) {
+				return &authModel.PasswordResetToken{
+					ID:       "token-1",
+					UserID:   userID,
+					Code:     "654321",
+					Attempts: 4,
+				}, nil
+			},
+			IncrementAttemptsFunc: func(ctx context.Context, id string, maxAttempts int) (int, error) {
+				return 5, nil // now at max
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, &MockEmailVerificationRepository{}, passwordResetRepo)
+
+		err := svc.ResetPassword(context.Background(), "test@example.com", "000000", "newpassword123")
+		assert.Equal(t, userModel.ErrTooManyAttempts, err)
+	})
+
+	t.Run("revokes refresh tokens after password reset", func(t *testing.T) {
+		revokeAllCalled := false
+
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{ID: "user-123", Email: email}, nil
+			},
+		}
+
+		passwordResetRepo := &MockPasswordResetRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.PasswordResetToken, error) {
+				return &authModel.PasswordResetToken{
+					ID:       "token-1",
+					UserID:   userID,
+					Code:     "654321",
+					Attempts: 0,
+				}, nil
+			},
+		}
+
+		tokenRepo := &MockRefreshTokenRepository{
+			RevokeAllForUserFunc: func(ctx context.Context, userID string) error {
+				revokeAllCalled = true
+				assert.Equal(t, "user-123", userID)
+				return nil
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, tokenRepo, &MockEmailVerificationRepository{}, passwordResetRepo)
+
+		err := svc.ResetPassword(context.Background(), "test@example.com", "654321", "newpassword123")
+		assert.NoError(t, err)
+		assert.True(t, revokeAllCalled)
+	})
+}
+
+// --- VerifyEmail additional edge cases ---
+
+func TestAuthService_VerifyEmail_Additional(t *testing.T) {
+	t.Run("increment attempts DB error returns invalid token", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{ID: "user-123", Email: email}, nil
+			},
+		}
+
+		verificationRepo := &MockEmailVerificationRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.EmailVerificationToken, error) {
+				return &authModel.EmailVerificationToken{
+					ID:       "token-1",
+					UserID:   userID,
+					Code:     "123456",
+					Attempts: 0,
+				}, nil
+			},
+			IncrementAttemptsFunc: func(ctx context.Context, id string, maxAttempts int) (int, error) {
+				return 0, errors.New("db connection lost")
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, verificationRepo, &MockPasswordResetRepository{})
+
+		err := svc.VerifyEmail(context.Background(), "test@example.com", "123456")
+		assert.Equal(t, userModel.ErrInvalidVerificationToken, err)
+	})
+
+	t.Run("wrong code at max attempts returns too many attempts", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{ID: "user-123", Email: email}, nil
+			},
+		}
+
+		verificationRepo := &MockEmailVerificationRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.EmailVerificationToken, error) {
+				return &authModel.EmailVerificationToken{
+					ID:       "token-1",
+					UserID:   userID,
+					Code:     "123456",
+					Attempts: 4,
+				}, nil
+			},
+			IncrementAttemptsFunc: func(ctx context.Context, id string, maxAttempts int) (int, error) {
+				return 5, nil // now at max
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, verificationRepo, &MockPasswordResetRepository{})
+
+		err := svc.VerifyEmail(context.Background(), "test@example.com", "000000")
+		assert.Equal(t, userModel.ErrTooManyAttempts, err)
+	})
+
+	t.Run("set email verified error propagates", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{ID: "user-123", Email: email}, nil
+			},
+			SetEmailVerifiedFunc: func(ctx context.Context, userID string) error {
+				return errors.New("db error")
+			},
+		}
+
+		verificationRepo := &MockEmailVerificationRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.EmailVerificationToken, error) {
+				return &authModel.EmailVerificationToken{
+					ID:       "token-1",
+					UserID:   userID,
+					Code:     "123456",
+					Attempts: 0,
+				}, nil
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, verificationRepo, &MockPasswordResetRepository{})
+
+		err := svc.VerifyEmail(context.Background(), "test@example.com", "123456")
+		assert.Error(t, err)
+		assert.Equal(t, "db error", err.Error())
+	})
+
+	t.Run("mark used error is non-fatal", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{ID: "user-123", Email: email}, nil
+			},
+		}
+
+		verificationRepo := &MockEmailVerificationRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.EmailVerificationToken, error) {
+				return &authModel.EmailVerificationToken{
+					ID:       "token-1",
+					UserID:   userID,
+					Code:     "123456",
+					Attempts: 0,
+				}, nil
+			},
+			MarkUsedFunc: func(ctx context.Context, id string) error {
+				return errors.New("mark used error")
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, verificationRepo, &MockPasswordResetRepository{})
+
+		err := svc.VerifyEmail(context.Background(), "test@example.com", "123456")
+		assert.NoError(t, err) // Mark used error is non-fatal
+	})
+
+	t.Run("normalizes email to lowercase", func(t *testing.T) {
+		var queriedEmail string
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				queriedEmail = email
+				return nil, userModel.ErrUserNotFound
+			},
+		}
+
+		svc := createTestServiceFull(mockUserRepo, &MockRefreshTokenRepository{}, &MockEmailVerificationRepository{}, &MockPasswordResetRepository{})
+
+		_ = svc.VerifyEmail(context.Background(), "  TEST@EXAMPLE.COM  ", "123456")
+		assert.Equal(t, "test@example.com", queriedEmail)
+	})
+}
+
+// --- RefreshTokens additional edge cases ---
+
+func TestAuthService_RefreshTokens_Additional(t *testing.T) {
+	t.Run("returns error when RevokeIfValid fails", func(t *testing.T) {
+		jwtManager := createTestJWTManager()
+		refreshToken, _ := jwtManager.GenerateRefreshToken("user-123")
+
+		mockTokenRepo := &MockRefreshTokenRepository{
+			RevokeIfValidFunc: func(ctx context.Context, hash string) (bool, error) {
+				return false, errors.New("db error")
+			},
+		}
+
+		svc := createTestService(&MockUserRepository{}, mockTokenRepo)
+
+		tokens, err := svc.RefreshTokens(context.Background(), refreshToken)
+
+		assert.Nil(t, tokens)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid refresh token")
+	})
+
+	t.Run("returns error when token store create fails", func(t *testing.T) {
+		jwtManager := createTestJWTManager()
+		refreshToken, _ := jwtManager.GenerateRefreshToken("user-123")
+
+		mockTokenRepo := &MockRefreshTokenRepository{
+			RevokeIfValidFunc: func(ctx context.Context, hash string) (bool, error) {
+				return true, nil
+			},
+			CreateFunc: func(ctx context.Context, token *authModel.RefreshToken) error {
+				return errors.New("token store error")
+			},
+		}
+
+		svc := createTestService(&MockUserRepository{}, mockTokenRepo)
+
+		tokens, err := svc.RefreshTokens(context.Background(), refreshToken)
+
+		assert.Nil(t, tokens)
+		assert.Error(t, err)
+	})
+}
+
+// --- Register additional edge cases ---
+
+func TestAuthService_Register_Additional(t *testing.T) {
+	t.Run("returns error for too long password (>72)", func(t *testing.T) {
+		svc := createTestService(&MockUserRepository{}, &MockRefreshTokenRepository{})
+
+		longPassword := make([]byte, 73)
+		for i := range longPassword {
+			longPassword[i] = 'a'
+		}
+
+		req := &authModel.RegisterRequest{
+			Email:    "test@example.com",
+			Password: string(longPassword),
+		}
+
+		resp, err := svc.Register(context.Background(), req)
+
+		assert.Nil(t, resp)
+		assert.Equal(t, userModel.ErrInvalidPassword, err)
+	})
+
+	t.Run("returns error when user create fails", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return nil, userModel.ErrUserNotFound
+			},
+			CreateFunc: func(ctx context.Context, user *userModel.User) error {
+				return errors.New("create error")
+			},
+		}
+
+		svc := createTestService(mockUserRepo, &MockRefreshTokenRepository{})
+
+		req := &authModel.RegisterRequest{
+			Email:    "test@example.com",
+			Password: "password123",
+		}
+
+		resp, err := svc.Register(context.Background(), req)
+
+		assert.Nil(t, resp)
+		assert.Error(t, err)
+	})
+
+	t.Run("subscription creator error propagates", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return nil, userModel.ErrUserNotFound
+			},
+			CreateFunc: func(ctx context.Context, user *userModel.User) error {
+				user.ID = "user-123"
+				return nil
+			},
+		}
+
+		mockSubCreator := &MockSubscriptionCreator{
+			EnsureFreeSubscriptionFunc: func(ctx context.Context, userID string) error {
+				return errors.New("sub error")
+			},
+		}
+
+		svc := NewAuthService(AuthServiceConfig{
+			UserRepo:            mockUserRepo,
+			TokenRepo:           &MockRefreshTokenRepository{},
+			VerificationRepo:    &MockEmailVerificationRepository{},
+			PasswordResetRepo:   &MockPasswordResetRepository{},
+			EmailSender:         &email.NoopSender{},
+			JWTManager:          createTestJWTManager(),
+			AccessExpiry:        15 * time.Minute,
+			RefreshExpiry:       7 * 24 * time.Hour,
+			SubscriptionCreator: mockSubCreator,
+		})
+
+		req := &authModel.RegisterRequest{
+			Email:    "test@example.com",
+			Password: "password123",
+		}
+
+		resp, err := svc.Register(context.Background(), req)
+
+		assert.Nil(t, resp)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "sub error")
+	})
+
+	t.Run("normalizes email to lowercase and sets name from email prefix", func(t *testing.T) {
+		var createdUser *userModel.User
+
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return nil, userModel.ErrUserNotFound
+			},
+			CreateFunc: func(ctx context.Context, user *userModel.User) error {
+				createdUser = user
+				user.ID = "user-123"
+				return nil
+			},
+		}
+
+		svc := createTestService(mockUserRepo, &MockRefreshTokenRepository{})
+
+		req := &authModel.RegisterRequest{
+			Email:    "MyName@Example.COM",
+			Password: "password123",
+		}
+
+		_, err := svc.Register(context.Background(), req)
+
+		require.NoError(t, err)
+		assert.Equal(t, "myname@example.com", createdUser.Email)
+		assert.Equal(t, "myname", createdUser.Name)
+	})
+}
+
+// MockSubscriptionCreator implements SubscriptionCreator
+type MockSubscriptionCreator struct {
+	EnsureFreeSubscriptionFunc func(ctx context.Context, userID string) error
+}
+
+func (m *MockSubscriptionCreator) EnsureFreeSubscription(ctx context.Context, userID string) error {
+	if m.EnsureFreeSubscriptionFunc != nil {
+		return m.EnsureFreeSubscriptionFunc(ctx, userID)
+	}
+	return nil
+}
+
+// --- Login additional edge cases ---
+
+func TestAuthService_Login_Additional(t *testing.T) {
+	t.Run("returns error when GetByEmail has non-UserNotFound error", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return nil, errors.New("db connection error")
+			},
+		}
+
+		svc := createTestService(mockUserRepo, &MockRefreshTokenRepository{})
+
+		req := &authModel.LoginRequest{
+			Email:    "test@example.com",
+			Password: "password123",
+		}
+
+		user, tokens, err := svc.Login(context.Background(), req)
+
+		assert.Nil(t, user)
+		assert.Nil(t, tokens)
+		assert.Error(t, err)
+		assert.Equal(t, "db connection error", err.Error())
+	})
+
+	t.Run("returns error when token generation fails", func(t *testing.T) {
+		passwordHash, _ := auth.HashPassword("password123")
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return &userModel.User{
+					ID:            "user-123",
+					Email:         email,
+					PasswordHash:  passwordHash,
+					EmailVerified: true,
+				}, nil
+			},
+		}
+
+		mockTokenRepo := &MockRefreshTokenRepository{
+			CreateFunc: func(ctx context.Context, token *authModel.RefreshToken) error {
+				return errors.New("token store error")
+			},
+		}
+
+		svc := createTestService(mockUserRepo, mockTokenRepo)
+
+		req := &authModel.LoginRequest{
+			Email:    "test@example.com",
+			Password: "password123",
+		}
+
+		user, tokens, err := svc.Login(context.Background(), req)
+
+		assert.Nil(t, user)
+		assert.Nil(t, tokens)
+		assert.Error(t, err)
+	})
+}
+
+// --- NewAuthService nil logger ---
+
+func TestNewAuthService_NilLogger(t *testing.T) {
+	svc := NewAuthService(AuthServiceConfig{
+		Logger: nil,
+	})
+
+	assert.NotNil(t, svc)
+	assert.NotNil(t, svc.logger)
+}

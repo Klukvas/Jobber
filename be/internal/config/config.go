@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 	"time"
@@ -258,17 +258,17 @@ func (c *RedisConfig) Addr() string {
 func loadPlansConfig(path string) map[string]PlanLimitsYAML {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		log.Printf("[config] plans config not found at %s, using hardcoded defaults", path)
+		slog.Info("plans config not found, using hardcoded defaults", "path", path)
 		return nil
 	}
 
 	var plans map[string]PlanLimitsYAML
 	if err := yaml.Unmarshal(data, &plans); err != nil {
-		log.Printf("[config] failed to parse plans config %s: %v — using hardcoded defaults", path, err)
+		slog.Warn("failed to parse plans config, using hardcoded defaults", "path", path, "error", err)
 		return nil
 	}
 
-	log.Printf("[config] loaded plan limits from %s (%d plans)", path, len(plans))
+	slog.Info("loaded plan limits from config", "path", path, "count", len(plans))
 	return plans
 }
 

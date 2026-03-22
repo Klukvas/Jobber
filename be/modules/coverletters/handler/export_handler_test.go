@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -238,6 +239,111 @@ func TestExportRegisterRoutes_DOCXRouteRegisteredWhenServiceSet(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// --- ExportPDF tests ---
+
+func TestExportPDF_Unauthorized(t *testing.T) {
+	repo := &mockCoverLetterRepo{}
+	svc := newExportTestService(repo)
+	handler := NewExportHandler(svc, nil)
+
+	router := setupExportTestRouter()
+	router.POST("/cover-letters/:id/export-pdf", handler.ExportPDF)
+
+	req, _ := http.NewRequest(http.MethodPost, "/cover-letters/cl-1/export-pdf", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+	errResp := parseHandlerErrorResponse(t, w)
+	assert.Equal(t, "UNAUTHORIZED", errResp.ErrorCode)
+}
+
+func TestExportPDF_NotFound(t *testing.T) {
+	repo := &mockCoverLetterRepo{
+		GetByIDFunc: func(_ context.Context, _ string) (*model.CoverLetter, error) {
+			return nil, model.ErrCoverLetterNotFound
+		},
+	}
+	svc := newExportTestService(repo)
+	handler := NewExportHandler(svc, nil)
+
+	router := setupExportTestRouter()
+	router.POST("/cover-letters/:id/export-pdf", exportMockAuthMiddleware("user-1"), handler.ExportPDF)
+
+	req, _ := http.NewRequest(http.MethodPost, "/cover-letters/nonexistent/export-pdf", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	errResp := parseHandlerErrorResponse(t, w)
+	assert.Equal(t, "COVER_LETTER_NOT_FOUND", errResp.ErrorCode)
+}
+
+func TestExportPDF_WrongOwner(t *testing.T) {
+	cl := newTestCoverLetterEntity() // UserID = "user-1"
+	repo := &mockCoverLetterRepo{
+		GetByIDFunc: func(_ context.Context, _ string) (*model.CoverLetter, error) {
+			return cl, nil
+		},
+	}
+	svc := newExportTestService(repo)
+	handler := NewExportHandler(svc, nil)
+
+	router := setupExportTestRouter()
+	router.POST("/cover-letters/:id/export-pdf", exportMockAuthMiddleware("user-2"), handler.ExportPDF)
+
+	req, _ := http.NewRequest(http.MethodPost, "/cover-letters/cl-1/export-pdf", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+// --- ExportHandler.handleError tests ---
+
+func TestExportHandleError_MapsAllCases(t *testing.T) {
+	tests := []struct {
+		name           string
+		err            error
+		expectedStatus int
+		expectedCode   string
+	}{
+		{
+			name:           "not found",
+			err:            model.ErrCoverLetterNotFound,
+			expectedStatus: http.StatusNotFound,
+			expectedCode:   "COVER_LETTER_NOT_FOUND",
+		},
+		{
+			name:           "not authorized",
+			err:            model.ErrNotAuthorized,
+			expectedStatus: http.StatusForbidden,
+			expectedCode:   "NOT_AUTHORIZED",
+		},
+		{
+			name:           "unknown error",
+			err:            errors.New("some error"),
+			expectedStatus: http.StatusInternalServerError,
+			expectedCode:   "INTERNAL_ERROR",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := &ExportHandler{}
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodPost, "/test", nil)
+
+			handler.handleError(c, tt.err)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+		})
+	}
 }
 
 func TestExportRegisterRoutes_DOCXRouteNotRegisteredWhenServiceNil(t *testing.T) {

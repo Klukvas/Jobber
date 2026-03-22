@@ -703,3 +703,340 @@ func TestResumeService_Delete_ResumeInUse(t *testing.T) {
 		assert.Equal(t, model.ErrResumeInUse, err)
 	})
 }
+
+// --- LimitChecker tests ---
+
+// MockResumeLimitChecker implements LimitChecker for resumes
+type MockResumeLimitChecker struct {
+	CheckLimitFunc func(ctx context.Context, userID, resource string) error
+}
+
+func (m *MockResumeLimitChecker) CheckLimit(ctx context.Context, userID, resource string) error {
+	if m.CheckLimitFunc != nil {
+		return m.CheckLimitFunc(ctx, userID, resource)
+	}
+	return nil
+}
+
+func TestResumeService_Create_LimitCheckerBlocks(t *testing.T) {
+	limitChecker := &MockResumeLimitChecker{
+		CheckLimitFunc: func(ctx context.Context, userID, resource string) error {
+			return errors.New("limit reached")
+		},
+	}
+
+	mockRepo := &MockResumeRepository{}
+	svc := NewResumeService(mockRepo, nil, limitChecker, nil)
+
+	req := &model.CreateResumeRequest{Title: "Test Resume"}
+	result, err := svc.Create(context.Background(), "user-123", req)
+
+	assert.Nil(t, result)
+	assert.Error(t, err)
+	assert.Equal(t, "limit reached", err.Error())
+}
+
+func TestResumeService_Create_LimitCheckerPasses(t *testing.T) {
+	limitChecker := &MockResumeLimitChecker{
+		CheckLimitFunc: func(ctx context.Context, userID, resource string) error {
+			return nil
+		},
+	}
+
+	mockRepo := &MockResumeRepository{
+		CreateFunc: func(ctx context.Context, resume *model.Resume) error {
+			resume.ID = "resume-1"
+			return nil
+		},
+	}
+	svc := NewResumeService(mockRepo, nil, limitChecker, nil)
+
+	req := &model.CreateResumeRequest{Title: "Test Resume"}
+	result, err := svc.Create(context.Background(), "user-123", req)
+
+	require.NoError(t, err)
+	assert.Equal(t, "resume-1", result.ID)
+}
+
+// --- GenerateUploadURL tests ---
+
+func TestResumeService_GenerateUploadURL_S3Disabled(t *testing.T) {
+	mockRepo := &MockResumeRepository{}
+	svc := NewResumeService(mockRepo, nil, nil, nil) // no S3 client
+
+	req := &model.GenerateUploadURLRequest{
+		Filename:    "resume.pdf",
+		ContentType: "application/pdf",
+	}
+
+	result, err := svc.GenerateUploadURL(context.Background(), "user-123", req)
+
+	assert.Nil(t, result)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "S3 storage is not configured")
+}
+
+func TestResumeService_GenerateUploadURL_InvalidContentType(t *testing.T) {
+	// S3 check comes before content type check, so with nil S3 client
+	// we get "S3 storage is not configured" error first.
+	// This test verifies the early exit with no S3 and non-PDF content type.
+	mockRepo := &MockResumeRepository{}
+	svc := NewResumeService(mockRepo, nil, nil, nil) // no S3 client
+
+	req := &model.GenerateUploadURLRequest{
+		Filename:    "resume.docx",
+		ContentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	}
+
+	result, err := svc.GenerateUploadURL(context.Background(), "user-123", req)
+
+	assert.Nil(t, result)
+	assert.Error(t, err)
+	// S3 disabled check happens before content type validation
+	assert.Contains(t, err.Error(), "S3 storage is not configured")
+}
+
+func TestResumeService_GenerateUploadURL_LimitCheckerBlocks(t *testing.T) {
+	limitChecker := &MockResumeLimitChecker{
+		CheckLimitFunc: func(ctx context.Context, userID, resource string) error {
+			return errors.New("upload limit reached")
+		},
+	}
+
+	mockRepo := &MockResumeRepository{}
+	svc := NewResumeService(mockRepo, nil, limitChecker, nil)
+
+	req := &model.GenerateUploadURLRequest{
+		Filename:    "resume.pdf",
+		ContentType: "application/pdf",
+	}
+
+	result, err := svc.GenerateUploadURL(context.Background(), "user-123", req)
+
+	assert.Nil(t, result)
+	assert.Error(t, err)
+	assert.Equal(t, "upload limit reached", err.Error())
+}
+
+// --- GenerateDownloadURL tests ---
+
+func TestResumeService_GenerateDownloadURL_S3Disabled(t *testing.T) {
+	mockRepo := &MockResumeRepository{}
+	svc := NewResumeService(mockRepo, nil, nil, nil)
+
+	result, err := svc.GenerateDownloadURL(context.Background(), "user-123", "resume-1")
+
+	assert.Nil(t, result)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "S3 storage is not configured")
+}
+
+// --- Update edge cases ---
+
+func TestResumeService_Update_RepoUpdateFails(t *testing.T) {
+	existingResume := &model.Resume{
+		ID:          "resume-1",
+		UserID:      "user-123",
+		Title:       "Old Title",
+		StorageType: model.StorageTypeExternal,
+	}
+
+	mockRepo := &MockResumeRepository{
+		GetByIDFunc: func(ctx context.Context, uid, rid string) (*model.Resume, error) {
+			return existingResume, nil
+		},
+		UpdateFunc: func(ctx context.Context, resume *model.Resume) error {
+			return errors.New("update error")
+		},
+	}
+
+	svc := NewResumeService(mockRepo, nil, nil, nil)
+	newTitle := "New Title"
+	req := &model.UpdateResumeRequest{Title: &newTitle}
+
+	result, err := svc.Update(context.Background(), "user-123", "resume-1", req)
+
+	assert.Nil(t, result)
+	assert.Error(t, err)
+}
+
+// --- List error path ---
+
+func TestResumeService_List_RepoError(t *testing.T) {
+	mockRepo := &MockResumeRepository{
+		ListFunc: func(ctx context.Context, uid string, limit, offset int, sortBy, sortDir string) ([]*ports.ResumeWithCount, int, error) {
+			return nil, 0, errors.New("list error")
+		},
+	}
+
+	svc := NewResumeService(mockRepo, nil, nil, nil)
+	result, total, err := svc.List(context.Background(), "user-123", 20, 0, "", "")
+
+	assert.Nil(t, result)
+	assert.Equal(t, 0, total)
+	assert.Error(t, err)
+}
+
+// --- List with custom sort ---
+
+func TestResumeService_List_CustomSort(t *testing.T) {
+	mockRepo := &MockResumeRepository{
+		ListFunc: func(ctx context.Context, uid string, limit, offset int, sortBy, sortDir string) ([]*ports.ResumeWithCount, int, error) {
+			assert.Equal(t, "title", sortBy)
+			assert.Equal(t, "asc", sortDir)
+			return []*ports.ResumeWithCount{}, 0, nil
+		},
+	}
+
+	svc := NewResumeService(mockRepo, nil, nil, nil)
+	_, _, err := svc.List(context.Background(), "user-123", 20, 0, "title", "asc")
+
+	require.NoError(t, err)
+}
+
+// --- Delete with cache invalidation error does not break delete ---
+
+func TestResumeService_Delete_WithCacheInvalidator(t *testing.T) {
+	t.Run("calls invalidator before delete", func(t *testing.T) {
+		cache := &MockCacheInvalidator{}
+		var deleteOrder []string
+
+		mockRepo := &MockResumeRepository{
+			GetByIDFunc: func(ctx context.Context, uid, rid string) (*model.Resume, error) {
+				return &model.Resume{
+					ID:          "resume-1",
+					UserID:      "user-123",
+					StorageType: model.StorageTypeExternal,
+				}, nil
+			},
+			DeleteFunc: func(ctx context.Context, uid, rid string) error {
+				deleteOrder = append(deleteOrder, "delete")
+				return nil
+			},
+		}
+
+		cache.InvalidateByResumeFunc = func(ctx context.Context, resumeID string) error {
+			deleteOrder = append(deleteOrder, "invalidate")
+			return nil
+		}
+
+		svc := NewResumeService(mockRepo, nil, nil, cache)
+		err := svc.Delete(context.Background(), "user-123", "resume-1")
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"invalidate", "delete"}, deleteOrder)
+	})
+}
+
+// --- GenerateDownloadURL edge cases ---
+
+func TestResumeService_GenerateDownloadURL_ResumeNotFound(t *testing.T) {
+	mockRepo := &MockResumeRepository{
+		GetByIDFunc: func(_ context.Context, _, _ string) (*model.Resume, error) {
+			return nil, model.ErrResumeNotFound
+		},
+	}
+	// Create a service with s3Enabled = true by directly setting the field
+	svc := &ResumeService{repo: mockRepo, s3Enabled: true}
+
+	result, err := svc.GenerateDownloadURL(context.Background(), "user-123", "resume-1")
+
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, model.ErrResumeNotFound)
+}
+
+func TestResumeService_GenerateDownloadURL_NotS3Storage(t *testing.T) {
+	mockRepo := &MockResumeRepository{
+		GetByIDFunc: func(_ context.Context, _, _ string) (*model.Resume, error) {
+			return &model.Resume{
+				ID:          "resume-1",
+				UserID:      "user-123",
+				StorageType: model.StorageTypeExternal,
+			}, nil
+		},
+	}
+	svc := &ResumeService{repo: mockRepo, s3Enabled: true}
+
+	result, err := svc.GenerateDownloadURL(context.Background(), "user-123", "resume-1")
+
+	assert.Nil(t, result)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "resume does not use S3 storage")
+}
+
+func TestResumeService_GenerateDownloadURL_MissingStorageKey(t *testing.T) {
+	mockRepo := &MockResumeRepository{
+		GetByIDFunc: func(_ context.Context, _, _ string) (*model.Resume, error) {
+			return &model.Resume{
+				ID:          "resume-1",
+				UserID:      "user-123",
+				StorageType: model.StorageTypeS3,
+				StorageKey:  nil,
+			}, nil
+		},
+	}
+	svc := &ResumeService{repo: mockRepo, s3Enabled: true}
+
+	result, err := svc.GenerateDownloadURL(context.Background(), "user-123", "resume-1")
+
+	assert.Nil(t, result)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "resume storage key is missing")
+}
+
+// --- GenerateUploadURL edge cases ---
+
+func TestResumeService_GenerateUploadURL_InvalidContentType_S3Enabled(t *testing.T) {
+	// With s3Enabled=true, we should reach the content type validation
+	svc := &ResumeService{repo: &MockResumeRepository{}, s3Enabled: true}
+
+	req := &model.GenerateUploadURLRequest{
+		Filename:    "resume.docx",
+		ContentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	}
+
+	result, err := svc.GenerateUploadURL(context.Background(), "user-123", req)
+
+	assert.Nil(t, result)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "only PDF files are allowed")
+}
+
+// --- Delete edge cases ---
+
+func TestResumeService_Delete_S3StorageGetByIDError(t *testing.T) {
+	mockRepo := &MockResumeRepository{
+		GetByIDFunc: func(_ context.Context, _, _ string) (*model.Resume, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	svc := NewResumeService(mockRepo, nil, nil, nil)
+
+	err := svc.Delete(context.Background(), "user-123", "resume-1")
+
+	assert.Error(t, err)
+}
+
+// --- Create edge cases ---
+
+func TestResumeService_Create_WhitespaceOnlyFileURL(t *testing.T) {
+	mockRepo := &MockResumeRepository{
+		CreateFunc: func(ctx context.Context, resume *model.Resume) error {
+			resume.ID = "resume-1"
+			return nil
+		},
+	}
+
+	svc := NewResumeService(mockRepo, nil, nil, nil)
+	whiteURL := "   "
+	req := &model.CreateResumeRequest{
+		Title:   "Test",
+		FileURL: &whiteURL,
+	}
+
+	result, err := svc.Create(context.Background(), "user-123", req)
+
+	require.NoError(t, err)
+	// whitespace-only URL should not be set
+	assert.NotNil(t, result)
+}

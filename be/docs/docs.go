@@ -23,6 +23,191 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/analytics/funnel": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get stage-based funnel metrics for the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "Get funnel analytics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.FunnelAnalytics"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/analytics/overview": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get high-level application statistics for the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "Get analytics overview",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.OverviewAnalytics"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/analytics/resumes": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get effectiveness metrics per resume for the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "Get resume effectiveness analytics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.ResumeAnalytics"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/analytics/sources": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get metrics grouped by job source for the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "Get source analytics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.SourceAnalytics"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/analytics/stages": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get timing metrics per stage for the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "Get stage time analytics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.StageTimeAnalytics"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/applications": {
             "get": {
                 "security": [
@@ -49,6 +234,24 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Number of items to skip (default: 0)",
                         "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort field: last_activity, status, applied_at (default: last_activity)",
+                        "name": "sort_by",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort direction: asc, desc (default: desc)",
+                        "name": "sort_dir",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status: active, on_hold, rejected, offer, archived",
+                        "name": "status",
                         "in": "query"
                     }
                 ],
@@ -323,6 +526,55 @@ const docTemplate = `{
                 }
             }
         },
+        "/applications/{id}/comments": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all comments for a specific application",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "comments"
+                ],
+                "summary": "List comments by application",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_comments_model.CommentDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/applications/{id}/stages": {
             "get": {
                 "security": [
@@ -446,6 +698,143 @@ const docTemplate = `{
                 }
             }
         },
+        "/applications/{id}/stages/{stageId}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete a specific stage from an application",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Delete an application stage",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Stage ID",
+                        "name": "stageId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Application or stage not found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update status and other fields of a specific stage",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Update an application stage",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Stage ID",
+                        "name": "stageId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Stage update details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.UpdateStageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.ApplicationStageDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Application or stage not found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/applications/{id}/stages/{stageId}/complete": {
             "patch": {
                 "security": [
@@ -522,6 +911,49 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/forgot-password": {
+            "post": {
+                "description": "Send a password reset code to the user's email",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Request password reset",
+                "parameters": [
+                    {
+                        "description": "Email address",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/modules_auth_handler.forgotPasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/login": {
             "post": {
                 "description": "Authenticate user and receive JWT tokens",
@@ -561,6 +993,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Invalid credentials",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Email not verified",
                         "schema": {
                             "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
                         }
@@ -668,7 +1106,7 @@ const docTemplate = `{
         },
         "/auth/register": {
             "post": {
-                "description": "Create a new user account with email and password",
+                "description": "Create a new user account with email and password. A verification email will be sent.",
                 "consumes": [
                     "application/json"
                 ],
@@ -691,10 +1129,10 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "201": {
-                        "description": "Created",
+                    "202": {
+                        "description": "Accepted",
                         "schema": {
-                            "$ref": "#/definitions/modules_auth_handler.RegisterResponse"
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_auth_service.RegisterResponse"
                         }
                     },
                     "400": {
@@ -718,6 +1156,259 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/resend-verification": {
+            "post": {
+                "description": "Resend the verification email to the user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Resend verification email",
+                "parameters": [
+                    {
+                        "description": "Email address",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/modules_auth_handler.resendVerificationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/reset-password": {
+            "post": {
+                "description": "Reset the user's password using the 6-digit code from the reset email",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Reset password",
+                "parameters": [
+                    {
+                        "description": "Email, reset code, and new password",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/modules_auth_handler.resetPasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Too many attempts",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/verify-email": {
+            "post": {
+                "description": "Verify a user's email address using the 6-digit code from the verification email",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Verify email address",
+                "parameters": [
+                    {
+                        "description": "Email and verification code",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/modules_auth_handler.verifyEmailRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Too many attempts",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/comments": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a comment for an application or a specific stage",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "comments"
+                ],
+                "summary": "Create a new comment",
+                "parameters": [
+                    {
+                        "description": "Comment details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_comments_model.CreateCommentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_comments_model.CommentDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/comments/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete a specific comment by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "comments"
+                ],
+                "summary": "Delete a comment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Comment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Comment not found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/companies": {
             "get": {
                 "security": [
@@ -725,7 +1416,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Get a paginated list of companies for the authenticated user",
+                "description": "Get a paginated list of companies for the authenticated user with enriched fields",
                 "produces": [
                     "application/json"
                 ],
@@ -744,6 +1435,18 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Number of items to skip (default: 0)",
                         "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort field: name, last_activity, applications_count (default: name)",
+                        "name": "sort_by",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort direction: asc, desc (default: asc)",
+                        "name": "sort_dir",
                         "in": "query"
                     }
                 ],
@@ -1018,6 +1721,116 @@ const docTemplate = `{
                 }
             }
         },
+        "/companies/{id}/favorite": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Toggle the favorite status of a specific company",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "Toggle company favorite status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Company ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Company not found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/companies/{id}/related-counts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get counts of jobs and applications related to a company for delete warning",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "Get related jobs and applications count",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Company ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Returns jobs_count and applications_count",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "integer"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Company not found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "description": "Check the health status of the application and its dependencies",
@@ -1045,7 +1858,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Get a paginated list of job postings for the authenticated user",
+                "description": "Get a paginated list of job postings for the authenticated user with filtering and sorting",
                 "produces": [
                     "application/json"
                 ],
@@ -1064,6 +1877,18 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Number of items to skip (default: 0)",
                         "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status: active, archived, all (default: active)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort format: field:order (e.g., created_at:desc, title:asc, company_name:asc)",
+                        "name": "sort",
                         "in": "query"
                     }
                 ],
@@ -1158,6 +1983,63 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/jobs/parse": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Extracts structured job data from raw page text using Claude AI",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "jobs"
+                ],
+                "summary": "Parse a job page using AI",
+                "parameters": [
+                    {
+                        "description": "Page text and URL",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_jobimport_model.ParseJobRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_jobimport_model.ParseJobResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
                         "schema": {
                             "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
                         }
@@ -1338,6 +2220,124 @@ const docTemplate = `{
                 }
             }
         },
+        "/jobs/{id}/favorite": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Toggle the favorite status of a specific job",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "jobs"
+                ],
+                "summary": "Toggle job favorite status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Job ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Job not found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/match-score": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Analyzes how well a resume matches a job posting using AI",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "match-score"
+                ],
+                "summary": "Check resume-job match score",
+                "parameters": [
+                    {
+                        "description": "Job ID and Resume ID",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_matchscore_model.MatchScoreRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_matchscore_model.MatchScoreResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/ping": {
             "get": {
                 "description": "Simple ping endpoint to check if the API is responding",
@@ -1465,6 +2465,63 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.ResumeDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/resumes/upload-url": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Generate a presigned URL for uploading a resume file to S3",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "resumes"
+                ],
+                "summary": "Generate presigned upload URL",
+                "parameters": [
+                    {
+                        "description": "Upload request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.GenerateUploadURLRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.GenerateUploadURLResponse"
                         }
                     },
                     "400": {
@@ -1632,6 +2689,64 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.ResumeDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Resume not found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/resumes/{id}/download": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Generate a presigned URL for downloading a resume file from S3",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "resumes"
+                ],
+                "summary": "Download resume file",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Resume ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.DownloadURLResponse"
                         }
                     },
                     "400": {
@@ -1964,12 +3079,163 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_andreypavlenko_jobber_modules_analytics_model.FunnelAnalytics": {
+            "type": "object",
+            "properties": {
+                "stages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.FunnelStage"
+                    }
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_analytics_model.FunnelStage": {
+            "type": "object",
+            "properties": {
+                "conversion_rate": {
+                    "type": "number"
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "drop_off_rate": {
+                    "type": "number"
+                },
+                "stage_name": {
+                    "type": "string"
+                },
+                "stage_order": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_analytics_model.OverviewAnalytics": {
+            "type": "object",
+            "properties": {
+                "active_applications": {
+                    "type": "integer"
+                },
+                "avg_days_to_first_response": {
+                    "type": "number"
+                },
+                "closed_applications": {
+                    "type": "integer"
+                },
+                "response_rate": {
+                    "type": "number"
+                },
+                "total_applications": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_analytics_model.ResumeAnalytics": {
+            "type": "object",
+            "properties": {
+                "resumes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.ResumeEffectiveness"
+                    }
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_analytics_model.ResumeEffectiveness": {
+            "type": "object",
+            "properties": {
+                "applications_count": {
+                    "type": "integer"
+                },
+                "interviews_count": {
+                    "type": "integer"
+                },
+                "response_rate": {
+                    "type": "number"
+                },
+                "responses_count": {
+                    "type": "integer"
+                },
+                "resume_id": {
+                    "type": "string"
+                },
+                "resume_title": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_analytics_model.SourceAnalytics": {
+            "type": "object",
+            "properties": {
+                "sources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.SourceMetrics"
+                    }
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_analytics_model.SourceMetrics": {
+            "type": "object",
+            "properties": {
+                "applications_count": {
+                    "type": "integer"
+                },
+                "conversion_rate": {
+                    "type": "number"
+                },
+                "responses_count": {
+                    "type": "integer"
+                },
+                "source_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_analytics_model.StageTimeAnalytics": {
+            "type": "object",
+            "properties": {
+                "stages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.StageTimeMetrics"
+                    }
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_analytics_model.StageTimeMetrics": {
+            "type": "object",
+            "properties": {
+                "applications_count": {
+                    "type": "integer"
+                },
+                "avg_days": {
+                    "type": "number"
+                },
+                "max_days": {
+                    "type": "number"
+                },
+                "min_days": {
+                    "type": "number"
+                },
+                "stage_name": {
+                    "type": "string"
+                },
+                "stage_order": {
+                    "type": "integer"
+                }
+            }
+        },
         "github_com_andreypavlenko_jobber_modules_applications_model.AddStageRequest": {
             "type": "object",
             "required": [
                 "stage_template_id"
             ],
             "properties": {
+                "comment": {
+                    "description": "Optional comment when adding a stage",
+                    "type": "string"
+                },
                 "stage_template_id": {
                     "type": "string"
                 }
@@ -1978,6 +3244,12 @@ const docTemplate = `{
         "github_com_andreypavlenko_jobber_modules_applications_model.ApplicationDTO": {
             "type": "object",
             "properties": {
+                "application_comments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_comments_model.CommentDTO"
+                    }
+                },
                 "applied_at": {
                     "type": "string"
                 },
@@ -1987,14 +3259,29 @@ const docTemplate = `{
                 "current_stage_id": {
                     "type": "string"
                 },
+                "current_stage_name": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
-                "job_id": {
+                "job": {
+                    "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.JobNestedDTO"
+                },
+                "last_activity_at": {
                     "type": "string"
                 },
-                "resume_id": {
+                "name": {
                     "type": "string"
+                },
+                "resume": {
+                    "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.ResumeNestedDTO"
+                },
+                "stage_comments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_comments_model.CommentDTO"
+                    }
                 },
                 "status": {
                     "type": "string"
@@ -2047,14 +3334,21 @@ const docTemplate = `{
         "github_com_andreypavlenko_jobber_modules_applications_model.CreateApplicationRequest": {
             "type": "object",
             "required": [
-                "job_id",
-                "resume_id"
+                "job_id"
             ],
             "properties": {
                 "applied_at": {
                     "type": "string"
                 },
                 "job_id": {
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Optional: auto-generated from job title if empty",
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "resume_builder_id": {
                     "type": "string"
                 },
                 "resume_id": {
@@ -2065,8 +3359,7 @@ const docTemplate = `{
         "github_com_andreypavlenko_jobber_modules_applications_model.CreateStageTemplateRequest": {
             "type": "object",
             "required": [
-                "name",
-                "order"
+                "name"
             ],
             "properties": {
                 "name": {
@@ -2077,6 +3370,35 @@ const docTemplate = `{
                 "order": {
                     "type": "integer",
                     "minimum": 0
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_applications_model.JobNestedDTO": {
+            "type": "object",
+            "properties": {
+                "company": {
+                    "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_companies_model.CompanyDTO"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_applications_model.ResumeNestedDTO": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "description": "\"uploaded\" or \"builder\"",
+                    "type": "string"
                 }
             }
         },
@@ -2102,6 +3424,24 @@ const docTemplate = `{
             "properties": {
                 "status": {
                     "type": "string"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_applications_model.UpdateStageRequest": {
+            "type": "object",
+            "properties": {
+                "completed_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "pending",
+                        "active",
+                        "completed",
+                        "skipped",
+                        "cancelled"
+                    ]
                 }
             }
         },
@@ -2161,7 +3501,6 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "email",
-                "name",
                 "password"
             ],
             "properties": {
@@ -2171,24 +3510,81 @@ const docTemplate = `{
                 "locale": {
                     "type": "string"
                 },
-                "name": {
-                    "type": "string",
-                    "maxLength": 255,
-                    "minLength": 2
-                },
                 "password": {
                     "type": "string",
                     "minLength": 8
                 }
             }
         },
-        "github_com_andreypavlenko_jobber_modules_companies_model.CompanyDTO": {
+        "github_com_andreypavlenko_jobber_modules_auth_service.RegisterResponse": {
             "type": "object",
             "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_comments_model.CommentDTO": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "string"
+                },
+                "content": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
                 "id": {
+                    "type": "string"
+                },
+                "stage_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_comments_model.CreateCommentRequest": {
+            "type": "object",
+            "required": [
+                "application_id",
+                "content"
+            ],
+            "properties": {
+                "application_id": {
+                    "type": "string"
+                },
+                "content": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "stage_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_companies_model.CompanyDTO": {
+            "type": "object",
+            "properties": {
+                "active_applications_count": {
+                    "type": "integer"
+                },
+                "applications_count": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "derived_status": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_favorite": {
+                    "type": "boolean"
+                },
+                "last_activity_at": {
                     "type": "string"
                 },
                 "location": {
@@ -2238,6 +3634,43 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_andreypavlenko_jobber_modules_jobimport_model.ParseJobRequest": {
+            "type": "object",
+            "required": [
+                "page_text",
+                "page_url"
+            ],
+            "properties": {
+                "page_text": {
+                    "type": "string",
+                    "maxLength": 50000,
+                    "minLength": 10
+                },
+                "page_url": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_jobimport_model.ParseJobResponse": {
+            "type": "object",
+            "properties": {
+                "company_name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_andreypavlenko_jobber_modules_jobs_model.CreateJobRequest": {
             "type": "object",
             "required": [
@@ -2245,6 +3678,9 @@ const docTemplate = `{
             ],
             "properties": {
                 "company_id": {
+                    "type": "string"
+                },
+                "description": {
                     "type": "string"
                 },
                 "notes": {
@@ -2266,19 +3702,34 @@ const docTemplate = `{
         "github_com_andreypavlenko_jobber_modules_jobs_model.JobDTO": {
             "type": "object",
             "properties": {
+                "applications_count": {
+                    "type": "integer"
+                },
                 "company_id": {
+                    "type": "string"
+                },
+                "company_name": {
                     "type": "string"
                 },
                 "created_at": {
                     "type": "string"
                 },
+                "description": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
+                },
+                "is_favorite": {
+                    "type": "boolean"
                 },
                 "notes": {
                     "type": "string"
                 },
                 "source": {
+                    "type": "string"
+                },
+                "status": {
                     "type": "string"
                 },
                 "title": {
@@ -2298,10 +3749,16 @@ const docTemplate = `{
                 "company_id": {
                     "type": "string"
                 },
+                "description": {
+                    "type": "string"
+                },
                 "notes": {
                     "type": "string"
                 },
                 "source": {
+                    "type": "string"
+                },
+                "status": {
                     "type": "string"
                 },
                 "title": {
@@ -2312,10 +3769,70 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_andreypavlenko_jobber_modules_matchscore_model.MatchScoreCategory": {
+            "type": "object",
+            "properties": {
+                "details": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_matchscore_model.MatchScoreRequest": {
+            "type": "object",
+            "required": [
+                "job_id",
+                "resume_id"
+            ],
+            "properties": {
+                "job_id": {
+                    "type": "string"
+                },
+                "resume_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_matchscore_model.MatchScoreResponse": {
+            "type": "object",
+            "properties": {
+                "categories": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_matchscore_model.MatchScoreCategory"
+                    }
+                },
+                "from_cache": {
+                    "type": "boolean"
+                },
+                "missing_keywords": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "overall_score": {
+                    "type": "integer"
+                },
+                "strengths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "summary": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_andreypavlenko_jobber_modules_resumes_model.CreateResumeRequest": {
             "type": "object",
             "required": [
-                "file_url",
                 "title"
             ],
             "properties": {
@@ -2332,9 +3849,55 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_andreypavlenko_jobber_modules_resumes_model.DownloadURLResponse": {
+            "type": "object",
+            "properties": {
+                "download_url": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_resumes_model.GenerateUploadURLRequest": {
+            "type": "object",
+            "required": [
+                "content_type",
+                "filename"
+            ],
+            "properties": {
+                "content_type": {
+                    "type": "string"
+                },
+                "filename": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_resumes_model.GenerateUploadURLResponse": {
+            "type": "object",
+            "properties": {
+                "expires_in": {
+                    "type": "integer"
+                },
+                "resume_id": {
+                    "type": "string"
+                },
+                "upload_url": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_andreypavlenko_jobber_modules_resumes_model.ResumeDTO": {
             "type": "object",
             "properties": {
+                "applications_count": {
+                    "type": "integer"
+                },
+                "can_delete": {
+                    "type": "boolean"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -2347,6 +3910,12 @@ const docTemplate = `{
                 "is_active": {
                     "type": "boolean"
                 },
+                "storage_key": {
+                    "type": "string"
+                },
+                "storage_type": {
+                    "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.StorageType"
+                },
                 "title": {
                     "type": "string"
                 },
@@ -2354,6 +3923,17 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "github_com_andreypavlenko_jobber_modules_resumes_model.StorageType": {
+            "type": "string",
+            "enum": [
+                "external",
+                "s3"
+            ],
+            "x-enum-varnames": [
+                "StorageTypeExternal",
+                "StorageTypeS3"
+            ]
         },
         "github_com_andreypavlenko_jobber_modules_resumes_model.UpdateResumeRequest": {
             "type": "object",
@@ -2400,14 +3980,61 @@ const docTemplate = `{
                 }
             }
         },
-        "modules_auth_handler.RegisterResponse": {
+        "modules_auth_handler.forgotPasswordRequest": {
             "type": "object",
+            "required": [
+                "email"
+            ],
             "properties": {
-                "tokens": {
-                    "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_auth_model.AuthTokens"
+                "email": {
+                    "type": "string"
+                }
+            }
+        },
+        "modules_auth_handler.resendVerificationRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                }
+            }
+        },
+        "modules_auth_handler.resetPasswordRequest": {
+            "type": "object",
+            "required": [
+                "code",
+                "email",
+                "password"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
                 },
-                "user": {
-                    "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_users_model.UserDTO"
+                "email": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string",
+                    "maxLength": 72,
+                    "minLength": 8
+                }
+            }
+        },
+        "modules_auth_handler.verifyEmailRequest": {
+            "type": "object",
+            "required": [
+                "code",
+                "email"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
                 }
             }
         }

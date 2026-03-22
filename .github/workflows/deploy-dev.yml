@@ -127,10 +127,25 @@ jobs:
         run: |
           echo "🧪 Running unit tests..."
           go test -v -race -coverprofile=coverage.out ./...
-          
+
           echo ""
           echo "📊 Coverage Summary:"
           go tool cover -func=coverage.out | tail -1
+
+      - name: Enforce coverage threshold
+        working-directory: ./be
+        run: |
+          THRESHOLD=40
+          COVERAGE=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}' | tr -d '%')
+          if [ -z "$COVERAGE" ]; then
+            echo "::error::Could not parse coverage from coverage.out"
+            exit 1
+          fi
+          echo "Total coverage: ${COVERAGE}% (threshold: ${THRESHOLD}%)"
+          if awk "BEGIN {exit !($COVERAGE < $THRESHOLD)}"; then
+            echo "::error::Coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
+            exit 1
+          fi
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -179,6 +194,12 @@ jobs:
         run: |
           echo "📝 Running TypeScript type check..."
           npx tsc --noEmit
+
+      - name: Run tests
+        working-directory: ./fe
+        run: |
+          echo "🧪 Running frontend tests..."
+          npx vitest run --reporter=verbose
 
       - name: Build frontend
         working-directory: ./fe

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/andreypavlenko/jobber/modules/resumes/model"
 	"github.com/andreypavlenko/jobber/modules/resumes/ports"
 	"github.com/andreypavlenko/jobber/modules/resumes/service"
+	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -378,6 +380,349 @@ func TestResumeHandler_Delete(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }
+
+// --- Mock limit checker ---
+
+type MockLimitChecker struct {
+	CheckLimitFunc func(ctx context.Context, userID, resource string) error
+}
+
+func (m *MockLimitChecker) CheckLimit(ctx context.Context, userID, resource string) error {
+	if m.CheckLimitFunc != nil {
+		return m.CheckLimitFunc(ctx, userID, resource)
+	}
+	return nil
+}
+
+// --- Create: plan limit and service error ---
+
+func TestResumeHandler_Create_PlanLimitReached(t *testing.T) {
+	userID := "user-123"
+	limiter := &MockLimitChecker{
+		CheckLimitFunc: func(_ context.Context, _, _ string) error {
+			return subModel.ErrLimitReached
+		},
+	}
+
+	svc := service.NewResumeService(&MockResumeRepository{}, nil, limiter, nil)
+	handler := NewResumeHandler(svc)
+
+	router := setupTestRouter()
+	router.POST("/resumes", mockAuthMiddleware(userID), handler.Create)
+
+	body := `{"title":"Resume"}`
+	req, _ := http.NewRequest(http.MethodPost, "/resumes", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestResumeHandler_Create_ServiceError(t *testing.T) {
+	userID := "user-123"
+	mockRepo := &MockResumeRepository{
+		CreateFunc: func(_ context.Context, _ *model.Resume) error {
+			return errors.New("db error")
+		},
+	}
+
+	svc := service.NewResumeService(mockRepo, nil, nil, nil)
+	handler := NewResumeHandler(svc)
+
+	router := setupTestRouter()
+	router.POST("/resumes", mockAuthMiddleware(userID), handler.Create)
+
+	body := `{"title":"Resume"}`
+	req, _ := http.NewRequest(http.MethodPost, "/resumes", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+// --- Get: 401 ---
+
+func TestResumeHandler_Get_Unauthorized(t *testing.T) {
+	svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
+	handler := NewResumeHandler(svc)
+
+	router := setupTestRouter()
+	router.GET("/resumes/:id", handler.Get)
+
+	req, _ := http.NewRequest(http.MethodGet, "/resumes/resume-1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// --- Get: internal error ---
+
+func TestResumeHandler_Get_InternalError(t *testing.T) {
+	userID := "user-123"
+	mockRepo := &MockResumeRepository{
+		GetByIDFunc: func(_ context.Context, _, _ string) (*model.Resume, error) {
+			return nil, errors.New("db error")
+		},
+	}
+
+	svc := service.NewResumeService(mockRepo, nil, nil, nil)
+	handler := NewResumeHandler(svc)
+
+	router := setupTestRouter()
+	router.GET("/resumes/:id", mockAuthMiddleware(userID), handler.Get)
+
+	req, _ := http.NewRequest(http.MethodGet, "/resumes/resume-1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+// --- List: 401, error, bad pagination ---
+
+func TestResumeHandler_List_Unauthorized(t *testing.T) {
+	svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
+	handler := NewResumeHandler(svc)
+
+	router := setupTestRouter()
+	router.GET("/resumes", handler.List)
+
+	req, _ := http.NewRequest(http.MethodGet, "/resumes", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestResumeHandler_List_ServiceError(t *testing.T) {
+	userID := "user-123"
+	mockRepo := &MockResumeRepository{
+		ListFunc: func(_ context.Context, _ string, _, _ int, _, _ string) ([]*ports.ResumeWithCount, int, error) {
+			return nil, 0, errors.New("db error")
+		},
+	}
+
+	svc := service.NewResumeService(mockRepo, nil, nil, nil)
+	handler := NewResumeHandler(svc)
+
+	router := setupTestRouter()
+	router.GET("/resumes", mockAuthMiddleware(userID), handler.List)
+
+	req, _ := http.NewRequest(http.MethodGet, "/resumes?limit=20&offset=0", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestResumeHandler_List_InvalidPagination(t *testing.T) {
+	userID := "user-123"
+
+	svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
+	handler := NewResumeHandler(svc)
+
+	router := setupTestRouter()
+	router.GET("/resumes", mockAuthMiddleware(userID), handler.List)
+
+	req, _ := http.NewRequest(http.MethodGet, "/resumes?limit=abc", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// --- Update: 401, bad JSON ---
+
+func TestResumeHandler_Update_Unauthorized(t *testing.T) {
+	svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
+	handler := NewResumeHandler(svc)
+
+	router := setupTestRouter()
+	router.PATCH("/resumes/:id", handler.Update)
+
+	body := `{"title":"New"}`
+	req, _ := http.NewRequest(http.MethodPatch, "/resumes/resume-1", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestResumeHandler_Update_InvalidJSON(t *testing.T) {
+	userID := "user-123"
+
+	svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
+	handler := NewResumeHandler(svc)
+
+	router := setupTestRouter()
+	router.PATCH("/resumes/:id", mockAuthMiddleware(userID), handler.Update)
+
+	req, _ := http.NewRequest(http.MethodPatch, "/resumes/resume-1", bytes.NewBufferString("bad"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// --- Delete: 401 ---
+
+func TestResumeHandler_Delete_Unauthorized(t *testing.T) {
+	svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
+	handler := NewResumeHandler(svc)
+
+	router := setupTestRouter()
+	router.DELETE("/resumes/:id", handler.Delete)
+
+	req, _ := http.NewRequest(http.MethodDelete, "/resumes/resume-1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// --- GenerateUploadURL tests ---
+
+func TestResumeHandler_GenerateUploadURL(t *testing.T) {
+	t.Run("returns 401 when not authenticated", func(t *testing.T) {
+		svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
+		handler := NewResumeHandler(svc)
+
+		router := setupTestRouter()
+		router.POST("/resumes/upload-url", handler.GenerateUploadURL)
+
+		body := `{"filename":"resume.pdf","content_type":"application/pdf"}`
+		req, _ := http.NewRequest(http.MethodPost, "/resumes/upload-url", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+
+	t.Run("returns 400 for invalid request", func(t *testing.T) {
+		userID := "user-123"
+		svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
+		handler := NewResumeHandler(svc)
+
+		router := setupTestRouter()
+		router.POST("/resumes/upload-url", mockAuthMiddleware(userID), handler.GenerateUploadURL)
+
+		req, _ := http.NewRequest(http.MethodPost, "/resumes/upload-url", bytes.NewBufferString("bad"))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("returns 403 when plan limit reached", func(t *testing.T) {
+		userID := "user-123"
+		limiter := &MockLimitChecker{
+			CheckLimitFunc: func(_ context.Context, _, _ string) error {
+				return subModel.ErrLimitReached
+			},
+		}
+
+		svc := service.NewResumeService(&MockResumeRepository{}, nil, limiter, nil)
+		handler := NewResumeHandler(svc)
+
+		router := setupTestRouter()
+		router.POST("/resumes/upload-url", mockAuthMiddleware(userID), handler.GenerateUploadURL)
+
+		body := `{"filename":"resume.pdf","content_type":"application/pdf"}`
+		req, _ := http.NewRequest(http.MethodPost, "/resumes/upload-url", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("returns 500 when S3 client is nil", func(t *testing.T) {
+		userID := "user-123"
+		svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
+		handler := NewResumeHandler(svc)
+
+		router := setupTestRouter()
+		router.POST("/resumes/upload-url", mockAuthMiddleware(userID), handler.GenerateUploadURL)
+
+		body := `{"filename":"resume.pdf","content_type":"application/pdf"}`
+		req, _ := http.NewRequest(http.MethodPost, "/resumes/upload-url", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+}
+
+// --- DownloadResume tests ---
+
+func TestResumeHandler_DownloadResume(t *testing.T) {
+	t.Run("returns 401 when not authenticated", func(t *testing.T) {
+		svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
+		handler := NewResumeHandler(svc)
+
+		router := setupTestRouter()
+		router.GET("/resumes/:id/download", handler.DownloadResume)
+
+		req, _ := http.NewRequest(http.MethodGet, "/resumes/resume-1/download", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+
+	t.Run("returns 500 when S3 not configured", func(t *testing.T) {
+		userID := "user-123"
+
+		svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
+		handler := NewResumeHandler(svc)
+
+		router := setupTestRouter()
+		router.GET("/resumes/:id/download", mockAuthMiddleware(userID), handler.DownloadResume)
+
+		req, _ := http.NewRequest(http.MethodGet, "/resumes/nonexistent/download", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("returns 500 when S3 client is nil", func(t *testing.T) {
+		userID := "user-123"
+		mockRepo := &MockResumeRepository{
+			GetByIDFunc: func(_ context.Context, _, _ string) (*model.Resume, error) {
+				return &model.Resume{
+					ID:          "resume-1",
+					UserID:      userID,
+					Title:       "Resume",
+					StorageType: model.StorageTypeS3,
+					FileURL:     strPtr("s3://bucket/file.pdf"),
+				}, nil
+			},
+		}
+
+		svc := service.NewResumeService(mockRepo, nil, nil, nil)
+		handler := NewResumeHandler(svc)
+
+		router := setupTestRouter()
+		router.GET("/resumes/:id/download", mockAuthMiddleware(userID), handler.DownloadResume)
+
+		req, _ := http.NewRequest(http.MethodGet, "/resumes/resume-1/download", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+}
+
+func strPtr(s string) *string { return &s }
 
 func TestResumeHandler_RegisterRoutes(t *testing.T) {
 	mockRepo := &MockResumeRepository{

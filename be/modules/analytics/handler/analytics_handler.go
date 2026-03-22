@@ -5,6 +5,7 @@ import (
 
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
+	_ "github.com/andreypavlenko/jobber/modules/analytics/model" // swag: OverviewAnalytics
 	"github.com/andreypavlenko/jobber/modules/analytics/service"
 	"github.com/gin-gonic/gin"
 )

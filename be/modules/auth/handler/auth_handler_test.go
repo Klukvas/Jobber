@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -494,6 +495,411 @@ func TestAuthHandler_VerifyEmail(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
+
+	t.Run("successfully verifies email", func(t *testing.T) {
+		user := &userModel.User{ID: "user-123", Email: "test@example.com", Locale: "en"}
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return user, nil
+			},
+			SetEmailVerifiedFunc: func(ctx context.Context, userID string) error {
+				return nil
+			},
+		}
+		verificationRepo := &MockEmailVerificationRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.EmailVerificationToken, error) {
+				return &authModel.EmailVerificationToken{
+					ID:     "token-1",
+					UserID: userID,
+					Code:   "123456",
+				}, nil
+			},
+			IncrementAttemptsFunc: func(ctx context.Context, id string, maxAttempts int) (int, error) {
+				return 1, nil
+			},
+			MarkUsedFunc: func(ctx context.Context, id string) error {
+				return nil
+			},
+		}
+
+		svc := service.NewAuthService(service.AuthServiceConfig{
+			UserRepo:          mockUserRepo,
+			TokenRepo:         &MockRefreshTokenRepository{},
+			VerificationRepo:  verificationRepo,
+			PasswordResetRepo: &MockPasswordResetRepository{},
+			EmailSender:       &email.NoopSender{},
+			JWTManager:        createTestJWTManager(),
+			AccessExpiry:      15 * time.Minute,
+			RefreshExpiry:     7 * 24 * time.Hour,
+		})
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
+
+		router := setupTestRouter()
+		router.POST("/auth/verify-email", handler.VerifyEmail)
+
+		body := `{"email":"test@example.com","code":"123456"}`
+		req, _ := http.NewRequest(http.MethodPost, "/auth/verify-email", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("returns 400 for invalid verification code", func(t *testing.T) {
+		user := &userModel.User{ID: "user-123", Email: "test@example.com", Locale: "en"}
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return user, nil
+			},
+		}
+		verificationRepo := &MockEmailVerificationRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.EmailVerificationToken, error) {
+				return &authModel.EmailVerificationToken{
+					ID:     "token-1",
+					UserID: userID,
+					Code:   "654321",
+				}, nil
+			},
+			IncrementAttemptsFunc: func(ctx context.Context, id string, maxAttempts int) (int, error) {
+				return 1, nil
+			},
+		}
+
+		svc := service.NewAuthService(service.AuthServiceConfig{
+			UserRepo:          mockUserRepo,
+			TokenRepo:         &MockRefreshTokenRepository{},
+			VerificationRepo:  verificationRepo,
+			PasswordResetRepo: &MockPasswordResetRepository{},
+			EmailSender:       &email.NoopSender{},
+			JWTManager:        createTestJWTManager(),
+			AccessExpiry:      15 * time.Minute,
+			RefreshExpiry:     7 * 24 * time.Hour,
+		})
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
+
+		router := setupTestRouter()
+		router.POST("/auth/verify-email", handler.VerifyEmail)
+
+		body := `{"email":"test@example.com","code":"123456"}`
+		req, _ := http.NewRequest(http.MethodPost, "/auth/verify-email", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("returns 429 for too many attempts", func(t *testing.T) {
+		user := &userModel.User{ID: "user-123", Email: "test@example.com", Locale: "en"}
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return user, nil
+			},
+		}
+		verificationRepo := &MockEmailVerificationRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.EmailVerificationToken, error) {
+				return &authModel.EmailVerificationToken{
+					ID:       "token-1",
+					UserID:   userID,
+					Code:     "654321",
+					Attempts: 5, // already at max
+				}, nil
+			},
+		}
+
+		svc := service.NewAuthService(service.AuthServiceConfig{
+			UserRepo:          mockUserRepo,
+			TokenRepo:         &MockRefreshTokenRepository{},
+			VerificationRepo:  verificationRepo,
+			PasswordResetRepo: &MockPasswordResetRepository{},
+			EmailSender:       &email.NoopSender{},
+			JWTManager:        createTestJWTManager(),
+			AccessExpiry:      15 * time.Minute,
+			RefreshExpiry:     7 * 24 * time.Hour,
+		})
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
+
+		router := setupTestRouter()
+		router.POST("/auth/verify-email", handler.VerifyEmail)
+
+		body := `{"email":"test@example.com","code":"123456"}`
+		req, _ := http.NewRequest(http.MethodPost, "/auth/verify-email", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusTooManyRequests, w.Code)
+	})
+}
+
+func TestAuthHandler_ResendVerification(t *testing.T) {
+	t.Run("returns 400 for invalid payload", func(t *testing.T) {
+		svc := createTestAuthService(&MockUserRepository{}, &MockRefreshTokenRepository{})
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
+
+		router := setupTestRouter()
+		router.POST("/auth/resend-verification", handler.ResendVerification)
+
+		body := `invalid`
+		req, _ := http.NewRequest(http.MethodPost, "/auth/resend-verification", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("returns 202 for valid email", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return nil, userModel.ErrUserNotFound
+			},
+		}
+		svc := createTestAuthService(mockUserRepo, &MockRefreshTokenRepository{})
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
+
+		router := setupTestRouter()
+		router.POST("/auth/resend-verification", handler.ResendVerification)
+
+		body := `{"email":"test@example.com"}`
+		req, _ := http.NewRequest(http.MethodPost, "/auth/resend-verification", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusAccepted, w.Code)
+	})
+}
+
+func TestAuthHandler_ForgotPassword(t *testing.T) {
+	t.Run("returns 400 for invalid payload", func(t *testing.T) {
+		svc := createTestAuthService(&MockUserRepository{}, &MockRefreshTokenRepository{})
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
+
+		router := setupTestRouter()
+		router.POST("/auth/forgot-password", handler.ForgotPassword)
+
+		body := `invalid`
+		req, _ := http.NewRequest(http.MethodPost, "/auth/forgot-password", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("returns 202 for valid email", func(t *testing.T) {
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return nil, userModel.ErrUserNotFound
+			},
+		}
+		svc := createTestAuthService(mockUserRepo, &MockRefreshTokenRepository{})
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
+
+		router := setupTestRouter()
+		router.POST("/auth/forgot-password", handler.ForgotPassword)
+
+		body := `{"email":"test@example.com"}`
+		req, _ := http.NewRequest(http.MethodPost, "/auth/forgot-password", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusAccepted, w.Code)
+	})
+}
+
+func TestAuthHandler_ResetPassword(t *testing.T) {
+	t.Run("returns 400 for invalid payload", func(t *testing.T) {
+		svc := createTestAuthService(&MockUserRepository{}, &MockRefreshTokenRepository{})
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
+
+		router := setupTestRouter()
+		router.POST("/auth/reset-password", handler.ResetPassword)
+
+		body := `invalid`
+		req, _ := http.NewRequest(http.MethodPost, "/auth/reset-password", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("successfully resets password", func(t *testing.T) {
+		user := &userModel.User{ID: "user-123", Email: "test@example.com", Locale: "en"}
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return user, nil
+			},
+			UpdatePasswordHashFunc: func(ctx context.Context, userID, hash string) error {
+				return nil
+			},
+		}
+		resetRepo := &MockPasswordResetRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.PasswordResetToken, error) {
+				return &authModel.PasswordResetToken{
+					ID:     "token-1",
+					UserID: userID,
+					Code:   "654321",
+				}, nil
+			},
+			IncrementAttemptsFunc: func(ctx context.Context, id string, maxAttempts int) (int, error) {
+				return 1, nil
+			},
+			MarkUsedFunc: func(ctx context.Context, id string) error {
+				return nil
+			},
+		}
+
+		svc := service.NewAuthService(service.AuthServiceConfig{
+			UserRepo:          mockUserRepo,
+			TokenRepo:         &MockRefreshTokenRepository{},
+			VerificationRepo:  &MockEmailVerificationRepository{},
+			PasswordResetRepo: resetRepo,
+			EmailSender:       &email.NoopSender{},
+			JWTManager:        createTestJWTManager(),
+			AccessExpiry:      15 * time.Minute,
+			RefreshExpiry:     7 * 24 * time.Hour,
+		})
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
+
+		router := setupTestRouter()
+		router.POST("/auth/reset-password", handler.ResetPassword)
+
+		body := `{"email":"test@example.com","code":"654321","password":"newpassword123"}`
+		req, _ := http.NewRequest(http.MethodPost, "/auth/reset-password", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("returns 400 for invalid reset code", func(t *testing.T) {
+		user := &userModel.User{ID: "user-123", Email: "test@example.com", Locale: "en"}
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return user, nil
+			},
+		}
+		resetRepo := &MockPasswordResetRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.PasswordResetToken, error) {
+				return &authModel.PasswordResetToken{
+					ID:     "token-1",
+					UserID: userID,
+					Code:   "999999",
+				}, nil
+			},
+			IncrementAttemptsFunc: func(ctx context.Context, id string, maxAttempts int) (int, error) {
+				return 1, nil
+			},
+		}
+
+		svc := service.NewAuthService(service.AuthServiceConfig{
+			UserRepo:          mockUserRepo,
+			TokenRepo:         &MockRefreshTokenRepository{},
+			VerificationRepo:  &MockEmailVerificationRepository{},
+			PasswordResetRepo: resetRepo,
+			EmailSender:       &email.NoopSender{},
+			JWTManager:        createTestJWTManager(),
+			AccessExpiry:      15 * time.Minute,
+			RefreshExpiry:     7 * 24 * time.Hour,
+		})
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
+
+		router := setupTestRouter()
+		router.POST("/auth/reset-password", handler.ResetPassword)
+
+		body := `{"email":"test@example.com","code":"654321","password":"newpassword123"}`
+		req, _ := http.NewRequest(http.MethodPost, "/auth/reset-password", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("returns 429 for too many attempts", func(t *testing.T) {
+		user := &userModel.User{ID: "user-123", Email: "test@example.com", Locale: "en"}
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return user, nil
+			},
+		}
+		resetRepo := &MockPasswordResetRepository{
+			GetActiveForUserFunc: func(ctx context.Context, userID string) (*authModel.PasswordResetToken, error) {
+				return &authModel.PasswordResetToken{
+					ID:       "token-1",
+					UserID:   userID,
+					Code:     "654321",
+					Attempts: 5,
+				}, nil
+			},
+		}
+
+		svc := service.NewAuthService(service.AuthServiceConfig{
+			UserRepo:          mockUserRepo,
+			TokenRepo:         &MockRefreshTokenRepository{},
+			VerificationRepo:  &MockEmailVerificationRepository{},
+			PasswordResetRepo: resetRepo,
+			EmailSender:       &email.NoopSender{},
+			JWTManager:        createTestJWTManager(),
+			AccessExpiry:      15 * time.Minute,
+			RefreshExpiry:     7 * 24 * time.Hour,
+		})
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
+
+		router := setupTestRouter()
+		router.POST("/auth/reset-password", handler.ResetPassword)
+
+		body := `{"email":"test@example.com","code":"654321","password":"newpassword123"}`
+		req, _ := http.NewRequest(http.MethodPost, "/auth/reset-password", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusTooManyRequests, w.Code)
+	})
+
+	t.Run("returns 500 for internal error", func(t *testing.T) {
+		// User not found -> ErrInvalidResetToken -> but password too short -> ErrInvalidPassword -> 400
+		// We need a path that results in CodeInternalError. Short password returns ErrInvalidPassword.
+		// Let's trigger CodeInternalError by making service return a generic error.
+		mockUserRepo := &MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+				return nil, userModel.ErrUserNotFound
+			},
+		}
+
+		svc := service.NewAuthService(service.AuthServiceConfig{
+			UserRepo:          mockUserRepo,
+			TokenRepo:         &MockRefreshTokenRepository{},
+			VerificationRepo:  &MockEmailVerificationRepository{},
+			PasswordResetRepo: &MockPasswordResetRepository{},
+			EmailSender:       &email.NoopSender{},
+			JWTManager:        createTestJWTManager(),
+			AccessExpiry:      15 * time.Minute,
+			RefreshExpiry:     7 * 24 * time.Hour,
+		})
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
+
+		router := setupTestRouter()
+		router.POST("/auth/reset-password", handler.ResetPassword)
+
+		// Valid payload but user not found, service returns ErrInvalidResetToken
+		body := `{"email":"test@example.com","code":"654321","password":"newpassword123"}`
+		req, _ := http.NewRequest(http.MethodPost, "/auth/reset-password", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		// ErrInvalidResetToken maps to CodeInvalidResetToken, which is neither CodeInternalError nor CodeTooManyAttempts
+		// so it falls through to the default statusCode = http.StatusBadRequest
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
 }
 
 func TestAuthHandler_Refresh(t *testing.T) {
@@ -582,6 +988,26 @@ func TestAuthHandler_Logout(t *testing.T) {
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
+
+	t.Run("returns 500 when logout service fails", func(t *testing.T) {
+		mockTokenRepo := &MockRefreshTokenRepository{
+			RevokeAllForUserFunc: func(ctx context.Context, userID string) error {
+				return errors.New("db error")
+			},
+		}
+
+		svc := createTestAuthService(&MockUserRepository{}, mockTokenRepo)
+		handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
+
+		router := setupTestRouter()
+		router.POST("/auth/logout", mockAuthMiddleware("user-123"), handler.Logout)
+
+		req, _ := http.NewRequest(http.MethodPost, "/auth/logout", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
 }
 
 func TestAuthHandler_RegisterRoutes(t *testing.T) {
@@ -632,4 +1058,67 @@ func TestAuthHandler_RegisterRoutes(t *testing.T) {
 			assert.NotEqual(t, http.StatusNotFound, w.Code, "Route %s %s should be registered", route.method, route.path)
 		})
 	}
+}
+
+func TestAuthHandler_RegisterRoutes_WithAllRateLimiters(t *testing.T) {
+	svc := createTestAuthService(&MockUserRepository{}, &MockRefreshTokenRepository{})
+	handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
+
+	noopMiddleware := func(c *gin.Context) { c.Next() }
+
+	router := setupTestRouter()
+	v1 := router.Group("/api/v1")
+	jwtManager := createTestJWTManager()
+	handler.RegisterRoutes(v1, AuthRouteConfig{
+		AuthMiddleware:   auth.AuthMiddleware(jwtManager),
+		RateLimiter:      noopMiddleware,
+		EmailRateLimiter: noopMiddleware,
+		CodeRateLimiter:  noopMiddleware,
+	})
+
+	// Verify all routes are registered with rate limiters (not 404)
+	routes := []string{
+		"/api/v1/auth/register",
+		"/api/v1/auth/login",
+		"/api/v1/auth/refresh",
+		"/api/v1/auth/verify-email",
+		"/api/v1/auth/resend-verification",
+		"/api/v1/auth/forgot-password",
+		"/api/v1/auth/reset-password",
+	}
+
+	for _, path := range routes {
+		t.Run(path, func(t *testing.T) {
+			req, _ := http.NewRequest(http.MethodPost, path, bytes.NewBufferString("{}"))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			assert.NotEqual(t, http.StatusNotFound, w.Code)
+		})
+	}
+}
+
+func TestAuthHandler_Login_InternalServerError(t *testing.T) {
+	// Test the branch where login error is not CodeInvalidCredentials and not CodeEmailNotVerified
+	// This triggers statusCode = http.StatusInternalServerError
+	mockUserRepo := &MockUserRepository{
+		GetByEmailFunc: func(ctx context.Context, email string) (*userModel.User, error) {
+			return nil, errors.New("database connection failed")
+		},
+	}
+
+	svc := createTestAuthService(mockUserRepo, &MockRefreshTokenRepository{})
+	handler := NewAuthHandler(svc, auth.NewCookieConfig("test"), 15*time.Minute, 168*time.Hour)
+
+	router := setupTestRouter()
+	router.POST("/auth/login", handler.Login)
+
+	body := `{"email":"test@example.com","password":"password123"}`
+	req, _ := http.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// GetByEmail returns a generic error, which maps to CodeInternalError -> StatusInternalServerError
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }

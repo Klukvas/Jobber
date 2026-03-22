@@ -390,6 +390,341 @@ func TestDelete_Success(t *testing.T) {
 
 // --- handleError tests ---
 
+// --- Missing coverage: auth, validation, error paths for CRUD ---
+
+func TestCreate_Unauthorized(t *testing.T) {
+	handler := NewCoverLetterHandler(newHandlerTestService(&mockCoverLetterRepo{}))
+	router := setupTestRouter()
+	router.POST("/cover-letters", handler.Create) // no auth
+
+	body, _ := json.Marshal(model.CreateCoverLetterRequest{Title: "X"})
+	req, _ := http.NewRequest(http.MethodPost, "/cover-letters", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestCreate_InvalidJSON(t *testing.T) {
+	handler := NewCoverLetterHandler(newHandlerTestService(&mockCoverLetterRepo{}))
+	router := setupTestRouter()
+	router.POST("/cover-letters", mockAuthMiddleware("user-1"), handler.Create)
+
+	req, _ := http.NewRequest(http.MethodPost, "/cover-letters", bytes.NewBufferString("bad"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCreate_PlanLimitReached(t *testing.T) {
+	lc := &mockLimitChecker{
+		CheckLimitFunc: func(_ context.Context, _, _ string) error {
+			return subModel.ErrLimitReached
+		},
+	}
+	handler := NewCoverLetterHandler(newHandlerTestServiceWithLimit(&mockCoverLetterRepo{}, lc))
+	router := setupTestRouter()
+	router.POST("/cover-letters", mockAuthMiddleware("user-1"), handler.Create)
+
+	body, _ := json.Marshal(model.CreateCoverLetterRequest{Title: "X"})
+	req, _ := http.NewRequest(http.MethodPost, "/cover-letters", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestCreate_ServiceError(t *testing.T) {
+	repo := &mockCoverLetterRepo{
+		CreateFunc: func(_ context.Context, cl *model.CoverLetter) (*model.CoverLetter, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	handler := NewCoverLetterHandler(newHandlerTestService(repo))
+	router := setupTestRouter()
+	router.POST("/cover-letters", mockAuthMiddleware("user-1"), handler.Create)
+
+	body, _ := json.Marshal(model.CreateCoverLetterRequest{Title: "X"})
+	req, _ := http.NewRequest(http.MethodPost, "/cover-letters", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestList_Unauthorized(t *testing.T) {
+	handler := NewCoverLetterHandler(newHandlerTestService(&mockCoverLetterRepo{}))
+	router := setupTestRouter()
+	router.GET("/cover-letters", handler.List) // no auth
+
+	req, _ := http.NewRequest(http.MethodGet, "/cover-letters", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestList_ServiceError(t *testing.T) {
+	repo := &mockCoverLetterRepo{
+		ListFunc: func(_ context.Context, _ string) ([]*model.CoverLetter, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	handler := NewCoverLetterHandler(newHandlerTestService(repo))
+	router := setupTestRouter()
+	router.GET("/cover-letters", mockAuthMiddleware("user-1"), handler.List)
+
+	req, _ := http.NewRequest(http.MethodGet, "/cover-letters", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestGet_Unauthorized(t *testing.T) {
+	handler := NewCoverLetterHandler(newHandlerTestService(&mockCoverLetterRepo{}))
+	router := setupTestRouter()
+	router.GET("/cover-letters/:id", handler.Get)
+
+	req, _ := http.NewRequest(http.MethodGet, "/cover-letters/cl-1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestGet_NotFound(t *testing.T) {
+	repo := &mockCoverLetterRepo{
+		GetByIDFunc: func(_ context.Context, _ string) (*model.CoverLetter, error) {
+			return nil, model.ErrCoverLetterNotFound
+		},
+	}
+	handler := NewCoverLetterHandler(newHandlerTestService(repo))
+	router := setupTestRouter()
+	router.GET("/cover-letters/:id", mockAuthMiddleware("user-1"), handler.Get)
+
+	req, _ := http.NewRequest(http.MethodGet, "/cover-letters/nonexistent", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestGet_WrongOwner(t *testing.T) {
+	cl := newTestCoverLetterEntity() // UserID = "user-1"
+	repo := &mockCoverLetterRepo{
+		GetByIDFunc: func(_ context.Context, _ string) (*model.CoverLetter, error) {
+			return cl, nil
+		},
+	}
+	handler := NewCoverLetterHandler(newHandlerTestService(repo))
+	router := setupTestRouter()
+	router.GET("/cover-letters/:id", mockAuthMiddleware("user-2"), handler.Get) // different user
+
+	req, _ := http.NewRequest(http.MethodGet, "/cover-letters/cl-1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestUpdate_Unauthorized(t *testing.T) {
+	handler := NewCoverLetterHandler(newHandlerTestService(&mockCoverLetterRepo{}))
+	router := setupTestRouter()
+	router.PATCH("/cover-letters/:id", handler.Update)
+
+	newTitle := "X"
+	body, _ := json.Marshal(model.UpdateCoverLetterRequest{Title: &newTitle})
+	req, _ := http.NewRequest(http.MethodPatch, "/cover-letters/cl-1", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestUpdate_InvalidJSON(t *testing.T) {
+	handler := NewCoverLetterHandler(newHandlerTestService(&mockCoverLetterRepo{}))
+	router := setupTestRouter()
+	router.PATCH("/cover-letters/:id", mockAuthMiddleware("user-1"), handler.Update)
+
+	req, _ := http.NewRequest(http.MethodPatch, "/cover-letters/cl-1", bytes.NewBufferString("bad"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestUpdate_NotFound(t *testing.T) {
+	repo := &mockCoverLetterRepo{
+		GetByIDFunc: func(_ context.Context, _ string) (*model.CoverLetter, error) {
+			return nil, model.ErrCoverLetterNotFound
+		},
+	}
+	handler := NewCoverLetterHandler(newHandlerTestService(repo))
+	router := setupTestRouter()
+	router.PATCH("/cover-letters/:id", mockAuthMiddleware("user-1"), handler.Update)
+
+	newTitle := "X"
+	body, _ := json.Marshal(model.UpdateCoverLetterRequest{Title: &newTitle})
+	req, _ := http.NewRequest(http.MethodPatch, "/cover-letters/cl-1", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestDelete_Unauthorized(t *testing.T) {
+	handler := NewCoverLetterHandler(newHandlerTestService(&mockCoverLetterRepo{}))
+	router := setupTestRouter()
+	router.DELETE("/cover-letters/:id", handler.Delete)
+
+	req, _ := http.NewRequest(http.MethodDelete, "/cover-letters/cl-1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestDelete_NotFound(t *testing.T) {
+	repo := &mockCoverLetterRepo{
+		GetByIDFunc: func(_ context.Context, _ string) (*model.CoverLetter, error) {
+			return nil, model.ErrCoverLetterNotFound
+		},
+	}
+	handler := NewCoverLetterHandler(newHandlerTestService(repo))
+	router := setupTestRouter()
+	router.DELETE("/cover-letters/:id", mockAuthMiddleware("user-1"), handler.Delete)
+
+	req, _ := http.NewRequest(http.MethodDelete, "/cover-letters/nonexistent", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestDelete_WrongOwner(t *testing.T) {
+	cl := newTestCoverLetterEntity()
+	repo := &mockCoverLetterRepo{
+		GetByIDFunc: func(_ context.Context, _ string) (*model.CoverLetter, error) {
+			return cl, nil
+		},
+	}
+	handler := NewCoverLetterHandler(newHandlerTestService(repo))
+	router := setupTestRouter()
+	router.DELETE("/cover-letters/:id", mockAuthMiddleware("user-2"), handler.Delete)
+
+	req, _ := http.NewRequest(http.MethodDelete, "/cover-letters/cl-1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+// --- handleError: cover ErrInvalidFont and ErrInvalidFontSize ---
+
+// --- RegisterRoutes ---
+
+func TestCoverLetterHandler_RegisterRoutes(t *testing.T) {
+	repo := &mockCoverLetterRepo{
+		CreateFunc: func(_ context.Context, cl *model.CoverLetter) (*model.CoverLetter, error) {
+			cl.ID = "new-cl-1"
+			cl.CreatedAt = time.Now()
+			cl.UpdatedAt = time.Now()
+			return cl, nil
+		},
+		GetByIDFunc: func(_ context.Context, _ string) (*model.CoverLetter, error) {
+			return newTestCoverLetterEntity(), nil
+		},
+		ListFunc: func(_ context.Context, _ string) ([]*model.CoverLetter, error) {
+			return []*model.CoverLetter{}, nil
+		},
+		DeleteFunc: func(_ context.Context, _ string) error {
+			return nil
+		},
+	}
+	svc := newHandlerTestService(repo)
+	handler := NewCoverLetterHandler(svc)
+
+	router := setupTestRouter()
+	v1 := router.Group("/api/v1")
+	handler.RegisterRoutes(v1, mockAuthMiddleware("user-1"))
+
+	routes := []struct {
+		method string
+		path   string
+		body   string
+	}{
+		{http.MethodPost, "/api/v1/cover-letters", `{"title":"Test"}`},
+		{http.MethodGet, "/api/v1/cover-letters", ""},
+		{http.MethodGet, "/api/v1/cover-letters/cl-1", ""},
+		{http.MethodDelete, "/api/v1/cover-letters/cl-1", ""},
+	}
+
+	for _, route := range routes {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			var body *bytes.Buffer
+			if route.body != "" {
+				body = bytes.NewBufferString(route.body)
+			} else {
+				body = bytes.NewBuffer(nil)
+			}
+			req, _ := http.NewRequest(route.method, route.path, body)
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.NotEqual(t, http.StatusNotFound, w.Code, "Route %s %s should be registered", route.method, route.path)
+		})
+	}
+}
+
+func TestHandleError_InvalidFont(t *testing.T) {
+	handler := &CoverLetterHandler{}
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/test", nil)
+
+	handler.handleError(c, model.ErrInvalidFont)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	errResp := parseHandlerErrorResponse(t, w)
+	assert.Equal(t, "VALIDATION_ERROR", errResp.ErrorCode)
+}
+
+func TestHandleError_InvalidFontSize(t *testing.T) {
+	handler := &CoverLetterHandler{}
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/test", nil)
+
+	handler.handleError(c, model.ErrInvalidFontSize)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	errResp := parseHandlerErrorResponse(t, w)
+	assert.Equal(t, "VALIDATION_ERROR", errResp.ErrorCode)
+}
+
+func TestHandleError_InvalidColor(t *testing.T) {
+	handler := &CoverLetterHandler{}
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/test", nil)
+
+	handler.handleError(c, model.ErrInvalidColor)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	errResp := parseHandlerErrorResponse(t, w)
+	assert.Equal(t, "VALIDATION_ERROR", errResp.ErrorCode)
+}
+
 func TestHandleError_MapsErrorCodesToStatusCodes(t *testing.T) {
 	tests := []struct {
 		name           string

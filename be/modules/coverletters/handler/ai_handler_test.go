@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -612,6 +613,96 @@ func TestAIHandler_Generate(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "PLAN_LIMIT_REACHED", resp.ErrorCode)
+	})
+
+	t.Run("returns 400 for invalid JSON", func(t *testing.T) {
+		handler := newTestCoverLetterAIHandler(
+			&mockAICoverLetterRepo{},
+			&mockAIResumeBuilderRepo{},
+			&mockCoverLetterAIClient{},
+			&mockAILimitChecker{},
+		)
+		router := setupTestRouter()
+		router.POST("/cover-letters/ai/generate", mockAuthMiddleware(userID), handler.Generate)
+
+		req, _ := http.NewRequest(http.MethodPost, "/cover-letters/ai/generate", bytes.NewBufferString("bad"))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var resp aiErrorResponse
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Equal(t, "VALIDATION_ERROR", resp.ErrorCode)
+	})
+
+	t.Run("returns 403 when not authorized", func(t *testing.T) {
+		clRepo := &mockAICoverLetterRepo{
+			GetByIDFunc: func(_ context.Context, id string) (*clModel.CoverLetter, error) {
+				return &clModel.CoverLetter{
+					ID:     id,
+					UserID: "different-user", // different user
+				}, nil
+			},
+		}
+
+		handler := newTestCoverLetterAIHandler(
+			clRepo,
+			&mockAIResumeBuilderRepo{},
+			&mockCoverLetterAIClient{},
+			&mockAILimitChecker{},
+		)
+		router := setupTestRouter()
+		router.POST("/cover-letters/ai/generate", mockAuthMiddleware(userID), handler.Generate)
+
+		body := `{"cover_letter_id":"` + validCoverLetterID + `"}`
+		req, _ := http.NewRequest(http.MethodPost, "/cover-letters/ai/generate", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+
+		var resp aiErrorResponse
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Equal(t, "NOT_AUTHORIZED", resp.ErrorCode)
+	})
+
+	t.Run("returns 500 on internal AI error", func(t *testing.T) {
+		clRepo := &mockAICoverLetterRepo{
+			GetByIDFunc: func(_ context.Context, id string) (*clModel.CoverLetter, error) {
+				return &clModel.CoverLetter{
+					ID:     id,
+					UserID: userID,
+				}, nil
+			},
+		}
+
+		aiClient := &mockCoverLetterAIClient{
+			GenerateCoverLetterFunc: func(_ context.Context, _, _, _, _, _ string) (*ai.CoverLetterContent, error) {
+				return nil, errors.New("AI service unavailable")
+			},
+		}
+
+		handler := newTestCoverLetterAIHandler(clRepo, &mockAIResumeBuilderRepo{}, aiClient, &mockAILimitChecker{})
+		router := setupTestRouter()
+		router.POST("/cover-letters/ai/generate", mockAuthMiddleware(userID), handler.Generate)
+
+		body := `{"cover_letter_id":"` + validCoverLetterID + `"}`
+		req, _ := http.NewRequest(http.MethodPost, "/cover-letters/ai/generate", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+		var resp aiErrorResponse
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		assert.Equal(t, "INTERNAL_ERROR", resp.ErrorCode)
 	})
 
 	t.Run("returns 404 when cover letter not found", func(t *testing.T) {

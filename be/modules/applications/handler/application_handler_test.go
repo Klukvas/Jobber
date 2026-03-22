@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	jobModel "github.com/andreypavlenko/jobber/modules/jobs/model"
 	resumeModel "github.com/andreypavlenko/jobber/modules/resumes/model"
 	resumePorts "github.com/andreypavlenko/jobber/modules/resumes/ports"
+	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1009,6 +1011,578 @@ func TestApplicationHandler_DeleteStageTemplate(t *testing.T) {
 		// Handler returns 500 for unhandled errors - error mapping may vary
 		assert.NotEqual(t, http.StatusOK, w.Code)
 	})
+}
+
+// --- Mock limit checker ---
+
+type MockLimitChecker struct {
+	CheckLimitFunc func(ctx context.Context, userID, resource string) error
+}
+
+func (m *MockLimitChecker) CheckLimit(ctx context.Context, userID, resource string) error {
+	if m.CheckLimitFunc != nil {
+		return m.CheckLimitFunc(ctx, userID, resource)
+	}
+	return nil
+}
+
+// --- Create: plan limit, both_resume_types, service error ---
+
+func TestApplicationHandler_Create_PlanLimitReached(t *testing.T) {
+	userID := "user-123"
+	limiter := &MockLimitChecker{
+		CheckLimitFunc: func(_ context.Context, _, _ string) error {
+			return subModel.ErrLimitReached
+		},
+	}
+
+	appRepo := &MockApplicationRepository{}
+	svc := service.NewApplicationService(nil, appRepo, &MockStageRepository{}, &MockTemplateRepository{}, &MockJobRepository{}, &MockCompanyRepository{}, &MockResumeRepository{}, nil, &MockCommentRepository{}, nil, limiter)
+	handler := NewApplicationHandler(svc)
+
+	router := setupTestRouter()
+	router.POST("/applications", mockAuthMiddleware(userID), handler.Create)
+
+	body := `{"job_id":"job-1","resume_id":"resume-1"}`
+	req, _ := http.NewRequest(http.MethodPost, "/applications", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestApplicationHandler_Create_BothResumeTypesSet(t *testing.T) {
+	userID := "user-123"
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.POST("/applications", mockAuthMiddleware(userID), handler.Create)
+
+	body := `{"job_id":"job-1","resume_id":"resume-1","resume_builder_id":"rb-1"}`
+	req, _ := http.NewRequest(http.MethodPost, "/applications", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestApplicationHandler_Create_ServiceError(t *testing.T) {
+	userID := "user-123"
+	handler, appRepo, _, _, jobRepo, resumeRepo, _ := createTestHandler()
+
+	jobRepo.GetByIDFunc = func(_ context.Context, _, _ string) (*jobModel.Job, error) {
+		return &jobModel.Job{ID: "job-1", Title: "Eng"}, nil
+	}
+	resumeRepo.GetByIDFunc = func(_ context.Context, _, _ string) (*resumeModel.Resume, error) {
+		return &resumeModel.Resume{ID: "resume-1", Title: "Res"}, nil
+	}
+	appRepo.CreateFunc = func(_ context.Context, _ *model.Application) error {
+		return errors.New("db error")
+	}
+
+	router := setupTestRouter()
+	router.POST("/applications", mockAuthMiddleware(userID), handler.Create)
+
+	body := `{"job_id":"job-1","resume_id":"resume-1"}`
+	req, _ := http.NewRequest(http.MethodPost, "/applications", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+// --- List: 401, invalid pagination, invalid status, service error ---
+
+func TestApplicationHandler_List_Unauthorized(t *testing.T) {
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.GET("/applications", handler.List)
+
+	req, _ := http.NewRequest(http.MethodGet, "/applications", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestApplicationHandler_List_InvalidPagination(t *testing.T) {
+	userID := "user-123"
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.GET("/applications", mockAuthMiddleware(userID), handler.List)
+
+	req, _ := http.NewRequest(http.MethodGet, "/applications?limit=abc", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestApplicationHandler_List_InvalidStatus(t *testing.T) {
+	userID := "user-123"
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.GET("/applications", mockAuthMiddleware(userID), handler.List)
+
+	req, _ := http.NewRequest(http.MethodGet, "/applications?limit=20&offset=0&status=bogus", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestApplicationHandler_List_ServiceError(t *testing.T) {
+	userID := "user-123"
+	handler, appRepo, _, _, _, _, _ := createTestHandler()
+
+	appRepo.ListEnrichedFunc = func(_ context.Context, _ string, _ *ports.ListOptions) ([]*model.ApplicationDTO, int, error) {
+		return nil, 0, errors.New("db error")
+	}
+
+	router := setupTestRouter()
+	router.GET("/applications", mockAuthMiddleware(userID), handler.List)
+
+	req, _ := http.NewRequest(http.MethodGet, "/applications?limit=20&offset=0", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+// --- Update: 401, invalid JSON ---
+
+func TestApplicationHandler_Update_Unauthorized(t *testing.T) {
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.PATCH("/applications/:id", handler.Update)
+
+	body := `{"status":"offer"}`
+	req, _ := http.NewRequest(http.MethodPatch, "/applications/app-1", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestApplicationHandler_Update_InvalidJSON(t *testing.T) {
+	userID := "user-123"
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.PATCH("/applications/:id", mockAuthMiddleware(userID), handler.Update)
+
+	req, _ := http.NewRequest(http.MethodPatch, "/applications/app-1", bytes.NewBufferString("bad"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// --- AddStage: 401, invalid JSON, 404 app not found ---
+
+func TestApplicationHandler_AddStage_Unauthorized(t *testing.T) {
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.POST("/applications/:id/stages", handler.AddStage)
+
+	body := `{"stage_template_id":"template-1"}`
+	req, _ := http.NewRequest(http.MethodPost, "/applications/app-1/stages", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestApplicationHandler_AddStage_InvalidJSON(t *testing.T) {
+	userID := "user-123"
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.POST("/applications/:id/stages", mockAuthMiddleware(userID), handler.AddStage)
+
+	req, _ := http.NewRequest(http.MethodPost, "/applications/app-1/stages", bytes.NewBufferString("bad"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestApplicationHandler_AddStage_AppNotFound(t *testing.T) {
+	userID := "user-123"
+	handler, appRepo, _, _, _, _, _ := createTestHandler()
+
+	appRepo.GetByIDFunc = func(_ context.Context, _, _ string) (*model.Application, error) {
+		return nil, model.ErrApplicationNotFound
+	}
+
+	router := setupTestRouter()
+	router.POST("/applications/:id/stages", mockAuthMiddleware(userID), handler.AddStage)
+
+	body := `{"stage_template_id":"template-1"}`
+	req, _ := http.NewRequest(http.MethodPost, "/applications/nonexistent/stages", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// --- UpdateStage: 401, invalid JSON, invalid status ---
+
+func TestApplicationHandler_UpdateStage_Unauthorized(t *testing.T) {
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.PATCH("/applications/:id/stages/:stageId", handler.UpdateStage)
+
+	body := `{"status":"completed"}`
+	req, _ := http.NewRequest(http.MethodPatch, "/applications/app-1/stages/stage-1", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestApplicationHandler_UpdateStage_InvalidJSON(t *testing.T) {
+	userID := "user-123"
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.PATCH("/applications/:id/stages/:stageId", mockAuthMiddleware(userID), handler.UpdateStage)
+
+	req, _ := http.NewRequest(http.MethodPatch, "/applications/app-1/stages/stage-1", bytes.NewBufferString("bad"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// --- CompleteStage: 401, 404 ---
+
+func TestApplicationHandler_CompleteStage_Unauthorized(t *testing.T) {
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.PATCH("/applications/:id/stages/:stageId/complete", handler.CompleteStage)
+
+	req, _ := http.NewRequest(http.MethodPatch, "/applications/app-1/stages/stage-1/complete", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestApplicationHandler_CompleteStage_AppNotFound(t *testing.T) {
+	userID := "user-123"
+	handler, appRepo, _, _, _, _, _ := createTestHandler()
+
+	appRepo.GetByIDFunc = func(_ context.Context, _, _ string) (*model.Application, error) {
+		return nil, model.ErrApplicationNotFound
+	}
+
+	router := setupTestRouter()
+	router.PATCH("/applications/:id/stages/:stageId/complete", mockAuthMiddleware(userID), handler.CompleteStage)
+
+	req, _ := http.NewRequest(http.MethodPatch, "/applications/app-1/stages/stage-1/complete", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestApplicationHandler_CompleteStage_StageNotFound(t *testing.T) {
+	userID := "user-123"
+	handler, appRepo, stageRepo, _, _, _, _ := createTestHandler()
+
+	appRepo.GetByIDFunc = func(_ context.Context, _, _ string) (*model.Application, error) {
+		return &model.Application{ID: "app-1", UserID: userID}, nil
+	}
+	stageRepo.GetByIDFunc = func(_ context.Context, _ string) (*model.ApplicationStage, error) {
+		return nil, model.ErrApplicationStageNotFound
+	}
+
+	router := setupTestRouter()
+	router.PATCH("/applications/:id/stages/:stageId/complete", mockAuthMiddleware(userID), handler.CompleteStage)
+
+	req, _ := http.NewRequest(http.MethodPatch, "/applications/app-1/stages/nonexistent/complete", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// --- ListStages: 401, 404 ---
+
+func TestApplicationHandler_ListStages_Unauthorized(t *testing.T) {
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.GET("/applications/:id/stages", handler.ListStages)
+
+	req, _ := http.NewRequest(http.MethodGet, "/applications/app-1/stages", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestApplicationHandler_ListStages_AppNotFound(t *testing.T) {
+	userID := "user-123"
+	handler, appRepo, _, _, _, _, _ := createTestHandler()
+
+	appRepo.GetByIDFunc = func(_ context.Context, _, _ string) (*model.Application, error) {
+		return nil, model.ErrApplicationNotFound
+	}
+
+	router := setupTestRouter()
+	router.GET("/applications/:id/stages", mockAuthMiddleware(userID), handler.ListStages)
+
+	req, _ := http.NewRequest(http.MethodGet, "/applications/nonexistent/stages", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// --- DeleteStage: 401, 404 ---
+
+func TestApplicationHandler_DeleteStage_Unauthorized(t *testing.T) {
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.DELETE("/applications/:id/stages/:stageId", handler.DeleteStage)
+
+	req, _ := http.NewRequest(http.MethodDelete, "/applications/app-1/stages/stage-1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestApplicationHandler_DeleteStage_AppNotFound(t *testing.T) {
+	userID := "user-123"
+	handler, appRepo, _, _, _, _, _ := createTestHandler()
+
+	appRepo.GetByIDFunc = func(_ context.Context, _, _ string) (*model.Application, error) {
+		return nil, model.ErrApplicationNotFound
+	}
+
+	router := setupTestRouter()
+	router.DELETE("/applications/:id/stages/:stageId", mockAuthMiddleware(userID), handler.DeleteStage)
+
+	req, _ := http.NewRequest(http.MethodDelete, "/applications/nonexistent/stages/stage-1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// --- CreateStageTemplate: 401, invalid JSON, service error ---
+
+func TestApplicationHandler_CreateStageTemplate_Unauthorized(t *testing.T) {
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.POST("/stage-templates", handler.CreateStageTemplate)
+
+	body := `{"name":"Phone Screen","order":1}`
+	req, _ := http.NewRequest(http.MethodPost, "/stage-templates", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestApplicationHandler_CreateStageTemplate_InvalidJSON(t *testing.T) {
+	userID := "user-123"
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.POST("/stage-templates", mockAuthMiddleware(userID), handler.CreateStageTemplate)
+
+	req, _ := http.NewRequest(http.MethodPost, "/stage-templates", bytes.NewBufferString("bad"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestApplicationHandler_CreateStageTemplate_ServiceError(t *testing.T) {
+	userID := "user-123"
+	handler, _, _, templateRepo, _, _, _ := createTestHandler()
+
+	templateRepo.CreateFunc = func(_ context.Context, _ *model.StageTemplate) error {
+		return errors.New("db error")
+	}
+
+	router := setupTestRouter()
+	router.POST("/stage-templates", mockAuthMiddleware(userID), handler.CreateStageTemplate)
+
+	body := `{"name":"Phone Screen","order":1}`
+	req, _ := http.NewRequest(http.MethodPost, "/stage-templates", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+// --- ListStageTemplates: 401, invalid pagination, service error ---
+
+func TestApplicationHandler_ListStageTemplates_Unauthorized(t *testing.T) {
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.GET("/stage-templates", handler.ListStageTemplates)
+
+	req, _ := http.NewRequest(http.MethodGet, "/stage-templates", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestApplicationHandler_ListStageTemplates_InvalidPagination(t *testing.T) {
+	userID := "user-123"
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.GET("/stage-templates", mockAuthMiddleware(userID), handler.ListStageTemplates)
+
+	req, _ := http.NewRequest(http.MethodGet, "/stage-templates?limit=abc", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestApplicationHandler_ListStageTemplates_ServiceError(t *testing.T) {
+	userID := "user-123"
+	handler, _, _, templateRepo, _, _, _ := createTestHandler()
+
+	templateRepo.ListFunc = func(_ context.Context, _ string, _, _ int) ([]*model.StageTemplate, int, error) {
+		return nil, 0, errors.New("db error")
+	}
+
+	router := setupTestRouter()
+	router.GET("/stage-templates", mockAuthMiddleware(userID), handler.ListStageTemplates)
+
+	req, _ := http.NewRequest(http.MethodGet, "/stage-templates?limit=20&offset=0", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+// --- UpdateStageTemplate: 401, invalid JSON, name required ---
+
+func TestApplicationHandler_UpdateStageTemplate_Unauthorized(t *testing.T) {
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.PATCH("/stage-templates/:templateId", handler.UpdateStageTemplate)
+
+	body := `{"name":"X"}`
+	req, _ := http.NewRequest(http.MethodPatch, "/stage-templates/template-1", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestApplicationHandler_UpdateStageTemplate_InvalidJSON(t *testing.T) {
+	userID := "user-123"
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.PATCH("/stage-templates/:templateId", mockAuthMiddleware(userID), handler.UpdateStageTemplate)
+
+	req, _ := http.NewRequest(http.MethodPatch, "/stage-templates/template-1", bytes.NewBufferString("bad"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// --- DeleteStageTemplate: 401, in use ---
+
+func TestApplicationHandler_DeleteStageTemplate_Unauthorized(t *testing.T) {
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.DELETE("/stage-templates/:templateId", handler.DeleteStageTemplate)
+
+	req, _ := http.NewRequest(http.MethodDelete, "/stage-templates/template-1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestApplicationHandler_DeleteStageTemplate_InUse(t *testing.T) {
+	userID := "user-123"
+	handler, _, _, templateRepo, _, _, _ := createTestHandler()
+
+	templateRepo.DeleteFunc = func(_ context.Context, _, _ string) error {
+		return model.ErrStageTemplateInUse
+	}
+
+	router := setupTestRouter()
+	router.DELETE("/stage-templates/:templateId", mockAuthMiddleware(userID), handler.DeleteStageTemplate)
+
+	req, _ := http.NewRequest(http.MethodDelete, "/stage-templates/template-1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+}
+
+// --- Delete: 401 ---
+
+func TestApplicationHandler_Delete_Unauthorized(t *testing.T) {
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.DELETE("/applications/:id", handler.Delete)
+
+	req, _ := http.NewRequest(http.MethodDelete, "/applications/app-1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// --- Get: 401 ---
+
+func TestApplicationHandler_Get_Unauthorized(t *testing.T) {
+	handler, _, _, _, _, _, _ := createTestHandler()
+
+	router := setupTestRouter()
+	router.GET("/applications/:id", handler.Get)
+
+	req, _ := http.NewRequest(http.MethodGet, "/applications/app-1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestApplicationHandler_RegisterRoutes(t *testing.T) {

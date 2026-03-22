@@ -606,7 +606,7 @@ func main() {
 // @Description Check the health status of the application and its dependencies
 // @Tags system
 // @Produce json
-// @Success 200 {object} http.HealthResponse
+// @Success 200 {object} httpPlatform.HealthResponse
 // @Router /health [get]
 func healthCheckHandler(ctx context.Context, pgClient *postgres.Client, redisClient *redis.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {

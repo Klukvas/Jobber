@@ -599,6 +599,221 @@ func TestJobService_Delete_CacheInvalidation(t *testing.T) {
 	})
 }
 
+// MockLimitChecker implements LimitChecker for testing
+type MockLimitChecker struct {
+	CheckLimitFunc func(ctx context.Context, userID, resource string) error
+}
+
+func (m *MockLimitChecker) CheckLimit(ctx context.Context, userID, resource string) error {
+	if m.CheckLimitFunc != nil {
+		return m.CheckLimitFunc(ctx, userID, resource)
+	}
+	return nil
+}
+
+func TestJobService_Create_LimitChecker(t *testing.T) {
+	t.Run("returns error when limit reached", func(t *testing.T) {
+		lc := &MockLimitChecker{
+			CheckLimitFunc: func(_ context.Context, _, _ string) error {
+				return errors.New("limit reached")
+			},
+		}
+		mockRepo := &MockJobRepository{}
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, lc, nil)
+
+		result, err := svc.Create(context.Background(), "user-123", &model.CreateJobRequest{Title: "Test"})
+
+		assert.Nil(t, result)
+		assert.Error(t, err)
+		assert.Equal(t, "limit reached", err.Error())
+	})
+
+	t.Run("passes when limit checker allows", func(t *testing.T) {
+		lc := &MockLimitChecker{
+			CheckLimitFunc: func(_ context.Context, _, resource string) error {
+				assert.Equal(t, "jobs", resource)
+				return nil
+			},
+		}
+		mockRepo := &MockJobRepository{
+			CreateFunc: func(_ context.Context, job *model.Job) error {
+				job.ID = "job-1"
+				return nil
+			},
+		}
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, lc, nil)
+
+		result, err := svc.Create(context.Background(), "user-123", &model.CreateJobRequest{Title: "Test"})
+
+		require.NoError(t, err)
+		assert.Equal(t, "job-1", result.ID)
+	})
+}
+
+func TestJobService_Create_CompanyValidation(t *testing.T) {
+	t.Run("returns error when company not found", func(t *testing.T) {
+		companyID := "company-invalid"
+		companyRepo := &MockCompanyRepository{
+			GetByIDFunc: func(_ context.Context, _, _ string) (*companyModel.Company, error) {
+				return nil, errors.New("company not found")
+			},
+		}
+		mockRepo := &MockJobRepository{}
+		svc := NewJobService(mockRepo, companyRepo, nil, nil)
+
+		result, err := svc.Create(context.Background(), "user-123", &model.CreateJobRequest{
+			Title:     "Test",
+			CompanyID: &companyID,
+		})
+
+		assert.Nil(t, result)
+		assert.ErrorIs(t, err, model.ErrCompanyNotFound)
+	})
+
+	t.Run("skips company validation when empty company ID", func(t *testing.T) {
+		emptyCompanyID := ""
+		mockRepo := &MockJobRepository{
+			CreateFunc: func(_ context.Context, job *model.Job) error {
+				job.ID = "job-1"
+				return nil
+			},
+		}
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+
+		result, err := svc.Create(context.Background(), "user-123", &model.CreateJobRequest{
+			Title:     "Test",
+			CompanyID: &emptyCompanyID,
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, "job-1", result.ID)
+	})
+}
+
+func TestJobService_Update_CompanyValidation(t *testing.T) {
+	userID := "user-123"
+	jobID := "job-1"
+
+	t.Run("returns error when new company not found", func(t *testing.T) {
+		existingJob := &model.Job{
+			ID:     jobID,
+			UserID: userID,
+			Title:  "Job Title",
+			Status: "active",
+		}
+		companyID := "company-invalid"
+		companyRepo := &MockCompanyRepository{
+			GetByIDFunc: func(_ context.Context, _, _ string) (*companyModel.Company, error) {
+				return nil, errors.New("company not found")
+			},
+		}
+		mockRepo := &MockJobRepository{
+			GetByIDFunc: func(_ context.Context, _, _ string) (*model.Job, error) {
+				return existingJob, nil
+			},
+		}
+		svc := NewJobService(mockRepo, companyRepo, nil, nil)
+
+		result, err := svc.Update(context.Background(), userID, jobID, &model.UpdateJobRequest{
+			CompanyID: &companyID,
+		})
+
+		assert.Nil(t, result)
+		assert.ErrorIs(t, err, model.ErrCompanyNotFound)
+	})
+
+	t.Run("allows clearing company ID with empty string", func(t *testing.T) {
+		existingJob := &model.Job{
+			ID:     jobID,
+			UserID: userID,
+			Title:  "Job Title",
+			Status: "active",
+		}
+		emptyCompanyID := ""
+		mockRepo := &MockJobRepository{
+			GetByIDFunc: func(_ context.Context, _, _ string) (*model.Job, error) {
+				return existingJob, nil
+			},
+			UpdateFunc: func(_ context.Context, job *model.Job) error {
+				return nil
+			},
+		}
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+
+		result, err := svc.Update(context.Background(), userID, jobID, &model.UpdateJobRequest{
+			CompanyID: &emptyCompanyID,
+		})
+
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+	})
+
+	t.Run("updates all optional fields", func(t *testing.T) {
+		existingJob := &model.Job{
+			ID:     jobID,
+			UserID: userID,
+			Title:  "Job Title",
+			Status: "active",
+		}
+		source := "LinkedIn"
+		url := "https://linkedin.com/jobs/123"
+		notes := "Great opportunity"
+		desc := "Job description"
+
+		var updatedJob *model.Job
+		mockRepo := &MockJobRepository{
+			GetByIDFunc: func(_ context.Context, _, _ string) (*model.Job, error) {
+				return existingJob, nil
+			},
+			UpdateFunc: func(_ context.Context, job *model.Job) error {
+				updatedJob = job
+				return nil
+			},
+		}
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+
+		result, err := svc.Update(context.Background(), userID, jobID, &model.UpdateJobRequest{
+			Source:      &source,
+			URL:         &url,
+			Notes:       &notes,
+			Description: &desc,
+		})
+
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, &source, updatedJob.Source)
+		assert.Equal(t, &url, updatedJob.URL)
+		assert.Equal(t, &notes, updatedJob.Notes)
+		assert.Equal(t, &desc, updatedJob.Description)
+	})
+
+	t.Run("returns error when repo update fails", func(t *testing.T) {
+		existingJob := &model.Job{
+			ID:     jobID,
+			UserID: userID,
+			Title:  "Job Title",
+			Status: "active",
+		}
+		mockRepo := &MockJobRepository{
+			GetByIDFunc: func(_ context.Context, _, _ string) (*model.Job, error) {
+				return existingJob, nil
+			},
+			UpdateFunc: func(_ context.Context, _ *model.Job) error {
+				return errors.New("update failed")
+			},
+		}
+		svc := NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+
+		newTitle := "New Title"
+		result, err := svc.Update(context.Background(), userID, jobID, &model.UpdateJobRequest{
+			Title: &newTitle,
+		})
+
+		assert.Nil(t, result)
+		assert.Error(t, err)
+	})
+}
+
 func TestJob_ToDTO(t *testing.T) {
 	now := time.Now()
 	companyID := "company-1"

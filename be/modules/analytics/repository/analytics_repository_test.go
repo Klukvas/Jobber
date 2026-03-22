@@ -17,6 +17,18 @@ func TestAnalyticsRepository_GetOverview(t *testing.T) {
 	repo := NewAnalyticsRepositoryWithPool(mock)
 	userID := "user-123"
 
+	t.Run("returns error when query fails", func(t *testing.T) {
+		mock.ExpectQuery("WITH app_stats AS").
+			WithArgs(userID).
+			WillReturnError(assert.AnError)
+
+		result, err := repo.GetOverview(context.Background(), userID)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
 	t.Run("returns overview analytics successfully", func(t *testing.T) {
 		rows := pgxmock.NewRows([]string{
 			"total_applications",
@@ -73,6 +85,18 @@ func TestAnalyticsRepository_GetFunnel(t *testing.T) {
 
 	repo := NewAnalyticsRepositoryWithPool(mock)
 	userID := "user-123"
+
+	t.Run("returns error when query fails", func(t *testing.T) {
+		mock.ExpectQuery("WITH total_apps AS").
+			WithArgs(userID).
+			WillReturnError(assert.AnError)
+
+		result, err := repo.GetFunnel(context.Background(), userID)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
 
 	t.Run("returns funnel stages successfully", func(t *testing.T) {
 		rows := pgxmock.NewRows([]string{

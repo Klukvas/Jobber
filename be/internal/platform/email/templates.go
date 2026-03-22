@@ -12,6 +12,9 @@ type emailContent struct {
 
 // baseLayout wraps email body content in a responsive, table-based HTML layout
 // compatible with all major email clients (Gmail, Outlook, Apple Mail, Yahoo).
+//
+// title is HTML-escaped internally. body MUST be trusted HTML constructed from
+// hardcoded template strings — never pass user-controlled content as body directly.
 func baseLayout(title, body string) string {
 	safeTitle := html.EscapeString(title)
 	return fmt.Sprintf(`<!DOCTYPE html>
