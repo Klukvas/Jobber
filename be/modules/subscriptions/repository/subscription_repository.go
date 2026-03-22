@@ -215,3 +215,16 @@ func (r *SubscriptionRepository) RecordWebhookEvent(ctx context.Context, eventID
 	)
 	return err
 }
+
+// TryClaimWebhookEvent atomically inserts the event ID. Returns true if this
+// caller won the race (row was inserted), false if the event was already processed.
+func (r *SubscriptionRepository) TryClaimWebhookEvent(ctx context.Context, eventID, eventType string) (bool, error) {
+	tag, err := r.pool.Exec(ctx,
+		`INSERT INTO webhook_events (event_id, event_type) VALUES ($1, $2) ON CONFLICT (event_id) DO NOTHING`,
+		eventID, eventType,
+	)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}

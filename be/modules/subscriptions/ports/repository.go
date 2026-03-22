@@ -25,4 +25,6 @@ type SubscriptionRepository interface {
 	WebhookEventExists(ctx context.Context, eventID string) (bool, error)
 	// RecordWebhookEvent stores a processed event ID to prevent duplicate processing.
 	RecordWebhookEvent(ctx context.Context, eventID, eventType string) error
+	// TryClaimWebhookEvent atomically claims an event ID. Returns true if inserted (first claim).
+	TryClaimWebhookEvent(ctx context.Context, eventID, eventType string) (bool, error)
 }

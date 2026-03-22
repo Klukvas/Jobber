@@ -30,6 +30,7 @@ type SubscriptionService struct {
 	clientToken       string
 	environment       string
 	breaker           *circuitbreaker.Breaker
+	httpClient        *http.Client
 }
 
 // NewSubscriptionService creates a new SubscriptionService.
@@ -51,6 +52,7 @@ func NewSubscriptionService(
 		clientToken:       clientToken,
 		environment:       environment,
 		breaker:           circuitbreaker.New("paddle", 3, 30*time.Second),
+		httpClient:        &http.Client{Timeout: 15 * time.Second},
 	}
 }
 
@@ -204,43 +206,31 @@ func (s *SubscriptionService) HandleWebhook(ctx context.Context, body []byte, si
 		return fmt.Errorf("failed to parse webhook event: %w", err)
 	}
 
-	// Idempotency: skip already-processed events
+	// Idempotency: atomically claim the event before processing.
+	// If TryClaimWebhookEvent returns false, another goroutine already processed it.
 	if event.EventID != "" {
-		exists, err := s.repo.WebhookEventExists(ctx, event.EventID)
+		claimed, err := s.repo.TryClaimWebhookEvent(ctx, event.EventID, event.EventType)
 		if err != nil {
-			return fmt.Errorf("failed to check webhook event: %w", err)
+			return fmt.Errorf("failed to claim webhook event: %w", err)
 		}
-		if exists {
+		if !claimed {
 			return nil // already processed
 		}
 	}
 
-	var processErr error
 	switch event.EventType {
 	case "subscription.created", "subscription.activated":
-		processErr = s.handleSubscriptionActivated(ctx, &event)
+		return s.handleSubscriptionActivated(ctx, &event)
 	case "subscription.updated":
-		processErr = s.handleSubscriptionUpdated(ctx, &event)
+		return s.handleSubscriptionUpdated(ctx, &event)
 	case "subscription.canceled":
-		processErr = s.handleSubscriptionCanceled(ctx, &event)
+		return s.handleSubscriptionCanceled(ctx, &event)
 	case "subscription.past_due":
-		processErr = s.handleSubscriptionPastDue(ctx, &event)
+		return s.handleSubscriptionPastDue(ctx, &event)
 	default:
 		// Ignore unhandled events
+		return nil
 	}
-
-	if processErr != nil {
-		return processErr
-	}
-
-	// Record successfully processed event for idempotency
-	if event.EventID != "" {
-		if err := s.repo.RecordWebhookEvent(ctx, event.EventID, event.EventType); err != nil {
-			return fmt.Errorf("failed to record webhook event: %w", err)
-		}
-	}
-
-	return nil
 }
 
 // paddleBaseURL returns the Paddle API base URL for the configured environment.
@@ -270,18 +260,21 @@ func (s *SubscriptionService) paddleRequest(ctx context.Context, method, path st
 	var resp *http.Response
 	err = s.breaker.Execute(func() error {
 		var doErr error
-		resp, doErr = (&http.Client{Timeout: 15 * time.Second}).Do(req)
+		resp, doErr = s.httpClient.Do(req)
 		if doErr != nil {
 			return doErr
 		}
 		// Treat 5xx as failures for the circuit breaker
 		if resp.StatusCode >= 500 {
+			// Drain and close body to prevent leak
+			_, _ = io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
 			return fmt.Errorf("paddle API returned %d", resp.StatusCode)
 		}
 		return nil
 	})
 	if err != nil {
-		return resp, fmt.Errorf("paddle API call failed: %w", err)
+		return nil, fmt.Errorf("paddle API call failed: %w", err)
 	}
 	return resp, nil
 }

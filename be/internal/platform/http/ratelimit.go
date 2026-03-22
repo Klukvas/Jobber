@@ -45,8 +45,10 @@ func RateLimitMiddleware(rdb *redis.Client, cfg RateLimitConfig, logger *zap.Log
 // Place this AFTER AuthMiddleware in the middleware chain.
 func UserRateLimitMiddleware(rdb *redis.Client, cfg RateLimitConfig, logger *zap.Logger) gin.HandlerFunc {
 	return rateLimitByKey(rdb, cfg, logger, func(c *gin.Context) string {
-		if userID, exists := c.Get("user_id"); exists {
-			return "user:" + userID.(string)
+		if raw, exists := c.Get("user_id"); exists {
+			if userID, ok := raw.(string); ok {
+				return "user:" + userID
+			}
 		}
 		return c.ClientIP()
 	})

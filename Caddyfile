@@ -10,7 +10,7 @@ jobber-app.com {
 		X-Content-Type-Options "nosniff"
 
 		# CSP — allow self, Google Fonts, Sentry, inline styles (Tailwind), Paddle
-		Content-Security-Policy "default-src 'self'; script-src 'self' https://*.paddle.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.ingest.sentry.io https://*.paddle.com; frame-src https://*.paddle.com; object-src 'none'; base-uri 'self'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://cdn.paddle.com https://sandbox-cdn.paddle.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.ingest.sentry.io https://cdn.paddle.com https://sandbox-cdn.paddle.com https://checkout.paddle.com https://sandbox-checkout.paddle.com; frame-src https://checkout.paddle.com https://sandbox-checkout.paddle.com; object-src 'none'; base-uri 'self'"
 
 		# Referrer policy
 		Referrer-Policy "strict-origin-when-cross-origin"

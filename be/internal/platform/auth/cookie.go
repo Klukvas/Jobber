@@ -27,7 +27,7 @@ func NewCookieConfig(env string) CookieConfig {
 		return CookieConfig{
 			Secure:   true,
 			Domain:   "",
-			SameSite: http.SameSiteLaxMode,
+			SameSite: http.SameSiteStrictMode,
 		}
 	}
 	return CookieConfig{

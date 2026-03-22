@@ -4,7 +4,7 @@
 //
 //	CLOSED  → requests flow normally; consecutive failures are counted
 //	OPEN    → requests fail immediately with ErrCircuitOpen
-//	HALFOPEN → one probe request is allowed through; success → CLOSED, failure → OPEN
+//	HALFOPEN → exactly one probe request is allowed through; success → CLOSED, failure → OPEN
 package circuitbreaker
 
 import (
@@ -28,8 +28,9 @@ const (
 // Breaker is a simple circuit breaker.
 type Breaker struct {
 	mu        sync.Mutex
-	name      string
+	name      string // immutable after New
 	state     State
+	probing   bool          // true while a half-open probe is in flight
 	failCount int
 	threshold int           // consecutive failures to trip
 	timeout   time.Duration // how long the circuit stays open
@@ -68,7 +69,7 @@ func (b *Breaker) State() State {
 	return b.currentState()
 }
 
-// Name returns the breaker name.
+// Name returns the breaker name (immutable, no lock needed).
 func (b *Breaker) Name() string {
 	return b.name
 }
@@ -83,7 +84,11 @@ func (b *Breaker) allow() bool {
 	case StateOpen:
 		return false
 	case StateHalfOpen:
-		// Allow one probe request
+		// Allow exactly one probe request
+		if b.probing {
+			return false
+		}
+		b.probing = true
 		return true
 	}
 	return false
@@ -92,6 +97,8 @@ func (b *Breaker) allow() bool {
 func (b *Breaker) record(err error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
+	b.probing = false
 
 	if err == nil {
 		// Success → reset to closed
