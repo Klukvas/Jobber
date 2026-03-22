@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import * as Sentry from "@sentry/react";
 import { useAuthStore } from "@/stores/authStore";
+import { apiClient } from "@/services/api";
 import { FEATURES } from "@/shared/lib/features";
 
 interface AuthProviderProps {
@@ -25,27 +26,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const initializeAuth = async () => {
       const { user, clearAuth } = useAuthStore.getState();
 
-      // If we have a stored user, verify the session is still valid
-      // by making a lightweight request. If cookies are expired, the
-      // 401 interceptor in api.ts will attempt a refresh automatically.
+      // If the user was previously authenticated, verify the session cookie
+      // is still valid. The 401 interceptor in apiClient handles refresh.
       if (user) {
         try {
-          const response = await fetch(
-            `${import.meta.env.VITE_API_BASE_URL || "/api/v1"}/ping`,
-            { credentials: "include" },
-          );
-          if (response.status === 401) {
-            // Try refresh
-            const refreshResponse = await fetch(
-              `${import.meta.env.VITE_API_BASE_URL || "/api/v1"}/auth/refresh`,
-              { method: "POST", credentials: "include" },
-            );
-            if (!refreshResponse.ok) {
-              clearAuth();
-            }
-          }
+          await apiClient.get("ping");
         } catch {
-          // Network error — keep user state, will retry on next API call
+          // apiClient interceptor already tried refresh; if we're here it failed
+          clearAuth();
         }
       }
 

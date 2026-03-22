@@ -124,14 +124,14 @@ function ModalContent({
               onChange={(e) => {
                 const val = e.target.value.replace(/\D/g, "").slice(0, 6);
                 setCode(val);
-                setErrors({});
+                setCodeError("");
               }}
               placeholder="000000"
               inputMode="numeric"
               maxLength={6}
               autoFocus
               className="text-center text-2xl font-mono tracking-[0.3em]"
-              aria-invalid={!!errors.code}
+              aria-invalid={!!codeError}
             />
             {codeError && (
               <p className="text-sm text-destructive">{codeError}</p>

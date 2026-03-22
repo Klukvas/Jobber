@@ -30,11 +30,16 @@ class ApiClient {
             const url = new URL(request.url);
             const isAuthEndpoint = url.pathname.includes("/auth/");
 
-            if (response.status === 401 && !isAuthEndpoint) {
+            const isRetry = request.headers.get("X-Retry") === "1";
+            if (response.status === 401 && !isAuthEndpoint && !isRetry) {
               const refreshed = await this.tryRefreshToken();
               if (refreshed) {
-                // Retry the original request — cookies are sent automatically
-                return ky(request, { credentials: "include" });
+                // Retry the original request — mark to prevent infinite loop
+                const retryReq = new Request(request, {
+                  credentials: "include",
+                });
+                retryReq.headers.set("X-Retry", "1");
+                return ky(retryReq);
               } else {
                 // Refresh failed, clear auth and redirect to login
                 useAuthStore.getState().clearAuth();
