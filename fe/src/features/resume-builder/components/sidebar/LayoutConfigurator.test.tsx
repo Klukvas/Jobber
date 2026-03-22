@@ -1,10 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { LayoutConfigurator } from "./LayoutConfigurator";
-import {
-  createMockStoreState,
-  createMockResume,
-} from "../__tests__/testHelpers";
+import { createMockStoreState } from "../__tests__/testHelpers";
 
 const mockState = createMockStoreState({
   section_order: [

@@ -1,10 +1,7 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
 import { render } from "@testing-library/react";
 import { PreviewPanel } from "./PreviewPanel";
-import {
-  createMockResume,
-  createMockStoreState,
-} from "../__tests__/testHelpers";
+import { createMockStoreState } from "../__tests__/testHelpers";
 
 beforeAll(() => {
   global.ResizeObserver = class {
@@ -64,7 +61,9 @@ describe("PreviewPanel", () => {
   it("renders the template component", () => {
     render(<PreviewPanel />);
     // The template is rendered based on the template_id in the resume
-    const templateEl = document.querySelector("[data-testid='template-preview']");
+    const templateEl = document.querySelector(
+      "[data-testid='template-preview']",
+    );
     expect(templateEl).toBeInTheDocument();
   });
 

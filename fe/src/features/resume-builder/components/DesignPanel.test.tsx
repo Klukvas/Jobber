@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { DesignPanel } from "./DesignPanel";
-import { createMockResume, createMockStoreState } from "./__tests__/testHelpers";
+import { createMockStoreState } from "./__tests__/testHelpers";
 
 const mockState = createMockStoreState();
 
@@ -69,9 +69,7 @@ describe("DesignPanel", () => {
 
   it("renders color label", () => {
     render(<DesignPanel />);
-    expect(
-      screen.getByText("resumeBuilder.design.color"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("resumeBuilder.design.color")).toBeInTheDocument();
   });
 
   it("renders font selection", () => {
