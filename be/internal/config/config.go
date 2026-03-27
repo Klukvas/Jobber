@@ -21,6 +21,12 @@ type PlanLimitsYAML struct {
 	MaxCoverLetters   int `yaml:"max_cover_letters"`
 }
 
+// TelegramConfig holds Telegram bot configuration for support messages.
+type TelegramConfig struct {
+	BotToken string
+	ChatID   string
+}
+
 // Config holds all configuration for the application
 type Config struct {
 	Server         ServerConfig
@@ -34,6 +40,7 @@ type Config struct {
 	Paddle         PaddleConfig
 	Sentry         SentryConfig
 	Resend         ResendConfig
+	Telegram       TelegramConfig
 	Features       FeaturesConfig
 	Plans          map[string]PlanLimitsYAML
 }
@@ -201,6 +208,10 @@ func Load() (*Config, error) {
 		Resend: ResendConfig{
 			APIKey:      getEnv("RESEND_API_KEY", ""),
 			FromAddress: getEnv("RESEND_FROM_ADDRESS", ""),
+		},
+		Telegram: TelegramConfig{
+			BotToken: getEnv("TELEGRAM_BOT_TOKEN", ""),
+			ChatID:   getEnv("TELEGRAM_SUPPORT_CHAT_ID", ""),
 		},
 		Features: FeaturesConfig{
 			SentryEnabled:   getEnvAsBool("FEATURE_SENTRY_ENABLED", true),

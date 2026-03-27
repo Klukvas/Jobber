@@ -17,14 +17,15 @@ import (
 	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	"github.com/andreypavlenko/jobber/internal/platform/docx"
-	"github.com/andreypavlenko/jobber/internal/platform/pdf"
+	"github.com/andreypavlenko/jobber/internal/platform/email"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
 	"github.com/andreypavlenko/jobber/internal/platform/logger"
+	"github.com/andreypavlenko/jobber/internal/platform/pdf"
 	"github.com/andreypavlenko/jobber/internal/platform/postgres"
 	"github.com/andreypavlenko/jobber/internal/platform/redis"
-	"github.com/andreypavlenko/jobber/internal/platform/email"
 	sentryPlatform "github.com/andreypavlenko/jobber/internal/platform/sentry"
 	"github.com/andreypavlenko/jobber/internal/platform/storage"
+	"github.com/andreypavlenko/jobber/internal/platform/telegram"
 
 	authHandler "github.com/andreypavlenko/jobber/modules/auth/handler"
 	authRepo "github.com/andreypavlenko/jobber/modules/auth/repository"
@@ -82,6 +83,9 @@ import (
 	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	subRepo "github.com/andreypavlenko/jobber/modules/subscriptions/repository"
 	subService "github.com/andreypavlenko/jobber/modules/subscriptions/service"
+
+	supportHandler "github.com/andreypavlenko/jobber/modules/support/handler"
+	supportService "github.com/andreypavlenko/jobber/modules/support/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -254,6 +258,14 @@ func main() {
 		logger.Info("Resend not configured, using no-op email sender")
 	}
 
+	// Initialize Telegram client (optional — only if bot token and chat ID are set)
+	tgClient := telegram.NewClient(cfg.Telegram.BotToken, cfg.Telegram.ChatID)
+	if tgClient != nil {
+		logger.Info("Telegram support bot enabled")
+	} else {
+		logger.Info("Telegram not configured, support ticket forwarding disabled")
+	}
+
 	// Initialize repositories
 	userRepository := userRepo.NewUserRepository(pgClient.Pool)
 	tokenRepository := authRepo.NewRefreshTokenRepository(pgClient.Pool)
@@ -332,6 +344,14 @@ func main() {
 	analyticsHdl := analyticsHandler.NewAnalyticsHandler(analyticsSvc)
 	subscriptionHdl := subHandler.NewSubscriptionHandler(subscriptionSvc, logger.Logger)
 	webhookHdl := subHandler.NewWebhookHandler(subscriptionSvc, logger.Logger)
+
+	// Initialize support module (optional — only if Telegram is configured)
+	var supportHdl *supportHandler.SupportHandler
+	if tgClient != nil {
+		supportSvc := supportService.NewSupportService(tgClient, userRepository)
+		supportHdl = supportHandler.NewSupportHandler(supportSvc, logger.Logger)
+		logger.Info("Support module enabled")
+	}
 
 	// Initialize calendar module (optional — only if all Google Calendar config is provided)
 	var calendarHdl *calendarHandler.CalendarHandler
@@ -485,6 +505,13 @@ func main() {
 		KeyPrefix:   "cover_letter_ai",
 	}, logger.Logger)
 
+	// Per-user rate limiting for support endpoint (3 requests per 5 minutes)
+	supportRateLimiter := httpPlatform.UserRateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
+		MaxRequests: 3,
+		Window:      5 * time.Minute,
+		KeyPrefix:   "support",
+	}, logger.Logger)
+
 	// Stricter rate limiting for email-sending endpoints (3 requests per 15 minutes per IP)
 	emailRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
 		MaxRequests: 3,
@@ -523,6 +550,9 @@ func main() {
 			webhookHdl.RegisterRoutes(v1) // Public, no auth — Paddle calls this
 		} else {
 			logger.Info("Payments disabled via FEATURE_PAYMENTS_ENABLED=false, Paddle webhook and checkout routes not registered")
+		}
+		if supportHdl != nil {
+			supportHdl.RegisterRoutes(v1, authMiddleware, supportRateLimiter)
 		}
 		if calendarHdl != nil {
 			calendarHdl.RegisterRoutes(v1, authMiddleware)

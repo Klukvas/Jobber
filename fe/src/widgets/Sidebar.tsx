@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
 import { useSidebarStore } from "@/stores/sidebarStore";
 import { useAuthStore } from "@/stores/authStore";
+import { useThemeStore } from "@/stores/themeStore";
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { authService } from "@/services/authService";
 import { useOnboardingHighlight } from "@/features/onboarding/useOnboarding";
@@ -68,6 +69,8 @@ export function Sidebar() {
   const clearAuth = useAuthStore((state) => state.clearAuth);
   const { plan } = useSubscription();
   const badge = getPlanBadge(plan, t);
+  const theme = useThemeStore((s) => s.theme);
+  const logoSrc = theme === "dark" ? "/favicon.svg" : "/favicon-light.svg";
 
   const logoutMutation = useMutation({
     mutationFn: authService.logout,
@@ -107,11 +110,7 @@ export function Sidebar() {
               to="/"
               className="flex items-center gap-2 hover:opacity-80 transition-opacity"
             >
-              <img
-                src="/favicon.svg"
-                alt="Jobber"
-                className="h-8 w-8 rounded-lg"
-              />
+              <img src={logoSrc} alt="Jobber" className="h-8 w-8 rounded-lg" />
               {isExpanded && (
                 <div>
                   <span className="text-xl font-bold">Jobber</span>

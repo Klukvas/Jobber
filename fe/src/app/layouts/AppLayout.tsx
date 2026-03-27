@@ -9,6 +9,7 @@ import { useOnboarding } from "@/features/onboarding/useOnboarding";
 import { WelcomeWizard } from "@/features/onboarding/WelcomeWizard";
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { SubscriptionSuccessModal } from "@/features/subscription/components/SubscriptionSuccessModal";
+import { SupportButton } from "@/features/support/SupportButton";
 import { PRE_CHECKOUT_PLAN_KEY } from "@/features/subscription/usePaddleCheckout";
 import type { SubscriptionPlan } from "@/shared/types/api";
 
@@ -129,6 +130,7 @@ export function AppLayout() {
         </footer>
       </div>
 
+      <SupportButton />
       <WelcomeWizard open={shouldShow} onComplete={complete} />
 
       <SubscriptionSuccessModal

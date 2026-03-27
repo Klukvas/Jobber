@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs><radialGradient id="gj" cx="30%" cy="24%" r="58%"><stop offset="0%" stop-color="#6366F1" stop-opacity="0.15"/><stop offset="100%" stop-color="#6366F1" stop-opacity="0"/></radialGradient></defs>
+  <rect width="128" height="128" rx="28" fill="#f0f0f8"/>
+  <rect width="128" height="128" rx="28" fill="url(#gj)"/>
+  <rect width="128" height="128" rx="28" fill="none" stroke="rgba(99,102,241,0.22)" stroke-width="1.7"/>
+  <g transform="translate(24.5,48.0)">
+    <svg width="79" height="32" viewBox="0 0 54.1 28.9" overflow="visible">
+      <rect x="0" y="3.6" width="14.4" height="21.6" rx="7.2" fill="rgba(0,0,0,0.06)" stroke="rgba(0,0,0,0.25)" stroke-width="2.2"/>
+      <rect x="19.8" y="3.6" width="14.4" height="21.6" rx="7.2" fill="rgba(99,102,241,0.2)" stroke="#6366F1" stroke-width="2.2"/>
+      <rect x="39.7" y="3.6" width="14.4" height="21.6" rx="7.2" fill="#6366F1" stroke-width="0"/>
+      <line x1="14.4" y1="14.4" x2="19.8" y2="14.4" stroke="rgba(0,0,0,0.15)" stroke-width="2.0"/>
+      <line x1="34.3" y1="14.4" x2="39.7" y2="14.4" stroke="rgba(99,102,241,0.8)" stroke-width="2.0" opacity=".8"/>
+      <path d="M43.7 14.4 L46.4 17.1 L50.5 11.7"
+        stroke="white" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <circle cx="27.1" cy="14.4" r="2.3" fill="#6366F1"/>
+      <circle cx="7.2"  cy="14.4" r="1.8" fill="rgba(0,0,0,0.3)"/>
+    </svg>
+  </g>
+</svg>

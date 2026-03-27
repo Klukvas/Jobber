@@ -446,6 +446,9 @@ jobs:
           V_PADDLE_PRO_PRICE_ID: ${{ secrets.PADDLE_PRO_PRICE_ID }}
           V_PADDLE_ENTERPRISE_PRICE_ID: ${{ secrets.PADDLE_ENTERPRISE_PRICE_ID }}
           V_PADDLE_CLIENT_TOKEN: ${{ secrets.PADDLE_CLIENT_TOKEN }}
+          # Telegram
+          V_TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          V_TELEGRAM_SUPPORT_CHAT_ID: ${{ secrets.TELEGRAM_SUPPORT_CHAT_ID }}
           # Sentry
           V_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           V_SENTRY_RELEASE: ${{ secrets.SENTRY_RELEASE }}
@@ -493,6 +496,9 @@ jobs:
           add "PADDLE_PRO_PRICE_ID" "$V_PADDLE_PRO_PRICE_ID"
           add "PADDLE_ENTERPRISE_PRICE_ID" "$V_PADDLE_ENTERPRISE_PRICE_ID"
           add "PADDLE_CLIENT_TOKEN" "$V_PADDLE_CLIENT_TOKEN"
+          # Telegram
+          add "TELEGRAM_BOT_TOKEN" "$V_TELEGRAM_BOT_TOKEN"
+          add "TELEGRAM_SUPPORT_CHAT_ID" "$V_TELEGRAM_SUPPORT_CHAT_ID"
           # Sentry
           add "SENTRY_DSN" "$V_SENTRY_DSN"
           add "SENTRY_RELEASE" "$V_SENTRY_RELEASE"

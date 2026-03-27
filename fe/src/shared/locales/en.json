@@ -1494,5 +1494,17 @@
     "title": "Premium Feature",
     "description": "{{feature}} is available on Pro and Enterprise plans",
     "upgrade": "Upgrade"
+  },
+  "support": {
+    "title": "Contact Support",
+    "description": "Describe your issue and we'll get back to you as soon as possible.",
+    "subject": "Subject",
+    "subjectPlaceholder": "Brief summary of your issue",
+    "message": "Message",
+    "messagePlaceholder": "Please describe your issue in detail...",
+    "minChars": "{{count}} more char(s)",
+    "send": "Send",
+    "success": "Your message has been sent. We'll get back to you soon!",
+    "error": "Failed to send message. Please try again later."
   }
 }
