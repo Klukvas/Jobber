@@ -171,7 +171,7 @@ export default function Jobs() {
             {t("jobs.extensionBanner")}
           </p>
           <a
-            href="https://chromewebstore.google.com/detail/jobber-ai-job-import/hdlhoplkpbpgpamigfgpjfeenlkeklbg"
+            href="https://chromewebstore.google.com/detail/jobber-smart-job-saver/koegfmmcpedfgnjnohcaieecdoflmlab"
             target="_blank"
             rel="noopener noreferrer"
             className="shrink-0 rounded-md bg-cyan-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-cyan-700"
