@@ -2,8 +2,9 @@
 .git
 .gitignore
 
-# Documentation
+# Documentation (keep src/content/**/*.md for blog posts)
 *.md
+!src/content/**/*.md
 
 # Environment files
 .env
