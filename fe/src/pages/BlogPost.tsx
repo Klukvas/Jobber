@@ -6,6 +6,7 @@ import { uk, ru, enUS } from "date-fns/locale";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { getPostBySlug } from "@/features/blog/lib/blogLoader";
 import { BlogArticle } from "@/features/blog/components/BlogArticle";
+import { BlogPostJsonLd } from "@/features/blog/components/BlogPostJsonLd";
 import { HomeNavbar } from "@/features/home/components/HomeNavbar";
 import { FooterSection } from "@/features/home/components/FooterSection";
 import { useAuthStore } from "@/stores/authStore";
@@ -52,6 +53,7 @@ export default function BlogPost() {
 
         {post ? (
           <>
+            <BlogPostJsonLd post={post} />
             <header className="mb-10">
               <h1 className="text-4xl font-bold tracking-tight leading-tight">
                 {post.title}

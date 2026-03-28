@@ -3,4 +3,4 @@ Disallow: /app/
 Disallow: /login
 Disallow: /register
 
-Sitemap: https://jobber-app/sitemap.xml
+Sitemap: https://jobber-app.com/sitemap.xml

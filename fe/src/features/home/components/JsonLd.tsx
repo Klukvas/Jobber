@@ -1,20 +1,28 @@
 import { useEffect } from "react";
 
 const SCRIPT_ID = "jobber-jsonld";
-
-const SITE_URL = import.meta.env.VITE_SITE_URL ?? "https://jobber-app.com";
+const SITE_URL = "https://jobber-app.com";
 
 function buildJsonLd() {
-  const safeUrl = String(SITE_URL).replace(/<\/script>/gi, "");
-  return JSON.stringify({
-    "@context": "https://schema.org",
-    "@type": "WebApplication",
-    name: "Jobber",
-    url: safeUrl,
-    description: "Job application tracking platform",
-    applicationCategory: "BusinessApplication",
-    operatingSystem: "Web",
-  });
+  return JSON.stringify([
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      name: "Jobber",
+      url: SITE_URL,
+      description: "Job application tracking platform",
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "Jobber",
+      url: SITE_URL,
+      logo: `${SITE_URL}/favicon.png`,
+      sameAs: [],
+    },
+  ]);
 }
 
 export function JsonLd() {
