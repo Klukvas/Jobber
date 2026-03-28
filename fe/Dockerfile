@@ -60,15 +60,35 @@ RUN echo 'server { \
         proxy_read_timeout 30s; \
     } \
     \
+    # HTML — never cache (SPA entry point changes every deploy) \
+    location ~* \.html$ { \
+        add_header Cache-Control "no-cache, no-store, must-revalidate"; \
+        add_header Pragma "no-cache"; \
+        add_header Expires "0"; \
+    } \
+    \
+    # Favicons — short cache so updates propagate quickly \
+    location ~* ^/(favicon\.|apple-touch-icon) { \
+        expires 1h; \
+        add_header Cache-Control "public, must-revalidate"; \
+    } \
+    \
+    # Hashed static assets (Vite adds content hash) — cache forever \
+    location ~* \.(js|css|woff|woff2|ttf|eot)$ { \
+        expires 1y; \
+        add_header Cache-Control "public, immutable"; \
+    } \
+    \
+    # Images — moderate cache \
+    location ~* \.(png|jpg|jpeg|gif|ico|svg)$ { \
+        expires 7d; \
+        add_header Cache-Control "public"; \
+    } \
+    \
     # SPA routing - all routes go to index.html \
     location / { \
         try_files $uri $uri/ /index.html; \
-    } \
-    \
-    # Cache static assets \
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ { \
-        expires 1y; \
-        add_header Cache-Control "public, immutable"; \
+        add_header Cache-Control "no-cache, no-store, must-revalidate"; \
     } \
 }' > /etc/nginx/conf.d/default.conf
 
