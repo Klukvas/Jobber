@@ -51,6 +51,7 @@ temp/
 
 *.md
 !README.md
+!fe/src/content/**/*.md
 
 # Terraform
 terraform/.terraform/
