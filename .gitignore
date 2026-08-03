@@ -78,3 +78,19 @@ ext.zip
 fe/.auth/
 fe/playwright-report/
 fe/test-results/
+
+# --- Secrets (NEVER commit) ---
+client_secret_*.json
+*.apps.googleusercontent.com.json
+
+# --- Build artifacts ---
+*.zip
+
+# --- Scratch / junk (not source) ---
+ZeeResizer.png
+icon-dark-128.png
+files/
+files 2/
+files 3/
+screenshots/
+fe/dummy-non-existing-folder/
