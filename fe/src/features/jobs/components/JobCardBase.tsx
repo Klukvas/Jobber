@@ -14,6 +14,7 @@ import {
   GitBranch,
   Archive,
   Building2,
+  Trash2,
 } from "lucide-react";
 import { StatusBadge } from "@/shared/ui/StatusBadge";
 import type { JobDTO } from "@/shared/types/api";
@@ -24,6 +25,7 @@ interface JobCardBaseProps {
   onAddComment: (job: JobDTO) => void;
   onAddStage: (job: JobDTO) => void;
   onChangeStatus: (job: JobDTO) => void;
+  onDelete: (job: JobDTO) => void;
   /** Ref callback from useDraggable — omit for non-draggable cards */
   dragRef?: (element: HTMLElement | null) => void;
   /** Transform style from useDraggable */
@@ -40,6 +42,7 @@ export const JobCardBase = memo(function JobCardBase({
   onAddComment,
   onAddStage,
   onChangeStatus,
+  onDelete,
   dragRef,
   dragStyle,
   dragProps,
@@ -176,6 +179,20 @@ export const JobCardBase = memo(function JobCardBase({
               >
                 <Archive className="h-3.5 w-3.5" />
                 {t("jobs.changeStatus")}
+              </button>
+              <div className="my-1 border-t" role="separator" />
+              <button
+                role="menuitem"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(job);
+                  setMenuOpen(false);
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-destructive hover:bg-destructive/10 text-left"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {t("jobs.delete")}
               </button>
             </div>
           )}

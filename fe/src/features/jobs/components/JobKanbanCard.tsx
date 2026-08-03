@@ -9,6 +9,7 @@ interface JobKanbanCardProps {
   onAddComment: (job: JobDTO) => void;
   onAddStage: (job: JobDTO) => void;
   onChangeStatus: (job: JobDTO) => void;
+  onDelete: (job: JobDTO) => void;
 }
 
 export const JobKanbanCard = memo(function JobKanbanCard({
@@ -16,6 +17,7 @@ export const JobKanbanCard = memo(function JobKanbanCard({
   onAddComment,
   onAddStage,
   onChangeStatus,
+  onDelete,
 }: JobKanbanCardProps) {
   const navigate = useNavigate();
   const { attributes, listeners, setNodeRef, transform, isDragging } =
@@ -37,6 +39,7 @@ export const JobKanbanCard = memo(function JobKanbanCard({
       onAddComment={onAddComment}
       onAddStage={onAddStage}
       onChangeStatus={onChangeStatus}
+      onDelete={onDelete}
       dragRef={setNodeRef}
       dragStyle={dragStyle}
       dragProps={{ ...listeners, ...attributes }}

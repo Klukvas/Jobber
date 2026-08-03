@@ -12,6 +12,7 @@ interface JobKanbanColumnProps {
   onAddComment: (job: JobDTO) => void;
   onAddStage: (job: JobDTO) => void;
   onChangeStatus: (job: JobDTO) => void;
+  onDelete: (job: JobDTO) => void;
 }
 
 export const JobKanbanColumn = memo(function JobKanbanColumn({
@@ -21,6 +22,7 @@ export const JobKanbanColumn = memo(function JobKanbanColumn({
   onAddComment,
   onAddStage,
   onChangeStatus,
+  onDelete,
 }: JobKanbanColumnProps) {
   const { t } = useTranslation();
   const { isOver, setNodeRef } = useDroppable({ id: columnId });
@@ -55,6 +57,7 @@ export const JobKanbanColumn = memo(function JobKanbanColumn({
               onAddComment={onAddComment}
               onAddStage={onAddStage}
               onChangeStatus={onChangeStatus}
+              onDelete={onDelete}
             />
           ))
         )}

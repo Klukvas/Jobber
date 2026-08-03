@@ -46,6 +46,7 @@ interface JobKanbanBoardProps {
   onAddComment: (job: JobDTO) => void;
   onAddStage: (job: JobDTO) => void;
   onChangeStatus: (job: JobDTO) => void;
+  onDelete: (job: JobDTO) => void;
 }
 
 export function JobKanbanBoard({
@@ -53,6 +54,7 @@ export function JobKanbanBoard({
   onAddComment,
   onAddStage,
   onChangeStatus,
+  onDelete,
 }: JobKanbanBoardProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -261,6 +263,7 @@ export function JobKanbanBoard({
           onAddComment={onAddComment}
           onAddStage={onAddStage}
           onChangeStatus={onChangeStatus}
+          onDelete={onDelete}
         />
       </div>
 
@@ -283,6 +286,7 @@ export function JobKanbanBoard({
                 onAddComment={onAddComment}
                 onAddStage={onAddStage}
                 onChangeStatus={onChangeStatus}
+                onDelete={onDelete}
               />
             ))}
           </div>
@@ -295,6 +299,7 @@ export function JobKanbanBoard({
                   onAddComment={() => {}}
                   onAddStage={() => {}}
                   onChangeStatus={() => {}}
+                  onDelete={() => {}}
                 />
               </div>
             ) : null}

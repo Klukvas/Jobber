@@ -31,7 +31,8 @@
     "openMenu": "Open menu",
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",
-    "closeSidebar": "Close sidebar"
+    "closeSidebar": "Close sidebar",
+    "deleting": "Deleting..."
   },
   "auth": {
     "login": "Login",
