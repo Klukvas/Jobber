@@ -1,10 +1,13 @@
 import { useState, useMemo } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { jobsService } from "@/services/jobsService";
 import { resumesService } from "@/services/resumesService";
+import { resumeBuilderService } from "@/services/resumeBuilderService";
+import { commentsService } from "@/services/commentsService";
 import { matchScoreService } from "@/services/matchScoreService";
+import { companiesService } from "@/services/companiesService";
 import { ApiError } from "@/services/api";
 import { Button } from "@/shared/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
@@ -13,22 +16,36 @@ import { Textarea } from "@/shared/ui/Textarea";
 import { Label } from "@/shared/ui/Label";
 import { SkeletonDetail } from "@/shared/ui/Skeleton";
 import { ErrorState } from "@/shared/ui/ErrorState";
-import { MatchScoreCard } from "@/features/applications/components/MatchScoreCard";
+import { StatusBadge } from "@/shared/ui/StatusBadge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/shared/ui/Dialog";
+import { MatchScoreCard } from "@/features/jobs/components/MatchScoreCard";
+import { Timeline } from "@/features/jobs/components/Timeline";
+import { AddStageModal } from "@/features/jobs/modals/AddStageModal";
+import { UpdateJobStatusModal } from "@/features/jobs/modals/UpdateJobStatusModal";
 import { CompanySelectWithQuickAdd } from "@/features/jobs/components/CompanySelectWithQuickAdd";
 import { PricingModal } from "@/features/subscription/components/PricingModal";
-import { companiesService } from "@/services/companiesService";
 import {
   ArrowLeft,
   Calendar,
   ExternalLink,
   Save,
   Archive,
-  Briefcase,
   Sparkles,
   Loader2,
   Heart,
+  Plus,
+  Edit,
+  MessageSquarePlus,
+  Trash2,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 import {
@@ -68,6 +85,11 @@ function hasChanges(fields: EditableFields, job: JobDTO): boolean {
   );
 }
 
+function resumeSelectValue(job: JobDTO): string {
+  if (!job.resume) return "";
+  return `${job.resume.type}:${job.resume.id}`;
+}
+
 export default function JobDetail() {
   usePageMeta({ titleKey: "jobs.details", noindex: true });
   const { id } = useParams<{ id: string }>();
@@ -77,7 +99,13 @@ export default function JobDetail() {
   const queryClient = useQueryClient();
 
   const [fields, setFields] = useState<EditableFields | null>(null);
-  const [selectedResumeId, setSelectedResumeId] = useState("");
+  const [isAddStageModalOpen, setIsAddStageModalOpen] = useState(false);
+  const [isUpdateStatusModalOpen, setIsUpdateStatusModalOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [newComment, setNewComment] = useState("");
+  const [selectedMatchResumeId, setSelectedMatchResumeId] = useState<
+    string | null
+  >(null);
   const [matchScore, setMatchScore] = useState<MatchScoreResponse | null>(null);
   const [matchScoreError, setMatchScoreError] = useState<string | null>(null);
   const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
@@ -94,6 +122,12 @@ export default function JobDetail() {
     enabled: !!id,
   });
 
+  const { data: stages } = useQuery({
+    queryKey: ["job-stages", id],
+    queryFn: () => jobsService.listStages(id!),
+    enabled: !!id,
+  });
+
   const { data: companiesData } = useQuery({
     queryKey: ["companies"],
     queryFn: () => companiesService.list({ limit: 100, offset: 0 }),
@@ -103,6 +137,12 @@ export default function JobDetail() {
   const { data: resumesData } = useQuery({
     queryKey: ["resumes"],
     queryFn: () => resumesService.list({ limit: 100, offset: 0 }),
+    enabled: !!id,
+  });
+
+  const { data: builderResumes } = useQuery({
+    queryKey: ["resume-builder"],
+    queryFn: () => resumeBuilderService.list(),
     enabled: !!id,
   });
 
@@ -145,6 +185,31 @@ export default function JobDetail() {
     },
   });
 
+  const changeResumeMutation = useMutation({
+    mutationFn: (value: string) => {
+      if (value.startsWith("uploaded:")) {
+        return jobsService.update(id!, {
+          resume_id: value.slice("uploaded:".length),
+        });
+      }
+      if (value.startsWith("builder:")) {
+        return jobsService.update(id!, {
+          resume_builder_id: value.slice("builder:".length),
+        });
+      }
+      // Empty string clears the attached resume server-side
+      return jobsService.update(id!, { resume_id: "" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["job", id] });
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      showSuccessNotification(t("jobs.updateSuccess"));
+    },
+    onError: (err: Error) => {
+      showErrorNotification(err.message || t("jobs.updateError"));
+    },
+  });
+
   const toggleFavoriteMutation = useMutation({
     mutationFn: () => jobsService.toggleFavorite(id!),
     onSuccess: () => {
@@ -169,8 +234,46 @@ export default function JobDetail() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: () => jobsService.delete(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      showSuccessNotification(t("jobs.deleteSuccess"));
+      navigate("/app/jobs");
+    },
+    onError: (err: Error) => {
+      showErrorNotification(err.message || t("jobs.deleteError"));
+    },
+  });
+
+  const addCommentMutation = useMutation({
+    mutationFn: (content: string) =>
+      commentsService.create({
+        job_id: id!,
+        content,
+      }),
+    onSuccess: () => {
+      // Invalidate job query to refresh embedded comments
+      queryClient.invalidateQueries({ queryKey: ["job", id] });
+      setNewComment("");
+    },
+    onError: (err: Error) => {
+      showErrorNotification(err.message || t("jobs.commentAddedError"));
+    },
+  });
+
+  // Default match-score resume: attached uploaded resume, else explicit selection
+  const effectiveMatchResumeId =
+    selectedMatchResumeId ??
+    (job?.resume?.type === "uploaded" ? job.resume.id : "");
+
   const checkMatchMutation = useMutation({
-    mutationFn: () => matchScoreService.checkMatch(id!, selectedResumeId),
+    mutationFn: () => {
+      if (!effectiveMatchResumeId) {
+        return Promise.reject(new Error(t("jobs.matchScore.noResume")));
+      }
+      return matchScoreService.checkMatch(id!, effectiveMatchResumeId);
+    },
     onSuccess: (data) => {
       setMatchScore(data);
       setMatchScoreError(null);
@@ -182,16 +285,16 @@ export default function JobDetail() {
           setIsPricingModalOpen(true);
           queryClient.invalidateQueries({ queryKey: ["subscription"] });
         } else if (err.code === "JOB_DESCRIPTION_EMPTY") {
-          setMatchScoreError(t("applications.matchScore.noDescription"));
+          setMatchScoreError(t("jobs.matchScore.noDescription"));
         } else if (err.code === "RESUME_FILE_EMPTY") {
-          setMatchScoreError(t("applications.matchScore.noResumeFile"));
+          setMatchScoreError(t("jobs.matchScore.noResumeFile"));
         } else if (err.code === "AI_NOT_CONFIGURED") {
-          setMatchScoreError(t("applications.matchScore.aiNotAvailable"));
+          setMatchScoreError(t("jobs.matchScore.aiNotAvailable"));
         } else {
-          setMatchScoreError(t("applications.matchScore.error"));
+          setMatchScoreError(t("jobs.matchScore.error"));
         }
       } else {
-        setMatchScoreError(t("applications.matchScore.error"));
+        setMatchScoreError(err.message || t("jobs.matchScore.error"));
       }
     },
   });
@@ -205,6 +308,13 @@ export default function JobDetail() {
     if (job) setFields(fieldsFromJob(job));
   };
 
+  const handleAddComment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newComment.trim()) {
+      addCommentMutation.mutate(newComment.trim());
+    }
+  };
+
   const isValidUrl = (url: string) => {
     try {
       const protocol = new URL(url).protocol;
@@ -214,7 +324,9 @@ export default function JobDetail() {
     }
   };
 
-  const resumes = resumesData?.items ?? [];
+  const uploadedResumes = resumesData?.items ?? [];
+  const builderResumesList = builderResumes ?? [];
+  const jobComments = job?.job_comments || [];
 
   if (isLoading) {
     return (
@@ -236,7 +348,7 @@ export default function JobDetail() {
           {t("jobs.backToJobs")}
         </Button>
         <ErrorState
-          message={error?.message || t("errors.notFound")}
+          message={error?.message || t("jobs.notFound")}
           onRetry={() => refetch()}
         />
       </div>
@@ -288,7 +400,7 @@ export default function JobDetail() {
               className={`h-4 w-4 ${job.is_favorite ? "fill-red-500 text-red-500" : ""}`}
             />
           </Button>
-          {job.status === "active" && (
+          {job.status !== "archived" && (
             <Button
               variant="outline"
               size="sm"
@@ -299,6 +411,16 @@ export default function JobDetail() {
               {t("jobs.archive")}
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            onClick={() => setIsDeleteConfirmOpen(true)}
+            disabled={deleteMutation.isPending}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            {t("common.delete")}
+          </Button>
         </div>
       </div>
 
@@ -312,17 +434,7 @@ export default function JobDetail() {
               className="text-2xl font-bold border-transparent hover:border-input focus:border-input bg-transparent h-auto py-1 px-2 -ml-2"
               placeholder={t("jobs.titlePlaceholder")}
             />
-            <span
-              className={`inline-flex items-center rounded-full text-sm px-2.5 py-1 font-medium shrink-0 ${
-                job.status === "active"
-                  ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                  : "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400"
-              }`}
-            >
-              {job.status === "active"
-                ? t("common.active")
-                : t("jobs.statusArchived")}
-            </span>
+            <StatusBadge status={job.status} />
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -379,6 +491,83 @@ export default function JobDetail() {
         </CardContent>
       </Card>
 
+      {/* Pipeline */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">{t("jobs.pipelineTitle")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">
+                {t("jobs.status")}
+              </p>
+              <StatusBadge status={job.status} />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsUpdateStatusModalOpen(true)}
+            >
+              <Edit className="h-4 w-4 mr-2" />
+              {t("jobs.changeStatus")}
+            </Button>
+          </div>
+
+          {job.applied_at && (
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm">
+                {t("jobs.applied")}{" "}
+                {format(new Date(job.applied_at), "PP", {
+                  locale: dateLocale,
+                })}{" "}
+                (
+                {formatDistanceToNow(new Date(job.applied_at), {
+                  addSuffix: true,
+                  locale: dateLocale,
+                })}
+                )
+              </span>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="attached-resume">{t("jobs.resumeLabel")}</Label>
+            <select
+              id="attached-resume"
+              value={resumeSelectValue(job)}
+              onChange={(e) => changeResumeMutation.mutate(e.target.value)}
+              disabled={changeResumeMutation.isPending}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="">{t("jobs.selectResume")}</option>
+              {uploadedResumes.length > 0 && (
+                <optgroup label={t("jobs.uploadedResumes")}>
+                  {uploadedResumes.map((resume) => (
+                    <option
+                      key={`uploaded:${resume.id}`}
+                      value={`uploaded:${resume.id}`}
+                    >
+                      {resume.title}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {builderResumesList.length > 0 && (
+                <optgroup label={t("jobs.builderResumes")}>
+                  {builderResumesList.map((rb) => (
+                    <option key={`builder:${rb.id}`} value={`builder:${rb.id}`}>
+                      {rb.title}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Description */}
       <Card>
         <CardHeader>
@@ -413,7 +602,7 @@ export default function JobDetail() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">
-            {t("applications.matchScore.checkMatch")}
+            {t("jobs.matchScore.checkMatch")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -422,12 +611,12 @@ export default function JobDetail() {
               <Label htmlFor="resume-select">{t("jobs.selectResume")}</Label>
               <select
                 id="resume-select"
-                value={selectedResumeId}
-                onChange={(e) => setSelectedResumeId(e.target.value)}
+                value={effectiveMatchResumeId}
+                onChange={(e) => setSelectedMatchResumeId(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="">{t("jobs.selectResume")}</option>
-                {resumes.map((resume) => (
+                {uploadedResumes.map((resume) => (
                   <option key={resume.id} value={resume.id}>
                     {resume.title}
                   </option>
@@ -436,7 +625,7 @@ export default function JobDetail() {
             </div>
             <Button
               onClick={() => checkMatchMutation.mutate()}
-              disabled={!selectedResumeId || checkMatchMutation.isPending}
+              disabled={!effectiveMatchResumeId || checkMatchMutation.isPending}
             >
               {checkMatchMutation.isPending ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -444,8 +633,8 @@ export default function JobDetail() {
                 <Sparkles className="h-4 w-4 mr-2" />
               )}
               {checkMatchMutation.isPending
-                ? t("applications.matchScore.checking")
-                : t("applications.matchScore.checkMatch")}
+                ? t("jobs.matchScore.checking")
+                : t("jobs.matchScore.checkMatch")}
             </Button>
           </div>
 
@@ -459,37 +648,117 @@ export default function JobDetail() {
 
       {matchScore && <MatchScoreCard data={matchScore} />}
 
-      {/* Related applications */}
+      {/* Comments */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Briefcase className="h-5 w-5" />
-            {t("jobs.relatedApplications")}
-          </CardTitle>
+          <CardTitle className="text-lg">{t("jobs.comments")}</CardTitle>
         </CardHeader>
         <CardContent>
-          {job.applications_count > 0 ? (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">
-                {t("jobs.applicationsCount", {
-                  count: job.applications_count,
-                })}
-              </p>
-              <Link
-                to="/app/applications"
-                className="inline-flex items-center text-sm text-primary hover:underline"
-              >
-                {t("jobs.viewApplications")}
-                <ExternalLink className="h-3 w-3 ml-1" />
-              </Link>
+          {jobComments.length > 0 && (
+            <div className="space-y-3 mb-4">
+              {jobComments.map((comment) => (
+                <div
+                  key={comment.id}
+                  className="rounded-lg border bg-muted/50 p-3"
+                >
+                  <p className="text-sm whitespace-pre-wrap">
+                    {comment.content}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {formatDistanceToNow(new Date(comment.created_at), {
+                      addSuffix: true,
+                      locale: dateLocale,
+                    })}
+                  </p>
+                </div>
+              ))}
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground italic">
-              {t("jobs.noRelatedApplications")}
-            </p>
           )}
+
+          <form onSubmit={handleAddComment} className="space-y-2">
+            <Textarea
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder={t("jobs.commentPlaceholder")}
+              className="flex-1"
+              rows={3}
+            />
+            <Button
+              type="submit"
+              size="sm"
+              disabled={!newComment.trim() || addCommentMutation.isPending}
+            >
+              <MessageSquarePlus className="h-4 w-4 mr-2" />
+              {t("jobs.addComment")}
+            </Button>
+          </form>
         </CardContent>
       </Card>
+
+      {/* Timeline */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          <CardTitle>{t("jobs.timeline")}</CardTitle>
+          <Button size="sm" onClick={() => setIsAddStageModalOpen(true)}>
+            <Plus className="h-4 w-4" />
+            {t("jobs.addNewStage")}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <Timeline
+            stages={stages || []}
+            jobId={id!}
+            stageComments={job.stage_comments || []}
+          />
+        </CardContent>
+      </Card>
+
+      <AddStageModal
+        open={isAddStageModalOpen}
+        onOpenChange={setIsAddStageModalOpen}
+        jobId={id!}
+      />
+
+      <UpdateJobStatusModal
+        key={`${job.status}-${isUpdateStatusModalOpen}`}
+        open={isUpdateStatusModalOpen}
+        onOpenChange={setIsUpdateStatusModalOpen}
+        jobId={id!}
+        currentStatus={job.status}
+      />
+
+      {/* Delete confirmation */}
+      <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <DialogContent onClose={() => setIsDeleteConfirmOpen(false)}>
+          <DialogHeader>
+            <DialogTitle>{t("jobs.delete")}</DialogTitle>
+            <DialogDescription>{t("jobs.deleteConfirm")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-6">
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteConfirmOpen(false)}
+              disabled={deleteMutation.isPending}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteMutation.mutate()}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {t("common.loading")}
+                </>
+              ) : (
+                t("common.delete")
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <PricingModal
         open={isPricingModalOpen}

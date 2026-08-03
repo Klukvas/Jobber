@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs><radialGradient id="gj" cx="30%" cy="24%" r="58%">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#6366F1" stop-opacity="0"/>
+    </radialGradient></defs>
+  <rect width="64" height="64" rx="14" fill="#08071a"/>
+  <rect width="64" height="64" rx="14" fill="url(#gj)"/>
+  <rect width="64" height="64" rx="14" fill="none" stroke="rgba(99,102,241,0.22)" stroke-width="1"/>
+  <g transform="translate(12.5,24.0)">
+    <svg width="39" height="16" viewBox="0 0 27.1 14.4" overflow="visible">
+      
+      <line x1="3.6" y1="0" x2="3.6" y2="1.1" stroke="rgba(255,255,255,0.2)" stroke-width="0.4" stroke-linecap="round"/>
+      <line x1="13.5" y1="0" x2="13.5" y2="1.1" stroke="rgba(99,102,241,0.5)" stroke-width="0.4" stroke-linecap="round"/>
+      <line x1="23.4" y1="0" x2="23.4" y2="1.1" stroke="#6366F1" stroke-width="0.4" stroke-linecap="round"/>
+      <!-- pill 1 -->
+      <rect x="0" y="1.8" width="7.2" height="10.8" rx="3.6"
+        fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.3)" stroke-width="1.1"/>
+      <!-- pill 2 -->
+      <rect x="9.9" y="1.8" width="7.2" height="10.8" rx="3.6"
+        fill="rgba(99,102,241,0.35)" stroke="#6366F1" stroke-width="1.1"/>
+      <!-- pill 3 -->
+      <rect x="19.8" y="1.8" width="7.2" height="10.8" rx="3.6"
+        fill="#6366F1" stroke="#6366F1" stroke-width="0.8"/>
+      <!-- connectors -->
+      <line x1="7.2" y1="7.2" x2="9.9" y2="7.2" stroke="rgba(255,255,255,0.2)" stroke-width="1.0"/>
+      <line x1="17.1" y1="7.2" x2="19.8" y2="7.2" stroke="rgba(99,102,241,0.8)" stroke-width="1.0" opacity=".8"/>
+      <!-- check in pill 3 -->
+      <path d="M21.9 7.2 L23.2 8.6 L25.3 5.9"
+        stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <!-- dot pill 2 -->
+      <circle cx="13.5" cy="7.2" r="1.1" fill="#A5B4FC"/>
+      <!-- dot pill 1 -->
+      <circle cx="3.6"  cy="7.2" r="0.9" fill="rgba(255,255,255,0.4)"/>
+    </svg>
+  </g>
+</svg>

@@ -13,6 +13,7 @@ import { FeaturesSection } from "@/features/home/components/FeaturesSection";
 import { HowItWorksSection } from "@/features/home/components/HowItWorksSection";
 import { AiHighlightSection } from "@/features/home/components/AiHighlightSection";
 import { PricingSection } from "@/features/home/components/PricingSection";
+import { FaqSection } from "@/features/home/components/FaqSection";
 import { FooterCtaSection } from "@/features/home/components/FooterCtaSection";
 import { FooterSection } from "@/features/home/components/FooterSection";
 
@@ -51,7 +52,7 @@ export default function Home() {
   const switchToRegister = () => navigate("/register");
   const switchToLogin = () => navigate("/login");
   const openForgotPassword = () => navigate("/forgot-password");
-  const goPlatform = () => navigate("/app/applications");
+  const goPlatform = () => navigate("/app/jobs");
 
   return (
     <>
@@ -84,6 +85,7 @@ export default function Home() {
             onRegister={openRegister}
             onGoPlatform={goPlatform}
           />
+          <FaqSection />
           <FooterCtaSection
             isAuthenticated={isAuthenticated}
             onRegister={openRegister}

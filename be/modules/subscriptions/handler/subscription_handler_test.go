@@ -23,14 +23,13 @@ type MockSubscriptionRepository struct {
 	UpsertFunc                    func(ctx context.Context, sub *model.Subscription) error
 	CountUserJobsFunc             func(ctx context.Context, userID string) (int, error)
 	CountUserResumesFunc          func(ctx context.Context, userID string) (int, error)
-	CountUserApplicationsFunc     func(ctx context.Context, userID string) (int, error)
 	CountUserAIRequestsFunc       func(ctx context.Context, userID string) (int, error)
 	CountUserJobParsesFunc        func(ctx context.Context, userID string) (int, error)
 	RecordAIUsageFunc             func(ctx context.Context, userID string) error
 	RecordJobParseUsageFunc       func(ctx context.Context, userID string) error
 	CountUserResumeBuildersFunc   func(ctx context.Context, userID string) (int, error)
 	CountUserCoverLettersFunc     func(ctx context.Context, userID string) (int, error)
-	GetAllCountsFunc              func(ctx context.Context, userID string) (int, int, int, int, int, int, int, error)
+	GetAllCountsFunc              func(ctx context.Context, userID string) (int, int, int, int, int, int, error)
 	WebhookEventExistsFunc        func(ctx context.Context, eventID string) (bool, error)
 	RecordWebhookEventFunc        func(ctx context.Context, eventID, eventType string) error
 	TryClaimWebhookEventFunc      func(ctx context.Context, eventID, eventType string) (bool, error)
@@ -67,13 +66,6 @@ func (m *MockSubscriptionRepository) CountUserJobs(ctx context.Context, userID s
 func (m *MockSubscriptionRepository) CountUserResumes(ctx context.Context, userID string) (int, error) {
 	if m.CountUserResumesFunc != nil {
 		return m.CountUserResumesFunc(ctx, userID)
-	}
-	return 0, nil
-}
-
-func (m *MockSubscriptionRepository) CountUserApplications(ctx context.Context, userID string) (int, error) {
-	if m.CountUserApplicationsFunc != nil {
-		return m.CountUserApplicationsFunc(ctx, userID)
 	}
 	return 0, nil
 }
@@ -120,11 +112,11 @@ func (m *MockSubscriptionRepository) CountUserCoverLetters(ctx context.Context, 
 	return 0, nil
 }
 
-func (m *MockSubscriptionRepository) GetAllCounts(ctx context.Context, userID string) (int, int, int, int, int, int, int, error) {
+func (m *MockSubscriptionRepository) GetAllCounts(ctx context.Context, userID string) (int, int, int, int, int, int, error) {
 	if m.GetAllCountsFunc != nil {
 		return m.GetAllCountsFunc(ctx, userID)
 	}
-	return 0, 0, 0, 0, 0, 0, 0, nil
+	return 0, 0, 0, 0, 0, 0, nil
 }
 
 func (m *MockSubscriptionRepository) WebhookEventExists(ctx context.Context, eventID string) (bool, error) {
@@ -199,8 +191,8 @@ func TestSubscriptionHandler_GetSubscription(t *testing.T) {
 					Plan:   "pro",
 				}, nil
 			},
-			GetAllCountsFunc: func(ctx context.Context, uid string) (int, int, int, int, int, int, int, error) {
-				return 3, 1, 2, 5, 3, 1, 1, nil
+			GetAllCountsFunc: func(ctx context.Context, uid string) (int, int, int, int, int, int, error) {
+				return 3, 1, 5, 3, 1, 1, nil
 			},
 		}
 
@@ -241,8 +233,8 @@ func TestSubscriptionHandler_GetSubscription(t *testing.T) {
 			UpsertFunc: func(ctx context.Context, sub *model.Subscription) error {
 				return nil
 			},
-			GetAllCountsFunc: func(ctx context.Context, uid string) (int, int, int, int, int, int, int, error) {
-				return 0, 0, 0, 0, 0, 0, 0, nil
+			GetAllCountsFunc: func(ctx context.Context, uid string) (int, int, int, int, int, int, error) {
+				return 0, 0, 0, 0, 0, 0, nil
 			},
 		}
 
@@ -537,8 +529,8 @@ func TestSubscriptionHandler_RegisterRoutes(t *testing.T) {
 		GetByUserIDFunc: func(ctx context.Context, uid string) (*model.Subscription, error) {
 			return &model.Subscription{UserID: uid, Status: "free", Plan: "free"}, nil
 		},
-		GetAllCountsFunc: func(ctx context.Context, uid string) (int, int, int, int, int, int, int, error) {
-			return 0, 0, 0, 0, 0, 0, 0, nil
+		GetAllCountsFunc: func(ctx context.Context, uid string) (int, int, int, int, int, int, error) {
+			return 0, 0, 0, 0, 0, 0, nil
 		},
 	}
 	handler := newTestSubscriptionHandler(mockRepo)
@@ -581,8 +573,8 @@ func TestSubscriptionHandler_RegisterRoutes_PaymentsDisabled(t *testing.T) {
 		GetByUserIDFunc: func(ctx context.Context, uid string) (*model.Subscription, error) {
 			return &model.Subscription{UserID: uid, Status: "free", Plan: "free"}, nil
 		},
-		GetAllCountsFunc: func(ctx context.Context, uid string) (int, int, int, int, int, int, int, error) {
-			return 0, 0, 0, 0, 0, 0, 0, nil
+		GetAllCountsFunc: func(ctx context.Context, uid string) (int, int, int, int, int, int, error) {
+			return 0, 0, 0, 0, 0, 0, nil
 		},
 	}
 	handler := newTestSubscriptionHandler(mockRepo)

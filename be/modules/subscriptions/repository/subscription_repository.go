@@ -94,12 +94,12 @@ func (r *SubscriptionRepository) Upsert(ctx context.Context, sub *model.Subscrip
 	).Scan(&sub.ID, &sub.CreatedAt, &sub.UpdatedAt)
 }
 
-// CountUserJobs counts active (non-archived) jobs for a user.
-// Only active jobs count against the limit — archived jobs are excluded intentionally.
+// CountUserJobs counts non-archived jobs for a user.
+// Archived jobs are excluded intentionally — only tracked cards consume the limit.
 func (r *SubscriptionRepository) CountUserJobs(ctx context.Context, userID string) (int, error) {
 	var count int
 	err := r.pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM jobs WHERE user_id = $1 AND status = 'active'`, userID,
+		`SELECT COUNT(*) FROM jobs WHERE user_id = $1 AND status != 'archived'`, userID,
 	).Scan(&count)
 	return count, err
 }
@@ -110,16 +110,6 @@ func (r *SubscriptionRepository) CountUserResumes(ctx context.Context, userID st
 	var count int
 	err := r.pool.QueryRow(ctx,
 		`SELECT COUNT(*) FROM resumes WHERE user_id = $1`, userID,
-	).Scan(&count)
-	return count, err
-}
-
-// CountUserApplications counts non-archived applications for a user.
-// Archived applications are excluded to match the jobs counting pattern.
-func (r *SubscriptionRepository) CountUserApplications(ctx context.Context, userID string) (int, error) {
-	var count int
-	err := r.pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM applications WHERE user_id = $1 AND status != 'archived'`, userID,
 	).Scan(&count)
 	return count, err
 }
@@ -182,19 +172,18 @@ func (r *SubscriptionRepository) CountUserCoverLetters(ctx context.Context, user
 	return count, err
 }
 
-// GetAllCounts returns all resource counts in a single query (7 sub-selects, 1 round-trip).
-func (r *SubscriptionRepository) GetAllCounts(ctx context.Context, userID string) (jobs, resumes, apps, aiReqs, jobParses, resumeBuilders, coverLetters int, err error) {
+// GetAllCounts returns all resource counts in a single query (6 sub-selects, 1 round-trip).
+func (r *SubscriptionRepository) GetAllCounts(ctx context.Context, userID string) (jobs, resumes, aiReqs, jobParses, resumeBuilders, coverLetters int, err error) {
 	query := `
 		SELECT
-			(SELECT COUNT(*) FROM jobs WHERE user_id = $1 AND status = 'active'),
+			(SELECT COUNT(*) FROM jobs WHERE user_id = $1 AND status != 'archived'),
 			(SELECT COUNT(*) FROM resumes WHERE user_id = $1),
-			(SELECT COUNT(*) FROM applications WHERE user_id = $1 AND status != 'archived'),
 			(SELECT COUNT(*) FROM ai_usage WHERE user_id = $1 AND usage_type = 'match_score' AND created_at >= date_trunc('month', NOW())),
 			(SELECT COUNT(*) FROM ai_usage WHERE user_id = $1 AND usage_type = 'job_parse' AND created_at >= date_trunc('month', NOW())),
 			(SELECT COUNT(*) FROM resume_builders WHERE user_id = $1),
 			(SELECT COUNT(*) FROM cover_letters WHERE user_id = $1)
 	`
-	err = r.pool.QueryRow(ctx, query, userID).Scan(&jobs, &resumes, &apps, &aiReqs, &jobParses, &resumeBuilders, &coverLetters)
+	err = r.pool.QueryRow(ctx, query, userID).Scan(&jobs, &resumes, &aiReqs, &jobParses, &resumeBuilders, &coverLetters)
 	return
 }
 

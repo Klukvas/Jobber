@@ -14,7 +14,6 @@ import (
 type PlanLimitsYAML struct {
 	MaxJobs           int `yaml:"max_jobs"`
 	MaxResumes        int `yaml:"max_resumes"`
-	MaxApplications   int `yaml:"max_applications"`
 	MaxAIRequests     int `yaml:"max_ai_requests"`
 	MaxJobParses      int `yaml:"max_job_parses"`
 	MaxResumeBuilders int `yaml:"max_resume_builders"`

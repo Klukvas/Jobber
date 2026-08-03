@@ -14,6 +14,7 @@ import (
 	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"github.com/andreypavlenko/jobber/internal/platform/storage"
 	jobModel "github.com/andreypavlenko/jobber/modules/jobs/model"
+	jobPorts "github.com/andreypavlenko/jobber/modules/jobs/ports"
 	"github.com/andreypavlenko/jobber/modules/matchscore/model"
 	resumeModel "github.com/andreypavlenko/jobber/modules/resumes/model"
 	resumePorts "github.com/andreypavlenko/jobber/modules/resumes/ports"
@@ -464,13 +465,16 @@ func (m *MockJobRepository) GetByID(ctx context.Context, uid, jid string) (*jobM
 	}
 	return nil, nil
 }
-func (m *MockJobRepository) List(ctx context.Context, uid string, limit, offset int, status, sortBy, sortOrder string) ([]*jobModel.JobDTO, int, error) {
+func (m *MockJobRepository) List(ctx context.Context, uid string, opts *jobPorts.ListOptions) ([]*jobModel.JobDTO, int, error) {
 	return nil, 0, nil
 }
 func (m *MockJobRepository) Update(ctx context.Context, job *jobModel.Job) error { return nil }
 func (m *MockJobRepository) Delete(ctx context.Context, uid, jid string) error   { return nil }
 func (m *MockJobRepository) ToggleFavorite(ctx context.Context, uid, jid string) (bool, error) {
 	return false, nil
+}
+func (m *MockJobRepository) GetLastActivityAt(ctx context.Context, jobID string) (time.Time, error) {
+	return time.Time{}, nil
 }
 
 type MockResumeRepository struct {

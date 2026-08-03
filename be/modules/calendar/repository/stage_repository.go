@@ -21,7 +21,7 @@ func NewStageRepository(pool *pgxpool.Pool) *StageRepository {
 
 // SetCalendarEventID sets the calendar event ID on a stage
 func (r *StageRepository) SetCalendarEventID(ctx context.Context, stageID, eventID string) error {
-	query := `UPDATE application_stages SET calendar_event_id = $2 WHERE id = $1`
+	query := `UPDATE job_stages SET calendar_event_id = $2 WHERE id = $1`
 	result, err := r.pool.Exec(ctx, query, stageID, eventID)
 	if err != nil {
 		return err
@@ -34,7 +34,7 @@ func (r *StageRepository) SetCalendarEventID(ctx context.Context, stageID, event
 
 // ClearCalendarEventID removes the calendar event ID from a stage
 func (r *StageRepository) ClearCalendarEventID(ctx context.Context, stageID string) error {
-	query := `UPDATE application_stages SET calendar_event_id = NULL WHERE id = $1`
+	query := `UPDATE job_stages SET calendar_event_id = NULL WHERE id = $1`
 	result, err := r.pool.Exec(ctx, query, stageID)
 	if err != nil {
 		return err
@@ -47,7 +47,7 @@ func (r *StageRepository) ClearCalendarEventID(ctx context.Context, stageID stri
 
 // GetCalendarEventID retrieves the calendar event ID for a stage
 func (r *StageRepository) GetCalendarEventID(ctx context.Context, stageID string) (string, error) {
-	query := `SELECT calendar_event_id FROM application_stages WHERE id = $1`
+	query := `SELECT calendar_event_id FROM job_stages WHERE id = $1`
 	var eventID *string
 	err := r.pool.QueryRow(ctx, query, stageID).Scan(&eventID)
 	if err != nil {
@@ -65,9 +65,9 @@ func (r *StageRepository) GetCalendarEventID(ctx context.Context, stageID string
 // GetStageUserID retrieves the user ID who owns the stage
 func (r *StageRepository) GetStageUserID(ctx context.Context, stageID string) (string, error) {
 	query := `
-		SELECT a.user_id
-		FROM application_stages s
-		JOIN applications a ON a.id = s.application_id
+		SELECT j.user_id
+		FROM job_stages s
+		JOIN jobs j ON j.id = s.job_id
 		WHERE s.id = $1
 	`
 	var userID string

@@ -11,7 +11,9 @@ import (
 
 	companyModel "github.com/andreypavlenko/jobber/modules/companies/model"
 	companyPorts "github.com/andreypavlenko/jobber/modules/companies/ports"
+	commentModel "github.com/andreypavlenko/jobber/modules/comments/model"
 	"github.com/andreypavlenko/jobber/modules/jobs/model"
+	"github.com/andreypavlenko/jobber/modules/jobs/ports"
 	"github.com/andreypavlenko/jobber/modules/jobs/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -48,14 +50,30 @@ func (m *MockCompanyRepository) ToggleFavorite(ctx context.Context, userID, comp
 
 var defaultMockCompanyRepo = &MockCompanyRepository{}
 
+// MockCommentRepository implements commentPorts.CommentRepository for handler tests
+type MockCommentRepository struct{}
+
+func (m *MockCommentRepository) Create(ctx context.Context, comment *commentModel.Comment) error {
+	return nil
+}
+func (m *MockCommentRepository) ListByJob(ctx context.Context, jobID string, userID ...string) ([]*commentModel.Comment, error) {
+	return nil, nil
+}
+func (m *MockCommentRepository) Delete(ctx context.Context, userID, commentID string) error {
+	return nil
+}
+
+var defaultMockCommentRepo = &MockCommentRepository{}
+
 // MockJobRepository implements ports.JobRepository
 type MockJobRepository struct {
-	CreateFunc         func(ctx context.Context, job *model.Job) error
-	GetByIDFunc        func(ctx context.Context, userID, jobID string) (*model.Job, error)
-	ListFunc           func(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error)
-	UpdateFunc         func(ctx context.Context, job *model.Job) error
-	DeleteFunc         func(ctx context.Context, userID, jobID string) error
-	ToggleFavoriteFunc func(ctx context.Context, userID, jobID string) (bool, error)
+	CreateFunc            func(ctx context.Context, job *model.Job) error
+	GetByIDFunc           func(ctx context.Context, userID, jobID string) (*model.Job, error)
+	ListFunc              func(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.JobDTO, int, error)
+	UpdateFunc            func(ctx context.Context, job *model.Job) error
+	DeleteFunc            func(ctx context.Context, userID, jobID string) error
+	ToggleFavoriteFunc    func(ctx context.Context, userID, jobID string) (bool, error)
+	GetLastActivityAtFunc func(ctx context.Context, jobID string) (time.Time, error)
 }
 
 func (m *MockJobRepository) Create(ctx context.Context, job *model.Job) error {
@@ -72,9 +90,9 @@ func (m *MockJobRepository) GetByID(ctx context.Context, userID, jobID string) (
 	return nil, nil
 }
 
-func (m *MockJobRepository) List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error) {
+func (m *MockJobRepository) List(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.JobDTO, int, error) {
 	if m.ListFunc != nil {
-		return m.ListFunc(ctx, userID, limit, offset, status, sortBy, sortOrder)
+		return m.ListFunc(ctx, userID, opts)
 	}
 	return nil, 0, nil
 }
@@ -100,6 +118,17 @@ func (m *MockJobRepository) ToggleFavorite(ctx context.Context, userID, jobID st
 	return false, nil
 }
 
+func (m *MockJobRepository) GetLastActivityAt(ctx context.Context, jobID string) (time.Time, error) {
+	if m.GetLastActivityAtFunc != nil {
+		return m.GetLastActivityAtFunc(ctx, jobID)
+	}
+	return time.Time{}, nil
+}
+
+func newTestJobService(jobRepo *MockJobRepository) *service.JobService {
+	return service.NewJobService(nil, jobRepo, nil, nil, defaultMockCompanyRepo, nil, nil, defaultMockCommentRepo, nil, nil, nil)
+}
+
 func setupTestRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	return gin.New()
@@ -119,14 +148,14 @@ func TestJobHandler_Create(t *testing.T) {
 		mockRepo := &MockJobRepository{
 			CreateFunc: func(ctx context.Context, job *model.Job) error {
 				job.ID = "job-1"
-				job.Status = "active"
+				job.Status = string(model.StatusSaved)
 				job.CreatedAt = time.Now()
 				job.UpdatedAt = time.Now()
 				return nil
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		svc := newTestJobService(mockRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -148,7 +177,7 @@ func TestJobHandler_Create(t *testing.T) {
 
 	t.Run("returns 401 when not authenticated", func(t *testing.T) {
 		mockRepo := &MockJobRepository{}
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		svc := newTestJobService(mockRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -165,7 +194,7 @@ func TestJobHandler_Create(t *testing.T) {
 
 	t.Run("returns 400 for invalid request", func(t *testing.T) {
 		mockRepo := &MockJobRepository{}
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		svc := newTestJobService(mockRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -182,7 +211,7 @@ func TestJobHandler_Create(t *testing.T) {
 
 	t.Run("returns 400 for empty title", func(t *testing.T) {
 		mockRepo := &MockJobRepository{}
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		svc := newTestJobService(mockRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -207,7 +236,7 @@ func TestJobHandler_Get(t *testing.T) {
 			ID:        jobID,
 			UserID:    userID,
 			Title:     "Software Engineer",
-			Status:    "active",
+			Status:    string(model.StatusSaved),
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}
@@ -218,7 +247,7 @@ func TestJobHandler_Get(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		svc := newTestJobService(mockRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -243,7 +272,7 @@ func TestJobHandler_Get(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		svc := newTestJobService(mockRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -267,12 +296,12 @@ func TestJobHandler_List(t *testing.T) {
 		}
 
 		mockRepo := &MockJobRepository{
-			ListFunc: func(ctx context.Context, uid string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error) {
+			ListFunc: func(ctx context.Context, uid string, opts *ports.ListOptions) ([]*model.JobDTO, int, error) {
 				return expectedJobs, 2, nil
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		svc := newTestJobService(mockRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -287,14 +316,14 @@ func TestJobHandler_List(t *testing.T) {
 
 	t.Run("parses sort parameter correctly", func(t *testing.T) {
 		mockRepo := &MockJobRepository{
-			ListFunc: func(ctx context.Context, uid string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error) {
-				assert.Equal(t, "created_at", sortBy)
-				assert.Equal(t, "desc", sortOrder)
+			ListFunc: func(ctx context.Context, uid string, opts *ports.ListOptions) ([]*model.JobDTO, int, error) {
+				assert.Equal(t, "created_at", opts.SortBy)
+				assert.Equal(t, "desc", opts.SortDir)
 				return []*model.JobDTO{}, 0, nil
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		svc := newTestJobService(mockRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -305,6 +334,32 @@ func TestJobHandler_List(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("empty status and active status behave as exclude-archived", func(t *testing.T) {
+		for _, rawStatus := range []string{"", "active"} {
+			rawStatus := rawStatus
+			mockRepo := &MockJobRepository{
+				ListFunc: func(ctx context.Context, uid string, opts *ports.ListOptions) ([]*model.JobDTO, int, error) {
+					return []*model.JobDTO{}, 0, nil
+				},
+			}
+			svc := newTestJobService(mockRepo)
+			handler := NewJobHandler(svc)
+
+			router := setupTestRouter()
+			router.GET("/jobs", mockAuthMiddleware(userID), handler.List)
+
+			url := "/jobs"
+			if rawStatus != "" {
+				url += "?status=" + rawStatus
+			}
+			req, _ := http.NewRequest(http.MethodGet, url, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code, "status=%q", rawStatus)
+		}
 	})
 }
 
@@ -317,7 +372,7 @@ func TestJobHandler_Update(t *testing.T) {
 			ID:        jobID,
 			UserID:    userID,
 			Title:     "Old Title",
-			Status:    "active",
+			Status:    string(model.StatusSaved),
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}
@@ -331,7 +386,7 @@ func TestJobHandler_Update(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		svc := newTestJobService(mockRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -353,7 +408,7 @@ func TestJobHandler_Update(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		svc := newTestJobService(mockRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -373,7 +428,7 @@ func TestJobHandler_Update(t *testing.T) {
 			ID:     jobID,
 			UserID: userID,
 			Title:  "Job Title",
-			Status: "active",
+			Status: string(model.StatusSaved),
 		}
 
 		mockRepo := &MockJobRepository{
@@ -382,7 +437,7 @@ func TestJobHandler_Update(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		svc := newTestJobService(mockRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -409,7 +464,7 @@ func TestJobHandler_Delete(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		svc := newTestJobService(mockRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -429,7 +484,7 @@ func TestJobHandler_Delete(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		svc := newTestJobService(mockRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -456,7 +511,7 @@ func TestJobHandler_ToggleFavorite(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		svc := newTestJobService(mockRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -477,7 +532,7 @@ func TestJobHandler_ToggleFavorite(t *testing.T) {
 			},
 		}
 
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		svc := newTestJobService(mockRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -492,7 +547,7 @@ func TestJobHandler_ToggleFavorite(t *testing.T) {
 
 	t.Run("returns 401 without auth", func(t *testing.T) {
 		mockRepo := &MockJobRepository{}
-		svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+		svc := newTestJobService(mockRepo)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -533,9 +588,9 @@ func TestJobHandler_RegisterRoutes(t *testing.T) {
 			return nil
 		},
 		GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
-			return &model.Job{ID: jid, Title: "Test", Status: "active"}, nil
+			return &model.Job{ID: jid, Title: "Test", Status: string(model.StatusSaved)}, nil
 		},
-		ListFunc: func(ctx context.Context, uid string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error) {
+		ListFunc: func(ctx context.Context, uid string, opts *ports.ListOptions) ([]*model.JobDTO, int, error) {
 			return []*model.JobDTO{}, 0, nil
 		},
 		DeleteFunc: func(ctx context.Context, uid, jid string) error {
@@ -543,7 +598,7 @@ func TestJobHandler_RegisterRoutes(t *testing.T) {
 		},
 	}
 
-	svc := service.NewJobService(mockRepo, defaultMockCompanyRepo, nil, nil)
+	svc := newTestJobService(mockRepo)
 	handler := NewJobHandler(svc)
 
 	router := setupTestRouter()

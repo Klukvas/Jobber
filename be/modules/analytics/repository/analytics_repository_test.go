@@ -87,7 +87,7 @@ func TestAnalyticsRepository_GetFunnel(t *testing.T) {
 	userID := "user-123"
 
 	t.Run("returns error when query fails", func(t *testing.T) {
-		mock.ExpectQuery("WITH total_apps AS").
+		mock.ExpectQuery("WITH stage_counts AS").
 			WithArgs(userID).
 			WillReturnError(assert.AnError)
 
@@ -111,7 +111,7 @@ func TestAnalyticsRepository_GetFunnel(t *testing.T) {
 			AddRow("Interview", 3, 25, 50.0, 50.0).
 			AddRow("Offer", 4, 10, 40.0, 60.0)
 
-		mock.ExpectQuery("WITH total_apps AS").
+		mock.ExpectQuery("WITH stage_counts AS").
 			WithArgs(userID).
 			WillReturnRows(rows)
 
@@ -141,7 +141,7 @@ func TestAnalyticsRepository_GetFunnel(t *testing.T) {
 			"drop_off_rate",
 		})
 
-		mock.ExpectQuery("WITH total_apps AS").
+		mock.ExpectQuery("WITH stage_counts AS").
 			WithArgs(userID).
 			WillReturnRows(rows)
 

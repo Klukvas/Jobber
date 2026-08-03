@@ -18,9 +18,9 @@ import (
 
 // MockCommentRepository implements ports.CommentRepository
 type MockCommentRepository struct {
-	CreateFunc            func(ctx context.Context, comment *model.Comment) error
-	ListByApplicationFunc func(ctx context.Context, appID string, userID ...string) ([]*model.Comment, error)
-	DeleteFunc            func(ctx context.Context, userID, commentID string) error
+	CreateFunc    func(ctx context.Context, comment *model.Comment) error
+	ListByJobFunc func(ctx context.Context, jobID string, userID ...string) ([]*model.Comment, error)
+	DeleteFunc    func(ctx context.Context, userID, commentID string) error
 }
 
 func (m *MockCommentRepository) Create(ctx context.Context, comment *model.Comment) error {
@@ -30,9 +30,9 @@ func (m *MockCommentRepository) Create(ctx context.Context, comment *model.Comme
 	return nil
 }
 
-func (m *MockCommentRepository) ListByApplication(ctx context.Context, appID string, userID ...string) ([]*model.Comment, error) {
-	if m.ListByApplicationFunc != nil {
-		return m.ListByApplicationFunc(ctx, appID, userID...)
+func (m *MockCommentRepository) ListByJob(ctx context.Context, jobID string, userID ...string) ([]*model.Comment, error) {
+	if m.ListByJobFunc != nil {
+		return m.ListByJobFunc(ctx, jobID, userID...)
 	}
 	return nil, nil
 }
@@ -75,7 +75,7 @@ func TestCommentHandler_Create(t *testing.T) {
 		router := setupTestRouter()
 		router.POST("/comments", mockAuthMiddleware(userID), handler.Create)
 
-		body := `{"application_id":"app-1","content":"This is a comment"}`
+		body := `{"job_id":"job-1","content":"This is a comment"}`
 		req, _ := http.NewRequest(http.MethodPost, "/comments", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
@@ -97,7 +97,7 @@ func TestCommentHandler_Create(t *testing.T) {
 		router := setupTestRouter()
 		router.POST("/comments", handler.Create) // No auth middleware
 
-		body := `{"application_id":"app-1","content":"Comment"}`
+		body := `{"job_id":"job-1","content":"Comment"}`
 		req, _ := http.NewRequest(http.MethodPost, "/comments", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
@@ -131,7 +131,7 @@ func TestCommentHandler_Create(t *testing.T) {
 		router := setupTestRouter()
 		router.POST("/comments", mockAuthMiddleware(userID), handler.Create)
 
-		body := `{"application_id":"app-1","content":"   "}`
+		body := `{"job_id":"job-1","content":"   "}`
 		req, _ := http.NewRequest(http.MethodPost, "/comments", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
@@ -141,18 +141,18 @@ func TestCommentHandler_Create(t *testing.T) {
 	})
 }
 
-func TestCommentHandler_ListByApplication(t *testing.T) {
+func TestCommentHandler_ListByJob(t *testing.T) {
 	userID := "user-123"
-	appID := "app-1"
+	jobID := "job-1"
 
 	t.Run("returns comments list", func(t *testing.T) {
 		expectedComments := []*model.Comment{
-			{ID: "comment-1", ApplicationID: appID, Content: "First", CreatedAt: time.Now()},
-			{ID: "comment-2", ApplicationID: appID, Content: "Second", CreatedAt: time.Now()},
+			{ID: "comment-1", JobID: jobID, Content: "First", CreatedAt: time.Now()},
+			{ID: "comment-2", JobID: jobID, Content: "Second", CreatedAt: time.Now()},
 		}
 
 		mockRepo := &MockCommentRepository{
-			ListByApplicationFunc: func(ctx context.Context, aid string, uid ...string) ([]*model.Comment, error) {
+			ListByJobFunc: func(ctx context.Context, jid string, uid ...string) ([]*model.Comment, error) {
 				return expectedComments, nil
 			},
 		}
@@ -161,9 +161,9 @@ func TestCommentHandler_ListByApplication(t *testing.T) {
 		handler := NewCommentHandler(svc)
 
 		router := setupTestRouter()
-		router.GET("/applications/:id/comments", mockAuthMiddleware(userID), handler.ListByApplication)
+		router.GET("/jobs/:id/comments", mockAuthMiddleware(userID), handler.ListByJob)
 
-		req, _ := http.NewRequest(http.MethodGet, "/applications/"+appID+"/comments", nil)
+		req, _ := http.NewRequest(http.MethodGet, "/jobs/"+jobID+"/comments", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -181,9 +181,9 @@ func TestCommentHandler_ListByApplication(t *testing.T) {
 		handler := NewCommentHandler(svc)
 
 		router := setupTestRouter()
-		router.GET("/applications/:id/comments", handler.ListByApplication)
+		router.GET("/jobs/:id/comments", handler.ListByJob)
 
-		req, _ := http.NewRequest(http.MethodGet, "/applications/"+appID+"/comments", nil)
+		req, _ := http.NewRequest(http.MethodGet, "/jobs/"+jobID+"/comments", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -257,7 +257,7 @@ func TestCommentHandler_RegisterRoutes(t *testing.T) {
 			comment.ID = "comment-1"
 			return nil
 		},
-		ListByApplicationFunc: func(ctx context.Context, aid string, uid ...string) ([]*model.Comment, error) {
+		ListByJobFunc: func(ctx context.Context, jid string, uid ...string) ([]*model.Comment, error) {
 			return []*model.Comment{}, nil
 		},
 		DeleteFunc: func(ctx context.Context, uid, cid string) error {
@@ -278,14 +278,14 @@ func TestCommentHandler_RegisterRoutes(t *testing.T) {
 	}{
 		{http.MethodPost, "/api/v1/comments"},
 		{http.MethodDelete, "/api/v1/comments/test-id"},
-		{http.MethodGet, "/api/v1/applications/test-id/comments"},
+		{http.MethodGet, "/api/v1/jobs/test-id/comments"},
 	}
 
 	for _, route := range routes {
 		t.Run(route.method+" "+route.path, func(t *testing.T) {
 			var body *bytes.Buffer
 			if route.method == http.MethodPost {
-				body = bytes.NewBufferString(`{"application_id":"app-1","content":"Test"}`)
+				body = bytes.NewBufferString(`{"job_id":"job-1","content":"Test"}`)
 			} else {
 				body = bytes.NewBuffer(nil)
 			}

@@ -2,5 +2,8 @@ User-agent: *
 Disallow: /app/
 Disallow: /login
 Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /verify-email
 
 Sitemap: https://jobber-app.com/sitemap.xml

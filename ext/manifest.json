@@ -1,10 +1,20 @@
 {
   "manifest_version": 3,
-  "name": "Jobber — AI Job Import",
-  "version": "1.0.0",
+  "name": "Jobber - Smart Job Saver",
+  "version": "1.1.0",
   "description": "Save job postings from any website into Jobber with one click. AI-powered parsing.",
-  "permissions": ["activeTab", "storage", "scripting", "alarms"],
-  "host_permissions": ["https://jobber-app.com/*", "http://localhost:8080/*"],
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting",
+    "alarms",
+    "contextMenus",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "https://jobber-app.com/*",
+    "http://localhost:8080/*"
+  ],
   "action": {
     "default_popup": "popup/popup.html",
     "default_icon": {
@@ -20,5 +30,50 @@
   },
   "background": {
     "service_worker": "background.js"
-  }
+  },
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
+  },
+  "commands": {
+    "save-job": {
+      "suggested_key": {
+        "default": "Alt+Shift+S",
+        "mac": "Alt+Shift+S"
+      },
+      "description": "Save current page as a job to Jobber"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.linkedin.com/jobs/*",
+        "https://www.indeed.com/*",
+        "https://www.glassdoor.com/Job/*",
+        "https://www.glassdoor.co.uk/Job/*"
+      ],
+      "js": ["content/jobboards.js"],
+      "css": ["content/jobboards.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://boards.greenhouse.io/*",
+        "https://job-boards.greenhouse.io/*",
+        "https://jobs.lever.co/*",
+        "https://*.myworkdayjobs.com/*",
+        "https://*.myworkdaysite.com/*",
+        "https://*.breezy.hr/*",
+        "https://*.ashbyhq.com/*",
+        "https://*.smartrecruiters.com/*",
+        "https://*.icims.com/*",
+        "https://*.applytojob.com/*",
+        "https://*.bamboohr.com/*",
+        "https://www.linkedin.com/jobs/*",
+        "https://www.indeed.com/*"
+      ],
+      "js": ["content/autofill.js"],
+      "css": ["content/autofill.css"],
+      "run_at": "document_idle"
+    }
+  ]
 }

@@ -29,14 +29,13 @@ type MockSubscriptionRepository struct {
 	UpsertFunc                    func(ctx context.Context, sub *model.Subscription) error
 	CountUserJobsFunc             func(ctx context.Context, userID string) (int, error)
 	CountUserResumesFunc          func(ctx context.Context, userID string) (int, error)
-	CountUserApplicationsFunc     func(ctx context.Context, userID string) (int, error)
 	CountUserAIRequestsFunc       func(ctx context.Context, userID string) (int, error)
 	CountUserJobParsesFunc        func(ctx context.Context, userID string) (int, error)
 	RecordAIUsageFunc             func(ctx context.Context, userID string) error
 	RecordJobParseUsageFunc       func(ctx context.Context, userID string) error
 	CountUserResumeBuildersFunc   func(ctx context.Context, userID string) (int, error)
 	CountUserCoverLettersFunc     func(ctx context.Context, userID string) (int, error)
-	GetAllCountsFunc              func(ctx context.Context, userID string) (int, int, int, int, int, int, int, error)
+	GetAllCountsFunc              func(ctx context.Context, userID string) (int, int, int, int, int, int, error)
 	WebhookEventExistsFunc        func(ctx context.Context, eventID string) (bool, error)
 	RecordWebhookEventFunc        func(ctx context.Context, eventID, eventType string) error
 	TryClaimWebhookEventFunc      func(ctx context.Context, eventID, eventType string) (bool, error)
@@ -73,13 +72,6 @@ func (m *MockSubscriptionRepository) CountUserJobs(ctx context.Context, userID s
 func (m *MockSubscriptionRepository) CountUserResumes(ctx context.Context, userID string) (int, error) {
 	if m.CountUserResumesFunc != nil {
 		return m.CountUserResumesFunc(ctx, userID)
-	}
-	return 0, nil
-}
-
-func (m *MockSubscriptionRepository) CountUserApplications(ctx context.Context, userID string) (int, error) {
-	if m.CountUserApplicationsFunc != nil {
-		return m.CountUserApplicationsFunc(ctx, userID)
 	}
 	return 0, nil
 }
@@ -126,11 +118,11 @@ func (m *MockSubscriptionRepository) CountUserCoverLetters(ctx context.Context, 
 	return 0, nil
 }
 
-func (m *MockSubscriptionRepository) GetAllCounts(ctx context.Context, userID string) (int, int, int, int, int, int, int, error) {
+func (m *MockSubscriptionRepository) GetAllCounts(ctx context.Context, userID string) (int, int, int, int, int, int, error) {
 	if m.GetAllCountsFunc != nil {
 		return m.GetAllCountsFunc(ctx, userID)
 	}
-	return 0, 0, 0, 0, 0, 0, 0, nil
+	return 0, 0, 0, 0, 0, 0, nil
 }
 
 func (m *MockSubscriptionRepository) WebhookEventExists(ctx context.Context, eventID string) (bool, error) {
@@ -529,7 +521,7 @@ func TestCheckLimit(t *testing.T) {
 					return &model.Subscription{Plan: "free", Status: "free"}, nil
 				}
 				repo.CountUserJobsFunc = func(_ context.Context, _ string) (int, error) {
-					return 2, nil // under free limit of 5
+					return 10, nil // under free limit of 25
 				}
 			},
 			wantErr: nil,
@@ -542,7 +534,7 @@ func TestCheckLimit(t *testing.T) {
 					return &model.Subscription{Plan: "free", Status: "free"}, nil
 				}
 				repo.CountUserJobsFunc = func(_ context.Context, _ string) (int, error) {
-					return 5, nil // at free limit of 5
+					return 25, nil // at free limit of 25
 				}
 			},
 			wantErr: model.ErrLimitReached,
@@ -615,19 +607,6 @@ func TestCheckLimit(t *testing.T) {
 				}
 			},
 			wantErr: nil,
-		},
-		{
-			name:     "returns ErrLimitReached for applications at limit (free plan)",
-			resource: "applications",
-			setupRepo: func(repo *MockSubscriptionRepository) {
-				repo.GetByUserIDFunc = func(_ context.Context, _ string) (*model.Subscription, error) {
-					return &model.Subscription{Plan: "free", Status: "free"}, nil
-				}
-				repo.CountUserApplicationsFunc = func(_ context.Context, _ string) (int, error) {
-					return 5, nil
-				}
-			},
-			wantErr: model.ErrLimitReached,
 		},
 		{
 			name:     "returns ErrLimitReached for job_parses at limit (free plan)",
@@ -735,8 +714,8 @@ func TestGetSubscription(t *testing.T) {
 						Status: "active",
 					}, nil
 				}
-				repo.GetAllCountsFunc = func(_ context.Context, uid string) (int, int, int, int, int, int, int, error) {
-					return 3, 2, 1, 10, 5, 1, 0, nil
+				repo.GetAllCountsFunc = func(_ context.Context, uid string) (int, int, int, int, int, int, error) {
+					return 3, 2, 10, 5, 1, 0, nil
 				}
 			},
 			validate: func(t *testing.T, dto *model.SubscriptionDTO) {
@@ -744,7 +723,6 @@ func TestGetSubscription(t *testing.T) {
 				assert.Equal(t, "active", dto.Status)
 				assert.Equal(t, 3, dto.Usage.Jobs)
 				assert.Equal(t, 2, dto.Usage.Resumes)
-				assert.Equal(t, 1, dto.Usage.Applications)
 				assert.Equal(t, 10, dto.Usage.AIRequests)
 				assert.Equal(t, 5, dto.Usage.JobParses)
 				assert.Equal(t, 1, dto.Usage.ResumeBuilders)
@@ -766,8 +744,8 @@ func TestGetSubscription(t *testing.T) {
 				repo.GetByUserIDFunc = func(_ context.Context, _ string) (*model.Subscription, error) {
 					return &model.Subscription{Plan: "free", Status: "free"}, nil
 				}
-				repo.GetAllCountsFunc = func(_ context.Context, _ string) (int, int, int, int, int, int, int, error) {
-					return 0, 0, 0, 0, 0, 0, 0, errors.New("count error")
+				repo.GetAllCountsFunc = func(_ context.Context, _ string) (int, int, int, int, int, int, error) {
+					return 0, 0, 0, 0, 0, 0, errors.New("count error")
 				}
 			},
 			wantErr: true,

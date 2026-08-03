@@ -44,7 +44,7 @@ export default function NotFound() {
             <Link to="/">{t("common.backToHome")}</Link>
           </Button>
           <Button variant="outline" asChild>
-            <Link to="/app/applications">{t("notFound.goToApp")}</Link>
+            <Link to="/app/jobs">{t("notFound.goToApp")}</Link>
           </Button>
         </div>
       </div>

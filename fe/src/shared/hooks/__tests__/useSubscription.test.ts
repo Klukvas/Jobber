@@ -59,7 +59,6 @@ describe("useSubscription", () => {
       limits: {
         max_jobs: -1,
         max_resumes: 10,
-        max_applications: -1,
         max_ai_requests: 50,
         max_job_parses: -1,
         max_resume_builders: 5,
@@ -68,7 +67,6 @@ describe("useSubscription", () => {
       usage: {
         jobs: 3,
         resumes: 2,
-        applications: 5,
         ai_requests: 10,
         job_parses: 0,
         resume_builders: 1,
@@ -96,7 +94,6 @@ describe("useSubscription", () => {
       limits: {
         max_jobs: -1,
         max_resumes: -1,
-        max_applications: -1,
         max_ai_requests: -1,
         max_job_parses: -1,
         max_resume_builders: -1,
@@ -105,7 +102,6 @@ describe("useSubscription", () => {
       usage: {
         jobs: 0,
         resumes: 0,
-        applications: 0,
         ai_requests: 0,
         job_parses: 0,
         resume_builders: 0,
@@ -134,7 +130,6 @@ describe("useSubscription", () => {
         limits: {
           max_jobs: 5,
           max_resumes: 1,
-          max_applications: 5,
           max_ai_requests: 1,
           max_job_parses: 5,
           max_resume_builders: 1,
@@ -143,7 +138,6 @@ describe("useSubscription", () => {
         usage: {
           jobs: 2,
           resumes: 0,
-          applications: 1,
           ai_requests: 0,
           job_parses: 0,
           resume_builders: 0,
@@ -161,7 +155,6 @@ describe("useSubscription", () => {
 
       expect(result.current.canCreate("jobs")).toBe(true);
       expect(result.current.canCreate("resumes")).toBe(true);
-      expect(result.current.canCreate("applications")).toBe(true);
     });
 
     it("blocks creation when usage equals limit", async () => {
@@ -170,7 +163,6 @@ describe("useSubscription", () => {
         limits: {
           max_jobs: 5,
           max_resumes: 1,
-          max_applications: 5,
           max_ai_requests: 1,
           max_job_parses: 5,
           max_resume_builders: 1,
@@ -179,7 +171,6 @@ describe("useSubscription", () => {
         usage: {
           jobs: 5,
           resumes: 1,
-          applications: 5,
           ai_requests: 1,
           job_parses: 5,
           resume_builders: 1,
@@ -197,7 +188,6 @@ describe("useSubscription", () => {
 
       expect(result.current.canCreate("jobs")).toBe(false);
       expect(result.current.canCreate("resumes")).toBe(false);
-      expect(result.current.canCreate("applications")).toBe(false);
       expect(result.current.canCreate("ai")).toBe(false);
       expect(result.current.canCreate("resume_builders")).toBe(false);
     });
@@ -208,7 +198,6 @@ describe("useSubscription", () => {
         limits: {
           max_jobs: -1,
           max_resumes: -1,
-          max_applications: -1,
           max_ai_requests: -1,
           max_job_parses: -1,
           max_resume_builders: -1,
@@ -217,7 +206,6 @@ describe("useSubscription", () => {
         usage: {
           jobs: 100,
           resumes: 50,
-          applications: 200,
           ai_requests: 999,
           job_parses: 100,
           resume_builders: 50,
@@ -235,7 +223,6 @@ describe("useSubscription", () => {
 
       expect(result.current.canCreate("jobs")).toBe(true);
       expect(result.current.canCreate("resumes")).toBe(true);
-      expect(result.current.canCreate("applications")).toBe(true);
       expect(result.current.canCreate("ai")).toBe(true);
       expect(result.current.canCreate("resume_builders")).toBe(true);
       expect(result.current.canCreate("cover_letters")).toBe(true);
@@ -247,7 +234,6 @@ describe("useSubscription", () => {
         limits: {
           max_jobs: 5,
           max_resumes: 1,
-          max_applications: 5,
           max_ai_requests: 0,
           max_job_parses: 5,
           max_resume_builders: 1,
@@ -256,7 +242,6 @@ describe("useSubscription", () => {
         usage: {
           jobs: 0,
           resumes: 0,
-          applications: 0,
           ai_requests: 0,
           job_parses: 0,
           resume_builders: 0,
@@ -281,7 +266,6 @@ describe("useSubscription", () => {
         limits: {
           max_jobs: 5,
           max_resumes: 1,
-          max_applications: 5,
           max_ai_requests: 0,
           max_job_parses: 5,
           max_resume_builders: 1,
@@ -290,7 +274,6 @@ describe("useSubscription", () => {
         usage: {
           jobs: 0,
           resumes: 0,
-          applications: 0,
           ai_requests: 0,
           job_parses: 0,
           resume_builders: 0,
@@ -322,9 +305,8 @@ describe("useSubscription", () => {
     });
 
     expect(result.current.limits).toEqual({
-      max_jobs: 5,
+      max_jobs: 25,
       max_resumes: 1,
-      max_applications: 5,
       max_ai_requests: 1,
       max_job_parses: 5,
       max_resume_builders: 1,
@@ -346,7 +328,6 @@ describe("useSubscription", () => {
     expect(result.current.usage).toEqual({
       jobs: 0,
       resumes: 0,
-      applications: 0,
       ai_requests: 0,
       job_parses: 0,
       resume_builders: 0,

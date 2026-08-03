@@ -83,14 +83,14 @@ func (r *CompanyRepository) GetByID(ctx context.Context, userID, companyID strin
 func (r *CompanyRepository) GetByIDEnriched(ctx context.Context, userID, companyID string) (*model.CompanyDTO, error) {
 	query := `
 		WITH stage_agg AS (
-			SELECT application_id, MAX(created_at) as max_created, COUNT(*) as cnt
-			FROM application_stages
-			GROUP BY application_id
+			SELECT job_id, MAX(created_at) as max_created, COUNT(*) as cnt
+			FROM job_stages
+			GROUP BY job_id
 		),
 		comment_agg AS (
-			SELECT application_id, MAX(created_at) as max_created
+			SELECT job_id, MAX(created_at) as max_created
 			FROM comments
-			GROUP BY application_id
+			GROUP BY job_id
 		)
 		SELECT
 			c.id,
@@ -100,15 +100,14 @@ func (r *CompanyRepository) GetByIDEnriched(ctx context.Context, userID, company
 			c.is_favorite,
 			c.created_at,
 			c.updated_at,
-			COALESCE(COUNT(DISTINCT a.id), 0) as applications_count,
-			COALESCE(COUNT(DISTINCT a.id) FILTER (WHERE a.status = 'active'), 0) as active_applications_count,
-			MAX(GREATEST(a.updated_at, COALESCE(sa.max_created, a.updated_at), COALESCE(ca.max_created, a.updated_at))) as last_activity_at,
+			COALESCE(COUNT(DISTINCT j.id) FILTER (WHERE j.applied_at IS NOT NULL), 0) as applications_count,
+			COALESCE(COUNT(DISTINCT j.id) FILTER (WHERE j.status = 'applied'), 0) as active_applications_count,
+			MAX(GREATEST(j.updated_at, COALESCE(sa.max_created, j.updated_at), COALESCE(ca.max_created, j.updated_at))) as last_activity_at,
 			COALESCE(MAX(sa.cnt), 0) as max_stages
 		FROM companies c
 		LEFT JOIN jobs j ON j.company_id = c.id AND j.user_id = c.user_id
-		LEFT JOIN applications a ON a.job_id = j.id AND a.user_id = j.user_id
-		LEFT JOIN stage_agg sa ON sa.application_id = a.id
-		LEFT JOIN comment_agg ca ON ca.application_id = a.id
+		LEFT JOIN stage_agg sa ON sa.job_id = j.id
+		LEFT JOIN comment_agg ca ON ca.job_id = j.id
 		WHERE c.id = $1 AND c.user_id = $2
 		GROUP BY c.id, c.name, c.location, c.notes, c.is_favorite, c.created_at, c.updated_at
 	`
@@ -172,14 +171,14 @@ func (r *CompanyRepository) List(ctx context.Context, userID string, opts *ports
 	// Single query with pre-aggregated CTEs and COUNT(*) OVER()
 	query := fmt.Sprintf(`
 		WITH stage_agg AS (
-			SELECT application_id, MAX(created_at) as max_created, COUNT(*) as cnt
-			FROM application_stages
-			GROUP BY application_id
+			SELECT job_id, MAX(created_at) as max_created, COUNT(*) as cnt
+			FROM job_stages
+			GROUP BY job_id
 		),
 		comment_agg AS (
-			SELECT application_id, MAX(created_at) as max_created
+			SELECT job_id, MAX(created_at) as max_created
 			FROM comments
-			GROUP BY application_id
+			GROUP BY job_id
 		)
 		SELECT
 			c.id,
@@ -189,16 +188,15 @@ func (r *CompanyRepository) List(ctx context.Context, userID string, opts *ports
 			c.is_favorite,
 			c.created_at,
 			c.updated_at,
-			COALESCE(COUNT(DISTINCT a.id), 0) as applications_count,
-			COALESCE(COUNT(DISTINCT a.id) FILTER (WHERE a.status = 'active'), 0) as active_applications_count,
-			MAX(GREATEST(a.updated_at, COALESCE(sa.max_created, a.updated_at), COALESCE(ca.max_created, a.updated_at))) as last_activity_at,
+			COALESCE(COUNT(DISTINCT j.id) FILTER (WHERE j.applied_at IS NOT NULL), 0) as applications_count,
+			COALESCE(COUNT(DISTINCT j.id) FILTER (WHERE j.status = 'applied'), 0) as active_applications_count,
+			MAX(GREATEST(j.updated_at, COALESCE(sa.max_created, j.updated_at), COALESCE(ca.max_created, j.updated_at))) as last_activity_at,
 			COALESCE(MAX(sa.cnt), 0) as max_stages,
 			COUNT(*) OVER() as total_count
 		FROM companies c
 		LEFT JOIN jobs j ON j.company_id = c.id AND j.user_id = c.user_id
-		LEFT JOIN applications a ON a.job_id = j.id AND a.user_id = j.user_id
-		LEFT JOIN stage_agg sa ON sa.application_id = a.id
-		LEFT JOIN comment_agg ca ON ca.application_id = a.id
+		LEFT JOIN stage_agg sa ON sa.job_id = j.id
+		LEFT JOIN comment_agg ca ON ca.job_id = j.id
 		WHERE c.user_id = $1
 		GROUP BY c.id, c.name, c.location, c.notes, c.is_favorite, c.created_at, c.updated_at
 		ORDER BY %s
@@ -249,12 +247,11 @@ func (r *CompanyRepository) List(ctx context.Context, userID string, opts *ports
 // GetRelatedJobsAndApplicationsCount gets counts of related jobs and applications
 func (r *CompanyRepository) GetRelatedJobsAndApplicationsCount(ctx context.Context, userID, companyID string) (jobsCount, appsCount int, err error) {
 	query := `
-		SELECT 
+		SELECT
 			COALESCE(COUNT(DISTINCT j.id), 0) as jobs_count,
-			COALESCE(COUNT(DISTINCT a.id), 0) as applications_count
+			COALESCE(COUNT(DISTINCT j.id) FILTER (WHERE j.applied_at IS NOT NULL), 0) as applications_count
 		FROM companies c
 		LEFT JOIN jobs j ON j.company_id = c.id AND j.user_id = c.user_id
-		LEFT JOIN applications a ON a.job_id = j.id AND a.user_id = j.user_id
 		WHERE c.id = $1 AND c.user_id = $2
 	`
 

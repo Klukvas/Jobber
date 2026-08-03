@@ -4,9 +4,11 @@ export interface BlogPost {
   readonly title: string;
   readonly slug: string;
   readonly date: string;
+  readonly dateModified?: string;
   readonly description: string;
   readonly tags: readonly string[];
   readonly lang: string;
+  readonly image?: string;
   readonly content: string;
 }
 
@@ -14,9 +16,11 @@ interface FrontmatterData {
   readonly title?: string;
   readonly slug?: string;
   readonly date?: string;
+  readonly dateModified?: string;
   readonly description?: string;
   readonly tags?: string[];
   readonly lang?: string;
+  readonly image?: string;
 }
 
 // Parses single-line YAML frontmatter only.

@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:prerender": "npm run build && npm run prerender",
+    "prerender": "node scripts/prerender.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
@@ -32,6 +34,7 @@
     "ky": "^1.14.3",
     "lucide-react": "^0.563.0",
     "marked": "^17.0.3",
+    "posthog-js": "^1.367.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.72.0",

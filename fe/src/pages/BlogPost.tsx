@@ -40,7 +40,7 @@ export default function BlogPost() {
         isAuthenticated={isAuthenticated}
         onLogin={() => navigate("/login")}
         onRegister={() => navigate("/register")}
-        onGoPlatform={() => navigate("/app/applications")}
+        onGoPlatform={() => navigate("/app/jobs")}
       />
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-24 pb-16">
         <Link

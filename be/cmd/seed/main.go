@@ -83,6 +83,8 @@ func main() {
 		userID, seedEmail, "Alex Jobseeker", hashPassword("password123"), "en", createdAt, createdAt,
 	)
 	must(err, "create user")
+	_, err = tx.Exec(ctx, `UPDATE users SET email_verified = true WHERE id = $1`, userID)
+	must(err, "verify user email")
 	fmt.Printf("created user: %s / password123\n", seedEmail)
 
 	// ── 1b. subscription (pro) ──────────────────────────────────────────
@@ -366,39 +368,47 @@ func main() {
 	fmt.Printf("created %d tags\n", len(tags))
 
 	// ── 6. jobs ──────────────────────────────────────────────────────────
+	// All jobs start as "saved" wishlist cards; the pipeline section below
+	// promotes most of them to applications (status + applied_at + stages).
 	type job struct {
-		id, companyID, title, source, url, notes, status string
-		daysAgo                                           int
+		id, companyID, title, source, url, notes string
+		daysAgo                                  int
 	}
 
 	jobs := []job{
-		{newID(), companies[0].id, "Senior Software Engineer", "LinkedIn", "https://linkedin.com/jobs/1001", "Exciting ML team", "active", 85},
-		{newID(), companies[0].id, "Staff Engineer - Platform", "Company Website", "https://technova.io/careers/staff", "Platform team, high impact", "active", 60},
-		{newID(), companies[1].id, "Backend Engineer (Go)", "Indeed", "https://indeed.com/jobs/2001", "Remote-first, Go + K8s", "active", 80},
-		{newID(), companies[1].id, "Senior Backend Engineer", "Referral", "", "Referred by Sarah Chen", "active", 45},
-		{newID(), companies[2].id, "Full-Stack Developer", "LinkedIn", "https://linkedin.com/jobs/3001", "React + Node stack", "active", 75},
-		{newID(), companies[2].id, "Frontend Engineer", "AngelList", "https://angel.co/datapulse/frontend", "Design-focused role", "archived", 90},
-		{newID(), companies[3].id, "Software Engineer II", "Company Website", "https://greenbyte.dev/careers", "Green tech mission", "active", 70},
-		{newID(), companies[3].id, "DevOps Engineer", "LinkedIn", "https://linkedin.com/jobs/4002", "Terraform + AWS focus", "archived", 88},
-		{newID(), companies[4].id, "ML Engineer", "Hacker News", "https://quantumlabs.ai/jobs/ml", "PyTorch, transformers research", "active", 65},
-		{newID(), companies[4].id, "Senior Software Engineer - AI", "Company Website", "https://quantumlabs.ai/jobs/swe-ai", "LLM infra work", "active", 50},
-		{newID(), companies[5].id, "Backend Engineer - Payments", "LinkedIn", "https://linkedin.com/jobs/6001", "Payments domain, Go + gRPC", "active", 55},
-		{newID(), companies[5].id, "Senior Full-Stack Engineer", "Indeed", "https://indeed.com/jobs/6002", "React + Go, equity package", "active", 40},
-		{newID(), companies[6].id, "Frontend Engineer - React", "AngelList", "https://angel.co/pixelcraft/react", "Creative tooling, WebGL", "active", 72},
-		{newID(), companies[6].id, "UI Engineer", "LinkedIn", "https://linkedin.com/jobs/7002", "Design systems team", "archived", 85},
-		{newID(), companies[7].id, "Platform Engineer", "Referral", "", "Referred by Mike Torres", "active", 35},
-		{newID(), companies[7].id, "SRE", "Indeed", "https://indeed.com/jobs/8002", "On-call rotation, good comp", "active", 68},
-		{newID(), companies[0].id, "Engineering Manager", "LinkedIn", "https://linkedin.com/jobs/1003", "People management + IC hybrid", "active", 25},
-		{newID(), companies[2].id, "Data Engineer", "Company Website", "https://datapulse.io/careers/data-eng", "Spark, Airflow, dbt", "active", 30},
-		{newID(), companies[4].id, "Research Engineer", "Hacker News", "", "Published papers preferred", "archived", 95},
-		{newID(), companies[5].id, "VP of Engineering", "Referral", "", "Leadership role, pre-IPO equity", "active", 20},
+		{newID(), companies[0].id, "Senior Software Engineer", "LinkedIn", "https://linkedin.com/jobs/1001", "Exciting ML team", 85},
+		{newID(), companies[0].id, "Staff Engineer - Platform", "Company Website", "https://technova.io/careers/staff", "Platform team, high impact", 60},
+		{newID(), companies[1].id, "Backend Engineer (Go)", "Indeed", "https://indeed.com/jobs/2001", "Remote-first, Go + K8s", 80},
+		{newID(), companies[1].id, "Senior Backend Engineer", "Referral", "", "Referred by Sarah Chen", 45},
+		{newID(), companies[2].id, "Full-Stack Developer", "LinkedIn", "https://linkedin.com/jobs/3001", "React + Node stack", 75},
+		{newID(), companies[2].id, "Frontend Engineer", "AngelList", "https://angel.co/datapulse/frontend", "Design-focused role", 90},
+		{newID(), companies[3].id, "Software Engineer II", "Company Website", "https://greenbyte.dev/careers", "Green tech mission", 70},
+		{newID(), companies[3].id, "DevOps Engineer", "LinkedIn", "https://linkedin.com/jobs/4002", "Terraform + AWS focus", 88},
+		{newID(), companies[4].id, "ML Engineer", "Hacker News", "https://quantumlabs.ai/jobs/ml", "PyTorch, transformers research", 65},
+		{newID(), companies[4].id, "Senior Software Engineer - AI", "Company Website", "https://quantumlabs.ai/jobs/swe-ai", "LLM infra work", 50},
+		{newID(), companies[5].id, "Backend Engineer - Payments", "LinkedIn", "https://linkedin.com/jobs/6001", "Payments domain, Go + gRPC", 55},
+		{newID(), companies[5].id, "Senior Full-Stack Engineer", "Indeed", "https://indeed.com/jobs/6002", "React + Go, equity package", 40},
+		{newID(), companies[6].id, "Frontend Engineer - React", "AngelList", "https://angel.co/pixelcraft/react", "Creative tooling, WebGL", 72},
+		{newID(), companies[6].id, "UI Engineer", "LinkedIn", "https://linkedin.com/jobs/7002", "Design systems team", 85},
+		{newID(), companies[7].id, "Platform Engineer", "Referral", "", "Referred by Mike Torres", 35},
+		{newID(), companies[7].id, "SRE", "Indeed", "https://indeed.com/jobs/8002", "On-call rotation, good comp", 68},
+		{newID(), companies[0].id, "Engineering Manager", "LinkedIn", "https://linkedin.com/jobs/1003", "People management + IC hybrid", 25},
+		{newID(), companies[2].id, "Data Engineer", "Company Website", "https://datapulse.io/careers/data-eng", "Spark, Airflow, dbt", 30},
+		{newID(), companies[4].id, "Research Engineer", "Hacker News", "", "Published papers preferred", 95},
+		{newID(), companies[5].id, "VP of Engineering", "Referral", "", "Leadership role, pre-IPO equity", 20},
+		// wishlist-only cards (never applied — stay "saved")
+		{newID(), companies[1].id, "Cloud Architect", "LinkedIn", "https://linkedin.com/jobs/2003", "Interesting but senior scope", 12},
+		{newID(), companies[6].id, "Creative Tools Engineer", "Hacker News", "https://pixelcraft.io/jobs/tools", "WebGL heavy, cool demos", 9},
+		{newID(), companies[3].id, "Senior Backend Engineer", "Indeed", "https://indeed.com/jobs/4005", "Green tech, might apply later", 7},
+		{newID(), companies[4].id, "Applied Scientist", "Company Website", "https://quantumlabs.ai/jobs/science", "Research-y, needs PhD?", 5},
+		{newID(), companies[7].id, "Infrastructure Engineer", "LinkedIn", "https://linkedin.com/jobs/8004", "Saved from extension", 3},
 	}
 
 	for _, j := range jobs {
 		_, err = tx.Exec(ctx,
-			`INSERT INTO jobs (id, user_id, company_id, title, source, url, notes, status, board_column, created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'wishlist', $9, $9)`,
-			j.id, userID, j.companyID, j.title, j.source, j.url, j.notes, j.status, daysAgo(j.daysAgo),
+			`INSERT INTO jobs (id, user_id, company_id, title, source, url, notes, status, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, 'saved', $8, $8)`,
+			j.id, userID, j.companyID, j.title, j.source, j.url, j.notes, daysAgo(j.daysAgo),
 		)
 		must(err, "create job "+j.title)
 	}
@@ -431,13 +441,13 @@ func main() {
 	}
 	fmt.Printf("created %d tag relations\n", len(tagRelations))
 
-	// ── 7. applications ──────────────────────────────────────────────────
-	// Each application: job index, resume index, name, status, applied_days_ago, stages to create
+	// ── 7. pipeline: promote jobs to applications ────────────────────────
+	// Each entry: job index, resume index, label, pipeline status, applied_days_ago, stages
 	type appDef struct {
 		jobIdx    int
 		resumeIdx int
-		name      string
-		status    string
+		name      string   // internal label used to attach stage comments below
+		status    string   // applied, on_hold, rejected, offer, archived
 		appliedDA int      // days ago
 		stages    []int    // indices into stages slice (how far they progressed)
 		stageEnd  []string // final status for each stage: completed, active, pending, skipped, cancelled
@@ -445,14 +455,14 @@ func main() {
 
 	appDefs := []appDef{
 		// ── ACTIVE apps (still in pipeline) ──
-		{0, 0, "TechNova - Senior SWE", "active", 82, []int{0, 1, 2}, []string{"completed", "completed", "active"}},
-		{2, 0, "CloudScale - Backend Go", "active", 78, []int{0, 1}, []string{"completed", "active"}},
-		{4, 2, "DataPulse - Full-Stack", "active", 72, []int{0, 1, 2, 3}, []string{"completed", "completed", "completed", "active"}},
-		{6, 0, "GreenByte - SWE II", "active", 68, []int{0}, []string{"active"}},
-		{8, 0, "Quantum Labs - ML Eng", "active", 62, []int{0, 1, 2}, []string{"completed", "completed", "active"}},
-		{10, 0, "FinEdge - Backend Payments", "active", 52, []int{0, 1}, []string{"completed", "active"}},
-		{14, 2, "InfraCore - Platform Eng", "active", 32, []int{0, 1, 2}, []string{"completed", "completed", "active"}},
-		{17, 2, "DataPulse - Data Eng", "active", 28, []int{0}, []string{"active"}},
+		{0, 0, "TechNova - Senior SWE", "applied", 82, []int{0, 1, 2}, []string{"completed", "completed", "active"}},
+		{2, 0, "CloudScale - Backend Go", "applied", 78, []int{0, 1}, []string{"completed", "active"}},
+		{4, 2, "DataPulse - Full-Stack", "applied", 72, []int{0, 1, 2, 3}, []string{"completed", "completed", "completed", "active"}},
+		{6, 0, "GreenByte - SWE II", "applied", 68, []int{0}, []string{"active"}},
+		{8, 0, "Quantum Labs - ML Eng", "applied", 62, []int{0, 1, 2}, []string{"completed", "completed", "active"}},
+		{10, 0, "FinEdge - Backend Payments", "applied", 52, []int{0, 1}, []string{"completed", "active"}},
+		{14, 2, "InfraCore - Platform Eng", "applied", 32, []int{0, 1, 2}, []string{"completed", "completed", "active"}},
+		{17, 2, "DataPulse - Data Eng", "applied", 28, []int{0}, []string{"active"}},
 
 		// ── ON HOLD ──
 		{1, 0, "TechNova - Staff Platform", "on_hold", 58, []int{0, 1, 2}, []string{"completed", "completed", "completed"}},
@@ -481,19 +491,18 @@ func main() {
 	var stageRecords []stageRecord
 
 	for _, ad := range appDefs {
-		appID := newID()
+		jobID := jobs[ad.jobIdx].id
 		appliedAt := daysAgo(ad.appliedDA)
-		appRecords = append(appRecords, appRecord{appID, ad.name, ad.status, ad.jobIdx})
+		appRecords = append(appRecords, appRecord{jobID, ad.name, ad.status, ad.jobIdx})
 
-		// insert application first (without current_stage_id) so stages can reference it
+		// promote the saved card to an application
 		_, err = tx.Exec(ctx,
-			`INSERT INTO applications (id, user_id, job_id, resume_id, name, current_stage_id, status, applied_at, created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8, $8)`,
-			appID, userID, jobs[ad.jobIdx].id, resumes[ad.resumeIdx].id, ad.name, ad.status, appliedAt, appliedAt,
+			`UPDATE jobs SET status = $1, applied_at = $2, resume_id = $3, updated_at = $2 WHERE id = $4`,
+			ad.status, appliedAt, resumes[ad.resumeIdx].id, jobID,
 		)
-		must(err, "create application "+ad.name)
+		must(err, "promote job "+ad.name)
 
-		// create application stages
+		// create pipeline stages
 		var currentStageID *string
 		for i, stageIdx := range ad.stages {
 			stageID := newID()
@@ -508,52 +517,47 @@ func main() {
 			}
 
 			_, err = tx.Exec(ctx,
-				`INSERT INTO application_stages (id, application_id, stage_template_id, status, "order", started_at, completed_at, created_at)
+				`INSERT INTO job_stages (id, job_id, stage_template_id, status, "order", started_at, completed_at, created_at)
 				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-				stageID, appID, stages[stageIdx].id, stStatus, order, startedAt, completedAt, startedAt,
+				stageID, jobID, stages[stageIdx].id, stStatus, order, startedAt, completedAt, startedAt,
 			)
-			must(err, fmt.Sprintf("create stage %s for app %s", stages[stageIdx].name, ad.name))
+			must(err, fmt.Sprintf("create stage %s for job %s", stages[stageIdx].name, ad.name))
 
-			stageRecords = append(stageRecords, stageRecord{stageID, appID, stages[stageIdx].id, stStatus, order})
+			stageRecords = append(stageRecords, stageRecord{stageID, jobID, stages[stageIdx].id, stStatus, order})
 
 			if stStatus == "active" || stStatus == "pending" || i == len(ad.stages)-1 {
 				currentStageID = &stageID
 			}
 		}
 
-		// update application with current_stage_id
+		// update job with current_stage_id
 		if currentStageID != nil {
 			_, err = tx.Exec(ctx,
-				`UPDATE applications SET current_stage_id = $1 WHERE id = $2`,
-				*currentStageID, appID,
+				`UPDATE jobs SET current_stage_id = $1 WHERE id = $2`,
+				*currentStageID, jobID,
 			)
 			must(err, "update current_stage_id for "+ad.name)
 		}
 	}
-	fmt.Printf("created %d applications with stages\n", len(appDefs))
+	fmt.Printf("promoted %d jobs to applications with stages\n", len(appDefs))
 
-	// ── tag some applications ────────────────────────────────────────────
+	// ── tag some applied jobs ────────────────────────────────────────────
 	appTagRelations := []struct{ tagIdx, appIdx int }{
-		{3, 0},  // high-priority -> TechNova SWE
 		{3, 4},  // high-priority -> Quantum ML
-		{0, 1},  // remote -> CloudScale Backend
-		{6, 15}, // referral -> CloudScale Senior (offer)
-		{6, 6},  // referral -> InfraCore Platform
 		{8, 15}, // good-comp -> CloudScale offer
 		{8, 16}, // good-comp -> FinEdge offer
 		{5, 2},  // startup -> DataPulse FS
 		{9, 19}, // backup -> FinEdge VP archived
-		{7, 4},  // interesting-tech -> Quantum ML
 	}
 	for _, atr := range appTagRelations {
 		_, err = tx.Exec(ctx,
 			`INSERT INTO tag_relations (id, tag_id, entity_type, entity_id, created_at)
 			 VALUES ($1, $2, $3, $4, $5)`,
-			newID(), tags[atr.tagIdx].id, "application", appRecords[atr.appIdx].id, daysAgo(80),
+			newID(), tags[atr.tagIdx].id, "job", appRecords[atr.appIdx].id, daysAgo(80),
 		)
-		must(err, "create app tag relation")
+		must(err, "create job tag relation")
 	}
-	fmt.Printf("created %d application tag relations\n", len(appTagRelations))
+	fmt.Printf("created %d extra job tag relations\n", len(appTagRelations))
 
 	// ── 8. comments ──────────────────────────────────────────────────────
 	type commentDef struct {
@@ -626,7 +630,7 @@ func main() {
 
 	for _, cd := range commentDefs {
 		_, err = tx.Exec(ctx,
-			`INSERT INTO comments (id, user_id, application_id, stage_id, content, created_at, updated_at)
+			`INSERT INTO comments (id, user_id, job_id, stage_id, content, created_at, updated_at)
 			 VALUES ($1, $2, $3, $4, $5, $6, $6)`,
 			newID(), userID, appRecords[cd.appIdx].id, cd.stageID, cd.content, daysAgo(cd.daysAgo),
 		)
@@ -656,7 +660,7 @@ func main() {
 
 	for _, rd := range reminderDefs {
 		_, err = tx.Exec(ctx,
-			`INSERT INTO reminders (id, user_id, application_id, stage_id, remind_at, message, is_done, created_at, updated_at)
+			`INSERT INTO reminders (id, user_id, job_id, stage_id, remind_at, message, is_done, created_at, updated_at)
 			 VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $7)`,
 			newID(), userID, appRecords[rd.appIdx].id, rd.remindAt, rd.message, rd.isDone, daysAgo(rd.createdDA),
 		)

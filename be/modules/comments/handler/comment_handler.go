@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
@@ -20,7 +21,7 @@ func NewCommentHandler(service *service.CommentService) *CommentHandler {
 
 // Create godoc
 // @Summary Create a new comment
-// @Description Create a comment for an application or a specific stage
+// @Description Create a comment for a job or a specific stage
 // @Tags comments
 // @Security BearerAuth
 // @Accept json
@@ -47,38 +48,43 @@ func (h *CommentHandler) Create(c *gin.Context) {
 		statusCode := http.StatusInternalServerError
 		errorCode := string(model.CodeInternalError)
 		errorMessage := "Failed to create comment"
-		
-		if err == model.ErrContentRequired {
+
+		switch {
+		case errors.Is(err, model.ErrContentRequired):
 			statusCode = http.StatusBadRequest
 			errorCode = string(model.CodeContentRequired)
 			errorMessage = "Content is required"
+		case errors.Is(err, model.ErrJobNotFound):
+			statusCode = http.StatusNotFound
+			errorCode = string(model.CodeJobNotFound)
+			errorMessage = "Job not found"
 		}
-		
+
 		httpPlatform.RespondWithError(c, statusCode, errorCode, errorMessage)
 		return
 	}
 	httpPlatform.RespondWithData(c, http.StatusCreated, comment)
 }
 
-// ListByApplication godoc
-// @Summary List comments by application
-// @Description Get all comments for a specific application
+// ListByJob godoc
+// @Summary List comments by job
+// @Description Get all comments for a specific job
 // @Tags comments
 // @Security BearerAuth
 // @Produce json
-// @Param id path string true "Application ID"
+// @Param id path string true "Job ID"
 // @Success 200 {object} []model.CommentDTO
 // @Failure 401 {object} httpPlatform.ErrorResponse
 // @Failure 500 {object} httpPlatform.ErrorResponse
-// @Router /applications/{id}/comments [get]
-func (h *CommentHandler) ListByApplication(c *gin.Context) {
+// @Router /jobs/{id}/comments [get]
+func (h *CommentHandler) ListByJob(c *gin.Context) {
 	userID, ok := auth.MustGetUserID(c)
 	if !ok {
 		return
 	}
-	appID := c.Param("id")
+	jobID := c.Param("id")
 
-	comments, err := h.service.ListByApplication(c.Request.Context(), appID, userID)
+	comments, err := h.service.ListByJob(c.Request.Context(), jobID, userID)
 	if err != nil {
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, string(model.CodeInternalError), "Failed to list comments")
 		return
@@ -109,13 +115,13 @@ func (h *CommentHandler) Delete(c *gin.Context) {
 		statusCode := http.StatusInternalServerError
 		errorCode := string(model.CodeInternalError)
 		errorMessage := "Failed to delete comment"
-		
-		if err == model.ErrCommentNotFound {
+
+		if errors.Is(err, model.ErrCommentNotFound) {
 			statusCode = http.StatusNotFound
 			errorCode = string(model.CodeCommentNotFound)
 			errorMessage = "Comment not found"
 		}
-		
+
 		httpPlatform.RespondWithError(c, statusCode, errorCode, errorMessage)
 		return
 	}
@@ -129,11 +135,11 @@ func (h *CommentHandler) RegisterRoutes(router *gin.RouterGroup, authMiddleware 
 		comments.POST("", h.Create)
 		comments.DELETE("/:id", h.Delete)
 	}
-	
-	// Comments for applications (nested route)
-	apps := router.Group("/applications")
-	apps.Use(authMiddleware)
+
+	// Comments for jobs (nested route; the /jobs group itself lives in the jobs handler)
+	jobs := router.Group("/jobs")
+	jobs.Use(authMiddleware)
 	{
-		apps.GET("/:id/comments", h.ListByApplication)
+		jobs.GET("/:id/comments", h.ListByJob)
 	}
 }

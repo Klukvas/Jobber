@@ -2,10 +2,12 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/andreypavlenko/jobber/modules/reminders/model"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -19,7 +21,7 @@ func NewReminderRepository(pool *pgxpool.Pool) *ReminderRepository {
 
 func (r *ReminderRepository) Create(ctx context.Context, reminder *model.Reminder) error {
 	query := `
-		INSERT INTO reminders (id, user_id, application_id, stage_id, remind_at, message, is_done, created_at, updated_at)
+		INSERT INTO reminders (id, user_id, job_id, stage_id, remind_at, message, is_done, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 	reminder.ID = uuid.New().String()
@@ -27,13 +29,13 @@ func (r *ReminderRepository) Create(ctx context.Context, reminder *model.Reminde
 	reminder.CreatedAt = now
 	reminder.UpdatedAt = now
 
-	_, err := r.pool.Exec(ctx, query, reminder.ID, reminder.UserID, reminder.ApplicationID, reminder.StageID, reminder.RemindAt, reminder.Message, reminder.IsDone, reminder.CreatedAt, reminder.UpdatedAt)
+	_, err := r.pool.Exec(ctx, query, reminder.ID, reminder.UserID, reminder.JobID, reminder.StageID, reminder.RemindAt, reminder.Message, reminder.IsDone, reminder.CreatedAt, reminder.UpdatedAt)
 	return err
 }
 
 func (r *ReminderRepository) ListByUser(ctx context.Context, userID string) ([]*model.Reminder, error) {
 	query := `
-		SELECT id, user_id, application_id, stage_id, remind_at, message, is_done, created_at, updated_at
+		SELECT id, user_id, job_id, stage_id, remind_at, message, is_done, created_at, updated_at
 		FROM reminders WHERE user_id = $1 ORDER BY remind_at ASC
 	`
 
@@ -46,7 +48,7 @@ func (r *ReminderRepository) ListByUser(ctx context.Context, userID string) ([]*
 	var reminders []*model.Reminder
 	for rows.Next() {
 		rem := &model.Reminder{}
-		if err := rows.Scan(&rem.ID, &rem.UserID, &rem.ApplicationID, &rem.StageID, &rem.RemindAt, &rem.Message, &rem.IsDone, &rem.CreatedAt, &rem.UpdatedAt); err != nil {
+		if err := rows.Scan(&rem.ID, &rem.UserID, &rem.JobID, &rem.StageID, &rem.RemindAt, &rem.Message, &rem.IsDone, &rem.CreatedAt, &rem.UpdatedAt); err != nil {
 			return nil, err
 		}
 		reminders = append(reminders, rem)
@@ -69,13 +71,16 @@ func (r *ReminderRepository) Update(ctx context.Context, reminder *model.Reminde
 
 func (r *ReminderRepository) GetByID(ctx context.Context, userID, reminderID string) (*model.Reminder, error) {
 	query := `
-		SELECT id, user_id, application_id, stage_id, remind_at, message, is_done, created_at, updated_at
+		SELECT id, user_id, job_id, stage_id, remind_at, message, is_done, created_at, updated_at
 		FROM reminders WHERE id = $1 AND user_id = $2
 	`
 	rem := &model.Reminder{}
-	err := r.pool.QueryRow(ctx, query, reminderID, userID).Scan(&rem.ID, &rem.UserID, &rem.ApplicationID, &rem.StageID, &rem.RemindAt, &rem.Message, &rem.IsDone, &rem.CreatedAt, &rem.UpdatedAt)
+	err := r.pool.QueryRow(ctx, query, reminderID, userID).Scan(&rem.ID, &rem.UserID, &rem.JobID, &rem.StageID, &rem.RemindAt, &rem.Message, &rem.IsDone, &rem.CreatedAt, &rem.UpdatedAt)
 	if err != nil {
-		return nil, model.ErrReminderNotFound
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, model.ErrReminderNotFound
+		}
+		return nil, err
 	}
 	return rem, nil
 }

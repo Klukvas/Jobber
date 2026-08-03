@@ -26,9 +26,9 @@ export function CoverLetterAIPanel() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { data: jobsData } = useQuery({
-    queryKey: ["jobs", "active"],
-    queryFn: () =>
-      jobsService.list({ status: "active", limit: 100, offset: 0 }),
+    // Status omitted => all non-archived jobs
+    queryKey: ["jobs", "non-archived"],
+    queryFn: () => jobsService.list({ limit: 100, offset: 0 }),
   });
 
   const jobs = jobsData?.items ?? [];

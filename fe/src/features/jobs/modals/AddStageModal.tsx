@@ -1,0 +1,148 @@
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { jobsService } from "@/services/jobsService";
+import {
+  showSuccessNotification,
+  showErrorNotification,
+} from "@/shared/lib/notifications";
+import { stageTemplatesService } from "@/services/stageTemplatesService";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/shared/ui/Dialog";
+import { Button } from "@/shared/ui/Button";
+import { Label } from "@/shared/ui/Label";
+import { Input } from "@/shared/ui/Input";
+import { Loader2 } from "lucide-react";
+
+interface AddStageModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  jobId: string;
+}
+
+export function AddStageModal({
+  open,
+  onOpenChange,
+  jobId,
+}: AddStageModalProps) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [stageTemplateId, setStageTemplateId] = useState("");
+  const [comment, setComment] = useState("");
+
+  const { data: stageTemplates } = useQuery({
+    queryKey: ["stage-templates"],
+    queryFn: () => stageTemplatesService.list({ limit: 100, offset: 0 }),
+    enabled: open,
+  });
+
+  const addStageMutation = useMutation({
+    mutationFn: (data: { stage_template_id: string; comment?: string }) =>
+      jobsService.addStage(jobId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["job-stages", jobId] });
+      // Job query includes embedded comments, so this refreshes everything
+      queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      showSuccessNotification(t("jobs.stageAddedSuccess"));
+      onOpenChange(false);
+      setStageTemplateId("");
+      setComment("");
+    },
+    onError: (error: Error) => {
+      showErrorNotification(error.message || t("jobs.stageAddedError"));
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (stageTemplateId) {
+      const data: { stage_template_id: string; comment?: string } = {
+        stage_template_id: stageTemplateId,
+      };
+      if (comment.trim()) {
+        data.comment = comment.trim();
+      }
+      addStageMutation.mutate(data);
+    }
+  };
+
+  const sortedTemplates = [...(stageTemplates?.items || [])].sort(
+    (a, b) => a.order - b.order,
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent onClose={() => onOpenChange(false)}>
+        <DialogHeader>
+          <DialogTitle>{t("jobs.addStageTitle")}</DialogTitle>
+          <DialogDescription>{t("jobs.addStageDescription")}</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="stage">{`${t("jobs.selectStage")} *`}</Label>
+              <select
+                id="stage"
+                value={stageTemplateId}
+                onChange={(e) => setStageTemplateId(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                required
+              >
+                <option value="">{t("jobs.selectStageOption")}</option>
+                {sortedTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.order}. {template.name}
+                  </option>
+                ))}
+              </select>
+              {sortedTemplates.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {t("jobs.noStageTemplates")}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="comment">{t("jobs.commentOptional")}</Label>
+              <Input
+                id="comment"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder={t("jobs.stagePlaceholder")}
+                className="w-full"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              type="submit"
+              disabled={addStageMutation.isPending || !stageTemplateId}
+            >
+              {addStageMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {t("common.loading")}
+                </>
+              ) : (
+                t("jobs.addStage")
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

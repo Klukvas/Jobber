@@ -3,19 +3,12 @@ import { useSubscription } from "@/shared/hooks/useSubscription";
 import { FEATURES } from "@/shared/lib/features";
 
 interface UpgradeBannerProps {
-  resource:
-    | "jobs"
-    | "resumes"
-    | "applications"
-    | "ai"
-    | "resume_builders"
-    | "cover_letters";
+  resource: "jobs" | "resumes" | "ai" | "resume_builders" | "cover_letters";
 }
 
 const limitKeyMap: Record<string, string> = {
   jobs: "limitReachedJobs",
   resumes: "limitReachedResumes",
-  applications: "limitReachedApplications",
   ai: "limitReachedAI",
   resume_builders: "limitReachedResumeBuilders",
   cover_letters: "limitReachedCoverLetters",
@@ -25,14 +18,12 @@ const limitFieldMap: Record<
   string,
   | "max_jobs"
   | "max_resumes"
-  | "max_applications"
   | "max_ai_requests"
   | "max_resume_builders"
   | "max_cover_letters"
 > = {
   jobs: "max_jobs",
   resumes: "max_resumes",
-  applications: "max_applications",
   ai: "max_ai_requests",
   resume_builders: "max_resume_builders",
   cover_letters: "max_cover_letters",

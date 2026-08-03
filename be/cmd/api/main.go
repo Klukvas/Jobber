@@ -32,10 +32,6 @@ import (
 	authService "github.com/andreypavlenko/jobber/modules/auth/service"
 	userRepo "github.com/andreypavlenko/jobber/modules/users/repository"
 
-	appHandler "github.com/andreypavlenko/jobber/modules/applications/handler"
-	appRepo "github.com/andreypavlenko/jobber/modules/applications/repository"
-	appService "github.com/andreypavlenko/jobber/modules/applications/service"
-
 	companyHandler "github.com/andreypavlenko/jobber/modules/companies/handler"
 	companyRepo "github.com/andreypavlenko/jobber/modules/companies/repository"
 	companyService "github.com/andreypavlenko/jobber/modules/companies/service"
@@ -135,7 +131,6 @@ func main() {
 			plans[k] = subModel.PlanLimitsConfig{
 				MaxJobs:           v.MaxJobs,
 				MaxResumes:        v.MaxResumes,
-				MaxApplications:   v.MaxApplications,
 				MaxAIRequests:     v.MaxAIRequests,
 				MaxJobParses:      v.MaxJobParses,
 				MaxResumeBuilders: v.MaxResumeBuilders,
@@ -272,9 +267,8 @@ func main() {
 	companyRepository := companyRepo.NewCompanyRepository(pgClient.Pool)
 	jobRepository := jobRepo.NewJobRepository(pgClient.Pool)
 	resumeRepository := resumeRepo.NewResumeRepository(pgClient.Pool)
-	applicationRepository := appRepo.NewApplicationRepository(pgClient.Pool)
-	stageTemplateRepository := appRepo.NewStageTemplateRepository(pgClient.Pool)
-	applicationStageRepository := appRepo.NewApplicationStageRepository(pgClient.Pool)
+	stageTemplateRepository := jobRepo.NewStageTemplateRepository(pgClient.Pool)
+	jobStageRepository := jobRepo.NewJobStageRepository(pgClient.Pool)
 	commentRepository := commentRepo.NewCommentRepository(pgClient.Pool)
 	analyticsRepository := analyticsRepo.NewAnalyticsRepository(pgClient.Pool)
 	subscriptionRepository := subRepo.NewSubscriptionRepository(pgClient.Pool)
@@ -311,24 +305,23 @@ func main() {
 		Logger:              logger.Logger,
 	})
 	companySvc := companyService.NewCompanyService(companyRepository)
-	jobSvc := jobService.NewJobService(jobRepository, companyRepository, subscriptionSvc, matchScoreCacheRepo)
 	resumeSvc := resumeService.NewResumeService(resumeRepository, s3Client, subscriptionSvc, matchScoreCacheRepo)
 
-	// Initialize resume builder repository early — needed by application service
+	// Initialize resume builder repository early — needed by the job service
 	resumeBuilderRepository := rbRepo.NewResumeBuilderRepository(pgClient.Pool)
 
-	applicationSvc := appService.NewApplicationService(
+	jobSvc := jobService.NewJobService(
 		pgClient.Pool,
-		applicationRepository,
-		applicationStageRepository,
-		stageTemplateRepository,
 		jobRepository,
+		jobStageRepository,
+		stageTemplateRepository,
 		companyRepository,
 		resumeRepository,
 		resumeBuilderRepository,
 		commentRepository,
 		logger,
 		subscriptionSvc,
+		matchScoreCacheRepo,
 	)
 	commentSvc := commentService.NewCommentService(commentRepository)
 	analyticsSvc := analyticsService.NewAnalyticsService(analyticsRepository)
@@ -339,7 +332,6 @@ func main() {
 	companyHdl := companyHandler.NewCompanyHandler(companySvc)
 	jobHdl := jobHandler.NewJobHandler(jobSvc)
 	resumeHdl := resumeHandler.NewResumeHandler(resumeSvc)
-	applicationHdl := appHandler.NewApplicationHandler(applicationSvc)
 	commentHdl := commentHandler.NewCommentHandler(commentSvc)
 	analyticsHdl := analyticsHandler.NewAnalyticsHandler(analyticsSvc)
 	subscriptionHdl := subHandler.NewSubscriptionHandler(subscriptionSvc, logger.Logger)
@@ -539,7 +531,6 @@ func main() {
 		companyHdl.RegisterRoutes(v1, authMiddleware)
 		jobHdl.RegisterRoutes(v1, authMiddleware)
 		resumeHdl.RegisterRoutes(v1, authMiddleware)
-		applicationHdl.RegisterRoutes(v1, authMiddleware)
 		commentHdl.RegisterRoutes(v1, authMiddleware)
 		analyticsHdl.RegisterRoutes(v1, authMiddleware)
 		resumeBuilderHdl.RegisterRoutes(v1, authMiddleware)

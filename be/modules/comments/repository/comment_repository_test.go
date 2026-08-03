@@ -19,13 +19,13 @@ func TestCommentRepository_Create(t *testing.T) {
 		defer mock.Close()
 
 		comment := &model.Comment{
-			UserID:        "user-123",
-			ApplicationID: "app-1",
-			Content:       "Test comment",
+			UserID:  "user-123",
+			JobID:   "job-1",
+			Content: "Test comment",
 		}
 
 		mock.ExpectExec("INSERT INTO comments").
-			WithArgs(pgxmock.AnyArg(), comment.UserID, comment.ApplicationID, comment.StageID, comment.Content, pgxmock.AnyArg(), pgxmock.AnyArg()).
+			WithArgs(pgxmock.AnyArg(), comment.UserID, comment.JobID, comment.StageID, comment.Content, pgxmock.AnyArg(), pgxmock.AnyArg()).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 		repo := &testCommentRepo{mock: mock}
@@ -43,14 +43,14 @@ func TestCommentRepository_Create(t *testing.T) {
 
 		stageID := "stage-1"
 		comment := &model.Comment{
-			UserID:        "user-123",
-			ApplicationID: "app-1",
-			StageID:       &stageID,
-			Content:       "Stage comment",
+			UserID:  "user-123",
+			JobID:   "job-1",
+			StageID: &stageID,
+			Content: "Stage comment",
 		}
 
 		mock.ExpectExec("INSERT INTO comments").
-			WithArgs(pgxmock.AnyArg(), comment.UserID, comment.ApplicationID, comment.StageID, comment.Content, pgxmock.AnyArg(), pgxmock.AnyArg()).
+			WithArgs(pgxmock.AnyArg(), comment.UserID, comment.JobID, comment.StageID, comment.Content, pgxmock.AnyArg(), pgxmock.AnyArg()).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 		repo := &testCommentRepo{mock: mock}
@@ -61,27 +61,27 @@ func TestCommentRepository_Create(t *testing.T) {
 	})
 }
 
-func TestCommentRepository_ListByApplication(t *testing.T) {
+func TestCommentRepository_ListByJob(t *testing.T) {
 	t.Run("returns comments list", func(t *testing.T) {
 		mock, err := pgxmock.NewPool()
 		require.NoError(t, err)
 		defer mock.Close()
 
-		appID := "app-1"
+		jobID := "job-1"
 		now := time.Now()
 
 		rows := pgxmock.NewRows([]string{
-			"id", "user_id", "application_id", "stage_id", "content", "created_at", "updated_at",
+			"id", "user_id", "job_id", "stage_id", "content", "created_at", "updated_at",
 		}).
-			AddRow("comment-1", "user-123", appID, nil, "First comment", now, now).
-			AddRow("comment-2", "user-123", appID, nil, "Second comment", now, now)
+			AddRow("comment-1", "user-123", jobID, nil, "First comment", now, now).
+			AddRow("comment-2", "user-123", jobID, nil, "Second comment", now, now)
 
-		mock.ExpectQuery("SELECT id, user_id, application_id, stage_id, content, created_at, updated_at").
-			WithArgs(appID, "user-123").
+		mock.ExpectQuery("SELECT id, user_id, job_id, stage_id, content, created_at, updated_at").
+			WithArgs(jobID, "user-123").
 			WillReturnRows(rows)
 
 		repo := &testCommentRepo{mock: mock}
-		comments, err := repo.ListByApplication(context.Background(), appID, "user-123")
+		comments, err := repo.ListByJob(context.Background(), jobID, "user-123")
 
 		require.NoError(t, err)
 		assert.Len(t, comments, 2)
@@ -94,18 +94,18 @@ func TestCommentRepository_ListByApplication(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		appID := "app-1"
+		jobID := "job-1"
 
 		rows := pgxmock.NewRows([]string{
-			"id", "user_id", "application_id", "stage_id", "content", "created_at", "updated_at",
+			"id", "user_id", "job_id", "stage_id", "content", "created_at", "updated_at",
 		})
 
-		mock.ExpectQuery("SELECT id, user_id, application_id, stage_id, content, created_at, updated_at").
-			WithArgs(appID, "user-123").
+		mock.ExpectQuery("SELECT id, user_id, job_id, stage_id, content, created_at, updated_at").
+			WithArgs(jobID, "user-123").
 			WillReturnRows(rows)
 
 		repo := &testCommentRepo{mock: mock}
-		comments, err := repo.ListByApplication(context.Background(), appID, "user-123")
+		comments, err := repo.ListByJob(context.Background(), jobID, "user-123")
 
 		require.NoError(t, err)
 		assert.Empty(t, comments)
@@ -154,7 +154,7 @@ type testCommentRepo struct {
 
 func (r *testCommentRepo) Create(ctx context.Context, comment *model.Comment) error {
 	query := `
-		INSERT INTO comments (id, user_id, application_id, stage_id, content, created_at, updated_at)
+		INSERT INTO comments (id, user_id, job_id, stage_id, content, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 	comment.ID = "test-comment-id"
@@ -163,16 +163,16 @@ func (r *testCommentRepo) Create(ctx context.Context, comment *model.Comment) er
 	comment.UpdatedAt = now
 
 	_, err := r.mock.Exec(ctx, query,
-		comment.ID, comment.UserID, comment.ApplicationID, comment.StageID, comment.Content, comment.CreatedAt, comment.UpdatedAt,
+		comment.ID, comment.UserID, comment.JobID, comment.StageID, comment.Content, comment.CreatedAt, comment.UpdatedAt,
 	)
 	return err
 }
 
-func (r *testCommentRepo) ListByApplication(ctx context.Context, appID string, userID ...string) ([]*model.Comment, error) {
+func (r *testCommentRepo) ListByJob(ctx context.Context, jobID string, userID ...string) ([]*model.Comment, error) {
 	query := `
-		SELECT id, user_id, application_id, stage_id, content, created_at, updated_at
+		SELECT id, user_id, job_id, stage_id, content, created_at, updated_at
 		FROM comments
-		WHERE application_id = $1 AND user_id = $2
+		WHERE job_id = $1 AND user_id = $2
 		ORDER BY created_at ASC
 	`
 
@@ -181,7 +181,7 @@ func (r *testCommentRepo) ListByApplication(ctx context.Context, appID string, u
 		uid = userID[0]
 	}
 
-	rows, err := r.mock.Query(ctx, query, appID, uid)
+	rows, err := r.mock.Query(ctx, query, jobID, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +191,7 @@ func (r *testCommentRepo) ListByApplication(ctx context.Context, appID string, u
 	for rows.Next() {
 		comment := &model.Comment{}
 		if err := rows.Scan(
-			&comment.ID, &comment.UserID, &comment.ApplicationID, &comment.StageID, &comment.Content, &comment.CreatedAt, &comment.UpdatedAt,
+			&comment.ID, &comment.UserID, &comment.JobID, &comment.StageID, &comment.Content, &comment.CreatedAt, &comment.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

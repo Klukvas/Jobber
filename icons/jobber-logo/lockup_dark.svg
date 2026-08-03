@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="88" viewBox="0 0 480 88">
+  <rect width="480" height="88" rx="18" fill="#05040f"/>
+  <rect x="8" y="8" width="72" height="72" rx="17" fill="#08071a" stroke="rgba(99,102,241,0.22)" stroke-width="1"/>
+  <g transform="translate(19,32)">
+    <rect x="0"  y="0" width="15" height="23" rx="7"  fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.35)" stroke-width="1.4"/>
+    <rect x="21" y="0" width="15" height="23" rx="7"  fill="rgba(99,102,241,0.4)" stroke="#6366F1" stroke-width="1.4"/>
+    <rect x="42" y="0" width="15" height="23" rx="7"  fill="#6366F1"/>
+    <line x1="15" y1="11.5" x2="21" y2="11.5" stroke="rgba(255,255,255,0.2)" stroke-width="1.4"/>
+    <line x1="36" y1="11.5" x2="42" y2="11.5" stroke="#6366F1" stroke-width="1.4" opacity=".8"/>
+    <path d="M45.5 11.5 L48 14 L52 9" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <circle cx="28.5" cy="11.5" r="2.4" fill="rgba(165,180,252,0.9)"/>
+    <circle cx="7.5"  cy="11.5" r="1.9" fill="rgba(255,255,255,0.35)"/>
+  </g>
+  <text x="100" y="46" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="40" fill="#ffffff" letter-spacing="-1.5">Jobber</text>
+  <text x="100" y="66" font-family="Courier New,monospace" font-size="12" fill="rgba(99,102,241,0.65)" letter-spacing="4">JOB TRACKER</text>
+</svg>

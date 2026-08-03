@@ -18,33 +18,45 @@ func NewCommentRepository(pool *pgxpool.Pool) *CommentRepository {
 }
 
 func (r *CommentRepository) Create(ctx context.Context, comment *model.Comment) error {
+	// The row is inserted only if the target job belongs to the comment's author
+	// and (when a stage is given) the stage belongs to that job. This closes an
+	// IDOR: a caller cannot anchor a comment on another user's job by supplying
+	// its UUID in the request body.
 	query := `
-		INSERT INTO comments (id, user_id, application_id, stage_id, content, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO comments (id, user_id, job_id, stage_id, content, created_at, updated_at)
+		SELECT $1, $2, $3, $4, $5, $6, $7
+		WHERE EXISTS (SELECT 1 FROM jobs WHERE id = $3 AND user_id = $2)
+		  AND ($4::uuid IS NULL OR EXISTS (SELECT 1 FROM job_stages WHERE id = $4 AND job_id = $3))
 	`
 	comment.ID = uuid.New().String()
 	now := time.Now().UTC()
 	comment.CreatedAt = now
 	comment.UpdatedAt = now
 
-	_, err := r.pool.Exec(ctx, query, comment.ID, comment.UserID, comment.ApplicationID, comment.StageID, comment.Content, comment.CreatedAt, comment.UpdatedAt)
-	return err
+	result, err := r.pool.Exec(ctx, query, comment.ID, comment.UserID, comment.JobID, comment.StageID, comment.Content, comment.CreatedAt, comment.UpdatedAt)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return model.ErrJobNotFound
+	}
+	return nil
 }
 
-func (r *CommentRepository) ListByApplication(ctx context.Context, appID string, userID ...string) ([]*model.Comment, error) {
+func (r *CommentRepository) ListByJob(ctx context.Context, jobID string, userID ...string) ([]*model.Comment, error) {
 	query := `
-		SELECT c.id, c.user_id, c.application_id, c.stage_id, c.content, c.created_at, c.updated_at
+		SELECT c.id, c.user_id, c.job_id, c.stage_id, c.content, c.created_at, c.updated_at
 		FROM comments c
 	`
 	var args []interface{}
 
 	if len(userID) > 0 && userID[0] != "" {
-		query += ` JOIN applications a ON c.application_id = a.id AND a.user_id = $1
-		WHERE c.application_id = $2 ORDER BY c.created_at ASC`
-		args = append(args, userID[0], appID)
+		query += ` JOIN jobs j ON c.job_id = j.id AND j.user_id = $1
+		WHERE c.job_id = $2 ORDER BY c.created_at ASC`
+		args = append(args, userID[0], jobID)
 	} else {
-		query += ` WHERE c.application_id = $1 ORDER BY c.created_at ASC`
-		args = append(args, appID)
+		query += ` WHERE c.job_id = $1 ORDER BY c.created_at ASC`
+		args = append(args, jobID)
 	}
 
 	rows, err := r.pool.Query(ctx, query, args...)
@@ -56,7 +68,7 @@ func (r *CommentRepository) ListByApplication(ctx context.Context, appID string,
 	var comments []*model.Comment
 	for rows.Next() {
 		c := &model.Comment{}
-		if err := rows.Scan(&c.ID, &c.UserID, &c.ApplicationID, &c.StageID, &c.Content, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.UserID, &c.JobID, &c.StageID, &c.Content, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, err
 		}
 		comments = append(comments, c)

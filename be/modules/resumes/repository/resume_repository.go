@@ -104,9 +104,9 @@ func (r *ResumeRepository) List(ctx context.Context, userID string, limit, offse
 			r.is_active, 
 			r.created_at, 
 			r.updated_at,
-			COALESCE(COUNT(a.id), 0) as applications_count
+			COALESCE(COUNT(j.id), 0) as applications_count
 		FROM resumes r
-		LEFT JOIN applications a ON r.id = a.resume_id
+		LEFT JOIN jobs j ON r.id = j.resume_id AND j.applied_at IS NOT NULL
 		WHERE r.user_id = $1
 		GROUP BY r.id, r.user_id, r.title, r.file_url, r.storage_type, r.storage_key, r.is_active, r.created_at, r.updated_at
 		ORDER BY ` + orderClause + `

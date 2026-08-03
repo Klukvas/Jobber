@@ -13,13 +13,31 @@ export function BlogPostJsonLd({ post }: BlogPostJsonLdProps) {
     const existing = document.getElementById(SCRIPT_ID);
     if (existing) existing.remove();
 
-    const schema = {
+    const imageUrl = post.image
+      ? post.image.startsWith("http")
+        ? post.image
+        : `${SITE_URL}${post.image.startsWith("/") ? "" : "/"}${post.image}`
+      : `${SITE_URL}/og-image.png`;
+    const canonicalUrl = `${SITE_URL}/blog/${post.slug}`;
+
+    const blogPosting = {
       "@context": "https://schema.org",
       "@type": "BlogPosting",
       headline: post.title,
       description: post.description,
+      image: {
+        "@type": "ImageObject",
+        url: imageUrl,
+        width: 1200,
+        height: 630,
+      },
       datePublished: post.date,
-      url: `${SITE_URL}/blog/${post.slug}`,
+      dateModified: post.dateModified ?? post.date,
+      url: canonicalUrl,
+      mainEntityOfPage: {
+        "@type": "WebPage",
+        "@id": canonicalUrl,
+      },
       inLanguage: post.lang === "ua" ? "uk" : post.lang,
       keywords: post.tags.join(", "),
       author: {
@@ -38,10 +56,35 @@ export function BlogPostJsonLd({ post }: BlogPostJsonLdProps) {
       },
     };
 
+    const breadcrumb = {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: SITE_URL,
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Blog",
+          item: `${SITE_URL}/blog`,
+        },
+        {
+          "@type": "ListItem",
+          position: 3,
+          name: post.title,
+          item: canonicalUrl,
+        },
+      ],
+    };
+
     const script = document.createElement("script");
     script.id = SCRIPT_ID;
     script.type = "application/ld+json";
-    script.text = JSON.stringify(schema);
+    script.text = JSON.stringify([blogPosting, breadcrumb]);
     document.head.appendChild(script);
 
     return () => {

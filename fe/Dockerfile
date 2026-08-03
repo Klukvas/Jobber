@@ -1,14 +1,15 @@
 # Multi-stage build for React frontend
-# Build stage
-FROM node:20-alpine AS builder
+# Build stage — debian-slim so Playwright's Chromium has its libc/X deps.
+FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install npm deps + Playwright Chromium (used by scripts/prerender.mjs).
+# --with-deps pulls in the system libs Chromium needs (libnss3, libatk, fonts, ...).
+RUN npm install && npx playwright install --with-deps chromium
 
 # Build arguments for Vite env vars (read at npm run build time via ARG)
 # ARG-only: values are NOT persisted in the final image (no ENV promotion)
@@ -17,12 +18,14 @@ ARG VITE_FEATURE_SENTRY=false
 ARG VITE_FEATURE_PAYMENTS=false
 ARG VITE_FEATURE_EMAIL_NOTIFICATIONS=true
 ARG VITE_SENTRY_DSN=
+# Toggle prerender (default on). Pass --build-arg PRERENDER=false to skip.
+ARG PRERENDER=true
 
 # Copy source code
 COPY . .
 
-# Build the application
-RUN npm run build
+# Build + prerender public routes to static HTML for SEO.
+RUN if [ "$PRERENDER" = "true" ]; then npm run build:prerender; else npm run build; fi
 
 # Runtime stage - serve with nginx
 FROM nginx:alpine
@@ -41,11 +44,16 @@ RUN echo 'server { \
     add_header X-Frame-Options "SAMEORIGIN" always; \
     add_header X-Content-Type-Options "nosniff" always; \
     add_header X-XSS-Protection "1; mode=block" always; \
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always; \
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=()" always; \
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always; \
     \
     # Gzip compression \
     gzip on; \
     gzip_vary on; \
-    gzip_types text/plain text/css text/xml text/javascript application/javascript application/xml+rss application/json; \
+    gzip_min_length 1024; \
+    gzip_comp_level 6; \
+    gzip_types text/plain text/css text/xml text/javascript application/javascript application/xml application/xml+rss application/json application/ld+json image/svg+xml; \
     \
     # Proxy API requests to backend \
     location /api/ { \
@@ -65,6 +73,12 @@ RUN echo 'server { \
         add_header Cache-Control "no-cache, no-store, must-revalidate"; \
         add_header Pragma "no-cache"; \
         add_header Expires "0"; \
+    } \
+    \
+    # SEO feeds (sitemap.xml, robots.txt, llms.txt) — short cache so updates propagate \
+    location ~* \.(xml|txt)$ { \
+        expires 1h; \
+        add_header Cache-Control "public, must-revalidate"; \
     } \
     \
     # Favicons — short cache so updates propagate quickly \

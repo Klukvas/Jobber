@@ -1,4 +1,7 @@
-// DOM elements
+// Popup controller (uses shared/api.js)
+
+// ── DOM Elements ───────────────────────────────────────
+
 const views = {
   login: document.getElementById("view-login"),
   idle: document.getElementById("view-idle"),
@@ -20,21 +23,38 @@ const btnLogout = document.getElementById("btn-logout");
 const saveForm = document.getElementById("save-form");
 const previewTitle = document.getElementById("preview-title");
 const previewCompany = document.getElementById("preview-company");
+const previewSalary = document.getElementById("preview-salary");
+const previewLocation = document.getElementById("preview-location");
 const previewSource = document.getElementById("preview-source");
 const previewUrl = document.getElementById("preview-url");
 const previewNotes = document.getElementById("preview-notes");
 const btnSave = document.getElementById("btn-save");
 const btnBack = document.getElementById("btn-back");
 const saveError = document.getElementById("save-error");
+const duplicateWarning = document.getElementById("duplicate-warning");
 
 const idleError = document.getElementById("idle-error");
 const btnDone = document.getElementById("btn-done");
+const btnOpenInJobber = document.getElementById("btn-open-in-jobber");
+const btnSaveAnother = document.getElementById("btn-save-another");
+const successJobTitle = document.getElementById("success-job-title");
 
-// State
-const API_BASE = "https://jobber-app.com";
-let state = { accessToken: null, apiBase: API_BASE };
+// Match score
+const matchResumeSelect = document.getElementById("match-resume");
+const btnCheckMatch = document.getElementById("btn-check-match");
+const matchError = document.getElementById("match-error");
+const matchIdle = document.getElementById("match-idle");
+const matchLoading = document.getElementById("match-loading");
+const matchResult = document.getElementById("match-result");
+const matchScoreValue = document.getElementById("match-score-value");
+const matchRing = document.getElementById("match-ring");
+const matchSummary = document.getElementById("match-summary");
+const matchMissing = document.getElementById("match-missing");
 
-// Helpers
+let lastSavedJob = null;
+
+// ── Helpers ────────────────────────────────────────────
+
 function showView(name) {
   Object.values(views).forEach((v) => v.classList.add("hidden"));
   views[name].classList.remove("hidden");
@@ -49,67 +69,24 @@ function hideError(el) {
   el.classList.add("hidden");
 }
 
-async function refreshAccessToken() {
-  const { refreshToken } = await chrome.storage.local.get("refreshToken");
-  if (!refreshToken) return false;
-
-  try {
-    const res = await fetch(`${state.apiBase}/api/v1/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-    if (!res.ok) return false;
-
-    const data = await res.json();
-    state.accessToken = data.access_token;
-    await chrome.storage.local.set({
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token,
-    });
-    return true;
-  } catch {
-    return false;
-  }
+function handleSessionExpired() {
+  JobberAPI.logout();
+  showView("login");
+  showError(loginError, "Session expired. Please sign in again.");
 }
 
-async function apiFetch(path, options = {}) {
-  const headers = { "Content-Type": "application/json", ...options.headers };
-  if (state.accessToken) {
-    headers["Authorization"] = `Bearer ${state.accessToken}`;
-  }
-  const response = await fetch(`${state.apiBase}${path}`, {
-    ...options,
-    headers,
-  });
+// ── Password Toggle ────────────────────────────────────
 
-  // Auto-refresh on 401 and retry once
-  if (response.status === 401) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed) {
-      headers["Authorization"] = `Bearer ${state.accessToken}`;
-      return fetch(`${state.apiBase}${path}`, { ...options, headers });
-    }
-  }
+document.getElementById("btn-toggle-password").addEventListener("click", () => {
+  const isPassword = loginPassword.type === "password";
+  loginPassword.type = isPassword ? "text" : "password";
+});
 
-  return response;
-}
+// ── Init ───────────────────────────────────────────────
 
-// Initialize: check if logged in
 async function init() {
-  const stored = await chrome.storage.local.get([
-    "accessToken",
-    "refreshToken",
-    "apiBase",
-  ]);
-
-  // Allow dev override via chrome.storage.local.set({apiBase: "http://localhost:8080"})
-  if (stored.apiBase) {
-    state.apiBase = stored.apiBase;
-  }
-
-  if (stored.accessToken) {
-    state.accessToken = stored.accessToken;
+  const isLoggedIn = await JobberAPI.init();
+  if (isLoggedIn) {
     await showIdleView();
   } else {
     showView("login");
@@ -117,44 +94,27 @@ async function init() {
 }
 
 async function showIdleView() {
-  // Get current tab URL
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (tab?.url) {
-    currentUrl.textContent = new URL(tab.url).hostname;
+    try {
+      currentUrl.textContent = new URL(tab.url).hostname;
+    } catch {
+      currentUrl.textContent = tab.url;
+    }
   }
   showView("idle");
 }
 
-// Login
+// ── Login ──────────────────────────────────────────────
+
 loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   hideError(loginError);
   btnLogin.disabled = true;
-  btnLogin.textContent = "Signing in...";
+  btnLogin.textContent = "Signing in\u2026";
 
   try {
-    const response = await fetch(`${state.apiBase}/api/v1/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: loginEmail.value,
-        password: loginPassword.value,
-      }),
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => null);
-      throw new Error(err?.error_message || "Invalid credentials");
-    }
-
-    const data = await response.json();
-    state.accessToken = data.tokens.access_token;
-
-    await chrome.storage.local.set({
-      accessToken: data.tokens.access_token,
-      refreshToken: data.tokens.refresh_token,
-    });
-
+    await JobberAPI.login(loginEmail.value, loginPassword.value);
     await showIdleView();
   } catch (err) {
     showError(loginError, err.message);
@@ -164,34 +124,25 @@ loginForm.addEventListener("submit", async (e) => {
   }
 });
 
-// Parse job
+// ── Parse ──────────────────────────────────────────────
+
 btnParse.addEventListener("click", async () => {
   hideError(idleError);
   showView("loading");
 
   try {
-    // Get the active tab
     const [tab] = await chrome.tabs.query({
       active: true,
       currentWindow: true,
     });
+    if (!tab?.id) throw new Error("No active tab found");
 
-    if (!tab?.id) {
-      throw new Error("No active tab found");
-    }
+    const pageData = await chrome.runtime.sendMessage({
+      action: "extractPageText",
+      tabId: tab.id,
+    });
 
-    // Inject content script and extract text
-    let pageData;
-    try {
-      const [result] = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: () => ({
-          text: document.body.innerText.trim().substring(0, 50000),
-          url: location.href,
-        }),
-      });
-      pageData = result.result;
-    } catch {
+    if (pageData?.error) {
       throw new Error(
         "Cannot read this page. Try on a job posting page (LinkedIn, Indeed, etc.)",
       );
@@ -201,120 +152,218 @@ btnParse.addEventListener("click", async () => {
       throw new Error("Not enough text on this page to parse");
     }
 
-    // Call backend parse endpoint
-    let response;
-    try {
-      response = await apiFetch("/api/v1/jobs/parse", {
-        method: "POST",
-        body: JSON.stringify({
-          page_text: pageData.text,
-          page_url: pageData.url,
-        }),
-      });
-    } catch {
-      throw new Error(
-        "Cannot connect to Jobber server. Check your internet connection.",
-      );
-    }
+    const parsed = await JobberAPI.parseJob(pageData.text, pageData.url);
 
-    if (response.status === 401) {
-      await chrome.storage.local.remove(["accessToken", "refreshToken"]);
-      state.accessToken = null;
-      showView("login");
-      showError(loginError, "Session expired. Please sign in again.");
-      return;
-    }
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => null);
-      throw new Error(err?.error_message || "Failed to parse job page");
-    }
-
-    const parsed = await response.json();
-
-    // Fill preview form
     previewTitle.value = parsed.title || "";
     previewCompany.value = parsed.company_name || "";
+    previewSalary.value = "";
+    previewLocation.value = "";
     previewSource.value = parsed.source || "";
     previewUrl.value = parsed.url || pageData.url;
     previewNotes.value = parsed.description || "";
     hideError(saveError);
 
+    const isDuplicate = await JobberAPI.isUrlImported(previewUrl.value);
+    duplicateWarning.classList.toggle("hidden", !isDuplicate);
+
     showView("preview");
   } catch (err) {
+    if (err.message === "SESSION_EXPIRED") {
+      handleSessionExpired();
+      return;
+    }
     await showIdleView();
-    showError(idleError, err.message);
+    if (err.message === "PARSE_LIMIT_REACHED") {
+      showError(
+        idleError,
+        "Monthly AI parse limit reached. Upgrade your plan at jobber-app.com.",
+      );
+    } else {
+      showError(idleError, err.message);
+    }
   }
 });
 
-// Save job
+// ── Save ───────────────────────────────────────────────
+
 saveForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   hideError(saveError);
   btnSave.disabled = true;
-  btnSave.textContent = "Saving...";
+  btnSave.textContent = "Saving\u2026";
 
   try {
-    const body = {
-      title: previewTitle.value.trim(),
-      source: previewSource.value.trim() || undefined,
-      url: previewUrl.value.trim() || undefined,
-      description: previewNotes.value.trim() || undefined,
-    };
-
-    // Create company first if name provided, then link by ID
+    let companyId;
     const companyName = previewCompany.value.trim();
     if (companyName) {
-      const companyRes = await apiFetch("/api/v1/companies", {
-        method: "POST",
-        body: JSON.stringify({ name: companyName }),
-      });
-      if (companyRes.ok) {
-        const company = await companyRes.json();
-        body.company_id = company.id;
-      }
+      const company = await JobberAPI.createCompany(companyName);
+      if (company) companyId = company.id;
     }
 
-    const response = await apiFetch("/api/v1/jobs", {
-      method: "POST",
-      body: JSON.stringify(body),
+    // Build notes from salary + location
+    const salary = previewSalary.value.trim();
+    const loc = previewLocation.value.trim();
+    const noteParts = [];
+    if (salary) noteParts.push(`Salary: ${salary}`);
+    if (loc) noteParts.push(`Location: ${loc}`);
+    const notes = noteParts.length > 0 ? noteParts.join("\n") : undefined;
+
+    const job = await JobberAPI.createJob({
+      title: previewTitle.value.trim(),
+      companyId,
+      source: previewSource.value.trim(),
+      url: previewUrl.value.trim(),
+      notes,
+      description: previewNotes.value.trim(),
     });
 
-    if (response.status === 401) {
-      await chrome.storage.local.remove(["accessToken", "refreshToken"]);
-      state.accessToken = null;
-      showView("login");
-      showError(loginError, "Session expired. Please sign in again.");
-      return;
-    }
+    lastSavedJob = job;
+    await JobberAPI.trackImportedUrl(job.url);
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => null);
-      throw new Error(err?.error_message || "Failed to save job");
-    }
+    // Update badge
+    const count = await JobberAPI.incrementSavedCount();
+    chrome.runtime.sendMessage({ action: "updateBadge", count });
 
+    successJobTitle.textContent = job.title;
+    resetMatchScore();
+    loadMatchResumes();
     showView("success");
   } catch (err) {
-    showError(saveError, err.message);
+    if (err.message === "SESSION_EXPIRED") {
+      handleSessionExpired();
+      return;
+    }
+    if (err.message === "JOBS_LIMIT_REACHED") {
+      showError(
+        saveError,
+        "Jobs limit reached for your plan. Upgrade at jobber-app.com.",
+      );
+    } else {
+      showError(saveError, err.message);
+    }
   } finally {
     btnSave.disabled = false;
     btnSave.textContent = "Save to Jobber";
   }
 });
 
-// Back from preview
+// ── Actions ────────────────────────────────────────────
+
 btnBack.addEventListener("click", () => showIdleView());
 
-// Done
+btnOpenInJobber.addEventListener("click", () => {
+  if (lastSavedJob) {
+    chrome.tabs.create({
+      url: `${JobberAPI.getWebAppBase()}/app/jobs/${lastSavedJob.id}`,
+    });
+  }
+});
+
+btnSaveAnother.addEventListener("click", () => showIdleView());
 btnDone.addEventListener("click", () => window.close());
 
-// Logout
 btnLogout.addEventListener("click", async () => {
-  await chrome.storage.local.remove(["accessToken", "refreshToken", "apiBase"]);
-  state.accessToken = null;
-  state.apiBase = null;
+  await JobberAPI.logout();
   showView("login");
 });
 
-// Start
+// ── Match Score ────────────────────────────────────────
+
+function getScoreColor(score) {
+  if (score >= 75) return "#22c55e";
+  if (score >= 50) return "#f59e0b";
+  return "#ef4444";
+}
+
+function resetMatchScore() {
+  matchIdle.classList.remove("hidden");
+  matchLoading.classList.add("hidden");
+  matchResult.classList.add("hidden");
+  hideError(matchError);
+}
+
+async function loadMatchResumes() {
+  const matchHint = document.getElementById("match-hint");
+  try {
+    const data = await JobberAPI.listResumes(50);
+    const resumes = Array.isArray(data)
+      ? data
+      : data.items || data.resumes || data.data || [];
+
+    matchResumeSelect.innerHTML =
+      '<option value="">Select resume for match\u2026</option>';
+    resumes.forEach((r) => {
+      const option = document.createElement("option");
+      option.value = r.id;
+      option.textContent = r.title || "Untitled Resume";
+      if (r.is_active) option.selected = true;
+      matchResumeSelect.appendChild(option);
+    });
+
+    if (resumes.length === 0) {
+      matchHint.textContent =
+        "Upload a PDF resume in Jobber to use Match Score. Resume Builder resumes require PDF export.";
+    } else {
+      matchHint.textContent = "";
+    }
+  } catch (err) {
+    if (err.message === "SESSION_EXPIRED") handleSessionExpired();
+  }
+}
+
+btnCheckMatch.addEventListener("click", async () => {
+  const resumeId = matchResumeSelect.value;
+  if (!resumeId) {
+    showError(matchError, "Please select a resume");
+    return;
+  }
+  if (!lastSavedJob) return;
+
+  hideError(matchError);
+  matchIdle.classList.add("hidden");
+  matchLoading.classList.remove("hidden");
+
+  try {
+    const result = await JobberAPI.getMatchScore(lastSavedJob.id, resumeId);
+    const score =
+      typeof result.overall_score === "number"
+        ? Math.round(result.overall_score)
+        : 0;
+    const color = getScoreColor(score);
+
+    matchScoreValue.textContent = score;
+    matchRing.style.borderColor = color;
+    matchRing.style.color = color;
+    matchSummary.textContent = result.summary || "";
+
+    matchMissing.textContent = "";
+    if (result.missing_keywords?.length > 0) {
+      const label = document.createElement("strong");
+      label.textContent = "Missing: ";
+      matchMissing.appendChild(label);
+      matchMissing.appendChild(
+        document.createTextNode(result.missing_keywords.slice(0, 8).join(", ")),
+      );
+    }
+
+    matchLoading.classList.add("hidden");
+    matchResult.classList.remove("hidden");
+  } catch (err) {
+    matchLoading.classList.add("hidden");
+    matchIdle.classList.remove("hidden");
+
+    if (err.message === "SESSION_EXPIRED") {
+      handleSessionExpired();
+      return;
+    }
+    if (err.message === "PLAN_LIMIT_REACHED") {
+      showError(matchError, "AI usage limit reached. Upgrade your plan.");
+      return;
+    }
+    showError(matchError, err.message);
+  }
+});
+
+// ── Start ──────────────────────────────────────────────
+
 init();

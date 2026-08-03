@@ -8,7 +8,7 @@ import (
 type Reminder struct {
 	ID            string
 	UserID        string
-	ApplicationID string
+	JobID         string
 	StageID       *string
 	RemindAt      time.Time
 	Message       string
@@ -19,7 +19,7 @@ type Reminder struct {
 
 type ReminderDTO struct {
 	ID            string     `json:"id"`
-	ApplicationID string     `json:"application_id"`
+	JobID         string     `json:"job_id"`
 	StageID       *string    `json:"stage_id,omitempty"`
 	RemindAt      time.Time  `json:"remind_at"`
 	Message       string     `json:"message"`
@@ -30,7 +30,7 @@ type ReminderDTO struct {
 func (r *Reminder) ToDTO() *ReminderDTO {
 	return &ReminderDTO{
 		ID:            r.ID,
-		ApplicationID: r.ApplicationID,
+		JobID:         r.JobID,
 		StageID:       r.StageID,
 		RemindAt:      r.RemindAt,
 		Message:       r.Message,
@@ -40,7 +40,7 @@ func (r *Reminder) ToDTO() *ReminderDTO {
 }
 
 type CreateReminderRequest struct {
-	ApplicationID string    `json:"application_id" binding:"required"`
+	JobID         string    `json:"job_id" binding:"required"`
 	StageID       *string   `json:"stage_id,omitempty"`
 	RemindAt      time.Time `json:"remind_at" binding:"required"`
 	Message       string    `json:"message" binding:"required,min=1"`
