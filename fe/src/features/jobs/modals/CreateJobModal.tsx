@@ -26,7 +26,7 @@ import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { Textarea } from "@/shared/ui/Textarea";
 import { Label } from "@/shared/ui/Label";
-import { Checkbox } from "@/shared/ui/Checkbox";
+import { Switch } from "@/shared/ui/Switch";
 import { CompanySelectWithQuickAdd } from "@/features/jobs/components/CompanySelectWithQuickAdd";
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { UpgradeBanner } from "@/features/subscription/components/UpgradeBanner";
@@ -230,15 +230,28 @@ function ModalContent({
 
           {!isEditMode && (
             <div className="space-y-4 rounded-lg border p-3">
-              <div className="flex items-center gap-2">
-                <Checkbox
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAlreadyApplied(!alreadyApplied)}
+                  className="flex-1 text-left"
+                >
+                  <span
+                    id="already-applied-label"
+                    className="block text-sm font-medium"
+                  >
+                    {t("jobs.alreadyApplied")}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {t("jobs.alreadyAppliedHint")}
+                  </span>
+                </button>
+                <Switch
                   id="already-applied"
                   checked={alreadyApplied}
                   onCheckedChange={setAlreadyApplied}
+                  aria-labelledby="already-applied-label"
                 />
-                <Label htmlFor="already-applied" className="cursor-pointer">
-                  {t("jobs.alreadyApplied")}
-                </Label>
               </div>
 
               {alreadyApplied && (
