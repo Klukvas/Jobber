@@ -1,14 +1,26 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { jobsService, type ListJobsParams } from "@/services/jobsService";
 import { Button } from "@/shared/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/shared/ui/Dialog";
 import { ListPageSkeleton } from "@/shared/ui/PageSkeleton";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { ErrorState } from "@/shared/ui/ErrorState";
 import { StatusBadge } from "@/shared/ui/StatusBadge";
+import {
+  showSuccessNotification,
+  showErrorNotification,
+} from "@/shared/lib/notifications";
 import {
   Plus,
   Briefcase,
@@ -24,6 +36,7 @@ import {
   LayoutGrid,
   Kanban,
   Chrome,
+  Trash2,
   X,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -55,7 +68,11 @@ const EXTENSION_BANNER_KEY = "jobber-ext-banner-dismissed";
 const VIEW_MODE_KEY = "apps-view-mode";
 const PAGE_SIZE = 20;
 
-const SORT_FIELDS: { field: SortBy; labelKey: string; icon?: "clock" | "calendar" }[] = [
+const SORT_FIELDS: {
+  field: SortBy;
+  labelKey: string;
+  icon?: "clock" | "calendar";
+}[] = [
   { field: "last_activity", labelKey: "jobs.sortLastActivity", icon: "clock" },
   { field: "status", labelKey: "jobs.sortStatus" },
   { field: "applied_at", labelKey: "jobs.sortAppliedDate", icon: "calendar" },
@@ -95,6 +112,8 @@ export default function JobsPage() {
     type: "comment" | "stage" | "status";
     job: JobDTO;
   } | null>(null);
+  const [jobToDelete, setJobToDelete] = useState<JobDTO | null>(null);
+  const queryClient = useQueryClient();
   const [showExtBanner, setShowExtBanner] = useState(
     () => localStorage.getItem(EXTENSION_BANNER_KEY) !== "true",
   );
@@ -141,6 +160,23 @@ export default function JobsPage() {
     setActiveQuickAction({ type, job });
     setOpenMenuId(null);
   };
+
+  const handleDelete = (job: JobDTO) => {
+    setJobToDelete(job);
+    setOpenMenuId(null);
+  };
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => jobsService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      showSuccessNotification(t("jobs.deleteSuccess"));
+      setJobToDelete(null);
+    },
+    onError: (err: Error) => {
+      showErrorNotification(err.message || t("jobs.deleteError"));
+    },
+  });
 
   const toggleSort = (field: SortBy) => {
     if (sortBy === field) {
@@ -268,6 +304,7 @@ export default function JobsPage() {
           onAddComment={(job) => handleQuickAction("comment", job)}
           onAddStage={(job) => handleQuickAction("stage", job)}
           onChangeStatus={(job) => handleQuickAction("status", job)}
+          onDelete={(job) => handleDelete(job)}
         />
       ) : (
         <>
@@ -390,6 +427,21 @@ export default function JobsPage() {
                                 >
                                   <Archive className="h-4 w-4" />
                                   {t("jobs.changeStatus")}
+                                </button>
+                                <div
+                                  className="my-1 border-t"
+                                  role="separator"
+                                />
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleDelete(job);
+                                  }}
+                                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 text-left"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  {t("jobs.delete")}
                                 </button>
                               </div>
                             )}
@@ -529,6 +581,39 @@ export default function JobsPage() {
           currentStatus={activeQuickAction.job.status}
         />
       )}
+
+      {/* Delete confirmation */}
+      <Dialog
+        open={jobToDelete !== null}
+        onOpenChange={(open) => !open && setJobToDelete(null)}
+      >
+        <DialogContent onClose={() => setJobToDelete(null)}>
+          <DialogHeader>
+            <DialogTitle>{t("jobs.delete")}</DialogTitle>
+            <DialogDescription>{t("jobs.deleteConfirm")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setJobToDelete(null)}
+              disabled={deleteMutation.isPending}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() =>
+                jobToDelete && deleteMutation.mutate(jobToDelete.id)
+              }
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending
+                ? t("common.deleting")
+                : t("common.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -17,6 +17,7 @@ interface AccordionProps {
   onAddComment: (job: JobDTO) => void;
   onAddStage: (job: JobDTO) => void;
   onChangeStatus: (job: JobDTO) => void;
+  onDelete: (job: JobDTO) => void;
 }
 
 interface MobileCardProps {
@@ -24,6 +25,7 @@ interface MobileCardProps {
   onAddComment: (job: JobDTO) => void;
   onAddStage: (job: JobDTO) => void;
   onChangeStatus: (job: JobDTO) => void;
+  onDelete: (job: JobDTO) => void;
 }
 
 const MobileCard = memo(function MobileCard({
@@ -31,6 +33,7 @@ const MobileCard = memo(function MobileCard({
   onAddComment,
   onAddStage,
   onChangeStatus,
+  onDelete,
 }: MobileCardProps) {
   const navigate = useNavigate();
   return (
@@ -40,6 +43,7 @@ const MobileCard = memo(function MobileCard({
       onAddComment={onAddComment}
       onAddStage={onAddStage}
       onChangeStatus={onChangeStatus}
+      onDelete={onDelete}
     />
   );
 });
@@ -54,6 +58,7 @@ export function JobMobileAccordion({
   onAddComment,
   onAddStage,
   onChangeStatus,
+  onDelete,
 }: AccordionProps) {
   const { t } = useTranslation();
   const [openIds, setOpenIds] = useState<Set<string>>(() =>
@@ -130,6 +135,7 @@ export function JobMobileAccordion({
                       onAddComment={onAddComment}
                       onAddStage={onAddStage}
                       onChangeStatus={onChangeStatus}
+                      onDelete={onDelete}
                     />
                   ))
                 )}

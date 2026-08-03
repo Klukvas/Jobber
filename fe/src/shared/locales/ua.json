@@ -31,7 +31,8 @@
     "openMenu": "Відкрити меню",
     "collapseSidebar": "Згорнути бічну панель",
     "expandSidebar": "Розгорнути бічну панель",
-    "closeSidebar": "Закрити бічну панель"
+    "closeSidebar": "Закрити бічну панель",
+    "deleting": "Видалення..."
   },
   "auth": {
     "login": "Увійти",
