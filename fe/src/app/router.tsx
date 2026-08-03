@@ -1,36 +1,29 @@
 import { Navigate } from "react-router-dom";
 import { sentryCreateBrowserRouter } from "@/shared/lib/sentry";
+import { LegacyApplicationDetailRedirect } from "./LegacyApplicationRedirect";
 import { RootLayout } from "./layouts/RootLayout";
 import { AuthLayout } from "./layouts/AuthLayout";
 import { AppLayout } from "./layouts/AppLayout";
 
-// Lazy load pages
 import { lazy, Suspense } from "react";
+
+// Public pages — eager so the initial HTML render carries full SEO content
+// (no Suspense fallback flash, no JS chunk fetch on crawl).
+import HomePage from "@/pages/Home";
+import BlogPage from "@/pages/Blog";
+import BlogPostPage from "@/pages/BlogPost";
+import PrivacyPage from "@/pages/Privacy";
+import TermsPage from "@/pages/Terms";
+import RefundPage from "@/pages/Refund";
+import FeatureApplicationsPage from "@/pages/FeatureApplications";
+import FeatureResumeBuilderPage from "@/pages/FeatureResumeBuilder";
+import FeatureCoverLettersPage from "@/pages/FeatureCoverLetters";
 
 // Print page (no auth, no layout — used by headless Chrome for PDF export)
 const ResumeBuilderPrintPage = lazy(() => import("@/pages/ResumeBuilderPrint"));
 
-// Public pages
-const HomePage = lazy(() => import("@/pages/Home"));
-const BlogPage = lazy(() => import("@/pages/Blog"));
-const BlogPostPage = lazy(() => import("@/pages/BlogPost"));
-const PrivacyPage = lazy(() => import("@/pages/Privacy"));
-const TermsPage = lazy(() => import("@/pages/Terms"));
-const RefundPage = lazy(() => import("@/pages/Refund"));
-const FeatureApplicationsPage = lazy(
-  () => import("@/pages/FeatureApplications"),
-);
-const FeatureResumeBuilderPage = lazy(
-  () => import("@/pages/FeatureResumeBuilder"),
-);
-const FeatureCoverLettersPage = lazy(
-  () => import("@/pages/FeatureCoverLetters"),
-);
-
-// Protected pages
+// Protected pages — kept lazy
 const SettingsPage = lazy(() => import("@/pages/Settings"));
-const ApplicationsPage = lazy(() => import("@/pages/Applications"));
-const ApplicationDetailPage = lazy(() => import("@/pages/ApplicationDetail"));
 const ResumesPage = lazy(() => import("@/pages/Resumes"));
 const CompaniesPage = lazy(() => import("@/pages/Companies"));
 const JobsPage = lazy(() => import("@/pages/Jobs"));
@@ -133,15 +126,15 @@ export const router = sentryCreateBrowserRouter([
         children: [
           {
             index: true,
-            element: <Navigate to="/app/applications" replace />,
+            element: <Navigate to="/app/jobs" replace />,
           },
           {
             path: "applications",
-            element: <ApplicationsPage />,
+            element: <Navigate to="/app/jobs" replace />,
           },
           {
             path: "applications/:id",
-            element: <ApplicationDetailPage />,
+            element: <LegacyApplicationDetailRedirect />,
           },
           {
             path: "resumes",

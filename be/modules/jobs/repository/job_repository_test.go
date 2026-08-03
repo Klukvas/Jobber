@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/andreypavlenko/jobber/modules/jobs/model"
+	"github.com/andreypavlenko/jobber/modules/jobs/ports"
 	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +25,7 @@ func TestJobRepository_Create(t *testing.T) {
 		}
 
 		mock.ExpectExec("INSERT INTO jobs").
-			WithArgs(pgxmock.AnyArg(), job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Notes, "active", pgxmock.AnyArg(), pgxmock.AnyArg()).
+			WithArgs(pgxmock.AnyArg(), job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Notes, string(model.StatusSaved), pgxmock.AnyArg(), pgxmock.AnyArg()).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 		repo := &testJobRepo{mock: mock}
@@ -32,7 +33,7 @@ func TestJobRepository_Create(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.NotEmpty(t, job.ID)
-		assert.Equal(t, "active", job.Status)
+		assert.Equal(t, string(model.StatusSaved), job.Status)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
@@ -50,7 +51,7 @@ func TestJobRepository_GetByID(t *testing.T) {
 		rows := pgxmock.NewRows([]string{
 			"id", "user_id", "company_id", "title", "source", "url", "notes", "status", "created_at", "updated_at",
 		}).AddRow(
-			jobID, userID, nil, "Software Engineer", nil, nil, nil, "active", now, now,
+			jobID, userID, nil, "Software Engineer", nil, nil, nil, string(model.StatusSaved), now, now,
 		)
 
 		mock.ExpectQuery("SELECT id, user_id, company_id, title, source, url, notes, status, created_at, updated_at").
@@ -94,7 +95,7 @@ func TestJobRepository_Update(t *testing.T) {
 			ID:     "job-1",
 			UserID: "user-123",
 			Title:  "Updated Title",
-			Status: "archived",
+			Status: string(model.StatusArchived),
 		}
 
 		mock.ExpectExec("UPDATE jobs").
@@ -172,27 +173,28 @@ func TestJobRepository_List(t *testing.T) {
 		defer mock.Close()
 
 		userID := "user-123"
+		opts := &ports.ListOptions{Limit: 20, Offset: 0, Status: ""}
 
 		// Count query
 		countRows := pgxmock.NewRows([]string{"count"}).AddRow(2)
 		mock.ExpectQuery("SELECT COUNT").
-			WithArgs(userID, "active").
+			WithArgs(userID).
 			WillReturnRows(countRows)
 
 		// List query
 		now := time.Now()
 		listRows := pgxmock.NewRows([]string{
-			"id", "user_id", "company_id", "title", "source", "url", "notes", "status", "created_at", "updated_at", "company_name", "applications_count",
+			"id", "user_id", "company_id", "title", "source", "url", "notes", "status", "created_at", "updated_at", "company_name",
 		}).
-			AddRow("job-1", userID, nil, "Software Engineer", nil, nil, nil, "active", now, now, nil, 5).
-			AddRow("job-2", userID, nil, "Product Manager", nil, nil, nil, "active", now, now, nil, 3)
+			AddRow("job-1", userID, nil, "Software Engineer", nil, nil, nil, string(model.StatusSaved), now, now, nil).
+			AddRow("job-2", userID, nil, "Product Manager", nil, nil, nil, string(model.StatusApplied), now, now, nil)
 
 		mock.ExpectQuery("SELECT").
-			WithArgs(userID, "active", 20, 0).
+			WithArgs(userID, 20, 0).
 			WillReturnRows(listRows)
 
 		repo := &testJobRepo{mock: mock}
-		jobs, total, err := repo.List(context.Background(), userID, 20, 0, "active", "", "")
+		jobs, total, err := repo.List(context.Background(), userID, opts)
 
 		require.NoError(t, err)
 		assert.Len(t, jobs, 2)
@@ -212,7 +214,7 @@ func (r *testJobRepo) Create(ctx context.Context, job *model.Job) error {
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 	job.ID = "test-job-id"
-	job.Status = "active"
+	job.Status = string(model.StatusSaved)
 	now := time.Now().UTC()
 	job.CreatedAt = now
 	job.UpdatedAt = now
@@ -273,15 +275,16 @@ func (r *testJobRepo) Delete(ctx context.Context, userID, jobID string) error {
 	return nil
 }
 
-func (r *testJobRepo) List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*model.JobDTO, int, error) {
-	countQuery := `SELECT COUNT(*) FROM jobs j WHERE j.user_id = $1 AND j.status = $2`
+func (r *testJobRepo) List(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.JobDTO, int, error) {
+	// Count non-archived jobs (status == "" or "active" means exclude archived)
+	countQuery := `SELECT COUNT(*) FROM jobs j WHERE j.user_id = $1`
 	var total int
-	if err := r.mock.QueryRow(ctx, countQuery, userID, status).Scan(&total); err != nil {
+	if err := r.mock.QueryRow(ctx, countQuery, userID).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
-	query := `SELECT ... FROM jobs j ... LIMIT $3 OFFSET $4`
-	rows, err := r.mock.Query(ctx, query, userID, status, limit, offset)
+	query := `SELECT ... FROM jobs j ... LIMIT $2 OFFSET $3`
+	rows, err := r.mock.Query(ctx, query, userID, opts.Limit, opts.Offset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -290,21 +293,27 @@ func (r *testJobRepo) List(ctx context.Context, userID string, limit, offset int
 	var jobs []*model.JobDTO
 	for rows.Next() {
 		var companyName *string
-		var applicationsCount int
 		job := &model.Job{}
 
 		if err := rows.Scan(
 			&job.ID, &job.UserID, &job.CompanyID, &job.Title, &job.Source, &job.URL, &job.Notes, &job.Status, &job.CreatedAt, &job.UpdatedAt,
-			&companyName, &applicationsCount,
+			&companyName,
 		); err != nil {
 			return nil, 0, err
 		}
 
 		dto := job.ToDTO()
 		dto.CompanyName = companyName
-		dto.ApplicationsCount = applicationsCount
 		jobs = append(jobs, dto)
 	}
 
 	return jobs, total, nil
+}
+
+func (r *testJobRepo) ToggleFavorite(ctx context.Context, userID, jobID string) (bool, error) {
+	return false, nil
+}
+
+func (r *testJobRepo) GetLastActivityAt(ctx context.Context, jobID string) (time.Time, error) {
+	return time.Time{}, nil
 }

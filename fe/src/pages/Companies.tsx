@@ -116,7 +116,7 @@ export default function Companies() {
   };
 
   const handleViewApplications = (companyId: string) => {
-    navigate(`/app/applications?company_id=${companyId}`);
+    navigate(`/app/jobs?company_id=${companyId}`);
   };
 
   const getCompanyStatusDisplay = (status: string) => {

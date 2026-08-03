@@ -25,9 +25,8 @@ export function useSubscription() {
       : null;
 
   const limits: PlanLimits = subscription?.limits ?? {
-    max_jobs: 5,
+    max_jobs: 25,
     max_resumes: 1,
-    max_applications: 5,
     max_ai_requests: 1,
     max_job_parses: 5,
     max_resume_builders: 1,
@@ -37,7 +36,6 @@ export function useSubscription() {
   const usage: SubscriptionUsage = subscription?.usage ?? {
     jobs: 0,
     resumes: 0,
-    applications: 0,
     ai_requests: 0,
     job_parses: 0,
     resume_builders: 0,
@@ -45,24 +43,13 @@ export function useSubscription() {
   };
 
   const canCreate = (
-    resource:
-      | "jobs"
-      | "resumes"
-      | "applications"
-      | "ai"
-      | "resume_builders"
-      | "cover_letters",
+    resource: "jobs" | "resumes" | "ai" | "resume_builders" | "cover_letters",
   ): boolean => {
     switch (resource) {
       case "jobs":
         return limits.max_jobs < 0 || usage.jobs < limits.max_jobs;
       case "resumes":
         return limits.max_resumes < 0 || usage.resumes < limits.max_resumes;
-      case "applications":
-        return (
-          limits.max_applications < 0 ||
-          usage.applications < limits.max_applications
-        );
       case "ai":
         if (limits.max_ai_requests < 0) return true;
         if (limits.max_ai_requests === 0) return false;

@@ -116,12 +116,6 @@ func (s *SubscriptionService) CheckLimit(ctx context.Context, userID, resource s
 			return nil
 		}
 		current, err = s.repo.CountUserResumes(ctx, userID)
-	case "applications":
-		max = limits.MaxApplications
-		if max < 0 {
-			return nil
-		}
-		current, err = s.repo.CountUserApplications(ctx, userID)
 	case "ai":
 		max = limits.MaxAIRequests
 		if max < 0 {
@@ -412,7 +406,7 @@ func (s *SubscriptionService) CreatePortalSession(ctx context.Context, userID st
 
 // getUsage returns current resource usage for a user in a single query.
 func (s *SubscriptionService) getUsage(ctx context.Context, userID string) (model.Usage, error) {
-	jobs, resumes, apps, aiReqs, jobParses, resumeBuilders, coverLetters, err := s.repo.GetAllCounts(ctx, userID)
+	jobs, resumes, aiReqs, jobParses, resumeBuilders, coverLetters, err := s.repo.GetAllCounts(ctx, userID)
 	if err != nil {
 		return model.Usage{}, err
 	}
@@ -420,7 +414,6 @@ func (s *SubscriptionService) getUsage(ctx context.Context, userID string) (mode
 	return model.Usage{
 		Jobs:           jobs,
 		Resumes:        resumes,
-		Applications:   apps,
 		AIRequests:     aiReqs,
 		JobParses:      jobParses,
 		ResumeBuilders: resumeBuilders,

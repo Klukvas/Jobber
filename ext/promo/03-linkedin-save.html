@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 1280px; height: 800px;
+    background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 50%, #2563eb 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+  }
+  .layout { display: flex; align-items: center; gap: 60px; }
+  .text-side { color: #fff; max-width: 400px; }
+  .text-side h1 { font-size: 42px; font-weight: 800; line-height: 1.15; margin-bottom: 16px; }
+  .text-side p { font-size: 18px; opacity: 0.85; line-height: 1.6; }
+  .cards {
+    width: 480px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .card {
+    background: #fff; border-radius: 12px; padding: 16px 20px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2); position: relative;
+  }
+  .card-title { font-size: 16px; font-weight: 600; color: #1a1a2e; margin-bottom: 4px; }
+  .card-company { font-size: 13px; color: #666; margin-bottom: 2px; }
+  .card-meta { font-size: 12px; color: #999; }
+  .save-btn {
+    position: absolute; top: 12px; right: 12px;
+    padding: 4px 10px; background: #4361ee; color: #fff; border: none;
+    border-radius: 4px; font-size: 12px; font-weight: 600;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  }
+  .save-btn.saved { background: #22c55e; }
+  .linkedin-badge {
+    display: inline-block; background: #0a66c2; color: #fff; font-size: 10px;
+    font-weight: 600; padding: 2px 6px; border-radius: 3px; margin-left: 6px;
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <div class="text-side">
+    <h1>Save jobs right from LinkedIn</h1>
+    <p>A "Save" button appears on every job card. One click — no popup needed. Green means already saved.</p>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <div class="card-title">Senior Frontend Engineer <span class="linkedin-badge">LinkedIn</span></div>
+      <div class="card-company">Vercel - San Francisco, CA (Remote)</div>
+      <div class="card-meta">Posted 2 days ago - 120 applicants</div>
+      <button class="save-btn saved">&#x2713; Saved</button>
+    </div>
+    <div class="card">
+      <div class="card-title">Staff Software Engineer</div>
+      <div class="card-company">Figma - New York, NY (Hybrid)</div>
+      <div class="card-meta">Posted 5 hours ago - 45 applicants</div>
+      <button class="save-btn">&#x1F4BC; Save</button>
+    </div>
+    <div class="card">
+      <div class="card-title">Backend Engineer, Payments</div>
+      <div class="card-company">Stripe - Remote (US)</div>
+      <div class="card-meta">Posted 1 day ago - 89 applicants</div>
+      <button class="save-btn">&#x1F4BC; Save</button>
+    </div>
+    <div class="card">
+      <div class="card-title">Platform Engineer</div>
+      <div class="card-company">Datadog - Boston, MA</div>
+      <div class="card-meta">Posted 3 days ago - 67 applicants</div>
+      <button class="save-btn saved">&#x2713; Saved</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

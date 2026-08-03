@@ -24,14 +24,14 @@ interface ScheduleStageModalProps {
   onOpenChange: (open: boolean) => void;
   stageId: string;
   stageName: string;
-  applicationId: string;
+  jobId: string;
 }
 
 function ModalContent({
   onOpenChange,
   stageId,
   stageName,
-  applicationId,
+  jobId,
 }: ScheduleStageModalProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -62,14 +62,14 @@ function ModalContent({
     mutationFn: calendarService.createEvent,
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["application-stages", applicationId],
+        queryKey: ["job-stages", jobId],
       });
-      showSuccessNotification(t("applications.schedule.createSuccess"));
+      showSuccessNotification(t("jobs.schedule.createSuccess"));
       onOpenChange(false);
     },
     onError: (error: Error) => {
       showErrorNotification(
-        error.message || t("applications.schedule.createError"),
+        error.message || t("jobs.schedule.createError"),
       );
     },
   });
@@ -98,7 +98,7 @@ function ModalContent({
     return (
       <>
         <DialogHeader>
-          <DialogTitle>{t("applications.schedule.title")}</DialogTitle>
+          <DialogTitle>{t("jobs.schedule.title")}</DialogTitle>
         </DialogHeader>
         <div className="flex justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -111,15 +111,15 @@ function ModalContent({
     return (
       <>
         <DialogHeader>
-          <DialogTitle>{t("applications.schedule.title")}</DialogTitle>
+          <DialogTitle>{t("jobs.schedule.title")}</DialogTitle>
           <DialogDescription>
-            {t("applications.schedule.calendarNotConnected")}
+            {t("jobs.schedule.calendarNotConnected")}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center gap-4 py-6">
           <CalendarX className="h-12 w-12 text-muted-foreground" />
           <p className="text-center text-sm text-muted-foreground">
-            {t("applications.schedule.calendarNotConnectedDescription")}
+            {t("jobs.schedule.calendarNotConnectedDescription")}
           </p>
         </div>
         <DialogFooter>
@@ -152,16 +152,16 @@ function ModalContent({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>{t("applications.schedule.title")}</DialogTitle>
+        <DialogTitle>{t("jobs.schedule.title")}</DialogTitle>
         <DialogDescription>
-          {t("applications.schedule.description")}
+          {t("jobs.schedule.description")}
         </DialogDescription>
       </DialogHeader>
       <form onSubmit={handleSubmit}>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="event-title">
-              {t("applications.schedule.eventTitle")} *
+              {t("jobs.schedule.eventTitle")} *
             </Label>
             <Input
               id="event-title"
@@ -172,7 +172,7 @@ function ModalContent({
           </div>
           <div className="space-y-2">
             <Label htmlFor="start-time">
-              {t("applications.schedule.startTime")} *
+              {t("jobs.schedule.startTime")} *
             </Label>
             <Input
               id="start-time"
@@ -184,7 +184,7 @@ function ModalContent({
           </div>
           <div className="space-y-2">
             <Label htmlFor="duration">
-              {t("applications.schedule.duration")}
+              {t("jobs.schedule.duration")}
             </Label>
             <select
               id="duration"
@@ -193,29 +193,29 @@ function ModalContent({
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value={30}>
-                30 {t("applications.schedule.minutes")}
+                30 {t("jobs.schedule.minutes")}
               </option>
               <option value={60}>
-                60 {t("applications.schedule.minutes")}
+                60 {t("jobs.schedule.minutes")}
               </option>
               <option value={90}>
-                90 {t("applications.schedule.minutes")}
+                90 {t("jobs.schedule.minutes")}
               </option>
               <option value={120}>
-                120 {t("applications.schedule.minutes")}
+                120 {t("jobs.schedule.minutes")}
               </option>
             </select>
           </div>
           <div className="space-y-2">
             <Label htmlFor="event-description">
-              {t("applications.schedule.eventDescription")}
+              {t("jobs.schedule.eventDescription")}
             </Label>
             <textarea
               id="event-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              placeholder={t("applications.schedule.descriptionPlaceholder")}
+              placeholder={t("jobs.schedule.descriptionPlaceholder")}
             />
           </div>
         </div>
@@ -237,7 +237,7 @@ function ModalContent({
                 {t("common.loading")}
               </>
             ) : (
-              t("applications.schedule.schedule")
+              t("jobs.schedule.schedule")
             )}
           </Button>
         </DialogFooter>

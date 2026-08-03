@@ -106,7 +106,6 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
       features: [
         t("settings.subscription.pricing.freeJobs"),
         t("settings.subscription.pricing.freeResumes"),
-        t("settings.subscription.pricing.freeApplications"),
         t("settings.subscription.pricing.freeAI"),
         t("settings.subscription.pricing.freeJobParses"),
         t("settings.subscription.pricing.freeResumeBuilders"),
@@ -121,7 +120,6 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
       features: [
         t("settings.subscription.pricing.proJobs"),
         t("settings.subscription.pricing.proResumes"),
-        t("settings.subscription.pricing.proApplications"),
         t("settings.subscription.pricing.proAI"),
         t("settings.subscription.pricing.proJobParses"),
         t("settings.subscription.pricing.proResumeBuilders"),
@@ -136,7 +134,6 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
       features: [
         t("settings.subscription.pricing.enterpriseJobs"),
         t("settings.subscription.pricing.enterpriseResumes"),
-        t("settings.subscription.pricing.enterpriseApplications"),
         t("settings.subscription.pricing.enterpriseAI"),
         t("settings.subscription.pricing.enterpriseJobParses"),
         t("settings.subscription.pricing.enterpriseResumeBuilders"),

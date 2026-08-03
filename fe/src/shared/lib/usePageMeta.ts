@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 
 const SITE_URL = "https://jobber-app.com";
+const HREFLANGS = ["en", "ru", "uk", "x-default"] as const;
 
 interface PageMetaOptions {
   readonly title?: string;
@@ -52,6 +53,21 @@ function setCanonical(href: string) {
   document.head.appendChild(link);
 }
 
+function setHreflang(lang: string, href: string) {
+  let link = document.querySelector<HTMLLinkElement>(
+    `link[rel="alternate"][hreflang="${lang}"]`,
+  );
+  if (link) {
+    link.href = href;
+    return;
+  }
+  link = document.createElement("link");
+  link.rel = "alternate";
+  link.hreflang = lang;
+  link.href = href;
+  document.head.appendChild(link);
+}
+
 export function usePageMeta(options: PageMetaOptions = {}) {
   const {
     title: literalTitle,
@@ -78,6 +94,9 @@ export function usePageMeta(options: PageMetaOptions = {}) {
     setOgTag("og:description", description);
     setOgTag("og:url", pageUrl);
     setCanonical(pageUrl);
+    for (const lang of HREFLANGS) {
+      setHreflang(lang, pageUrl);
+    }
 
     if (noindex) {
       setMetaTag("robots", "noindex, nofollow");

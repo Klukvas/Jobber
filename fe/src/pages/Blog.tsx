@@ -4,6 +4,7 @@ import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { getAllPosts } from "@/features/blog/lib/blogLoader";
 import { BlogHeader } from "@/features/blog/components/BlogHeader";
 import { BlogPostCard } from "@/features/blog/components/BlogPostCard";
+import { BlogIndexJsonLd } from "@/features/blog/components/BlogIndexJsonLd";
 import { HomeNavbar } from "@/features/home/components/HomeNavbar";
 import { FooterSection } from "@/features/home/components/FooterSection";
 import { useAuthStore } from "@/stores/authStore";
@@ -26,9 +27,10 @@ export default function Blog() {
         isAuthenticated={isAuthenticated}
         onLogin={() => navigate("/login")}
         onRegister={() => navigate("/register")}
-        onGoPlatform={() => navigate("/app/applications")}
+        onGoPlatform={() => navigate("/app/jobs")}
       />
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-24 pb-16">
+        <BlogIndexJsonLd posts={posts} />
         <BlogHeader />
         {posts.length > 0 ? (
           <div className="space-y-6">

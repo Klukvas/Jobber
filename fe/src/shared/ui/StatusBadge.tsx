@@ -1,13 +1,14 @@
 import { useTranslation } from "react-i18next";
-import type { ApplicationStatus } from "@/shared/types/api";
+import type { JobStatus } from "@/shared/types/api";
 
 interface StatusBadgeProps {
-  status: ApplicationStatus;
+  status: JobStatus;
   size?: "sm" | "md" | "lg";
 }
 
-const statusClassNames: Record<ApplicationStatus, string> = {
-  active:
+const statusClassNames: Record<JobStatus, string> = {
+  saved: "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400",
+  applied:
     "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
   on_hold:
     "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
@@ -16,12 +17,13 @@ const statusClassNames: Record<ApplicationStatus, string> = {
   archived: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
 };
 
-const statusLabelKeys: Record<ApplicationStatus, string> = {
-  active: "applications.statusActive",
-  on_hold: "applications.statusOnHold",
-  rejected: "applications.statusRejected",
-  offer: "applications.statusOffer",
-  archived: "applications.statusArchived",
+const statusLabelKeys: Record<JobStatus, string> = {
+  saved: "jobs.statusSaved",
+  applied: "jobs.statusApplied",
+  on_hold: "jobs.statusOnHold",
+  rejected: "jobs.statusRejected",
+  offer: "jobs.statusOffer",
+  archived: "jobs.statusArchived",
 };
 
 const sizeClasses = {

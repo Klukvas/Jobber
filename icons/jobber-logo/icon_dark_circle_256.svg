@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs><radialGradient id="gj" cx="30%" cy="24%" r="58%">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#6366F1" stop-opacity="0"/>
+    </radialGradient></defs>
+  <rect width="256" height="256" rx="128" fill="#08071a"/>
+  <rect width="256" height="256" rx="128" fill="url(#gj)"/>
+  <rect width="256" height="256" rx="128" fill="none" stroke="rgba(99,102,241,0.22)" stroke-width="3.3"/>
+  <g transform="translate(49.5,96.0)">
+    <svg width="157" height="64" viewBox="0 0 108.2 57.7" overflow="visible">
+      
+      <line x1="14.4" y1="0" x2="14.4" y2="4.5" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="54.1" y1="0" x2="54.1" y2="4.5" stroke="rgba(99,102,241,0.5)" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="93.8" y1="0" x2="93.8" y2="4.5" stroke="#6366F1" stroke-width="1.5" stroke-linecap="round"/>
+      <!-- pill 1 -->
+      <rect x="0" y="7.2" width="28.9" height="43.3" rx="14.4"
+        fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.3)" stroke-width="4.4"/>
+      <!-- pill 2 -->
+      <rect x="39.7" y="7.2" width="28.9" height="43.3" rx="14.4"
+        fill="rgba(99,102,241,0.35)" stroke="#6366F1" stroke-width="4.4"/>
+      <!-- pill 3 -->
+      <rect x="79.4" y="7.2" width="28.9" height="43.3" rx="14.4"
+        fill="#6366F1" stroke="#6366F1" stroke-width="3.1"/>
+      <!-- connectors -->
+      <line x1="28.9" y1="28.9" x2="39.7" y2="28.9" stroke="rgba(255,255,255,0.2)" stroke-width="4.1"/>
+      <line x1="68.5" y1="28.9" x2="79.4" y2="28.9" stroke="rgba(99,102,241,0.8)" stroke-width="4.1" opacity=".8"/>
+      <!-- check in pill 3 -->
+      <path d="M87.5 28.9 L92.9 34.3 L101.0 23.4"
+        stroke="white" stroke-width="5.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <!-- dot pill 2 -->
+      <circle cx="54.1" cy="28.9" r="4.5" fill="#A5B4FC"/>
+      <!-- dot pill 1 -->
+      <circle cx="14.4"  cy="28.9" r="3.6" fill="rgba(255,255,255,0.4)"/>
+    </svg>
+  </g>
+</svg>

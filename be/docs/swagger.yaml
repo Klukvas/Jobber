@@ -128,159 +128,6 @@ definitions:
       stage_order:
         type: integer
     type: object
-  github_com_andreypavlenko_jobber_modules_applications_model.AddStageRequest:
-    properties:
-      comment:
-        description: Optional comment when adding a stage
-        type: string
-      stage_template_id:
-        type: string
-    required:
-    - stage_template_id
-    type: object
-  github_com_andreypavlenko_jobber_modules_applications_model.ApplicationDTO:
-    properties:
-      application_comments:
-        items:
-          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_comments_model.CommentDTO'
-        type: array
-      applied_at:
-        type: string
-      created_at:
-        type: string
-      current_stage_id:
-        type: string
-      current_stage_name:
-        type: string
-      id:
-        type: string
-      job:
-        $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.JobNestedDTO'
-      last_activity_at:
-        type: string
-      name:
-        type: string
-      resume:
-        $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.ResumeNestedDTO'
-      stage_comments:
-        items:
-          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_comments_model.CommentDTO'
-        type: array
-      status:
-        type: string
-      updated_at:
-        type: string
-    type: object
-  github_com_andreypavlenko_jobber_modules_applications_model.ApplicationStageDTO:
-    properties:
-      application_id:
-        type: string
-      completed_at:
-        type: string
-      created_at:
-        type: string
-      id:
-        type: string
-      order:
-        type: integer
-      stage_name:
-        type: string
-      stage_template_id:
-        type: string
-      started_at:
-        type: string
-      status:
-        type: string
-    type: object
-  github_com_andreypavlenko_jobber_modules_applications_model.CompleteStageRequest:
-    properties:
-      completed_at:
-        type: string
-    type: object
-  github_com_andreypavlenko_jobber_modules_applications_model.CreateApplicationRequest:
-    properties:
-      applied_at:
-        type: string
-      job_id:
-        type: string
-      name:
-        description: 'Optional: auto-generated from job title if empty'
-        maxLength: 255
-        type: string
-      resume_builder_id:
-        type: string
-      resume_id:
-        type: string
-    required:
-    - job_id
-    type: object
-  github_com_andreypavlenko_jobber_modules_applications_model.CreateStageTemplateRequest:
-    properties:
-      name:
-        maxLength: 255
-        minLength: 1
-        type: string
-      order:
-        minimum: 0
-        type: integer
-    required:
-    - name
-    type: object
-  github_com_andreypavlenko_jobber_modules_applications_model.JobNestedDTO:
-    properties:
-      company:
-        $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_companies_model.CompanyDTO'
-      id:
-        type: string
-      title:
-        type: string
-    type: object
-  github_com_andreypavlenko_jobber_modules_applications_model.ResumeNestedDTO:
-    properties:
-      id:
-        type: string
-      name:
-        type: string
-      type:
-        description: '"uploaded" or "builder"'
-        type: string
-    type: object
-  github_com_andreypavlenko_jobber_modules_applications_model.StageTemplateDTO:
-    properties:
-      created_at:
-        type: string
-      id:
-        type: string
-      name:
-        type: string
-      order:
-        type: integer
-    type: object
-  github_com_andreypavlenko_jobber_modules_applications_model.UpdateApplicationRequest:
-    properties:
-      status:
-        type: string
-    type: object
-  github_com_andreypavlenko_jobber_modules_applications_model.UpdateStageRequest:
-    properties:
-      completed_at:
-        type: string
-      status:
-        enum:
-        - pending
-        - active
-        - completed
-        - skipped
-        - cancelled
-        type: string
-    type: object
-  github_com_andreypavlenko_jobber_modules_applications_model.UpdateStageTemplateRequest:
-    properties:
-      name:
-        type: string
-      order:
-        type: integer
-    type: object
   github_com_andreypavlenko_jobber_modules_auth_model.AuthTokens:
     properties:
       access_token:
@@ -328,29 +175,29 @@ definitions:
     type: object
   github_com_andreypavlenko_jobber_modules_comments_model.CommentDTO:
     properties:
-      application_id:
-        type: string
       content:
         type: string
       created_at:
         type: string
       id:
         type: string
+      job_id:
+        type: string
       stage_id:
         type: string
     type: object
   github_com_andreypavlenko_jobber_modules_comments_model.CreateCommentRequest:
     properties:
-      application_id:
-        type: string
       content:
         minLength: 1
+        type: string
+      job_id:
         type: string
       stage_id:
         type: string
     required:
-    - application_id
     - content
+    - job_id
     type: object
   github_com_andreypavlenko_jobber_modules_companies_model.CompanyDTO:
     properties:
@@ -424,15 +271,33 @@ definitions:
       url:
         type: string
     type: object
+  github_com_andreypavlenko_jobber_modules_jobs_model.AddStageRequest:
+    properties:
+      comment:
+        description: Optional comment when adding a stage
+        type: string
+      stage_template_id:
+        type: string
+    required:
+    - stage_template_id
+    type: object
   github_com_andreypavlenko_jobber_modules_jobs_model.CreateJobRequest:
     properties:
+      applied_at:
+        type: string
       company_id:
         type: string
       description:
         type: string
       notes:
         type: string
+      resume_builder_id:
+        type: string
+      resume_id:
+        type: string
       source:
+        type: string
+      status:
         type: string
       title:
         maxLength: 255
@@ -443,15 +308,31 @@ definitions:
     required:
     - title
     type: object
+  github_com_andreypavlenko_jobber_modules_jobs_model.CreateStageTemplateRequest:
+    properties:
+      name:
+        maxLength: 255
+        minLength: 1
+        type: string
+      order:
+        minimum: 0
+        type: integer
+    required:
+    - name
+    type: object
   github_com_andreypavlenko_jobber_modules_jobs_model.JobDTO:
     properties:
-      applications_count:
-        type: integer
+      applied_at:
+        type: string
       company_id:
         type: string
       company_name:
         type: string
       created_at:
+        type: string
+      current_stage_id:
+        type: string
+      current_stage_name:
         type: string
       description:
         type: string
@@ -459,10 +340,22 @@ definitions:
         type: string
       is_favorite:
         type: boolean
+      job_comments:
+        items:
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_comments_model.CommentDTO'
+        type: array
+      last_activity_at:
+        type: string
       notes:
         type: string
+      resume:
+        $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.ResumeNestedDTO'
       source:
         type: string
+      stage_comments:
+        items:
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_comments_model.CommentDTO'
+        type: array
       status:
         type: string
       title:
@@ -472,13 +365,61 @@ definitions:
       url:
         type: string
     type: object
+  github_com_andreypavlenko_jobber_modules_jobs_model.JobStageDTO:
+    properties:
+      completed_at:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      job_id:
+        type: string
+      order:
+        type: integer
+      stage_name:
+        type: string
+      stage_template_id:
+        type: string
+      started_at:
+        type: string
+      status:
+        type: string
+    type: object
+  github_com_andreypavlenko_jobber_modules_jobs_model.ResumeNestedDTO:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        description: '"uploaded" or "builder"'
+        type: string
+    type: object
+  github_com_andreypavlenko_jobber_modules_jobs_model.StageTemplateDTO:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      order:
+        type: integer
+    type: object
   github_com_andreypavlenko_jobber_modules_jobs_model.UpdateJobRequest:
     properties:
+      applied_at:
+        type: string
       company_id:
         type: string
       description:
         type: string
       notes:
+        type: string
+      resume_builder_id:
+        type: string
+      resume_id:
         type: string
       source:
         type: string
@@ -488,6 +429,26 @@ definitions:
         type: string
       url:
         type: string
+    type: object
+  github_com_andreypavlenko_jobber_modules_jobs_model.UpdateStageRequest:
+    properties:
+      completed_at:
+        type: string
+      status:
+        enum:
+        - pending
+        - active
+        - completed
+        - skipped
+        - cancelled
+        type: string
+    type: object
+  github_com_andreypavlenko_jobber_modules_jobs_model.UpdateStageTemplateRequest:
+    properties:
+      name:
+        type: string
+      order:
+        type: integer
     type: object
   github_com_andreypavlenko_jobber_modules_matchscore_model.MatchScoreCategory:
     properties:
@@ -607,6 +568,22 @@ definitions:
         type: boolean
       title:
         type: string
+    type: object
+  github_com_andreypavlenko_jobber_modules_support_model.CreateSupportRequest:
+    properties:
+      message:
+        maxLength: 2000
+        minLength: 10
+        type: string
+      page:
+        type: string
+      subject:
+        maxLength: 200
+        minLength: 3
+        type: string
+    required:
+    - message
+    - subject
     type: object
   github_com_andreypavlenko_jobber_modules_users_model.UserDTO:
     properties:
@@ -796,456 +773,6 @@ paths:
       summary: Get stage time analytics
       tags:
       - analytics
-  /applications:
-    get:
-      description: Get a paginated list of job applications for the authenticated
-        user
-      parameters:
-      - description: 'Number of items per page (default: 20, max: 100)'
-        in: query
-        name: limit
-        type: integer
-      - description: 'Number of items to skip (default: 0)'
-        in: query
-        name: offset
-        type: integer
-      - description: 'Sort field: last_activity, status, applied_at (default: last_activity)'
-        in: query
-        name: sort_by
-        type: string
-      - description: 'Sort direction: asc, desc (default: desc)'
-        in: query
-        name: sort_dir
-        type: string
-      - description: 'Filter by status: active, on_hold, rejected, offer, archived'
-        in: query
-        name: status
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.PaginatedResponse'
-            - properties:
-                items:
-                  items:
-                    $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.ApplicationDTO'
-                  type: array
-              type: object
-        "400":
-          description: Invalid pagination parameters
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: List applications
-      tags:
-      - applications
-    post:
-      consumes:
-      - application/json
-      description: Create a new job application linking a job and resume
-      parameters:
-      - description: Application details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.CreateApplicationRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.ApplicationDTO'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Create a new application
-      tags:
-      - applications
-  /applications/{id}:
-    delete:
-      description: Delete a specific application by ID
-      parameters:
-      - description: Application ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "404":
-          description: Application not found
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Delete an application
-      tags:
-      - applications
-    get:
-      description: Get details of a specific application by ID
-      parameters:
-      - description: Application ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.ApplicationDTO'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "404":
-          description: Application not found
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Get an application
-      tags:
-      - applications
-    patch:
-      consumes:
-      - application/json
-      description: Update status of a specific application
-      parameters:
-      - description: Application ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Updated application details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.UpdateApplicationRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.ApplicationDTO'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "404":
-          description: Application not found
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Update an application
-      tags:
-      - applications
-  /applications/{id}/comments:
-    get:
-      description: Get all comments for a specific application
-      parameters:
-      - description: Application ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_comments_model.CommentDTO'
-            type: array
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: List comments by application
-      tags:
-      - comments
-  /applications/{id}/stages:
-    get:
-      description: Get all stages for a specific application
-      parameters:
-      - description: Application ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.ApplicationStageDTO'
-            type: array
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "404":
-          description: Application not found
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: List application stages
-      tags:
-      - applications
-    post:
-      consumes:
-      - application/json
-      description: Add a new stage to an application's timeline
-      parameters:
-      - description: Application ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Stage template ID
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.AddStageRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.ApplicationStageDTO'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "404":
-          description: Application not found
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Add a stage to an application
-      tags:
-      - applications
-  /applications/{id}/stages/{stageId}:
-    delete:
-      description: Delete a specific stage from an application
-      parameters:
-      - description: Application ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Stage ID
-        in: path
-        name: stageId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "404":
-          description: Application or stage not found
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Delete an application stage
-      tags:
-      - applications
-    patch:
-      consumes:
-      - application/json
-      description: Update status and other fields of a specific stage
-      parameters:
-      - description: Application ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Stage ID
-        in: path
-        name: stageId
-        required: true
-        type: string
-      - description: Stage update details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.UpdateStageRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.ApplicationStageDTO'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "404":
-          description: Application or stage not found
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Update an application stage
-      tags:
-      - applications
-  /applications/{id}/stages/{stageId}/complete:
-    patch:
-      consumes:
-      - application/json
-      description: Mark a specific stage as completed
-      parameters:
-      - description: Application ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Stage ID
-        in: path
-        name: stageId
-        required: true
-        type: string
-      - description: Completion details
-        in: body
-        name: request
-        schema:
-          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.CompleteStageRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.ApplicationStageDTO'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "404":
-          description: Application or stage not found
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Complete an application stage
-      tags:
-      - applications
   /auth/forgot-password:
     post:
       consumes:
@@ -1504,7 +1031,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create a comment for an application or a specific stage
+      description: Create a comment for a job or a specific stage
       parameters:
       - description: Comment details
         in: body
@@ -1856,8 +1383,8 @@ paths:
       - system
   /jobs:
     get:
-      description: Get a paginated list of job postings for the authenticated user
-        with filtering and sorting
+      description: Get a paginated list of job cards for the authenticated user with
+        filtering and sorting
       parameters:
       - description: 'Number of items per page (default: 20, max: 100)'
         in: query
@@ -1867,12 +1394,14 @@ paths:
         in: query
         name: offset
         type: integer
-      - description: 'Filter by status: active, archived, all (default: active)'
+      - description: 'Filter by status: saved, applied, on_hold, offer, rejected,
+          archived, all. Empty and the legacy value ''active'' mean everything except
+          archived.'
         in: query
         name: status
         type: string
-      - description: 'Sort format: field:order (e.g., created_at:desc, title:asc,
-          company_name:asc)'
+      - description: 'Sort format: field:order (e.g., last_activity:desc, created_at:desc,
+          title:asc, company_name:asc, status:asc, applied_at:desc)'
         in: query
         name: sort
         type: string
@@ -1910,7 +1439,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create a new job posting for the authenticated user
+      description: Create a new job card for the authenticated user. Without status/resume
+        fields a "saved" (wishlist) card is created.
       parameters:
       - description: Job details
         in: body
@@ -1944,7 +1474,7 @@ paths:
       - jobs
   /jobs/{id}:
     delete:
-      description: Delete a specific job posting by ID
+      description: Delete a specific job card by ID
       parameters:
       - description: Job ID
         in: path
@@ -1978,7 +1508,8 @@ paths:
       tags:
       - jobs
     get:
-      description: Get details of a specific job by ID
+      description: Get details of a specific job by ID, including pipeline state and
+        comments
       parameters:
       - description: Job ID
         in: path
@@ -2012,7 +1543,8 @@ paths:
     patch:
       consumes:
       - application/json
-      description: Update details of a specific job posting
+      description: Update details or pipeline status of a specific job. Moving out
+        of "saved" stamps applied_at; moving back clears it.
       parameters:
       - description: Job ID
         in: path
@@ -2053,6 +1585,37 @@ paths:
       summary: Update a job
       tags:
       - jobs
+  /jobs/{id}/comments:
+    get:
+      description: Get all comments for a specific job
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_comments_model.CommentDTO'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List comments by job
+      tags:
+      - comments
   /jobs/{id}/favorite:
     post:
       description: Toggle the favorite status of a specific job
@@ -2088,6 +1651,175 @@ paths:
       summary: Toggle job favorite status
       tags:
       - jobs
+  /jobs/{id}/stages:
+    get:
+      description: Get the full stage history of a job
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.JobStageDTO'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List job stages
+      tags:
+      - stages
+    post:
+      consumes:
+      - application/json
+      description: Append a new pipeline stage; the current active stage is completed
+        automatically
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Stage details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.AddStageRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.JobStageDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Add a stage to a job
+      tags:
+      - stages
+  /jobs/{id}/stages/{stageId}:
+    delete:
+      description: Delete a specific stage from a job's history
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Stage ID
+        in: path
+        name: stageId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a job stage
+      tags:
+      - stages
+    patch:
+      consumes:
+      - application/json
+      description: Update the status of a specific stage
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Stage ID
+        in: path
+        name: stageId
+        required: true
+        type: string
+      - description: Stage update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.UpdateStageRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.JobStageDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a job stage
+      tags:
+      - stages
   /jobs/parse:
     post:
       consumes:
@@ -2443,7 +2175,7 @@ paths:
       - resumes
   /stage-templates:
     get:
-      description: Get a paginated list of stage templates for the authenticated user
+      description: Get a paginated list of the user's stage templates
       parameters:
       - description: 'Number of items per page (default: 20, max: 100)'
         in: query
@@ -2464,13 +2196,9 @@ paths:
             - properties:
                 items:
                   items:
-                    $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.StageTemplateDTO'
+                    $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.StageTemplateDTO'
                   type: array
               type: object
-        "400":
-          description: Invalid pagination parameters
-          schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
@@ -2487,21 +2215,21 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create a reusable stage template for the authenticated user
+      description: Create a reusable stage definition
       parameters:
       - description: Stage template details
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.CreateStageTemplateRequest'
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.CreateStageTemplateRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.StageTemplateDTO'
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.StageTemplateDTO'
         "400":
           description: Bad Request
           schema:
@@ -2521,9 +2249,10 @@ paths:
       - stage-templates
   /stage-templates/{templateId}:
     delete:
-      description: Delete a specific stage template by ID
+      description: Delete a reusable stage definition. Fails with 409 if the template
+        is used by any job stage.
       parameters:
-      - description: Stage Template ID
+      - description: Stage template ID
         in: path
         name: templateId
         required: true
@@ -2542,7 +2271,11 @@ paths:
           schema:
             $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
         "404":
-          description: Stage template not found
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "409":
+          description: Stage template in use
           schema:
             $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
         "500":
@@ -2557,26 +2290,26 @@ paths:
     patch:
       consumes:
       - application/json
-      description: Update details of a specific stage template
+      description: Update a reusable stage definition
       parameters:
-      - description: Stage Template ID
+      - description: Stage template ID
         in: path
         name: templateId
         required: true
         type: string
-      - description: Updated stage template details
+      - description: Stage template update
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.UpdateStageTemplateRequest'
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.UpdateStageTemplateRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_applications_model.StageTemplateDTO'
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.StageTemplateDTO'
         "400":
           description: Bad Request
           schema:
@@ -2586,7 +2319,7 @@ paths:
           schema:
             $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
         "404":
-          description: Stage template not found
+          description: Not Found
           schema:
             $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
         "500":
@@ -2598,6 +2331,45 @@ paths:
       summary: Update a stage template
       tags:
       - stage-templates
+  /support:
+    post:
+      consumes:
+      - application/json
+      description: Send a support message that will be forwarded to the support team
+        via Telegram
+      parameters:
+      - description: Support request details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_support_model.CreateSupportRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Submit a support request
+      tags:
+      - support
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer" followed by a space and JWT token.

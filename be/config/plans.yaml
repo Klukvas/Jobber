@@ -1,17 +1,16 @@
 # Plan limits per tier. -1 = unlimited, 0 = denied.
+# "max_jobs" is the single tracked-cards limit (saved + applied; archived excluded).
 free:
-  max_jobs: 5
+  max_jobs: 25
   max_resumes: 1
-  max_applications: 5
   max_ai_requests: 1
   max_job_parses: 5
   max_resume_builders: 1
   max_cover_letters: 0
 
 pro:
-  max_jobs: 50
+  max_jobs: 100
   max_resumes: 10
-  max_applications: 50
   max_ai_requests: -1
   max_job_parses: -1
   max_resume_builders: 10
@@ -20,7 +19,6 @@ pro:
 enterprise:
   max_jobs: -1
   max_resumes: -1
-  max_applications: -1
   max_ai_requests: -1
   max_job_parses: -1
   max_resume_builders: -1

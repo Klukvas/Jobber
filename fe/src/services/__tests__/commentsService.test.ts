@@ -19,7 +19,7 @@ describe("commentsService", () => {
 
   describe("create", () => {
     it("calls POST on comments with data", async () => {
-      const input = { application_id: "a1", body: "Great progress" };
+      const input = { job_id: "a1", body: "Great progress" };
       const mockResponse = { id: "cm1", ...input };
       mockApiClient.post.mockResolvedValue(mockResponse);
 
@@ -30,15 +30,15 @@ describe("commentsService", () => {
     });
   });
 
-  describe("listByApplication", () => {
-    it("calls GET on applications/{id}/comments", async () => {
+  describe("listByJob", () => {
+    it("calls GET on jobs/{id}/comments", async () => {
       const mockComments = [{ id: "cm1", body: "Note" }];
       mockApiClient.get.mockResolvedValue(mockComments);
 
-      const result = await commentsService.listByApplication("a1");
+      const result = await commentsService.listByJob("a1");
 
       expect(mockApiClient.get).toHaveBeenCalledWith(
-        "applications/a1/comments",
+        "jobs/a1/comments",
       );
       expect(result).toEqual(mockComments);
     });

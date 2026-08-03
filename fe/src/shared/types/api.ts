@@ -75,20 +75,9 @@ export interface ResetPasswordRequest {
   password: string;
 }
 
-// Application Status
-export type ApplicationStatus =
-  | "active"
-  | "on_hold"
-  | "rejected"
-  | "offer"
-  | "archived";
-
-// Nested DTOs for Application
-export interface JobNestedDTO {
-  id: string;
-  title: string;
-  company?: CompanyDTO;
-}
+// Job Status (unified job + application pipeline)
+export type JobStatus =
+  "saved" | "applied" | "on_hold" | "offer" | "rejected" | "archived";
 
 export interface ResumeNestedDTO {
   id: string;
@@ -96,43 +85,14 @@ export interface ResumeNestedDTO {
   type: "uploaded" | "builder";
 }
 
-// Application
-export interface ApplicationDTO {
+// Job Stage
+export interface JobStageDTO {
   id: string;
-  name: string;
-  status: ApplicationStatus;
-  applied_at: string;
-  created_at: string;
-  updated_at: string;
-  last_activity_at?: string;
-  current_stage_id?: string;
-  current_stage_name?: string;
-  job?: JobNestedDTO;
-  resume?: ResumeNestedDTO;
-  application_comments?: CommentDTO[];
-  stage_comments?: CommentDTO[];
-}
-
-export interface CreateApplicationRequest {
   job_id: string;
-  resume_id?: string;
-  resume_builder_id?: string;
-  name: string;
-  applied_at?: string;
-}
-
-export interface UpdateApplicationRequest {
-  status?: string;
-}
-
-// Application Stage
-export interface ApplicationStageDTO {
-  id: string;
-  application_id: string;
   stage_template_id: string;
   stage_name: string;
   order: number;
-  status: string;
+  status: "pending" | "active" | "completed" | "skipped" | "cancelled";
   started_at: string;
   completed_at?: string;
   created_at: string;
@@ -141,10 +101,6 @@ export interface ApplicationStageDTO {
 export interface AddStageRequest {
   stage_template_id: string;
   comment?: string;
-}
-
-export interface CompleteStageRequest {
-  completed_at?: string;
 }
 
 export interface UpdateStageRequest {
@@ -197,19 +153,25 @@ export interface UpdateCompanyRequest {
   notes?: string;
 }
 
-// Job
+// Job (unified job card with pipeline)
 export interface JobDTO {
   id: string;
-  title: string;
   company_id?: string;
   company_name?: string;
-  url?: string;
+  title: string;
   source?: string;
+  url?: string;
   notes?: string;
   description?: string;
-  status: "active" | "archived";
+  status: JobStatus;
   is_favorite: boolean;
-  applications_count: number;
+  applied_at?: string;
+  current_stage_id?: string;
+  current_stage_name?: string;
+  last_activity_at: string;
+  resume?: ResumeNestedDTO;
+  job_comments?: CommentDTO[];
+  stage_comments?: CommentDTO[];
   created_at: string;
   updated_at: string;
 }
@@ -217,20 +179,27 @@ export interface JobDTO {
 export interface CreateJobRequest {
   title: string;
   company_id?: string;
-  url?: string;
   source?: string;
+  url?: string;
   notes?: string;
   description?: string;
+  status?: JobStatus;
+  applied_at?: string;
+  resume_id?: string;
+  resume_builder_id?: string;
 }
 
 export interface UpdateJobRequest {
   title?: string;
   company_id?: string;
-  url?: string;
   source?: string;
+  url?: string;
   notes?: string;
   description?: string;
-  status?: "active" | "archived";
+  status?: JobStatus;
+  applied_at?: string;
+  resume_id?: string;
+  resume_builder_id?: string;
 }
 
 // Match Score
@@ -323,14 +292,14 @@ export interface DownloadURLResponse {
 // Comment
 export interface CommentDTO {
   id: string;
-  application_id: string;
+  job_id: string;
   stage_id?: string;
   content: string;
   created_at: string;
 }
 
 export interface CreateCommentRequest {
-  application_id: string;
+  job_id: string;
   stage_id?: string;
   content: string;
 }
@@ -339,7 +308,6 @@ export interface CreateCommentRequest {
 export interface PlanLimits {
   max_jobs: number; // -1 = unlimited
   max_resumes: number;
-  max_applications: number;
   max_ai_requests: number;
   max_job_parses: number;
   max_resume_builders: number;
@@ -349,7 +317,6 @@ export interface PlanLimits {
 export interface SubscriptionUsage {
   jobs: number;
   resumes: number;
-  applications: number;
   ai_requests: number;
   job_parses: number;
   resume_builders: number;
@@ -358,11 +325,7 @@ export interface SubscriptionUsage {
 
 export type SubscriptionPlan = "free" | "pro" | "enterprise";
 export type SubscriptionStatus =
-  | "free"
-  | "active"
-  | "past_due"
-  | "cancelled"
-  | "paused";
+  "free" | "active" | "past_due" | "cancelled" | "paused";
 
 export interface SubscriptionDTO {
   plan: SubscriptionPlan;

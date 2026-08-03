@@ -22,10 +22,10 @@ func (s *CommentService) Create(ctx context.Context, userID string, req *model.C
 	}
 
 	comment := &model.Comment{
-		UserID:        userID,
-		ApplicationID: req.ApplicationID,
-		StageID:       req.StageID,
-		Content:       strings.TrimSpace(req.Content),
+		UserID:  userID,
+		JobID:   req.JobID,
+		StageID: req.StageID,
+		Content: strings.TrimSpace(req.Content),
 	}
 
 	if err := s.repo.Create(ctx, comment); err != nil {
@@ -34,8 +34,8 @@ func (s *CommentService) Create(ctx context.Context, userID string, req *model.C
 	return comment.ToDTO(), nil
 }
 
-func (s *CommentService) ListByApplication(ctx context.Context, appID string, userID ...string) ([]*model.CommentDTO, error) {
-	comments, err := s.repo.ListByApplication(ctx, appID, userID...)
+func (s *CommentService) ListByJob(ctx context.Context, jobID string, userID ...string) ([]*model.CommentDTO, error) {
+	comments, err := s.repo.ListByJob(ctx, jobID, userID...)
 	if err != nil {
 		return nil, err
 	}

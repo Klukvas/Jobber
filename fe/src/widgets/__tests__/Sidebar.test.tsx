@@ -72,7 +72,6 @@ describe("Sidebar", () => {
     expect(screen.getByText("nav.applications")).toBeInTheDocument();
     expect(screen.getByText("nav.resumes")).toBeInTheDocument();
     expect(screen.getByText("nav.companies")).toBeInTheDocument();
-    expect(screen.getByText("nav.jobs")).toBeInTheDocument();
     expect(screen.getByText("nav.coverLetters")).toBeInTheDocument();
     expect(screen.getByText("nav.stages")).toBeInTheDocument();
     expect(screen.getByText("nav.analytics")).toBeInTheDocument();

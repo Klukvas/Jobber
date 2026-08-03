@@ -1,7 +1,10 @@
-import { Outlet } from 'react-router-dom';
-import { Suspense } from 'react';
+import { Outlet } from "react-router-dom";
+import { Suspense } from "react";
+import { usePageTracking } from "@/shared/lib/usePageTracking";
 
 export function RootLayout() {
+  usePageTracking();
+
   return (
     <Suspense
       fallback={

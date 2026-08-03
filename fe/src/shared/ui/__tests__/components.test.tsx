@@ -265,14 +265,22 @@ describe("EmptyState", () => {
 
 // ---------- StatusBadge ----------
 describe("StatusBadge", () => {
-  it.each(["active", "on_hold", "rejected", "offer", "archived"] as const)(
-    "renders status=%s",
-    (status) => {
-      render(<StatusBadge status={status} />);
-      // The translated key should be rendered as the text
-      expect(screen.getByText(`applications.status${status.charAt(0).toUpperCase() + status.slice(1).replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())}`)).toBeInTheDocument();
-    },
-  );
+  it.each([
+    "saved",
+    "applied",
+    "on_hold",
+    "rejected",
+    "offer",
+    "archived",
+  ] as const)("renders status=%s", (status) => {
+    render(<StatusBadge status={status} />);
+    // The translated key should be rendered as the text
+    expect(
+      screen.getByText(
+        `jobs.status${status.charAt(0).toUpperCase() + status.slice(1).replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())}`,
+      ),
+    ).toBeInTheDocument();
+  });
 
   it("renders unknown status as raw text", () => {
     render(<StatusBadge status={"unknown" as never} />);
@@ -280,13 +288,13 @@ describe("StatusBadge", () => {
   });
 
   it("renders with small size", () => {
-    const { container } = render(<StatusBadge status="active" size="sm" />);
+    const { container } = render(<StatusBadge status="applied" size="sm" />);
     const span = container.querySelector("span");
     expect(span?.className).toContain("text-xs");
   });
 
   it("renders with large size", () => {
-    const { container } = render(<StatusBadge status="active" size="lg" />);
+    const { container } = render(<StatusBadge status="applied" size="lg" />);
     const span = container.querySelector("span");
     expect(span?.className).toContain("text-base");
   });

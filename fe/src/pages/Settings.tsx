@@ -243,7 +243,7 @@ export default function Settings() {
               <p className="text-sm font-medium">
                 {t("settings.subscription.usage")}
               </p>
-              <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
                 <div>
                   <p className="text-muted-foreground">
                     {t("settings.subscription.jobs")}
@@ -264,17 +264,6 @@ export default function Settings() {
                     {limits.max_resumes < 0
                       ? t("settings.subscription.unlimited")
                       : limits.max_resumes}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">
-                    {t("settings.subscription.applications")}
-                  </p>
-                  <p className="font-medium">
-                    {usage.applications} {t("settings.subscription.of")}{" "}
-                    {limits.max_applications < 0
-                      ? t("settings.subscription.unlimited")
-                      : limits.max_applications}
                   </p>
                 </div>
                 <div>
@@ -353,7 +342,7 @@ export default function Settings() {
             variant="outline"
             onClick={() => {
               restart();
-              navigate("/app/applications");
+              navigate("/app/jobs");
             }}
           >
             {t("settings.onboarding.restart")}

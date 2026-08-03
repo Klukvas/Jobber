@@ -34,7 +34,7 @@ describe("ScheduleStageModal", () => {
     onOpenChange: vi.fn(),
     stageId: "stage-1",
     stageName: "Phone Screen",
-    applicationId: "app-1",
+    jobId: "app-1",
   };
 
   it("renders when open", () => {

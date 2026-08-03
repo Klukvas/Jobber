@@ -100,7 +100,7 @@ export function usePaddleCheckout() {
         customData: user?.id ? { user_id: user.id } : undefined,
         settings: {
           successUrl:
-            window.location.origin + "/app/applications?subscription=success",
+            window.location.origin + "/app/jobs?subscription=success",
         },
       });
     },

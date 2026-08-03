@@ -1,0 +1,116 @@
+.jobber-save-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 4px 10px !important;
+  background: #4361ee !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 4px !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  position: absolute !important;
+  top: 8px !important;
+  right: 8px !important;
+  z-index: 10000 !important;
+  transition: background 0.15s, opacity 0.15s !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15) !important;
+  line-height: 1.4 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+  margin: 0 !important;
+  min-width: auto !important;
+  min-height: auto !important;
+  width: auto !important;
+  height: auto !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Show button on card hover */
+[data-jobber-processed]:hover > .jobber-save-btn,
+.jobber-save-btn.jobber-saved {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.jobber-save-btn:hover {
+  background: #3a56d4 !important;
+}
+
+.jobber-save-btn:disabled {
+  opacity: 0.7 !important;
+  cursor: wait !important;
+}
+
+.jobber-save-btn.jobber-saved {
+  background: #22c55e !important;
+  cursor: default !important;
+  font-size: 11px !important;
+}
+
+.jobber-save-btn.jobber-saved:hover {
+  background: #22c55e !important;
+}
+
+/* Toast notification */
+.jobber-toast {
+  all: initial !important;
+  position: fixed !important;
+  bottom: 24px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 99999 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 12px 16px !important;
+  background: #1a1a2e !important;
+  color: #fff !important;
+  border-radius: 10px !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) !important;
+  animation: jobber-toast-in 0.3s ease !important;
+  max-width: 480px !important;
+  line-height: 1.4 !important;
+}
+
+.jobber-toast-icon {
+  font-size: 18px !important;
+  flex-shrink: 0 !important;
+}
+
+.jobber-toast-text {
+  flex: 1 !important;
+}
+
+.jobber-toast-close {
+  all: initial !important;
+  color: #999 !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+  padding: 2px 4px !important;
+  flex-shrink: 0 !important;
+  font-family: inherit !important;
+}
+
+.jobber-toast-close:hover {
+  color: #fff !important;
+}
+
+@keyframes jobber-toast-in {
+  from {
+    opacity: 0 !important;
+    transform: translateX(-50%) translateY(12px) !important;
+  }
+  to {
+    opacity: 1 !important;
+    transform: translateX(-50%) translateY(0) !important;
+  }
+}

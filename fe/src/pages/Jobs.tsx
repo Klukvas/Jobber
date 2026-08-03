@@ -1,58 +1,108 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { formatDistanceToNow } from "date-fns";
-import { useDateLocale } from "@/shared/lib/dateFnsLocale";
-import { jobsService } from "@/services/jobsService";
+import { Link } from "react-router-dom";
+import { jobsService, type ListJobsParams } from "@/services/jobsService";
 import { Button } from "@/shared/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
 import { ListPageSkeleton } from "@/shared/ui/PageSkeleton";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { ErrorState } from "@/shared/ui/ErrorState";
+import { StatusBadge } from "@/shared/ui/StatusBadge";
 import {
   Plus,
   Briefcase,
-  ExternalLink,
   Building2,
-  MoreVertical,
-  Edit,
-  Archive,
   Calendar,
-  FileText,
+  Clock,
+  MoreVertical,
+  MessageSquare,
+  Archive,
+  GitBranch,
   ArrowUp,
   ArrowDown,
+  LayoutGrid,
+  Kanban,
   Chrome,
   X,
-  Heart,
 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { CreateJobModal } from "@/features/jobs/modals/CreateJobModal";
-import { usePageMeta } from "@/shared/lib/usePageMeta";
-import type { JobDTO } from "@/shared/types/api";
+import { AddCommentModal } from "@/features/jobs/modals/AddCommentModal";
+import { AddStageModal } from "@/features/jobs/modals/AddStageModal";
+import { UpdateJobStatusModal } from "@/features/jobs/modals/UpdateJobStatusModal";
 import {
-  showSuccessNotification,
-  showErrorNotification,
-} from "@/shared/lib/notifications";
+  JobKanbanBoard,
+  JOBS_KANBAN_QUERY_KEY,
+} from "@/features/jobs/components/JobKanbanBoard";
+import { usePageMeta } from "@/shared/lib/usePageMeta";
+import type { JobDTO, JobStatus } from "@/shared/types/api";
 
-type SortField = "created_at" | "title" | "company_name";
+type SortBy =
+  | "last_activity"
+  | "status"
+  | "applied_at"
+  | "created_at"
+  | "title"
+  | "company_name";
 type SortDir = "asc" | "desc";
+type ViewMode = "list" | "kanban";
+/** "" => all active (non-archived), "all" => everything, otherwise a single status */
+type StatusFilter = "" | "all" | JobStatus;
 
 const EXTENSION_BANNER_KEY = "jobber-ext-banner-dismissed";
+const VIEW_MODE_KEY = "apps-view-mode";
+const PAGE_SIZE = 20;
 
-export default function Jobs() {
+const SORT_FIELDS: { field: SortBy; labelKey: string; icon?: "clock" | "calendar" }[] = [
+  { field: "last_activity", labelKey: "jobs.sortLastActivity", icon: "clock" },
+  { field: "status", labelKey: "jobs.sortStatus" },
+  { field: "applied_at", labelKey: "jobs.sortAppliedDate", icon: "calendar" },
+  { field: "created_at", labelKey: "jobs.sortCreatedDate", icon: "calendar" },
+  { field: "title", labelKey: "jobs.sortJobTitle" },
+  { field: "company_name", labelKey: "jobs.sortCompanyName" },
+];
+
+const STATUS_FILTER_OPTIONS: { value: StatusFilter; labelKey: string }[] = [
+  { value: "", labelKey: "jobs.filterActive" },
+  { value: "saved", labelKey: "jobs.statusSaved" },
+  { value: "applied", labelKey: "jobs.statusApplied" },
+  { value: "on_hold", labelKey: "jobs.statusOnHold" },
+  { value: "offer", labelKey: "jobs.statusOffer" },
+  { value: "rejected", labelKey: "jobs.statusRejected" },
+  { value: "archived", labelKey: "jobs.statusArchived" },
+  { value: "all", labelKey: "jobs.filterAll" },
+];
+
+function getInitialViewMode(): ViewMode {
+  const stored = localStorage.getItem(VIEW_MODE_KEY);
+  return stored === "kanban" ? "kanban" : "list";
+}
+
+export default function JobsPage() {
   const { t } = useTranslation();
   const dateLocale = useDateLocale();
-  const navigate = useNavigate();
   usePageMeta({ titleKey: "jobs.title", noindex: true });
-  const queryClient = useQueryClient();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [editingJob, setEditingJob] = useState<JobDTO | undefined>(undefined);
-  const [sortField, setSortField] = useState<SortField>("created_at");
+  const [page, setPage] = useState(0);
+  const [sortBy, setSortBy] = useState<SortBy>("last_activity");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
+  const [activeQuickAction, setActiveQuickAction] = useState<{
+    type: "comment" | "stage" | "status";
+    job: JobDTO;
+  } | null>(null);
   const [showExtBanner, setShowExtBanner] = useState(
     () => localStorage.getItem(EXTENSION_BANNER_KEY) !== "true",
   );
+
+  // Persist view mode
+  useEffect(() => {
+    localStorage.setItem(VIEW_MODE_KEY, viewMode);
+  }, [viewMode]);
 
   // Close context menu when clicking outside
   useEffect(() => {
@@ -62,81 +112,44 @@ export default function Jobs() {
     return () => document.removeEventListener("click", handleClickOutside);
   }, [openMenuId]);
 
+  // Kanban uses a shared constant key; list uses filter/sort-specific keys
+  const queryKey =
+    viewMode === "kanban"
+      ? [...JOBS_KANBAN_QUERY_KEY]
+      : ["jobs", "list", page, statusFilter, sortBy, sortDir];
+
+  const listParams: ListJobsParams =
+    viewMode === "kanban"
+      ? { limit: 500, offset: 0, status: "all" }
+      : {
+          limit: PAGE_SIZE,
+          offset: page * PAGE_SIZE,
+          status: statusFilter || undefined,
+          sort: `${sortBy}:${sortDir}`,
+        };
+
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["jobs", sortField, sortDir],
-    queryFn: () =>
-      jobsService.list({
-        limit: 100,
-        offset: 0,
-        status: "active",
-        sort: `${sortField}:${sortDir}`,
-      }),
+    queryKey,
+    queryFn: () => jobsService.list(listParams),
     staleTime: 30_000,
   });
 
-  const archiveMutation = useMutation({
-    mutationFn: jobsService.archive,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["jobs"] });
-      showSuccessNotification(t("jobs.archiveSuccess"));
-    },
-    onError: () => {
-      showErrorNotification(t("jobs.archiveError"));
-    },
-  });
+  const handleQuickAction = (
+    type: "comment" | "stage" | "status",
+    job: JobDTO,
+  ) => {
+    setActiveQuickAction({ type, job });
+    setOpenMenuId(null);
+  };
 
-  const toggleFavoriteMutation = useMutation({
-    mutationFn: jobsService.toggleFavorite,
-    onMutate: async (jobId) => {
-      const queryKey = ["jobs", sortField, sortDir];
-      await queryClient.cancelQueries({ queryKey: ["jobs"] });
-      const previous = queryClient.getQueryData(queryKey);
-      queryClient.setQueryData(queryKey, (old: typeof data) => {
-        if (!old) return old;
-        return {
-          ...old,
-          items: old.items.map((j: JobDTO) =>
-            j.id === jobId ? { ...j, is_favorite: !j.is_favorite } : j,
-          ),
-        };
-      });
-      return { previous, queryKey };
-    },
-    onError: (err, _jobId, context) => {
-      if (context?.previous && context?.queryKey) {
-        queryClient.setQueryData(context.queryKey, context.previous);
-      }
-      console.error("[Jobs] toggleFavorite failed:", err);
-      showErrorNotification(t("common.error"));
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["jobs"] });
-    },
-  });
-
-  const toggleSort = (field: SortField) => {
-    if (sortField === field) {
+  const toggleSort = (field: SortBy) => {
+    if (sortBy === field) {
       setSortDir(sortDir === "desc" ? "asc" : "desc");
     } else {
-      setSortField(field);
+      setSortBy(field);
       setSortDir("desc");
     }
-  };
-
-  const handleEdit = (job: JobDTO) => {
-    setEditingJob(job);
-    setIsCreateModalOpen(true);
-    setOpenMenuId(null);
-  };
-
-  const handleArchive = (jobId: string) => {
-    archiveMutation.mutate(jobId);
-    setOpenMenuId(null);
-  };
-
-  const handleModalClose = () => {
-    setIsCreateModalOpen(false);
-    setEditingJob(undefined);
+    setPage(0);
   };
 
   if (isLoading) {
@@ -153,15 +166,61 @@ export default function Jobs() {
   }
 
   const jobs = data?.items || [];
+  const pagination = data?.pagination;
+  const isFiltered = statusFilter !== "";
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">{t("jobs.title")}</h1>
-        <Button onClick={() => setIsCreateModalOpen(true)}>
-          <Plus className="h-4 w-4" />
-          {t("jobs.create")}
-        </Button>
+      {/* Header */}
+      <div className="space-y-2 sm:space-y-0">
+        {/* Row 1: title + create btn (visible on mobile, create btn hidden on sm+) */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">{t("jobs.title")}</h1>
+          <Button
+            className="sm:hidden"
+            size="sm"
+            onClick={() => setIsCreateModalOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            {t("jobs.create")}
+          </Button>
+        </div>
+        {/* Row 2 on mobile / inline on desktop: view toggle + create btn */}
+        <div className="flex items-center justify-between sm:justify-end gap-2">
+          {/* View Toggle */}
+          <div className="flex items-center rounded-lg border bg-muted p-0.5">
+            <button
+              onClick={() => setViewMode("list")}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                viewMode === "list"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <LayoutGrid className="h-4 w-4" />
+              {t("jobs.viewList")}
+            </button>
+            <button
+              onClick={() => setViewMode("kanban")}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                viewMode === "kanban"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Kanban className="h-4 w-4" />
+              {t("jobs.viewBoard")}
+            </button>
+          </div>
+
+          <Button
+            className="hidden sm:flex"
+            onClick={() => setIsCreateModalOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            {t("jobs.create")}
+          </Button>
+        </div>
       </div>
 
       {showExtBanner && (
@@ -191,7 +250,7 @@ export default function Jobs() {
         </div>
       )}
 
-      {jobs.length === 0 ? (
+      {jobs.length === 0 && !isFiltered && viewMode === "list" ? (
         <EmptyState
           icon={<Briefcase className="h-12 w-12" />}
           title={t("jobs.emptyTitle")}
@@ -203,195 +262,273 @@ export default function Jobs() {
             </Button>
           }
         />
+      ) : viewMode === "kanban" ? (
+        <JobKanbanBoard
+          jobs={jobs}
+          onAddComment={(job) => handleQuickAction("comment", job)}
+          onAddStage={(job) => handleQuickAction("stage", job)}
+          onChangeStatus={(job) => handleQuickAction("status", job)}
+        />
       ) : (
         <>
-          {/* Sorting Controls */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-muted-foreground">
-              {t("jobs.sortBy")}
-            </span>
-            <Button
-              variant={sortField === "created_at" ? "default" : "outline"}
-              size="sm"
-              onClick={() => toggleSort("created_at")}
-            >
-              <Calendar className="h-3 w-3 mr-1" />
-              {t("jobs.sortCreatedDate")}
-              {sortField === "created_at" &&
-                (sortDir === "desc" ? (
-                  <ArrowDown className="h-3 w-3 ml-1" />
-                ) : (
-                  <ArrowUp className="h-3 w-3 ml-1" />
+          {/* Filter + Sorting Controls */}
+          <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor="status-filter"
+                className="text-sm text-muted-foreground"
+              >
+                {t("jobs.filterLabel")}
+              </label>
+              <select
+                id="status-filter"
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value as StatusFilter);
+                  setPage(0);
+                }}
+                className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {STATUS_FILTER_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {t(opt.labelKey)}
+                  </option>
                 ))}
-            </Button>
-            <Button
-              variant={sortField === "title" ? "default" : "outline"}
-              size="sm"
-              onClick={() => toggleSort("title")}
-            >
-              <FileText className="h-3 w-3 mr-1" />
-              {t("jobs.sortJobTitle")}
-              {sortField === "title" &&
-                (sortDir === "desc" ? (
-                  <ArrowDown className="h-3 w-3 ml-1" />
-                ) : (
-                  <ArrowUp className="h-3 w-3 ml-1" />
-                ))}
-            </Button>
-            <Button
-              variant={sortField === "company_name" ? "default" : "outline"}
-              size="sm"
-              onClick={() => toggleSort("company_name")}
-            >
-              <Building2 className="h-3 w-3 mr-1" />
-              {t("jobs.sortCompanyName")}
-              {sortField === "company_name" &&
-                (sortDir === "desc" ? (
-                  <ArrowDown className="h-3 w-3 ml-1" />
-                ) : (
-                  <ArrowUp className="h-3 w-3 ml-1" />
-                ))}
-            </Button>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-muted-foreground">
+                {t("jobs.sortBy")}
+              </span>
+              {SORT_FIELDS.map(({ field, labelKey, icon }) => (
+                <Button
+                  key={field}
+                  variant={sortBy === field ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => toggleSort(field)}
+                >
+                  {icon === "clock" && <Clock className="h-3 w-3 mr-1" />}
+                  {icon === "calendar" && <Calendar className="h-3 w-3 mr-1" />}
+                  {t(labelKey)}
+                  {sortBy === field &&
+                    (sortDir === "desc" ? (
+                      <ArrowDown className="h-3 w-3 ml-1" />
+                    ) : (
+                      <ArrowUp className="h-3 w-3 ml-1" />
+                    ))}
+                </Button>
+              ))}
+            </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {jobs.map((job) => (
-              <Card
-                key={job.id}
-                className="relative group cursor-pointer transition-all hover:shadow-md"
-                onClick={() => navigate(`/app/jobs/${job.id}`)}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-lg flex-1">
-                      {job.title}
-                    </CardTitle>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleFavoriteMutation.mutate(job.id);
-                        }}
-                        disabled={toggleFavoriteMutation.isPending}
-                        className="p-1 rounded-md hover:bg-accent transition-colors disabled:opacity-50"
-                        aria-label={
-                          job.is_favorite
-                            ? t("common.removeFromFavorites")
-                            : t("common.addToFavorites")
-                        }
-                      >
-                        <Heart
-                          className={`h-4 w-4 ${job.is_favorite ? "fill-red-500 text-red-500" : "text-muted-foreground"}`}
-                        />
-                      </button>
-                      <div className="relative">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenMenuId(
-                              openMenuId === job.id ? null : job.id,
-                            );
-                          }}
-                          className="p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground"
-                          aria-label={t("jobs.actionsMenu")}
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </button>
-                        {openMenuId === job.id && (
-                          <div className="absolute right-0 mt-1 w-40 bg-popover border rounded-md shadow-lg z-10">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEdit(job);
-                              }}
-                              className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
-                            >
-                              <Edit className="h-4 w-4" />
-                              {t("common.edit")}
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleArchive(job.id);
-                              }}
-                              className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
-                            >
-                              <Archive className="h-4 w-4" />
-                              {t("jobs.archive")}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {job.company_name && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Building2 className="h-4 w-4" />
-                      <span>{job.company_name}</span>
-                    </div>
-                  )}
-                  {job.url &&
-                    (() => {
-                      try {
-                        const protocol = new URL(job.url).protocol;
-                        if (protocol !== "http:" && protocol !== "https:")
-                          return null;
-                      } catch {
-                        return null;
-                      }
-                      return (
-                        <div className="flex items-center gap-2 text-sm">
-                          <a
-                            href={job.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="flex items-center gap-1 text-primary hover:underline"
+          {jobs.length === 0 ? (
+            <EmptyState
+              icon={<Briefcase className="h-12 w-12" />}
+              title={t("jobs.noJobsForFilter")}
+              description={t("jobs.tryAnotherFilter")}
+            />
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {jobs.map((job) => (
+                <div key={job.id} className="relative">
+                  <Link to={`/app/jobs/${job.id}`}>
+                    <Card className="transition-all hover:shadow-md h-full group">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <CardTitle className="text-xl font-bold leading-tight mb-2 flex-1">
+                            {job.title}
+                          </CardTitle>
+                          <div
+                            className="relative"
+                            onClick={(e) => e.preventDefault()}
                           >
-                            {t("jobs.viewPosting")}
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                setOpenMenuId(
+                                  openMenuId === job.id ? null : job.id,
+                                );
+                              }}
+                              className="p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground"
+                              aria-label={t("jobs.actionsMenu")}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                            {openMenuId === job.id && (
+                              <div className="absolute right-0 mt-1 w-48 bg-popover border rounded-md shadow-lg z-10">
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleQuickAction("comment", job);
+                                  }}
+                                  className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
+                                >
+                                  <MessageSquare className="h-4 w-4" />
+                                  {t("jobs.addComment")}
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleQuickAction("stage", job);
+                                  }}
+                                  className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
+                                >
+                                  <GitBranch className="h-4 w-4" />
+                                  {t("jobs.addStage")}
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleQuickAction("status", job);
+                                  }}
+                                  className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
+                                >
+                                  <Archive className="h-4 w-4" />
+                                  {t("jobs.changeStatus")}
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      );
-                    })()}
-                  {job.source && (
-                    <div className="text-sm text-muted-foreground">
-                      {t("jobs.source")}: {job.source}
-                    </div>
-                  )}
-                  <div className="text-sm text-muted-foreground pt-2 border-t space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-3.5 w-3.5" />
-                      <span>
-                        {t("jobs.createdDate")}{" "}
-                        {formatDistanceToNow(new Date(job.created_at), {
-                          addSuffix: true,
-                          locale: dateLocale,
-                        })}
-                      </span>
-                    </div>
-                    <div>
-                      {job.applications_count > 0
-                        ? t("jobs.applicationsCount", {
-                            count: job.applications_count,
-                          })
-                        : t("jobs.noApplications")}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+
+                        {/* Secondary: Company and Stage */}
+                        <div className="space-y-1">
+                          {job.company_name && (
+                            <div className="flex items-center gap-2 text-base font-medium text-foreground">
+                              <Building2 className="h-4 w-4 text-muted-foreground" />
+                              <span>{job.company_name}</span>
+                            </div>
+                          )}
+                          {job.current_stage_name && (
+                            <div className="flex items-center gap-2 text-base text-foreground">
+                              <GitBranch className="h-4 w-4 text-muted-foreground" />
+                              <span>{job.current_stage_name}</span>
+                            </div>
+                          )}
+                        </div>
+                      </CardHeader>
+
+                      <CardContent className="space-y-3 pt-0">
+                        {/* Status - Dominant Signal */}
+                        <div className="flex items-center justify-between">
+                          <StatusBadge status={job.status} size="lg" />
+                        </div>
+
+                        {/* Meta Information */}
+                        <div className="space-y-2 text-sm text-muted-foreground border-t pt-3">
+                          {job.resume?.name && (
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">
+                                {t("jobs.resumeLabel")}:
+                              </span>
+                              <span>{job.resume.name}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-3.5 w-3.5" />
+                            <span>
+                              {job.applied_at
+                                ? `${t("jobs.applied")} ${formatDistanceToNow(
+                                    new Date(job.applied_at),
+                                    { addSuffix: true, locale: dateLocale },
+                                  )}`
+                                : `${t("jobs.createdDate")} ${formatDistanceToNow(
+                                    new Date(job.created_at),
+                                    { addSuffix: true, locale: dateLocale },
+                                  )}`}
+                            </span>
+                          </div>
+                          {job.last_activity_at && (
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-3.5 w-3.5" />
+                              <span>
+                                {t("jobs.updated")}{" "}
+                                {formatDistanceToNow(
+                                  new Date(job.last_activity_at),
+                                  {
+                                    addSuffix: true,
+                                    locale: dateLocale,
+                                  },
+                                )}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {pagination && pagination.total > PAGE_SIZE && (
+            <div className="flex justify-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+              >
+                {t("common.previous")}
+              </Button>
+              <span className="flex items-center px-4 text-sm text-muted-foreground">
+                {t("jobs.pageOf", {
+                  page: page + 1,
+                  total: Math.ceil(pagination.total / PAGE_SIZE),
+                })}
+              </span>
+              <Button
+                variant="outline"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={(page + 1) * PAGE_SIZE >= pagination.total}
+              >
+                {t("common.next")}
+              </Button>
+            </div>
+          )}
         </>
       )}
 
+      {/* Modals */}
       <CreateJobModal
         open={isCreateModalOpen}
-        onOpenChange={handleModalClose}
-        job={editingJob}
+        onOpenChange={setIsCreateModalOpen}
       />
+
+      {activeQuickAction?.type === "comment" && (
+        <AddCommentModal
+          open={true}
+          onOpenChange={(open) => !open && setActiveQuickAction(null)}
+          jobId={activeQuickAction.job.id}
+        />
+      )}
+
+      {activeQuickAction?.type === "stage" && (
+        <AddStageModal
+          open={true}
+          onOpenChange={(open) => !open && setActiveQuickAction(null)}
+          jobId={activeQuickAction.job.id}
+        />
+      )}
+
+      {activeQuickAction?.type === "status" && (
+        <UpdateJobStatusModal
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) {
+              setActiveQuickAction(null);
+            }
+          }}
+          jobId={activeQuickAction.job.id}
+          currentStatus={activeQuickAction.job.status}
+        />
+      )}
     </div>
   );
 }

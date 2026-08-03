@@ -13,9 +13,9 @@ import (
 
 // MockCommentRepository implements ports.CommentRepository
 type MockCommentRepository struct {
-	CreateFunc            func(ctx context.Context, comment *model.Comment) error
-	ListByApplicationFunc func(ctx context.Context, appID string, userID ...string) ([]*model.Comment, error)
-	DeleteFunc            func(ctx context.Context, userID, commentID string) error
+	CreateFunc    func(ctx context.Context, comment *model.Comment) error
+	ListByJobFunc func(ctx context.Context, jobID string, userID ...string) ([]*model.Comment, error)
+	DeleteFunc    func(ctx context.Context, userID, commentID string) error
 }
 
 func (m *MockCommentRepository) Create(ctx context.Context, comment *model.Comment) error {
@@ -25,9 +25,9 @@ func (m *MockCommentRepository) Create(ctx context.Context, comment *model.Comme
 	return nil
 }
 
-func (m *MockCommentRepository) ListByApplication(ctx context.Context, appID string, userID ...string) ([]*model.Comment, error) {
-	if m.ListByApplicationFunc != nil {
-		return m.ListByApplicationFunc(ctx, appID, userID...)
+func (m *MockCommentRepository) ListByJob(ctx context.Context, jobID string, userID ...string) ([]*model.Comment, error) {
+	if m.ListByJobFunc != nil {
+		return m.ListByJobFunc(ctx, jobID, userID...)
 	}
 	return nil, nil
 }
@@ -54,8 +54,8 @@ func TestCommentService_Create(t *testing.T) {
 
 		svc := NewCommentService(mockRepo)
 		req := &model.CreateCommentRequest{
-			ApplicationID: "app-1",
-			Content:       "This is a comment",
+			JobID:   "job-1",
+			Content: "This is a comment",
 		}
 
 		result, err := svc.Create(context.Background(), userID, req)
@@ -63,15 +63,15 @@ func TestCommentService_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "comment-1", result.ID)
 		assert.Equal(t, "This is a comment", result.Content)
-		assert.Equal(t, "app-1", result.ApplicationID)
+		assert.Equal(t, "job-1", result.JobID)
 	})
 
 	t.Run("returns error for empty content", func(t *testing.T) {
 		mockRepo := &MockCommentRepository{}
 		svc := NewCommentService(mockRepo)
 		req := &model.CreateCommentRequest{
-			ApplicationID: "app-1",
-			Content:       "   ",
+			JobID:   "job-1",
+			Content: "   ",
 		}
 
 		result, err := svc.Create(context.Background(), userID, req)
@@ -94,9 +94,9 @@ func TestCommentService_Create(t *testing.T) {
 
 		svc := NewCommentService(mockRepo)
 		req := &model.CreateCommentRequest{
-			ApplicationID: "app-1",
-			StageID:       &stageID,
-			Content:       "Stage comment",
+			JobID:   "job-1",
+			StageID: &stageID,
+			Content: "Stage comment",
 		}
 
 		_, err := svc.Create(context.Background(), userID, req)
@@ -118,8 +118,8 @@ func TestCommentService_Create(t *testing.T) {
 
 		svc := NewCommentService(mockRepo)
 		req := &model.CreateCommentRequest{
-			ApplicationID: "app-1",
-			Content:       "  Comment with whitespace  ",
+			JobID:   "job-1",
+			Content: "  Comment with whitespace  ",
 		}
 
 		_, err := svc.Create(context.Background(), userID, req)
@@ -139,8 +139,8 @@ func TestCommentService_Create(t *testing.T) {
 
 		svc := NewCommentService(mockRepo)
 		req := &model.CreateCommentRequest{
-			ApplicationID: "app-1",
-			Content:       "Test comment",
+			JobID:   "job-1",
+			Content: "Test comment",
 		}
 
 		result, err := svc.Create(context.Background(), userID, req)
@@ -150,37 +150,37 @@ func TestCommentService_Create(t *testing.T) {
 	})
 }
 
-func TestCommentService_ListByApplication(t *testing.T) {
+func TestCommentService_ListByJob(t *testing.T) {
 	userID := "user-123"
-	appID := "app-1"
+	jobID := "job-1"
 
 	t.Run("returns comments list", func(t *testing.T) {
 		stageID := "stage-1"
 		expectedComments := []*model.Comment{
 			{
-				ID:            "comment-1",
-				ApplicationID: appID,
-				Content:       "First comment",
-				CreatedAt:     time.Now(),
+				ID:        "comment-1",
+				JobID:     jobID,
+				Content:   "First comment",
+				CreatedAt: time.Now(),
 			},
 			{
-				ID:            "comment-2",
-				ApplicationID: appID,
-				StageID:       &stageID,
-				Content:       "Second comment",
-				CreatedAt:     time.Now(),
+				ID:        "comment-2",
+				JobID:     jobID,
+				StageID:   &stageID,
+				Content:   "Second comment",
+				CreatedAt: time.Now(),
 			},
 		}
 
 		mockRepo := &MockCommentRepository{
-			ListByApplicationFunc: func(ctx context.Context, aid string, uid ...string) ([]*model.Comment, error) {
-				assert.Equal(t, appID, aid)
+			ListByJobFunc: func(ctx context.Context, jid string, uid ...string) ([]*model.Comment, error) {
+				assert.Equal(t, jobID, jid)
 				return expectedComments, nil
 			},
 		}
 
 		svc := NewCommentService(mockRepo)
-		result, err := svc.ListByApplication(context.Background(), appID, userID)
+		result, err := svc.ListByJob(context.Background(), jobID, userID)
 
 		require.NoError(t, err)
 		assert.Len(t, result, 2)
@@ -190,13 +190,13 @@ func TestCommentService_ListByApplication(t *testing.T) {
 
 	t.Run("returns empty list", func(t *testing.T) {
 		mockRepo := &MockCommentRepository{
-			ListByApplicationFunc: func(ctx context.Context, aid string, uid ...string) ([]*model.Comment, error) {
+			ListByJobFunc: func(ctx context.Context, jid string, uid ...string) ([]*model.Comment, error) {
 				return []*model.Comment{}, nil
 			},
 		}
 
 		svc := NewCommentService(mockRepo)
-		result, err := svc.ListByApplication(context.Background(), appID, userID)
+		result, err := svc.ListByJob(context.Background(), jobID, userID)
 
 		require.NoError(t, err)
 		assert.Empty(t, result)
@@ -206,13 +206,13 @@ func TestCommentService_ListByApplication(t *testing.T) {
 		expectedError := errors.New("database error")
 
 		mockRepo := &MockCommentRepository{
-			ListByApplicationFunc: func(ctx context.Context, aid string, uid ...string) ([]*model.Comment, error) {
+			ListByJobFunc: func(ctx context.Context, jid string, uid ...string) ([]*model.Comment, error) {
 				return nil, expectedError
 			},
 		}
 
 		svc := NewCommentService(mockRepo)
-		result, err := svc.ListByApplication(context.Background(), appID, userID)
+		result, err := svc.ListByJob(context.Background(), jobID, userID)
 
 		assert.Nil(t, result)
 		assert.Equal(t, expectedError, err)
@@ -259,19 +259,19 @@ func TestComment_ToDTO(t *testing.T) {
 	stageID := "stage-1"
 
 	comment := &model.Comment{
-		ID:            "comment-1",
-		UserID:        "user-123",
-		ApplicationID: "app-1",
-		StageID:       &stageID,
-		Content:       "Test comment",
-		CreatedAt:     now,
-		UpdatedAt:     now,
+		ID:        "comment-1",
+		UserID:    "user-123",
+		JobID:     "job-1",
+		StageID:   &stageID,
+		Content:   "Test comment",
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 
 	dto := comment.ToDTO()
 
 	assert.Equal(t, comment.ID, dto.ID)
-	assert.Equal(t, comment.ApplicationID, dto.ApplicationID)
+	assert.Equal(t, comment.JobID, dto.JobID)
 	assert.Equal(t, comment.StageID, dto.StageID)
 	assert.Equal(t, comment.Content, dto.Content)
 	assert.Equal(t, comment.CreatedAt, dto.CreatedAt)

@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	jobModel "github.com/andreypavlenko/jobber/modules/jobs/model"
+	jobPorts "github.com/andreypavlenko/jobber/modules/jobs/ports"
 	"github.com/andreypavlenko/jobber/modules/matchscore/model"
 	matchPorts "github.com/andreypavlenko/jobber/modules/matchscore/ports"
 	matchService "github.com/andreypavlenko/jobber/modules/matchscore/service"
@@ -22,12 +24,13 @@ import (
 
 // MockJobRepository implements jobPorts.JobRepository
 type MockJobRepository struct {
-	CreateFunc         func(ctx context.Context, job *jobModel.Job) error
-	GetByIDFunc        func(ctx context.Context, userID, jobID string) (*jobModel.Job, error)
-	ListFunc           func(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*jobModel.JobDTO, int, error)
-	UpdateFunc         func(ctx context.Context, job *jobModel.Job) error
-	DeleteFunc         func(ctx context.Context, userID, jobID string) error
-	ToggleFavoriteFunc func(ctx context.Context, userID, jobID string) (bool, error)
+	CreateFunc            func(ctx context.Context, job *jobModel.Job) error
+	GetByIDFunc           func(ctx context.Context, userID, jobID string) (*jobModel.Job, error)
+	ListFunc              func(ctx context.Context, userID string, opts *jobPorts.ListOptions) ([]*jobModel.JobDTO, int, error)
+	UpdateFunc            func(ctx context.Context, job *jobModel.Job) error
+	DeleteFunc            func(ctx context.Context, userID, jobID string) error
+	ToggleFavoriteFunc    func(ctx context.Context, userID, jobID string) (bool, error)
+	GetLastActivityAtFunc func(ctx context.Context, jobID string) (time.Time, error)
 }
 
 func (m *MockJobRepository) Create(ctx context.Context, job *jobModel.Job) error {
@@ -44,9 +47,9 @@ func (m *MockJobRepository) GetByID(ctx context.Context, userID, jobID string) (
 	return nil, nil
 }
 
-func (m *MockJobRepository) List(ctx context.Context, userID string, limit, offset int, status, sortBy, sortOrder string) ([]*jobModel.JobDTO, int, error) {
+func (m *MockJobRepository) List(ctx context.Context, userID string, opts *jobPorts.ListOptions) ([]*jobModel.JobDTO, int, error) {
 	if m.ListFunc != nil {
-		return m.ListFunc(ctx, userID, limit, offset, status, sortBy, sortOrder)
+		return m.ListFunc(ctx, userID, opts)
 	}
 	return nil, 0, nil
 }
@@ -70,6 +73,13 @@ func (m *MockJobRepository) ToggleFavorite(ctx context.Context, userID, jobID st
 		return m.ToggleFavoriteFunc(ctx, userID, jobID)
 	}
 	return false, nil
+}
+
+func (m *MockJobRepository) GetLastActivityAt(ctx context.Context, jobID string) (time.Time, error) {
+	if m.GetLastActivityAtFunc != nil {
+		return m.GetLastActivityAtFunc(ctx, jobID)
+	}
+	return time.Time{}, nil
 }
 
 // MockResumeRepository implements resumePorts.ResumeRepository

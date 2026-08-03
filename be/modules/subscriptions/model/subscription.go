@@ -40,7 +40,6 @@ type SubscriptionDTO struct {
 type Usage struct {
 	Jobs           int `json:"jobs"`
 	Resumes        int `json:"resumes"`
-	Applications   int `json:"applications"`
 	AIRequests     int `json:"ai_requests"`
 	JobParses      int `json:"job_parses"`
 	ResumeBuilders int `json:"resume_builders"`
@@ -51,7 +50,6 @@ type Usage struct {
 type PlanLimits struct {
 	MaxJobs           int `json:"max_jobs"`
 	MaxResumes        int `json:"max_resumes"`
-	MaxApplications   int `json:"max_applications"`
 	MaxAIRequests     int `json:"max_ai_requests"`
 	MaxJobParses      int `json:"max_job_parses"`
 	MaxResumeBuilders int `json:"max_resume_builders"`
@@ -60,9 +58,8 @@ type PlanLimits struct {
 
 // FreePlanLimits defines limits for the free plan.
 var FreePlanLimits = PlanLimits{
-	MaxJobs:           5,
+	MaxJobs:           25,
 	MaxResumes:        1,
-	MaxApplications:   5,
 	MaxAIRequests:     1,
 	MaxJobParses:      5,
 	MaxResumeBuilders: 1,
@@ -71,9 +68,8 @@ var FreePlanLimits = PlanLimits{
 
 // ProPlanLimits defines limits for the pro plan.
 var ProPlanLimits = PlanLimits{
-	MaxJobs:           50,
+	MaxJobs:           100,
 	MaxResumes:        10,
-	MaxApplications:   50,
 	MaxAIRequests:     -1,
 	MaxJobParses:      -1,
 	MaxResumeBuilders: 10,
@@ -84,7 +80,6 @@ var ProPlanLimits = PlanLimits{
 var EnterprisePlanLimits = PlanLimits{
 	MaxJobs:           -1,
 	MaxResumes:        -1,
-	MaxApplications:   -1,
 	MaxAIRequests:     -1,
 	MaxJobParses:      -1,
 	MaxResumeBuilders: -1,
@@ -95,7 +90,6 @@ var EnterprisePlanLimits = PlanLimits{
 type PlanLimitsConfig struct {
 	MaxJobs           int `yaml:"max_jobs"`
 	MaxResumes        int `yaml:"max_resumes"`
-	MaxApplications   int `yaml:"max_applications"`
 	MaxAIRequests     int `yaml:"max_ai_requests"`
 	MaxJobParses      int `yaml:"max_job_parses"`
 	MaxResumeBuilders int `yaml:"max_resume_builders"`
@@ -120,7 +114,6 @@ func configToPlanLimits(c PlanLimitsConfig) PlanLimits {
 	return PlanLimits{
 		MaxJobs:           c.MaxJobs,
 		MaxResumes:        c.MaxResumes,
-		MaxApplications:   c.MaxApplications,
 		MaxAIRequests:     c.MaxAIRequests,
 		MaxJobParses:      c.MaxJobParses,
 		MaxResumeBuilders: c.MaxResumeBuilders,

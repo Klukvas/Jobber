@@ -395,7 +395,6 @@ pro:
 		require.True(t, ok)
 		assert.Equal(t, 10, free.MaxJobs)
 		assert.Equal(t, 2, free.MaxResumes)
-		assert.Equal(t, 5, free.MaxApplications)
 		assert.Equal(t, 3, free.MaxAIRequests)
 		assert.Equal(t, 1, free.MaxResumeBuilders)
 		assert.Equal(t, 1, free.MaxCoverLetters)

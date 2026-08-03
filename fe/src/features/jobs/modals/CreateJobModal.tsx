@@ -7,7 +7,13 @@ import {
   showErrorNotification,
 } from "@/shared/lib/notifications";
 import { companiesService } from "@/services/companiesService";
-import type { JobDTO, UpdateJobRequest } from "@/shared/types/api";
+import { resumesService } from "@/services/resumesService";
+import { resumeBuilderService } from "@/services/resumeBuilderService";
+import type {
+  JobDTO,
+  CreateJobRequest,
+  UpdateJobRequest,
+} from "@/shared/types/api";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +26,7 @@ import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { Textarea } from "@/shared/ui/Textarea";
 import { Label } from "@/shared/ui/Label";
+import { Checkbox } from "@/shared/ui/Checkbox";
 import { CompanySelectWithQuickAdd } from "@/features/jobs/components/CompanySelectWithQuickAdd";
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { UpgradeBanner } from "@/features/subscription/components/UpgradeBanner";
@@ -30,6 +37,10 @@ interface CreateJobModalProps {
   onOpenChange: (open: boolean) => void;
   job?: JobDTO; // If provided, the modal is in edit mode
   onCreated?: (job: JobDTO) => void;
+}
+
+function todayISODate(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 // Inner content component that resets state when key changes
@@ -51,11 +62,26 @@ function ModalContent({
   const [source, setSource] = useState(job?.source || "");
   const [notes, setNotes] = useState(job?.notes || "");
   const [description, setDescription] = useState(job?.description || "");
+  const [alreadyApplied, setAlreadyApplied] = useState(false);
+  const [selectedResume, setSelectedResume] = useState("");
+  const [appliedDate, setAppliedDate] = useState(todayISODate());
 
   const { data: companiesData } = useQuery({
     queryKey: ["companies"],
     queryFn: () => companiesService.list({ limit: 100, offset: 0 }),
     enabled: open,
+  });
+
+  const { data: resumesData } = useQuery({
+    queryKey: ["resumes"],
+    queryFn: () => resumesService.list({ limit: 100, offset: 0 }),
+    enabled: open && !isEditMode,
+  });
+
+  const { data: builderResumes } = useQuery({
+    queryKey: ["resume-builder"],
+    queryFn: () => resumeBuilderService.list(),
+    enabled: open && !isEditMode,
   });
 
   const createMutation = useMutation({
@@ -86,33 +112,50 @@ function ModalContent({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (title) {
-      if (isEditMode && job) {
-        updateMutation.mutate({
-          id: job.id,
-          data: {
-            title,
-            company_id: companyId || undefined,
-            url: url || undefined,
-            source: source || undefined,
-            notes: notes || undefined,
-            description: description || undefined,
-          },
-        });
-      } else {
-        createMutation.mutate({
+    if (!title) return;
+
+    if (isEditMode && job) {
+      updateMutation.mutate({
+        id: job.id,
+        data: {
           title,
           company_id: companyId || undefined,
           url: url || undefined,
           source: source || undefined,
           notes: notes || undefined,
           description: description || undefined,
-        });
+        },
+      });
+      return;
+    }
+
+    const request: CreateJobRequest = {
+      title,
+      company_id: companyId || undefined,
+      url: url || undefined,
+      source: source || undefined,
+      notes: notes || undefined,
+      description: description || undefined,
+    };
+
+    if (alreadyApplied) {
+      request.status = "applied";
+      request.applied_at = appliedDate
+        ? new Date(`${appliedDate}T00:00:00`).toISOString()
+        : new Date().toISOString();
+      if (selectedResume.startsWith("uploaded:")) {
+        request.resume_id = selectedResume.slice("uploaded:".length);
+      } else if (selectedResume.startsWith("builder:")) {
+        request.resume_builder_id = selectedResume.slice("builder:".length);
       }
     }
+
+    createMutation.mutate(request);
   };
 
   const isPending = createMutation.isPending || updateMutation.isPending;
+  const uploadedResumes = resumesData?.items ?? [];
+  const builderResumesList = builderResumes ?? [];
 
   return (
     <>
@@ -184,6 +227,72 @@ function ModalContent({
               placeholder={t("jobs.notesPlaceholder")}
             />
           </div>
+
+          {!isEditMode && (
+            <div className="space-y-4 rounded-lg border p-3">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="already-applied"
+                  checked={alreadyApplied}
+                  onCheckedChange={setAlreadyApplied}
+                />
+                <Label htmlFor="already-applied" className="cursor-pointer">
+                  {t("jobs.alreadyApplied")}
+                </Label>
+              </div>
+
+              {alreadyApplied && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="resume">{t("jobs.resumeLabel")}</Label>
+                    <select
+                      id="resume"
+                      value={selectedResume}
+                      onChange={(e) => setSelectedResume(e.target.value)}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="">{t("jobs.selectResume")}</option>
+                      {uploadedResumes.length > 0 && (
+                        <optgroup label={t("jobs.uploadedResumes")}>
+                          {uploadedResumes.map((resume) => (
+                            <option
+                              key={`uploaded:${resume.id}`}
+                              value={`uploaded:${resume.id}`}
+                            >
+                              {resume.title}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {builderResumesList.length > 0 && (
+                        <optgroup label={t("jobs.builderResumes")}>
+                          {builderResumesList.map((rb) => (
+                            <option
+                              key={`builder:${rb.id}`}
+                              value={`builder:${rb.id}`}
+                            >
+                              {rb.title}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="applied-date">
+                      {t("jobs.appliedDateLabel")}
+                    </Label>
+                    <Input
+                      id="applied-date"
+                      type="date"
+                      value={appliedDate}
+                      onChange={(e) => setAppliedDate(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button

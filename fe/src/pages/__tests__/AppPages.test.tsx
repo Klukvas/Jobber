@@ -1,7 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import Applications from "../Applications";
-import ApplicationDetail from "../ApplicationDetail";
 import Companies from "../Companies";
 import Jobs from "../Jobs";
 import JobDetail from "../JobDetail";
@@ -264,37 +262,6 @@ vi.mock("@/features/onboarding/useOnboarding", () => ({
   useOnboarding: () => ({ restart: vi.fn() }),
 }));
 
-describe("Applications", () => {
-  it("renders page title", () => {
-    render(<Applications />);
-    expect(screen.getByText("applications.title")).toBeInTheDocument();
-  });
-
-  it("shows empty state when no data", () => {
-    render(<Applications />);
-    expect(screen.getByText("applications.noApplications")).toBeInTheDocument();
-  });
-
-  it("shows create button", () => {
-    render(<Applications />);
-    expect(screen.getAllByText("applications.create").length).toBeGreaterThan(
-      0,
-    );
-  });
-});
-
-describe("ApplicationDetail", () => {
-  it("renders without crash and shows back button", () => {
-    render(<ApplicationDetail />);
-    expect(screen.getAllByText("common.back").length).toBeGreaterThan(0);
-  });
-
-  it("shows error state when no application data", () => {
-    render(<ApplicationDetail />);
-    expect(screen.getByText("applications.notFound")).toBeInTheDocument();
-  });
-});
-
 describe("Companies", () => {
   it("renders page title", () => {
     render(<Companies />);
@@ -325,7 +292,7 @@ describe("Jobs", () => {
 
   it("shows create button", () => {
     render(<Jobs />);
-    expect(screen.getByText("jobs.create")).toBeInTheDocument();
+    expect(screen.getAllByText("jobs.create").length).toBeGreaterThan(0);
   });
 });
 
@@ -337,7 +304,7 @@ describe("JobDetail", () => {
 
   it("shows error state when no job data", () => {
     render(<JobDetail />);
-    expect(screen.getByText("errors.notFound")).toBeInTheDocument();
+    expect(screen.getByText("jobs.notFound")).toBeInTheDocument();
   });
 });
 

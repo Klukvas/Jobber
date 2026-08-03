@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="96" viewBox="0 0 480 96">
+  <rect width="480" height="96" rx="18" fill="#05040f"/>
+  <rect x="8" y="8" width="80" height="80" rx="19" fill="#08071a" stroke="rgba(99,102,241,0.22)" stroke-width="1"/>
+  <g transform="translate(20,36)">
+    <rect x="0"  y="0" width="17" height="26" rx="8"  fill="rgba(255,255,255,0.1)"  stroke="rgba(255,255,255,0.3)"  stroke-width="1.5"/>
+    <rect x="23" y="0" width="17" height="26" rx="8"  fill="rgba(99,102,241,0.38)"  stroke="#6366F1" stroke-width="1.5"/>
+    <rect x="46" y="0" width="17" height="26" rx="8"  fill="#6366F1"/>
+    <line x1="17" y1="13" x2="23" y2="13" stroke="rgba(255,255,255,0.22)" stroke-width="1.5"/>
+    <line x1="40" y1="13" x2="46" y2="13" stroke="#6366F1" stroke-width="1.5" opacity=".8"/>
+    <path d="M49.5 13 L52.5 16 L57.5 10" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <circle cx="31.5" cy="13" r="2.7" fill="#A5B4FC"/>
+    <circle cx="8.5"  cy="13" r="2.1" fill="rgba(255,255,255,0.38)"/>
+  </g>
+  <text x="108" y="48" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="38" fill="#ffffff" letter-spacing="-1.5">Jobber</text>
+  <text x="108" y="66" font-family="Courier New,monospace" font-size="11" fill="rgba(99,102,241,0.65)" letter-spacing="4">JOB TRACKER</text>
+  <rect x="108" y="72" width="168" height="17" rx="8.5" fill="#0a0916" stroke="rgba(123,110,246,0.22)" stroke-width="1"/>
+  <text x="118" y="83" font-family="Courier New,monospace" font-size="8.5" fill="rgba(255,255,255,0.3)" letter-spacing="0.3">powered by</text>
+  <text x="177" y="83" font-family="Arial Black,Arial,sans-serif" font-size="8.5" fill="#7B6EF6" font-weight="900">flux-lab.dev</text>
+</svg>

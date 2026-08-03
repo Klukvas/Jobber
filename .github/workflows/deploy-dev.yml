@@ -195,17 +195,17 @@ jobs:
           echo "📝 Running TypeScript type check..."
           npx tsc --noEmit
 
-      - name: Run tests with coverage
+      - name: Run tests with coverage & enforce threshold
         working-directory: ./fe
         run: |
           echo "🧪 Running frontend tests..."
-          npx vitest run --coverage --reporter=verbose
-
-      - name: Enforce coverage threshold
-        working-directory: ./fe
-        run: |
           THRESHOLD=55
-          COVERAGE=$(npx vitest run --coverage 2>&1 | grep "^Statements" | awk '{print $3}' | tr -d '%(')
+          # Run the suite exactly once; capture output for both the log and coverage parsing.
+          set -o pipefail
+          npx vitest run --coverage 2>&1 | tee vitest-output.txt
+          # Match the coverage summary line ("Statements   : 57.2% ( ... )") tolerant to
+          # leading whitespace; empty result trips the guard below (safe fail, not silent pass).
+          COVERAGE=$(grep -iE '^[[:space:]]*Statements[[:space:]]*:' vitest-output.txt | head -1 | grep -oE '[0-9]+(\.[0-9]+)?' | head -1)
           if [ -z "$COVERAGE" ]; then
             echo "::error::Could not parse frontend coverage"
             exit 1
@@ -563,6 +563,48 @@ jobs:
           echo "📸 Capturing current deployment state..."
           docker compose -f docker-compose.yml -f docker-compose.deploy.yml config > .compose-backup.yml 2>/dev/null || true
 
+          # CRITICAL: Back up the database BEFORE the new backend boots and runs
+          # migrations. Migrations run on backend startup and can be irreversible
+          # (e.g. table drops/renames); the compose-config "rollback" above only
+          # restores old container images, which CANNOT run against an already
+          # migrated schema. This SQL dump is the only real recovery path.
+          echo ""
+          echo "🗄️  Backing up database before migration..."
+          if docker ps --format '{{.Names}}' | grep -q '^jobber-postgres$'; then
+            DB_USER=$(grep -E '^DB_USER=' .env | tail -1 | cut -d= -f2- || true)
+            DB_NAME=$(grep -E '^DB_NAME=' .env | tail -1 | cut -d= -f2- || true)
+            DB_USER=${DB_USER:-jobber}
+            DB_NAME=${DB_NAME:-jobber}
+            mkdir -p backups
+            BACKUP_FILE="backups/predeploy-$(date +%Y%m%d-%H%M%S).sql.gz"
+            # Dump to a temp file (NOT `pg_dump | gzip`): the shell has `set -e` but no
+            # `pipefail`, so in a pipeline a failed pg_dump would be masked by gzip's
+            # exit 0. Redirecting `docker exec` propagates pg_dump's real exit code.
+            TMP_DUMP=$(mktemp)
+            if docker exec jobber-postgres pg_dump -U "$DB_USER" "$DB_NAME" > "$TMP_DUMP"; then
+              # Guard against a partial dump: a real schema dump is tens of KB+.
+              SIZE=$(wc -c < "$TMP_DUMP" | tr -d ' ')
+              if [ "${SIZE:-0}" -lt 10000 ]; then
+                echo "❌ Database backup suspiciously small (${SIZE} bytes) — likely partial; aborting deploy"
+                rm -f "$TMP_DUMP"
+                docker logout
+                exit 1
+              fi
+              gzip -c "$TMP_DUMP" > "$BACKUP_FILE"
+              rm -f "$TMP_DUMP"
+              echo "✅ Database backed up to ~/jobber/$BACKUP_FILE (raw ${SIZE} bytes, $(du -h "$BACKUP_FILE" | cut -f1) gz)"
+              # Retain the 10 most recent pre-deploy backups (CX22 has a small disk).
+              ls -1t backups/predeploy-*.sql.gz 2>/dev/null | tail -n +11 | xargs -r rm -f
+            else
+              echo "❌ pg_dump FAILED — aborting deploy (refusing to run an irreversible migration without a backup)"
+              rm -f "$TMP_DUMP" "$BACKUP_FILE"
+              docker logout
+              exit 1
+            fi
+          else
+            echo "ℹ️  No running jobber-postgres container (first deploy?) — skipping DB backup"
+          fi
+
           # Pull new images from Docker Hub
           # Uses both docker-compose.yml (base) and docker-compose.deploy.yml (SHA override)
           echo ""
@@ -663,6 +705,49 @@ jobs:
             docker compose -f docker-compose.yml -f docker-compose.deploy.yml logs backend --tail=30
             docker logout
             exit 1
+          fi
+
+          # Verify migrations applied cleanly (schema not left in a "dirty" state).
+          # /health only proves DB/Redis connectivity, not that migrations succeeded.
+          echo ""
+          echo "🔎 Verifying database migration state..."
+          DB_USER=$(grep -E '^DB_USER=' .env | tail -1 | cut -d= -f2- || true); DB_USER=${DB_USER:-jobber}
+          DB_NAME=$(grep -E '^DB_NAME=' .env | tail -1 | cut -d= -f2- || true); DB_NAME=${DB_NAME:-jobber}
+          MIG_RAW=$(docker exec jobber-postgres psql -U "$DB_USER" -d "$DB_NAME" -tAc \
+            "SELECT version || ':' || dirty::int FROM schema_migrations LIMIT 1" 2>&1 || true)
+          MIG=$(printf '%s' "$MIG_RAW" | grep -oE '[0-9]+:[01]' | head -1 || true)
+          echo "schema_migrations = ${MIG:-<none>}"
+          case "$MIG" in
+            *:1) echo "❌ Migration left the schema DIRTY — aborting"; docker logout; exit 1 ;;
+            "")  echo "⚠️  Could not read migration state (non-critical). psql output: ${MIG_RAW}" ;;
+            *)   echo "✅ Migrations clean (version ${MIG%%:*})" ;;
+          esac
+
+          # Contract smoke: the merged /jobs route must be registered and reach the
+          # auth layer. Unauthenticated request should return 401 (route alive),
+          # NOT 404 (route missing) or 5xx (handler crashing on boot).
+          echo ""
+          echo "🔎 Smoke-testing /api/v1/jobs contract..."
+          # busybox wget (alpine): on a non-2xx it prints "HTTP/1.1 <code>" to stderr
+          # via -S and exits non-zero; parse the code out of the combined output.
+          JOBS_OUT=$(docker exec jobber-backend wget -O /dev/null -S http://localhost:8080/api/v1/jobs 2>&1 || true)
+          JOBS_CODE=$(echo "$JOBS_OUT" | grep -oE 'HTTP/[0-9.]+ [0-9]{3}' | head -1 | awk '{print $2}')
+          echo "GET /api/v1/jobs -> HTTP ${JOBS_CODE:-<none>}"
+          # Only a definitive 404 aborts (route not registered = broken merge). An empty
+          # code means we couldn't parse busybox wget output (e.g. no -S support) — the
+          # app already passed /health, so treat unparseable as a non-blocking warning
+          # rather than falsely failing a good deploy.
+          if [ "$JOBS_CODE" = "404" ]; then
+            echo "❌ /jobs route returned 404 (route not registered) — aborting"
+            docker compose -f docker-compose.yml -f docker-compose.deploy.yml logs backend --tail=30
+            docker logout
+            exit 1
+          elif [ "$JOBS_CODE" = "401" ]; then
+            echo "✅ /jobs route alive (401 as expected without auth)"
+          elif [ -z "$JOBS_CODE" ]; then
+            echo "⚠️  Could not determine /jobs status (wget output unparsed) — skipping (non-blocking)"
+          else
+            echo "⚠️  /jobs returned '${JOBS_CODE}' (expected 401) — continuing but verify manually"
           fi
 
           # Test frontend via Caddy (HTTPS)

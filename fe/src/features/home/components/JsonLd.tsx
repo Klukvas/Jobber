@@ -13,6 +13,25 @@ function buildJsonLd() {
       description: "Job application tracking platform",
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web",
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+      },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: "Jobber",
+      url: SITE_URL,
+      potentialAction: {
+        "@type": "SearchAction",
+        target: {
+          "@type": "EntryPoint",
+          urlTemplate: `${SITE_URL}/blog?q={search_term_string}`,
+        },
+        "query-input": "required name=search_term_string",
+      },
     },
     {
       "@context": "https://schema.org",
@@ -20,7 +39,9 @@ function buildJsonLd() {
       name: "Jobber",
       url: SITE_URL,
       logo: `${SITE_URL}/favicon.png`,
-      sameAs: [],
+      // Populate with verified official profile URLs only (Twitter/X, LinkedIn, GitHub).
+      // Schema.org Organization.sameAs is a Google trust signal — placeholders hurt.
+      sameAs: [] as string[],
     },
   ]);
 }
