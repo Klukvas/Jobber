@@ -97,10 +97,21 @@ func (r *AnalyticsRepository) GetOverview(ctx context.Context, userID string) (*
 	return analytics, nil
 }
 
-// GetFunnel returns stage-based funnel metrics
+// GetFunnel returns stage-based funnel metrics.
+//
+// The first "Applied" bucket is derived directly from job cards
+// (applied_at IS NOT NULL): every application counts even when the user has
+// not tracked any pipeline stages for it, and it does not depend on stage
+// templates existing. Later buckets come from stage templates with order > 1
+// (the same "got a response" convention used by response_rate and sources).
 func (r *AnalyticsRepository) GetFunnel(ctx context.Context, userID string) (*model.FunnelAnalytics, error) {
 	query := `
-		WITH stage_counts AS (
+		WITH applied_total AS (
+			SELECT COUNT(*) AS app_count
+			FROM jobs
+			WHERE user_id = $1 AND applied_at IS NOT NULL
+		),
+		template_counts AS (
 			SELECT
 				st.name AS stage_name,
 				st."order" AS stage_order,
@@ -108,9 +119,16 @@ func (r *AnalyticsRepository) GetFunnel(ctx context.Context, userID string) (*mo
 			FROM stage_templates st
 			LEFT JOIN job_stages js ON js.stage_template_id = st.id
 			LEFT JOIN jobs j ON j.id = js.job_id AND j.user_id = $1 AND j.applied_at IS NOT NULL
-			WHERE st.user_id = $1
+			WHERE st.user_id = $1 AND st."order" > 1
 			GROUP BY st.id, st.name, st."order"
-			ORDER BY st."order"
+		),
+		combined AS (
+			SELECT 'Applied' AS stage_name, 1 AS stage_order, app_count
+			FROM applied_total
+			WHERE app_count > 0
+			UNION ALL
+			SELECT stage_name, stage_order, app_count
+			FROM template_counts
 		),
 		ordered_stages AS (
 			SELECT
@@ -118,7 +136,7 @@ func (r *AnalyticsRepository) GetFunnel(ctx context.Context, userID string) (*mo
 				stage_order,
 				app_count,
 				LAG(app_count) OVER (ORDER BY stage_order) AS prev_count
-			FROM stage_counts
+			FROM combined
 		)
 		SELECT
 			stage_name,

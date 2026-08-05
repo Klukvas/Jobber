@@ -87,7 +87,7 @@ func TestAnalyticsRepository_GetFunnel(t *testing.T) {
 	userID := "user-123"
 
 	t.Run("returns error when query fails", func(t *testing.T) {
-		mock.ExpectQuery("WITH stage_counts AS").
+		mock.ExpectQuery("WITH applied_total AS").
 			WithArgs(userID).
 			WillReturnError(assert.AnError)
 
@@ -111,7 +111,7 @@ func TestAnalyticsRepository_GetFunnel(t *testing.T) {
 			AddRow("Interview", 3, 25, 50.0, 50.0).
 			AddRow("Offer", 4, 10, 40.0, 60.0)
 
-		mock.ExpectQuery("WITH stage_counts AS").
+		mock.ExpectQuery("WITH applied_total AS").
 			WithArgs(userID).
 			WillReturnRows(rows)
 
@@ -132,6 +132,30 @@ func TestAnalyticsRepository_GetFunnel(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
+	t.Run("shows the Applied bucket even when the user has no stage templates", func(t *testing.T) {
+		rows := pgxmock.NewRows([]string{
+			"stage_name",
+			"stage_order",
+			"app_count",
+			"conversion_rate",
+			"drop_off_rate",
+		}).
+			AddRow("Applied", 1, 2, 100.0, 0.0)
+
+		mock.ExpectQuery("WITH applied_total AS").
+			WithArgs(userID).
+			WillReturnRows(rows)
+
+		result, err := repo.GetFunnel(context.Background(), userID)
+
+		require.NoError(t, err)
+		require.Len(t, result.Stages, 1)
+		assert.Equal(t, "Applied", result.Stages[0].StageName)
+		assert.Equal(t, 2, result.Stages[0].Count)
+
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
 	t.Run("returns empty stages for user without data", func(t *testing.T) {
 		rows := pgxmock.NewRows([]string{
 			"stage_name",
@@ -141,7 +165,7 @@ func TestAnalyticsRepository_GetFunnel(t *testing.T) {
 			"drop_off_rate",
 		})
 
-		mock.ExpectQuery("WITH stage_counts AS").
+		mock.ExpectQuery("WITH applied_total AS").
 			WithArgs(userID).
 			WillReturnRows(rows)
 
