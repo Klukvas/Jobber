@@ -188,9 +188,9 @@ function FunnelVisualization({
             const widthPercent = (stage.count / maxCount) * 100;
             return (
               <div key={stage.stage_name} className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
+                <div className="flex flex-col gap-0.5 text-sm sm:flex-row sm:items-center sm:justify-between">
                   <span className="font-medium">{stage.stage_name}</span>
-                  <div className="flex items-center gap-4 text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-muted-foreground">
                     <span>
                       {stage.count} {t("analytics.applications")}
                     </span>
