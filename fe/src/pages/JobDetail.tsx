@@ -358,12 +358,12 @@ export default function JobDetail() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Button variant="ghost" onClick={() => navigate("/app/jobs")}>
           <ArrowLeft className="h-4 w-4" />
           {t("jobs.backToJobs")}
         </Button>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {isDirty && (
             <>
               <Button variant="outline" size="sm" onClick={handleDiscard}>
@@ -406,9 +406,10 @@ export default function JobDetail() {
               size="sm"
               onClick={() => archiveMutation.mutate(job.id)}
               disabled={archiveMutation.isPending}
+              aria-label={t("jobs.archive")}
             >
-              <Archive className="h-4 w-4 mr-2" />
-              {t("jobs.archive")}
+              <Archive className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">{t("jobs.archive")}</span>
             </Button>
           )}
           <Button
@@ -417,9 +418,10 @@ export default function JobDetail() {
             className="text-destructive hover:text-destructive"
             onClick={() => setIsDeleteConfirmOpen(true)}
             disabled={deleteMutation.isPending}
+            aria-label={t("common.delete")}
           >
-            <Trash2 className="h-4 w-4 mr-2" />
-            {t("common.delete")}
+            <Trash2 className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">{t("common.delete")}</span>
           </Button>
         </div>
       </div>
