@@ -30,14 +30,22 @@ func TestIntegrationFreePlanLimitOneBuilder(t *testing.T) {
 	assertErrorCode(t, resp, "PLAN_LIMIT_REACHED")
 }
 
-func TestIntegrationFreePlanNoCoverLetters(t *testing.T) {
+func TestIntegrationFreePlanCoverLetterLimit(t *testing.T) {
 	cleanupAll(t)
 	userID := seedUser(t, "sub-freecl@test.com", "securepass123")
 	seedSubscription(t, userID, "free")
 	token := authToken(t, userID)
 
+	// The test env runs without plans.yaml, so the hardcoded fallback applies
+	// (free = 1 cover letter; config/plans.yaml ships 0 for production).
 	resp := doRequest(t, http.MethodPost, "/api/v1/cover-letters", map[string]string{
-		"title": "CL Attempt",
+		"title": "CL Within Limit",
+	}, token)
+	assertStatus(t, resp, http.StatusCreated)
+	resp.Body.Close()
+
+	resp = doRequest(t, http.MethodPost, "/api/v1/cover-letters", map[string]string{
+		"title": "CL Over Limit",
 	}, token)
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 	assertErrorCode(t, resp, "PLAN_LIMIT_REACHED")

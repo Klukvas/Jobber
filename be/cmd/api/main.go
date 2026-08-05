@@ -521,6 +521,12 @@ func main() {
 	// API v1 routes
 	v1 := router.Group("/api/v1")
 	{
+		// Session check used by the frontend on page load. Deliberately NOT
+		// under /auth: the frontend 401 interceptor skips token refresh for
+		// /auth/* endpoints, and this endpoint must trigger that refresh.
+		v1.GET("/session", authMiddleware, sessionHandler)
+
+
 		// Register module routes
 		authHdl.RegisterRoutes(v1, authHandler.AuthRouteConfig{
 			AuthMiddleware:   authMiddleware,
@@ -660,4 +666,17 @@ func healthCheckHandler(ctx context.Context, pgClient *postgres.Client, redisCli
 // @Router /ping [get]
 func pingHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "pong"})
+}
+
+// sessionHandler godoc
+// @Summary Session check
+// @Description Verifies that the caller's access token (cookie or Bearer) is still valid. Used by the frontend on page load; a 401 triggers the client-side token refresh flow.
+// @Tags system
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Router /session [get]
+func sessionHandler(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }

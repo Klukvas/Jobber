@@ -14,6 +14,7 @@ import (
 
 	"github.com/andreypavlenko/jobber/internal/config"
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
+	"github.com/andreypavlenko/jobber/internal/platform/email"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
 	"github.com/andreypavlenko/jobber/internal/platform/logger"
 	"github.com/andreypavlenko/jobber/internal/platform/postgres"
@@ -22,10 +23,6 @@ import (
 	authRepo "github.com/andreypavlenko/jobber/modules/auth/repository"
 	authService "github.com/andreypavlenko/jobber/modules/auth/service"
 	userRepo "github.com/andreypavlenko/jobber/modules/users/repository"
-
-	appHandler "github.com/andreypavlenko/jobber/modules/applications/handler"
-	appRepo "github.com/andreypavlenko/jobber/modules/applications/repository"
-	appService "github.com/andreypavlenko/jobber/modules/applications/service"
 
 	companyHandler "github.com/andreypavlenko/jobber/modules/companies/handler"
 	companyRepo "github.com/andreypavlenko/jobber/modules/companies/repository"
@@ -202,16 +199,18 @@ func TestMain(m *testing.M) {
 	// Repositories
 	userRepository := userRepo.NewUserRepository(pool)
 	tokenRepository := authRepo.NewRefreshTokenRepository(pool)
+	verificationRepository := authRepo.NewEmailVerificationRepository(pool)
+	passwordResetRepository := authRepo.NewPasswordResetRepository(pool)
 	companyRepository := companyRepo.NewCompanyRepository(pool)
 	jobRepository := jobRepo.NewJobRepository(pool)
+	stageTemplateRepository := jobRepo.NewStageTemplateRepository(pool)
+	jobStageRepository := jobRepo.NewJobStageRepository(pool)
 	resumeRepository := resumeRepo.NewResumeRepository(pool)
-	applicationRepository := appRepo.NewApplicationRepository(pool)
-	stageTemplateRepository := appRepo.NewStageTemplateRepository(pool)
-	applicationStageRepository := appRepo.NewApplicationStageRepository(pool)
 	commentRepository := commentRepo.NewCommentRepository(pool)
 	analyticsRepository := analyticsRepo.NewAnalyticsRepository(pool)
 	subscriptionRepository := subRepo.NewSubscriptionRepository(pool)
 	matchScoreCacheRepository := matchScoreRepo.NewMatchScoreCacheRepository(pool)
+	resumeBuilderRepository := rbRepo.NewResumeBuilderRepository(pool)
 
 	// Services
 	subscriptionSvc := subService.NewSubscriptionService(
@@ -219,33 +218,36 @@ func TestMain(m *testing.M) {
 		"", "", "", "", "", "sandbox",
 	)
 
-	authSvc := authService.NewAuthService(
-		userRepository,
-		tokenRepository,
-		jwtManager,
-		15*time.Minute,
-		7*24*time.Hour,
-		subscriptionSvc,
-	)
+	authSvc := authService.NewAuthService(authService.AuthServiceConfig{
+		UserRepo:            userRepository,
+		TokenRepo:           tokenRepository,
+		VerificationRepo:    verificationRepository,
+		PasswordResetRepo:   passwordResetRepository,
+		EmailSender:         &email.NoopSender{Logger: zapLogger.Logger},
+		JWTManager:          jwtManager,
+		AccessExpiry:        15 * time.Minute,
+		RefreshExpiry:       7 * 24 * time.Hour,
+		SubscriptionCreator: subscriptionSvc,
+		Logger:              zapLogger.Logger,
+	})
 	companySvc := companyService.NewCompanyService(companyRepository)
-	jobSvc := jobService.NewJobService(jobRepository, companyRepository, subscriptionSvc, matchScoreCacheRepository)
 	resumeSvc := resumeService.NewResumeService(resumeRepository, nil, subscriptionSvc, matchScoreCacheRepository)
-	applicationSvc := appService.NewApplicationService(
+	jobSvc := jobService.NewJobService(
 		pool,
-		applicationRepository,
-		applicationStageRepository,
-		stageTemplateRepository,
 		jobRepository,
+		jobStageRepository,
+		stageTemplateRepository,
 		companyRepository,
 		resumeRepository,
+		resumeBuilderRepository,
 		commentRepository,
 		zapLogger,
 		subscriptionSvc,
+		matchScoreCacheRepository,
 	)
 	commentSvc := commentService.NewCommentService(commentRepository)
 	analyticsSvc := analyticsService.NewAnalyticsService(analyticsRepository)
 
-	resumeBuilderRepository := rbRepo.NewResumeBuilderRepository(pool)
 	resumeBuilderSvc := rbService.NewResumeBuilderService(resumeBuilderRepository, subscriptionSvc)
 
 	contentLibraryRepository := clRepo.NewContentLibraryRepository(pool)
@@ -260,18 +262,21 @@ func TestMain(m *testing.M) {
 	companyHdl := companyHandler.NewCompanyHandler(companySvc)
 	jobHdl := jobHandler.NewJobHandler(jobSvc)
 	resumeHdl := resumeHandler.NewResumeHandler(resumeSvc)
-	applicationHdl := appHandler.NewApplicationHandler(applicationSvc)
 	commentHdl := commentHandler.NewCommentHandler(commentSvc)
 	analyticsHdl := analyticsHandler.NewAnalyticsHandler(analyticsSvc)
 	resumeBuilderHdl := rbHandler.NewResumeBuilderHandler(resumeBuilderSvc)
 	contentLibraryHdl := clHandler.NewContentLibraryHandler(contentLibrarySvc)
 	coverLetterHdl := cvHandler.NewCoverLetterHandler(coverLetterSvc)
 	subscriptionHdl := subHandler.NewSubscriptionHandler(subscriptionSvc, zapLogger.Logger)
-	webhookHdl := subHandler.NewWebhookHandler(subscriptionSvc)
+	webhookHdl := subHandler.NewWebhookHandler(subscriptionSvc, zapLogger.Logger)
 
 	// Register routes
 	v1 := router.Group("/api/v1")
 	{
+		// Session check (same as main.go)
+		v1.GET("/session", authMiddleware, func(c *gin.Context) {
+			c.JSON(200, gin.H{"status": "ok"})
+		})
 		authHdl.RegisterRoutes(v1, authHandler.AuthRouteConfig{
 			AuthMiddleware:   authMiddleware,
 			RateLimiter:      authRateLimiter,
@@ -279,13 +284,12 @@ func TestMain(m *testing.M) {
 		companyHdl.RegisterRoutes(v1, authMiddleware)
 		jobHdl.RegisterRoutes(v1, authMiddleware)
 		resumeHdl.RegisterRoutes(v1, authMiddleware)
-		applicationHdl.RegisterRoutes(v1, authMiddleware)
 		commentHdl.RegisterRoutes(v1, authMiddleware)
 		analyticsHdl.RegisterRoutes(v1, authMiddleware)
 		resumeBuilderHdl.RegisterRoutes(v1, authMiddleware)
 		contentLibraryHdl.RegisterRoutes(v1, authMiddleware)
 		coverLetterHdl.RegisterRoutes(v1, authMiddleware)
-		subscriptionHdl.RegisterRoutes(v1, authMiddleware)
+		subscriptionHdl.RegisterRoutes(v1, authMiddleware, false)
 		webhookHdl.RegisterRoutes(v1)
 	}
 
