@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import * as Sentry from "@sentry/react";
 import { useAuthStore } from "@/stores/authStore";
-import { apiClient } from "@/services/api";
+import { apiClient, ApiError } from "@/services/api";
 import { FEATURES } from "@/shared/lib/features";
 
 interface AuthProviderProps {
@@ -30,10 +30,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // is still valid. The 401 interceptor in apiClient handles refresh.
       if (user) {
         try {
-          await apiClient.get("ping");
-        } catch {
-          // apiClient interceptor already tried refresh; if we're here it failed
-          clearAuth();
+          await apiClient.get("session");
+        } catch (error) {
+          // Clear the session only when the server explicitly rejected it
+          // (the interceptor has already tried a token refresh by then).
+          // Network failures and 5xx must not log the user out on reload.
+          if (
+            error instanceof ApiError &&
+            (error.status === 401 || error.status === 403)
+          ) {
+            clearAuth();
+          }
         }
       }
 

@@ -2173,6 +2173,31 @@ paths:
       summary: Generate presigned upload URL
       tags:
       - resumes
+  /session:
+    get:
+      description: Verifies that the caller's access token (cookie or Bearer) is still
+        valid. Used by the frontend on page load; a 401 triggers the client-side token
+        refresh flow.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Session check
+      tags:
+      - system
   /stage-templates:
     get:
       description: Get a paginated list of the user's stage templates
