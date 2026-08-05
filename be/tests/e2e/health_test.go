@@ -38,6 +38,24 @@ func TestIntegrationPing(t *testing.T) {
 	require.Equal(t, "pong", body["message"])
 }
 
+func TestIntegrationSessionCheck(t *testing.T) {
+	t.Run("unauthenticated returns 401", func(t *testing.T) {
+		resp := doRequest(t, http.MethodGet, "/api/v1/session", nil, "")
+		assertStatus(t, resp, http.StatusUnauthorized)
+	})
+
+	t.Run("authenticated returns 200", func(t *testing.T) {
+		userID := seedUser(t, "session-check@example.com", "password123")
+		token := authToken(t, userID)
+
+		resp := doRequest(t, http.MethodGet, "/api/v1/session", nil, token)
+		assertStatus(t, resp, http.StatusOK)
+
+		body := parseJSON[map[string]string](t, resp)
+		require.Equal(t, "ok", body["status"])
+	})
+}
+
 func TestIntegrationNotFound(t *testing.T) {
 	resp := doRequest(t, http.MethodGet, "/api/v1/nonexistent", nil, "")
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)

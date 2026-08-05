@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -10,38 +11,61 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// registerUser registers a user through the API (202 + verification email flow).
+func registerUser(t *testing.T, email, password string) {
+	t.Helper()
+	resp := doRequest(t, http.MethodPost, "/api/v1/auth/register", map[string]string{
+		"email":    email,
+		"password": password,
+	}, "")
+	assertStatus(t, resp, http.StatusAccepted)
+	resp.Body.Close()
+}
+
+// verifyUserEmail marks a user's email as verified directly in the DB
+// (the verification code is only delivered by email in production).
+func verifyUserEmail(t *testing.T, email string) {
+	t.Helper()
+	tag, err := pool.Exec(context.Background(),
+		"UPDATE users SET email_verified = true WHERE email = $1", email)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, tag.RowsAffected())
+}
+
+// loginUser logs in and returns the response body (user + tokens).
+func loginUser(t *testing.T, email, password string) map[string]interface{} {
+	t.Helper()
+	resp := doRequest(t, http.MethodPost, "/api/v1/auth/login", map[string]string{
+		"email":    email,
+		"password": password,
+	}, "")
+	assertStatus(t, resp, http.StatusOK)
+	return parseJSON[map[string]interface{}](t, resp)
+}
+
 func TestIntegrationRegister(t *testing.T) {
 	cleanupAll(t)
 
-	resp := doRequest(t, http.MethodPost, "/api/v1/auth/register", map[string]string{
+	registerUser(t, "new@example.com", "securepass123")
+
+	// The account exists but is not verified yet — login must be rejected.
+	resp := doRequest(t, http.MethodPost, "/api/v1/auth/login", map[string]string{
 		"email":    "new@example.com",
 		"password": "securepass123",
 	}, "")
-	assertStatus(t, resp, http.StatusCreated)
-
-	body := parseJSON[map[string]interface{}](t, resp)
-	user := body["user"].(map[string]interface{})
-	tokens := body["tokens"].(map[string]interface{})
-
-	assert.Equal(t, "new@example.com", user["email"])
-	assert.NotEmpty(t, user["id"])
-	assert.NotEmpty(t, tokens["access_token"])
-	assert.NotEmpty(t, tokens["refresh_token"])
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	assertErrorCode(t, resp, "EMAIL_NOT_VERIFIED")
 }
 
 func TestIntegrationRegisterDuplicateEmail(t *testing.T) {
 	cleanupAll(t)
 
-	payload := map[string]string{
+	registerUser(t, "dup@example.com", "securepass123")
+
+	resp := doRequest(t, http.MethodPost, "/api/v1/auth/register", map[string]string{
 		"email":    "dup@example.com",
 		"password": "securepass123",
-	}
-
-	resp := doRequest(t, http.MethodPost, "/api/v1/auth/register", payload, "")
-	assertStatus(t, resp, http.StatusCreated)
-	resp.Body.Close()
-
-	resp = doRequest(t, http.MethodPost, "/api/v1/auth/register", payload, "")
+	}, "")
 	assert.Equal(t, http.StatusConflict, resp.StatusCode)
 	resp.Body.Close()
 }
@@ -57,23 +81,14 @@ func TestIntegrationRegisterInvalidPayload(t *testing.T) {
 func TestIntegrationLogin(t *testing.T) {
 	cleanupAll(t)
 
-	// Register first
-	resp := doRequest(t, http.MethodPost, "/api/v1/auth/register", map[string]string{
-		"email":    "login@example.com",
-		"password": "securepass123",
-	}, "")
-	assertStatus(t, resp, http.StatusCreated)
-	resp.Body.Close()
+	registerUser(t, "login@example.com", "securepass123")
+	verifyUserEmail(t, "login@example.com")
 
-	// Login
-	resp = doRequest(t, http.MethodPost, "/api/v1/auth/login", map[string]string{
-		"email":    "login@example.com",
-		"password": "securepass123",
-	}, "")
-	assertStatus(t, resp, http.StatusOK)
+	body := loginUser(t, "login@example.com", "securepass123")
 
-	body := parseJSON[map[string]interface{}](t, resp)
+	user := body["user"].(map[string]interface{})
 	tokens := body["tokens"].(map[string]interface{})
+	assert.Equal(t, "login@example.com", user["email"])
 	assert.NotEmpty(t, tokens["access_token"])
 	assert.NotEmpty(t, tokens["refresh_token"])
 }
@@ -81,14 +96,10 @@ func TestIntegrationLogin(t *testing.T) {
 func TestIntegrationLoginWrongPassword(t *testing.T) {
 	cleanupAll(t)
 
-	resp := doRequest(t, http.MethodPost, "/api/v1/auth/register", map[string]string{
-		"email":    "wrongpw@example.com",
-		"password": "securepass123",
-	}, "")
-	assertStatus(t, resp, http.StatusCreated)
-	resp.Body.Close()
+	registerUser(t, "wrongpw@example.com", "securepass123")
+	verifyUserEmail(t, "wrongpw@example.com")
 
-	resp = doRequest(t, http.MethodPost, "/api/v1/auth/login", map[string]string{
+	resp := doRequest(t, http.MethodPost, "/api/v1/auth/login", map[string]string{
 		"email":    "wrongpw@example.com",
 		"password": "wrongpassword",
 	}, "")
@@ -110,25 +121,27 @@ func TestIntegrationLoginNonexistentUser(t *testing.T) {
 func TestIntegrationRefreshToken(t *testing.T) {
 	cleanupAll(t)
 
-	// Register to get tokens
-	resp := doRequest(t, http.MethodPost, "/api/v1/auth/register", map[string]string{
-		"email":    "refresh@example.com",
-		"password": "securepass123",
-	}, "")
-	assertStatus(t, resp, http.StatusCreated)
+	registerUser(t, "refresh@example.com", "securepass123")
+	verifyUserEmail(t, "refresh@example.com")
 
-	body := parseJSON[map[string]interface{}](t, resp)
+	body := loginUser(t, "refresh@example.com", "securepass123")
 	tokens := body["tokens"].(map[string]interface{})
 	refreshToken := tokens["refresh_token"].(string)
 
-	// Refresh
-	resp = doRequest(t, http.MethodPost, "/api/v1/auth/refresh", map[string]string{
+	resp := doRequest(t, http.MethodPost, "/api/v1/auth/refresh", map[string]string{
 		"refresh_token": refreshToken,
 	}, "")
 	assertStatus(t, resp, http.StatusOK)
 
 	newTokens := parseJSON[map[string]interface{}](t, resp)
 	assert.NotEmpty(t, newTokens["access_token"])
+
+	// Rotation: the old refresh token must be rejected on reuse.
+	resp = doRequest(t, http.MethodPost, "/api/v1/auth/refresh", map[string]string{
+		"refresh_token": refreshToken,
+	}, "")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	resp.Body.Close()
 }
 
 func TestIntegrationRefreshInvalidToken(t *testing.T) {
@@ -142,25 +155,19 @@ func TestIntegrationRefreshInvalidToken(t *testing.T) {
 func TestIntegrationLogout(t *testing.T) {
 	cleanupAll(t)
 
-	// Register to get tokens
-	resp := doRequest(t, http.MethodPost, "/api/v1/auth/register", map[string]string{
-		"email":    "logout@example.com",
-		"password": "securepass123",
-	}, "")
-	assertStatus(t, resp, http.StatusCreated)
+	registerUser(t, "logout@example.com", "securepass123")
+	verifyUserEmail(t, "logout@example.com")
 
-	body := parseJSON[map[string]interface{}](t, resp)
+	body := loginUser(t, "logout@example.com", "securepass123")
 	tokens := body["tokens"].(map[string]interface{})
 	accessToken := "Bearer " + tokens["access_token"].(string)
 
-	// Logout with valid token
-	resp = doRequest(t, http.MethodPost, "/api/v1/auth/logout", nil, accessToken)
+	resp := doRequest(t, http.MethodPost, "/api/v1/auth/logout", nil, accessToken)
 	assertStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 }
 
 func TestIntegrationLogoutWithoutAuth(t *testing.T) {
-	// Logout without token should return 401
 	resp := doRequest(t, http.MethodPost, "/api/v1/auth/logout", nil, "")
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	resp.Body.Close()
