@@ -51,6 +51,7 @@ temp/
 
 *.md
 !README.md
+!SYSTEM_SPECIFICATION.md
 !fe/src/content/**/*.md
 
 # Terraform
