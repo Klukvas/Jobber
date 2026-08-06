@@ -28,6 +28,12 @@ type SubscriptionCreator interface {
 	EnsureFreeSubscription(ctx context.Context, userID string) error
 }
 
+// StageSeeder creates the default stage templates for a fresh account.
+// Kept narrow so auth does not depend on the jobs module surface.
+type StageSeeder interface {
+	SeedDefaultStageTemplates(ctx context.Context, userID string) error
+}
+
 // AuthService handles authentication business logic
 type AuthService struct {
 	userRepo            userPorts.UserRepository
@@ -39,6 +45,7 @@ type AuthService struct {
 	accessExpiry        time.Duration
 	refreshExpiry       time.Duration
 	subscriptionCreator SubscriptionCreator
+	stageSeeder         StageSeeder
 	logger              *zap.Logger
 }
 
@@ -53,6 +60,7 @@ type AuthServiceConfig struct {
 	AccessExpiry        time.Duration
 	RefreshExpiry       time.Duration
 	SubscriptionCreator SubscriptionCreator
+	StageSeeder         StageSeeder
 	Logger              *zap.Logger
 }
 
@@ -72,6 +80,7 @@ func NewAuthService(cfg AuthServiceConfig) *AuthService {
 		accessExpiry:        cfg.AccessExpiry,
 		refreshExpiry:       cfg.RefreshExpiry,
 		subscriptionCreator: cfg.SubscriptionCreator,
+		stageSeeder:         cfg.StageSeeder,
 		logger:              l,
 	}
 }
@@ -127,6 +136,15 @@ func (s *AuthService) Register(ctx context.Context, req *authModel.RegisterReque
 	if s.subscriptionCreator != nil {
 		if err := s.subscriptionCreator.EnsureFreeSubscription(ctx, user.ID); err != nil {
 			return nil, fmt.Errorf("failed to create free subscription for user %s: %w", user.ID, err)
+		}
+	}
+
+	// Seed default stage templates (non-fatal: the unified board works without
+	// them, the user just starts with bare base columns)
+	if s.stageSeeder != nil {
+		if err := s.stageSeeder.SeedDefaultStageTemplates(ctx, user.ID); err != nil {
+			s.logger.Error("failed to seed default stage templates",
+				zap.String("user_id", user.ID), zap.Error(err))
 		}
 	}
 

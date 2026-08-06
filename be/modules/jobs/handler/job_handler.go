@@ -36,7 +36,8 @@ func respondWithMappedError(c *gin.Context, err error) {
 		statusCode = http.StatusNotFound
 	case model.CodeJobTitleRequired, model.CodeInvalidJobStatus,
 		model.CodeInvalidStatus, model.CodeStageNameRequired,
-		model.CodeBothResumeTypesSet:
+		model.CodeBothResumeTypesSet, model.CodeInvalidPhase,
+		model.CodeInvalidMoveTarget:
 		statusCode = http.StatusBadRequest
 	case model.CodeStageTemplateInUse:
 		statusCode = http.StatusConflict
@@ -235,6 +236,45 @@ func (h *JobHandler) Update(c *gin.Context) {
 	}
 
 	job, err := h.service.Update(c.Request.Context(), userID, jobID, &req)
+	if err != nil {
+		respondWithMappedError(c, err)
+		return
+	}
+
+	httpPlatform.RespondWithData(c, http.StatusOK, job)
+}
+
+// Move godoc
+// @Summary Move a job on the unified board
+// @Description Atomically reposition a card: a stage target sets the stage and derives the status from the stage's phase; a phase target completes the current stage and sets the derived status
+// @Tags jobs
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path string true "Job ID"
+// @Param request body model.MoveJobRequest true "Move target"
+// @Success 200 {object} model.JobDTO
+// @Failure 400 {object} httpPlatform.ErrorResponse "Invalid move target or phase"
+// @Failure 401 {object} httpPlatform.ErrorResponse
+// @Failure 404 {object} httpPlatform.ErrorResponse "Job or stage template not found"
+// @Failure 500 {object} httpPlatform.ErrorResponse
+// @Router /jobs/{id}/move [post]
+func (h *JobHandler) Move(c *gin.Context) {
+	userID, exists := auth.GetUserID(c)
+	if !exists {
+		httpPlatform.RespondWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized")
+		return
+	}
+
+	jobID := c.Param("id")
+
+	var req model.MoveJobRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request payload")
+		return
+	}
+
+	job, err := h.service.Move(c.Request.Context(), userID, jobID, &req)
 	if err != nil {
 		respondWithMappedError(c, err)
 		return
@@ -592,6 +632,7 @@ func (h *JobHandler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.
 		jobs.PATCH("/:id", h.Update)
 		jobs.DELETE("/:id", h.Delete)
 		jobs.POST("/:id/favorite", h.ToggleFavorite)
+		jobs.POST("/:id/move", h.Move)
 
 		jobs.POST("/:id/stages", h.AddStage)
 		jobs.GET("/:id/stages", h.ListStages)

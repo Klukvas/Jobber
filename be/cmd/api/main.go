@@ -297,21 +297,8 @@ func main() {
 	passwordResetRepository := authRepo.NewPasswordResetRepository(pgClient.Pool)
 
 	// Initialize services
-	authSvc := authService.NewAuthService(authService.AuthServiceConfig{
-		UserRepo:            userRepository,
-		TokenRepo:           tokenRepository,
-		VerificationRepo:    verificationRepository,
-		PasswordResetRepo:   passwordResetRepository,
-		EmailSender:         emailSender,
-		JWTManager:          jwtManager,
-		AccessExpiry:        cfg.JWT.AccessExpiry,
-		RefreshExpiry:       cfg.JWT.RefreshExpiry,
-		SubscriptionCreator: subscriptionSvc,
-		Logger:              logger.Logger,
-	})
-	companySvc := companyService.NewCompanyService(companyRepository)
-	resumeSvc := resumeService.NewResumeService(resumeRepository, s3Client, subscriptionSvc, matchScoreCacheRepo)
-
+	// Job service is built before auth: registration seeds default stage
+	// templates through it.
 	// Initialize resume builder repository early — needed by the job service
 	resumeBuilderRepository := rbRepo.NewResumeBuilderRepository(pgClient.Pool)
 
@@ -328,6 +315,23 @@ func main() {
 		subscriptionSvc,
 		matchScoreCacheRepo,
 	)
+
+	authSvc := authService.NewAuthService(authService.AuthServiceConfig{
+		UserRepo:            userRepository,
+		TokenRepo:           tokenRepository,
+		VerificationRepo:    verificationRepository,
+		PasswordResetRepo:   passwordResetRepository,
+		EmailSender:         emailSender,
+		JWTManager:          jwtManager,
+		AccessExpiry:        cfg.JWT.AccessExpiry,
+		RefreshExpiry:       cfg.JWT.RefreshExpiry,
+		SubscriptionCreator: subscriptionSvc,
+		StageSeeder:         jobSvc,
+		Logger:              logger.Logger,
+	})
+	companySvc := companyService.NewCompanyService(companyRepository)
+	resumeSvc := resumeService.NewResumeService(resumeRepository, s3Client, subscriptionSvc, matchScoreCacheRepo)
+
 	commentSvc := commentService.NewCommentService(commentRepository)
 	analyticsSvc := analyticsService.NewAnalyticsService(analyticsRepository)
 	sharingSvc := sharingService.NewSharingService(sharingRepository, analyticsRepository)

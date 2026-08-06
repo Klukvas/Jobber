@@ -18,6 +18,8 @@ import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { Label } from "@/shared/ui/Label";
 import { Loader2 } from "lucide-react";
+import { PhasePicker } from "../components/PhasePicker";
+import type { StagePhase } from "@/shared/types/api";
 
 interface CreateStageTemplateModalProps {
   open: boolean;
@@ -32,6 +34,7 @@ export function CreateStageTemplateModal({
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [order, setOrder] = useState("");
+  const [phase, setPhase] = useState<StagePhase>("in_progress");
 
   const createMutation = useMutation({
     mutationFn: stageTemplatesService.create,
@@ -41,6 +44,7 @@ export function CreateStageTemplateModal({
       onOpenChange(false);
       setName("");
       setOrder("");
+      setPhase("in_progress");
     },
     onError: (error: Error) => {
       showErrorNotification(error.message || t("stages.createError"));
@@ -53,6 +57,7 @@ export function CreateStageTemplateModal({
       createMutation.mutate({
         name,
         order: parseInt(order),
+        phase,
       });
     }
   };
@@ -75,6 +80,13 @@ export function CreateStageTemplateModal({
                 placeholder={t("stages.stageNamePlaceholder")}
                 required
               />
+            </div>
+            <div className="space-y-2">
+              <Label>{t("stages.phase.label")}</Label>
+              <PhasePicker value={phase} onChange={setPhase} />
+              <p className="text-xs text-muted-foreground">
+                {t("stages.phase.description")}
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="order">{`${t("stages.order")} *`}</Label>

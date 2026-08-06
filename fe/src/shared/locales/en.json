@@ -342,7 +342,8 @@
       "offer": "Offer",
       "rejected": "Rejected",
       "archived": "Archived",
-      "noStage": "No Stage"
+      "noStage": "No Stage",
+      "showArchived": "Show archived"
     },
     "matchScore": {
       "checkMatch": "Check Match",
@@ -600,7 +601,16 @@
     "deleteSuccess": "Stage template deleted successfully",
     "updateSuccess": "Stage template updated successfully",
     "updateError": "Failed to update stage template",
-    "created": "Created {{date}}"
+    "created": "Created {{date}}",
+    "negotiating": "Negotiating",
+    "phase": {
+      "label": "Phase",
+      "description": "Fixed pipeline zone this stage belongs to. Interview steps live in In Progress.",
+      "wishlist": "Wishlist",
+      "applied": "Applied",
+      "inProgress": "In Progress",
+      "offer": "Offer"
+    }
   },
   "home": {
     "nav": {

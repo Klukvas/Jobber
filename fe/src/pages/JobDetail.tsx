@@ -49,6 +49,8 @@ import {
 import { formatDistanceToNow, format } from "date-fns";
 import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
+import { stageTemplatesService } from "@/services/stageTemplatesService";
+import { PHASE_LABEL_KEYS } from "@/features/stages/lib/phases";
 import {
   showSuccessNotification,
   showErrorNotification,
@@ -127,6 +129,14 @@ export default function JobDetail() {
     queryKey: ["job-stages", id],
     queryFn: () => jobsService.listStages(id!),
     enabled: !!id,
+  });
+
+  // Phase breadcrumb for the current stage (matched by name — the job DTO
+  // carries the stage name, not the template id)
+  const { data: templatesData } = useQuery({
+    queryKey: ["stage-templates"],
+    queryFn: () => stageTemplatesService.list({ limit: 100, offset: 0 }),
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: companiesData } = useQuery({
@@ -536,7 +546,14 @@ export default function JobDetail() {
                 {job.current_stage_id && job.current_stage_name ? (
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">
-                      {job.current_stage_name}
+                      {(() => {
+                        const tpl = templatesData?.items.find(
+                          (item) => item.name === job.current_stage_name,
+                        );
+                        return tpl
+                          ? `${t(PHASE_LABEL_KEYS[tpl.phase])} → ${job.current_stage_name}`
+                          : job.current_stage_name;
+                      })()}
                     </span>
                     <Button
                       variant="outline"

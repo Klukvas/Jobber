@@ -37,16 +37,25 @@ import { EditStageTemplateModal } from "@/features/stages/modals/EditStageTempla
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { showErrorNotification } from "@/shared/lib/notifications";
 import { ApiError } from "@/services/api";
-import type { StageTemplateDTO } from "@/shared/types/api";
+import type { StagePhase, StageTemplateDTO } from "@/shared/types/api";
+import {
+  PHASE_LABEL_KEYS,
+  groupTemplatesByPhase,
+} from "@/features/stages/lib/phases";
 
-const RECOMMENDED_STAGES = [
-  { nameKey: "stages.applied", order: 0 },
-  { nameKey: "stages.phoneScreen", order: 1 },
-  { nameKey: "stages.technicalInterview", order: 2 },
-  { nameKey: "stages.onsiteInterview", order: 3 },
-  { nameKey: "stages.hrInterview", order: 4 },
-  { nameKey: "stages.offer", order: 5 },
-  { nameKey: "stages.rejected", order: 6 },
+// Interview steps live in in_progress; Negotiating details the Offer phase.
+// No Applied/Offer/Rejected recommendations — the unified board's base
+// columns already cover those zones.
+const RECOMMENDED_STAGES: {
+  nameKey: string;
+  order: number;
+  phase: StagePhase;
+}[] = [
+  { nameKey: "stages.phoneScreen", order: 1, phase: "in_progress" },
+  { nameKey: "stages.technicalInterview", order: 2, phase: "in_progress" },
+  { nameKey: "stages.onsiteInterview", order: 3, phase: "in_progress" },
+  { nameKey: "stages.hrInterview", order: 4, phase: "in_progress" },
+  { nameKey: "stages.negotiating", order: 1, phase: "offer" },
 ];
 
 export default function StageTemplates() {
@@ -101,8 +110,12 @@ export default function StageTemplates() {
     }
   };
 
-  const handleAddRecommended = (nameKey: string, order: number) => {
-    createMutation.mutate({ name: t(nameKey), order });
+  const handleAddRecommended = (
+    nameKey: string,
+    order: number,
+    phase: StagePhase,
+  ) => {
+    createMutation.mutate({ name: t(nameKey), order, phase });
   };
 
   const handleAddAllRecommended = () => {
@@ -114,7 +127,7 @@ export default function StageTemplates() {
       const alreadyExists = allNames.some((n) => existingNames.has(n));
       if (!alreadyExists) {
         const name = t(rec.nameKey);
-        createMutation.mutate({ name, order: rec.order });
+        createMutation.mutate({ name, order: rec.order, phase: rec.phase });
       }
     });
   };
@@ -144,7 +157,7 @@ export default function StageTemplates() {
   }
 
   const stages = data?.items || [];
-  const sortedStages = [...stages].sort((a, b) => a.order - b.order);
+  const phaseGroups = groupTemplatesByPhase(stages);
   const allRecommendedAdded = RECOMMENDED_STAGES.every((rec) =>
     isRecommendedAdded(rec.nameKey),
   );
@@ -198,7 +211,9 @@ export default function StageTemplates() {
                   variant={added ? "secondary" : "outline"}
                   size="sm"
                   disabled={added || createMutation.isPending}
-                  onClick={() => handleAddRecommended(rec.nameKey, rec.order)}
+                  onClick={() =>
+                    handleAddRecommended(rec.nameKey, rec.order, rec.phase)
+                  }
                 >
                   {added ? (
                     <Check className="h-4 w-4" />
@@ -214,7 +229,7 @@ export default function StageTemplates() {
       </Card>
 
       {/* User's Stage Templates */}
-      {sortedStages.length === 0 ? (
+      {stages.length === 0 ? (
         <EmptyState
           icon={<ListOrdered className="h-12 w-12" />}
           title={t("stages.noStages")}
@@ -227,8 +242,13 @@ export default function StageTemplates() {
           }
         />
       ) : (
-        <div className="space-y-3">
-          {sortedStages.map((stage) => (
+        <div className="space-y-6">
+          {phaseGroups.map((group) => (
+            <div key={group.phase} className="space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                {t(PHASE_LABEL_KEYS[group.phase])}
+              </h2>
+              {group.templates.map((stage) => (
             <Card key={stage.id}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
                 <div className="flex items-center gap-3">
@@ -267,6 +287,8 @@ export default function StageTemplates() {
                 </p>
               </CardContent>
             </Card>
+              ))}
+            </div>
           ))}
         </div>
       )}

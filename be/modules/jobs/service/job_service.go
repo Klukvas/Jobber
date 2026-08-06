@@ -687,10 +687,19 @@ func (s *JobService) CreateStageTemplate(ctx context.Context, userID string, req
 		return nil, model.ErrStageNameRequired
 	}
 
+	phase := req.Phase
+	if phase == "" {
+		phase = model.DefaultPhase
+	}
+	if !model.IsValidPhase(phase) {
+		return nil, model.ErrInvalidPhase
+	}
+
 	template := &model.StageTemplate{
 		UserID: userID,
 		Name:   strings.TrimSpace(req.Name),
 		Order:  req.Order,
+		Phase:  phase,
 	}
 
 	if err := s.templateRepo.Create(ctx, template); err != nil {
@@ -726,6 +735,12 @@ func (s *JobService) UpdateStageTemplate(ctx context.Context, userID, templateID
 	}
 	if req.Order != nil {
 		template.Order = *req.Order
+	}
+	if req.Phase != nil {
+		if !model.IsValidPhase(*req.Phase) {
+			return nil, model.ErrInvalidPhase
+		}
+		template.Phase = *req.Phase
 	}
 
 	if err := s.templateRepo.Update(ctx, template); err != nil {

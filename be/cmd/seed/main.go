@@ -302,20 +302,20 @@ func main() {
 	fmt.Printf("created %d resumes\n", len(resumes))
 
 	// ── 3. stage templates ───────────────────────────────────────────────
-	type stageTempl struct{ id, name string; order int }
+	type stageTempl struct{ id, name string; order int; phase string }
 	stages := []stageTempl{
-		{newID(), "Applied", 1},
-		{newID(), "Screening", 2},
-		{newID(), "Technical Interview", 3},
-		{newID(), "Take-Home Assignment", 4},
-		{newID(), "Final Interview", 5},
-		{newID(), "Offer", 6},
+		{newID(), "Applied", 1, "applied"},
+		{newID(), "Screening", 2, "in_progress"},
+		{newID(), "Technical Interview", 3, "in_progress"},
+		{newID(), "Take-Home Assignment", 4, "in_progress"},
+		{newID(), "Final Interview", 5, "in_progress"},
+		{newID(), "Offer", 6, "offer"},
 	}
 	for _, s := range stages {
 		_, err = tx.Exec(ctx,
-			`INSERT INTO stage_templates (id, user_id, name, "order", created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, $5)`,
-			s.id, userID, s.name, s.order, daysAgo(115),
+			`INSERT INTO stage_templates (id, user_id, name, "order", phase, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, $6)`,
+			s.id, userID, s.name, s.order, s.phase, daysAgo(115),
 		)
 		must(err, "create stage template "+s.name)
 	}
@@ -682,14 +682,14 @@ func main() {
 	must(err, "create reviewer user")
 
 	// Add minimal data so the reviewer can test the full flow
-	reviewerStages := []struct{ name string; order int }{
-		{"Applied", 1}, {"Interview", 2}, {"Offer", 3},
+	reviewerStages := []struct{ name string; order int; phase string }{
+		{"Applied", 1, "applied"}, {"Interview", 2, "in_progress"}, {"Offer", 3, "offer"},
 	}
 	for _, s := range reviewerStages {
 		_, err = tx.Exec(ctx,
-			`INSERT INTO stage_templates (id, user_id, name, "order", created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, $5)`,
-			newID(), reviewerID, s.name, s.order, now,
+			`INSERT INTO stage_templates (id, user_id, name, "order", phase, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, $6)`,
+			newID(), reviewerID, s.name, s.order, s.phase, now,
 		)
 		must(err, "create reviewer stage "+s.name)
 	}

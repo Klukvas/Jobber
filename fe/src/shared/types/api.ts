@@ -109,22 +109,42 @@ export interface UpdateStageRequest {
 }
 
 // Stage Template
+// Fixed pipeline phases that contain user stages. Rejected is terminal and
+// never carries stages; it exists only as a board column / move target.
+export type StagePhase = "wishlist" | "applied" | "in_progress" | "offer";
+
+export const STAGE_PHASES: StagePhase[] = [
+  "wishlist",
+  "applied",
+  "in_progress",
+  "offer",
+];
+
 export interface StageTemplateDTO {
   id: string;
   name: string;
   order: number;
+  phase: StagePhase;
   created_at: string;
 }
 
 export interface CreateStageTemplateRequest {
   name: string;
   order: number;
+  phase?: StagePhase;
 }
 
 export interface UpdateStageTemplateRequest {
   name?: string;
   order?: number;
+  phase?: StagePhase;
 }
+
+// Unified-board move target: a stage column or a phase base column
+// ("rejected" is a valid phase target even though it is not a StagePhase).
+export type MoveTarget =
+  | { type: "stage"; stage_template_id: string }
+  | { type: "phase"; phase: StagePhase | "rejected" };
 
 // Company
 export interface CompanyDTO {

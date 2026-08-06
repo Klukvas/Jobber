@@ -21,6 +21,12 @@ var (
 	// ErrStageTemplateInUse is returned when a stage template is referenced by job stages
 	ErrStageTemplateInUse = errors.New("stage template is still in use by jobs")
 
+	// ErrInvalidPhase is returned when a stage template phase is not one of the fixed phases
+	ErrInvalidPhase = errors.New("invalid stage template phase")
+
+	// ErrInvalidMoveTarget is returned when a move request has an unusable target
+	ErrInvalidMoveTarget = errors.New("invalid move target")
+
 	// ErrJobStageNotFound is returned when a job stage is not found
 	ErrJobStageNotFound = errors.New("job stage not found")
 
@@ -46,6 +52,8 @@ const (
 	CodeInvalidJobStatus      ErrorCode = "INVALID_JOB_STATUS"
 	CodeCompanyNotFound       ErrorCode = "COMPANY_NOT_FOUND"
 	CodeStageTemplateNotFound ErrorCode = "STAGE_TEMPLATE_NOT_FOUND"
+	CodeInvalidPhase          ErrorCode = "INVALID_PHASE"
+	CodeInvalidMoveTarget     ErrorCode = "INVALID_MOVE_TARGET"
 	CodeStageTemplateInUse    ErrorCode = "STAGE_TEMPLATE_IN_USE"
 	CodeJobStageNotFound      ErrorCode = "JOB_STAGE_NOT_FOUND"
 	CodeInvalidStatus         ErrorCode = "INVALID_STATUS"
@@ -70,6 +78,10 @@ func GetErrorCode(err error) ErrorCode {
 		return CodeStageTemplateNotFound
 	case errors.Is(err, ErrStageTemplateInUse):
 		return CodeStageTemplateInUse
+	case errors.Is(err, ErrInvalidPhase):
+		return CodeInvalidPhase
+	case errors.Is(err, ErrInvalidMoveTarget):
+		return CodeInvalidMoveTarget
 	case errors.Is(err, ErrJobStageNotFound):
 		return CodeJobStageNotFound
 	case errors.Is(err, ErrInvalidStatus):
@@ -100,6 +112,10 @@ func GetErrorMessage(err error) string {
 		return "Stage template not found"
 	case errors.Is(err, ErrStageTemplateInUse):
 		return "Stage template is still in use by jobs and cannot be deleted"
+	case errors.Is(err, ErrInvalidPhase):
+		return "Phase must be one of: wishlist, applied, in_progress, offer"
+	case errors.Is(err, ErrInvalidMoveTarget):
+		return "Move target must be a stage (with stage_template_id) or a phase"
 	case errors.Is(err, ErrJobStageNotFound):
 		return "Job stage not found"
 	case errors.Is(err, ErrInvalidStatus):
