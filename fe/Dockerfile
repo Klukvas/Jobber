@@ -16,6 +16,7 @@ RUN npm install && npx playwright install --with-deps chromium
 ARG VITE_API_BASE_URL=/api/v1
 ARG VITE_FEATURE_SENTRY=false
 ARG VITE_FEATURE_PAYMENTS=false
+ARG VITE_FEATURE_UNIFIED_BOARD=false
 ARG VITE_FEATURE_EMAIL_NOTIFICATIONS=true
 ARG VITE_SENTRY_DSN=
 # Toggle prerender (default on). Pass --build-arg PRERENDER=false to skip.
