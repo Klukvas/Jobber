@@ -1615,6 +1615,76 @@
                 }
             }
         },
+        "/jobs/{id}/move": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Atomically reposition a card: a stage target sets the stage and derives the status from the stage's phase; a phase target completes the current stage and sets the derived status",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "jobs"
+                ],
+                "summary": "Move a job on the unified board",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Job ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Move target",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.MoveJobRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.JobDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid move target or phase",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Job or stage template not found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/jobs/{id}/stages": {
             "get": {
                 "security": [
@@ -3458,6 +3528,14 @@
                 "order": {
                     "type": "integer",
                     "minimum": 0
+                },
+                "phase": {
+                    "description": "Phase defaults to in_progress when omitted",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.Phase"
+                        }
+                    ]
                 }
             }
         },
@@ -3561,6 +3639,60 @@
                 }
             }
         },
+        "github_com_andreypavlenko_jobber_modules_jobs_model.MoveJobRequest": {
+            "type": "object",
+            "required": [
+                "target"
+            ],
+            "properties": {
+                "target": {
+                    "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.MoveTarget"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_jobs_model.MoveTarget": {
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "phase": {
+                    "description": "Phase accepts the four template phases plus \"rejected\"\n(terminal board column that is never a template phase).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.Phase"
+                        }
+                    ]
+                },
+                "stage_template_id": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "stage",
+                        "phase"
+                    ]
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_jobs_model.Phase": {
+            "type": "string",
+            "enum": [
+                "wishlist",
+                "applied",
+                "in_progress",
+                "offer",
+                "in_progress"
+            ],
+            "x-enum-varnames": [
+                "PhaseWishlist",
+                "PhaseApplied",
+                "PhaseInProgress",
+                "PhaseOffer",
+                "DefaultPhase"
+            ]
+        },
         "github_com_andreypavlenko_jobber_modules_jobs_model.ResumeNestedDTO": {
             "type": "object",
             "properties": {
@@ -3590,6 +3722,9 @@
                 },
                 "order": {
                     "type": "integer"
+                },
+                "phase": {
+                    "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.Phase"
                 }
             }
         },
@@ -3654,6 +3789,9 @@
                 },
                 "order": {
                     "type": "integer"
+                },
+                "phase": {
+                    "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.Phase"
                 }
             }
         },

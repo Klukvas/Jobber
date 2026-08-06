@@ -346,7 +346,8 @@ Jobber is a **job application tracking platform** that provides centralized mana
 - `id` (UUID)
 - `user_id` (owner)
 - `name` (e.g., "HR Screen", "Technical Interview")
-- `order` (suggested sequence)
+- `order` (suggested sequence, scoped within a phase)
+- `phase` (fixed system phase the stage belongs to: `wishlist | applied | in_progress | offer`; default `in_progress`. `rejected` is terminal and never carries stages. Migration 000036; backfill: order=1 → applied, name ILIKE 'offer%' → offer, else in_progress)
 
 **Relationships:**
 - Belongs to: User
@@ -356,6 +357,25 @@ Jobber is a **job application tracking platform** that provides centralized mana
 - User-specific (each user defines their own templates)
 - Reusable across multiple applications
 - Cannot delete if referenced by active application stages
+- Phases themselves are system-fixed and not user-editable
+
+**Phases & the unified board:** phases give users a single mental axis. The
+board renders base columns Wishlist/Applied/Offer/Rejected (always) plus the
+user's stage columns sorted by `(phase_rank, order)`. A card's status is
+DERIVED from position: wishlist→saved, applied/in_progress→applied,
+offer→offer, rejected→rejected; `on_hold` renders as a pause badge, archived
+as a filter. Registration seeds a starter set (Screening, Technical
+Interview, Final Interview — all in_progress; no Applied/Offer templates so
+base columns are not duplicated).
+
+**Atomic move (`POST /jobs/{id}/move`):** `{target: {type: "stage", stage_template_id} | {type: "phase", phase}}`.
+Stage target: completes the current stage, activates the new one and sets the
+derived status in ONE transaction (row-locked, same as AddStage). Phase
+target (incl. `rejected`): completes the current stage, clears
+`current_stage_id`, sets the derived status. `applied_at` semantics reuse
+applyStatusTransition (stamped on leaving saved, cleared on return). Errors:
+`INVALID_MOVE_TARGET`, `INVALID_PHASE` (400). Dropping a card on its own
+column is a no-op.
 
 ---
 

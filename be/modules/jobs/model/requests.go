@@ -38,12 +38,30 @@ type UpdateJobRequest struct {
 type CreateStageTemplateRequest struct {
 	Name  string `json:"name" binding:"required,min=1,max=255"`
 	Order int    `json:"order" binding:"min=0"`
+	// Phase defaults to in_progress when omitted
+	Phase Phase `json:"phase,omitempty"`
 }
 
 // UpdateStageTemplateRequest represents an update stage template request
 type UpdateStageTemplateRequest struct {
 	Name  *string `json:"name,omitempty"`
 	Order *int    `json:"order,omitempty"`
+	Phase *Phase  `json:"phase,omitempty"`
+}
+
+// MoveTarget identifies where a card is dropped on the unified board:
+// either a specific stage column or a phase base column.
+type MoveTarget struct {
+	Type            string  `json:"type" binding:"required,oneof=stage phase"`
+	StageTemplateID *string `json:"stage_template_id,omitempty"`
+	// Phase accepts the four template phases plus "rejected"
+	// (terminal board column that is never a template phase).
+	Phase *Phase `json:"phase,omitempty"`
+}
+
+// MoveJobRequest represents an atomic unified-board move
+type MoveJobRequest struct {
+	Target MoveTarget `json:"target" binding:"required"`
 }
 
 // AddStageRequest represents adding a stage to a job
