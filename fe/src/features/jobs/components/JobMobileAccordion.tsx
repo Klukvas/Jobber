@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { JobCardBase } from "./JobCardBase";
 import { STATUS_LEFT_BORDER_COLORS } from "../lib/jobStatusColors";
-import type { JobDTO } from "@/shared/types/api";
+import type { JobDTO, JobStatus } from "@/shared/types/api";
 
 export interface MobileColumnData {
   id: string;
@@ -17,6 +17,8 @@ interface AccordionProps {
   onAddComment: (job: JobDTO) => void;
   onAddStage: (job: JobDTO) => void;
   onChangeStatus: (job: JobDTO) => void;
+  onStatusSelect?: (job: JobDTO, status: JobStatus) => void;
+  onCompleteStage?: (job: JobDTO) => void;
   onDelete: (job: JobDTO) => void;
 }
 
@@ -25,6 +27,8 @@ interface MobileCardProps {
   onAddComment: (job: JobDTO) => void;
   onAddStage: (job: JobDTO) => void;
   onChangeStatus: (job: JobDTO) => void;
+  onStatusSelect?: (job: JobDTO, status: JobStatus) => void;
+  onCompleteStage?: (job: JobDTO) => void;
   onDelete: (job: JobDTO) => void;
 }
 
@@ -33,6 +37,8 @@ const MobileCard = memo(function MobileCard({
   onAddComment,
   onAddStage,
   onChangeStatus,
+  onStatusSelect,
+  onCompleteStage,
   onDelete,
 }: MobileCardProps) {
   const navigate = useNavigate();
@@ -43,6 +49,8 @@ const MobileCard = memo(function MobileCard({
       onAddComment={onAddComment}
       onAddStage={onAddStage}
       onChangeStatus={onChangeStatus}
+      onStatusSelect={onStatusSelect}
+      onCompleteStage={onCompleteStage}
       onDelete={onDelete}
     />
   );
@@ -58,6 +66,8 @@ export function JobMobileAccordion({
   onAddComment,
   onAddStage,
   onChangeStatus,
+  onStatusSelect,
+  onCompleteStage,
   onDelete,
 }: AccordionProps) {
   const { t } = useTranslation();
@@ -135,6 +145,8 @@ export function JobMobileAccordion({
                       onAddComment={onAddComment}
                       onAddStage={onAddStage}
                       onChangeStatus={onChangeStatus}
+                      onStatusSelect={onStatusSelect}
+                      onCompleteStage={onCompleteStage}
                       onDelete={onDelete}
                     />
                   ))

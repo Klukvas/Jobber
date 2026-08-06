@@ -44,6 +44,7 @@ import {
   Edit,
   MessageSquarePlus,
   Trash2,
+  CheckCircle,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { useDateLocale } from "@/shared/lib/dateFnsLocale";
@@ -243,6 +244,25 @@ export default function JobDetail() {
     },
     onError: (err: Error) => {
       showErrorNotification(err.message || t("jobs.deleteError"));
+    },
+  });
+
+  // Completes the current stage straight from the Pipeline block (the same
+  // action as the Complete button on that stage down in the Timeline)
+  const completeCurrentStageMutation = useMutation({
+    mutationFn: (stageId: string) =>
+      jobsService.updateStage(id!, stageId, {
+        status: "completed",
+        completed_at: new Date().toISOString(),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["job", id] });
+      queryClient.invalidateQueries({ queryKey: ["job-stages", id] });
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      showSuccessNotification(t("jobs.stageCompletedSuccess"));
+    },
+    onError: () => {
+      showErrorNotification(t("jobs.stageStatusUpdateError"));
     },
   });
 
@@ -501,12 +521,45 @@ export default function JobDetail() {
           <CardTitle className="text-lg">{t("jobs.pipelineTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {t("jobs.status")}
-              </p>
-              <StatusBadge status={job.status} />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex flex-wrap gap-x-10 gap-y-3">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">
+                  {t("jobs.status")}
+                </p>
+                <StatusBadge status={job.status} />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">
+                  {t("jobs.currentStage")}
+                </p>
+                {job.current_stage_id && job.current_stage_name ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">
+                      {job.current_stage_name}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        completeCurrentStageMutation.mutate(
+                          job.current_stage_id!,
+                        )
+                      }
+                      disabled={completeCurrentStageMutation.isPending}
+                    >
+                      {completeCurrentStageMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4 mr-1.5" />
+                      )}
+                      {t("jobs.complete")}
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">—</p>
+                )}
+              </div>
             </div>
             <Button
               variant="outline"

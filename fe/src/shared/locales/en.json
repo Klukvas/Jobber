@@ -389,7 +389,10 @@
     "deleteConfirm": "Are you sure you want to delete this job? All its stages and comments will be deleted too. This action cannot be undone.",
     "deleteSuccess": "Job deleted successfully",
     "deleteError": "Failed to delete job",
-    "alreadyAppliedHint": "Log a job you've already applied to — sets it to Applied with a date and resume"
+    "alreadyAppliedHint": "Log a job you've already applied to — sets it to Applied with a date and resume",
+    "currentStage": "Current stage",
+    "completeCurrentStage": "Complete current stage",
+    "stageCompletedSuccess": "Stage completed"
   },
   "settings": {
     "title": "Settings",

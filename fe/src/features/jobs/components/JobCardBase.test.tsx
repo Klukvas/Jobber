@@ -22,7 +22,9 @@ const job: JobDTO = {
   updated_at: "2026-08-01T00:00:00Z",
 };
 
-function renderCard(overrides: Partial<Parameters<typeof JobCardBase>[0]> = {}) {
+function renderCard(
+  overrides: Partial<Parameters<typeof JobCardBase>[0]> = {},
+) {
   const props = {
     job,
     onTitleClick: vi.fn(),
@@ -66,5 +68,67 @@ describe("JobCardBase — delete action", () => {
     fireEvent.click(screen.getByText("jobs.addComment"));
     expect(onAddComment).toHaveBeenCalledWith(job);
     expect(onDelete).not.toHaveBeenCalled();
+  });
+});
+
+describe("JobCardBase — quick status submenu", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("expands an inline status list and picks a status with one click", () => {
+    const onStatusSelect = vi.fn();
+    const { onChangeStatus } = renderCard({ onStatusSelect });
+
+    fireEvent.click(screen.getByLabelText("jobs.actionsMenu"));
+    fireEvent.click(screen.getByText("jobs.changeStatus"));
+
+    // current status (applied) is not offered in the submenu (the card badge
+    // outside the menu still shows it)
+    const menuItems = screen.getAllByRole("menuitem");
+    expect(
+      menuItems.some((item) =>
+        item.textContent?.includes("jobs.statusApplied"),
+      ),
+    ).toBe(false);
+    fireEvent.click(screen.getByText("jobs.statusRejected"));
+
+    expect(onStatusSelect).toHaveBeenCalledWith(job, "rejected");
+    expect(onChangeStatus).not.toHaveBeenCalled();
+    // menu collapses after picking
+    expect(screen.queryByText("jobs.statusRejected")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the modal handler when no onStatusSelect is given", () => {
+    const { onChangeStatus } = renderCard();
+    fireEvent.click(screen.getByLabelText("jobs.actionsMenu"));
+    fireEvent.click(screen.getByText("jobs.changeStatus"));
+    expect(onChangeStatus).toHaveBeenCalledWith(job);
+  });
+});
+
+describe("JobCardBase — complete current stage", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("offers the item when the job has a current stage", () => {
+    const onCompleteStage = vi.fn();
+    renderCard({
+      job: { ...job, current_stage_id: "stage-1" },
+      onCompleteStage,
+    });
+
+    fireEvent.click(screen.getByLabelText("jobs.actionsMenu"));
+    fireEvent.click(screen.getByText("jobs.completeCurrentStage"));
+
+    expect(onCompleteStage).toHaveBeenCalledWith({
+      ...job,
+      current_stage_id: "stage-1",
+    });
+  });
+
+  it("hides the item when the job has no current stage", () => {
+    renderCard({ onCompleteStage: vi.fn() });
+    fireEvent.click(screen.getByLabelText("jobs.actionsMenu"));
+    expect(
+      screen.queryByText("jobs.completeCurrentStage"),
+    ).not.toBeInTheDocument();
   });
 });
