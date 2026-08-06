@@ -81,6 +81,7 @@ export const JobCardBase = memo(function JobCardBase({
     (e: KeyboardEvent) => {
       if (e.key === "Escape" && menuOpen) {
         setMenuOpen(false);
+        setStatusSubmenuOpen(false);
         toggleRef.current?.focus();
       }
     },
@@ -97,12 +98,10 @@ export const JobCardBase = memo(function JobCardBase({
     };
   }, [menuOpen, handleClickOutside, handleKeyDown]);
 
-  // Move focus into the menu when it opens; collapse the submenu on close
+  // Move focus into the menu when it opens
   useEffect(() => {
     if (menuOpen) {
       firstItemRef.current?.focus();
-    } else {
-      setStatusSubmenuOpen(false);
     }
   }, [menuOpen]);
 
@@ -139,7 +138,10 @@ export const JobCardBase = memo(function JobCardBase({
             onClick={(e) => {
               e.stopPropagation();
               e.preventDefault();
-              setMenuOpen((prev) => !prev);
+              if (menuOpen) {
+                setStatusSubmenuOpen(false);
+              }
+              setMenuOpen(!menuOpen);
             }}
             // Prevent drag sensor from triggering on menu button press
             onPointerDown={(e) => e.stopPropagation()}
