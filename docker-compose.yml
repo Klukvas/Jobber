@@ -164,6 +164,7 @@ services:
         VITE_FEATURE_SENTRY: ${VITE_FEATURE_SENTRY:-false}
         VITE_FEATURE_PAYMENTS: ${VITE_FEATURE_PAYMENTS:-false}
         VITE_FEATURE_EMAIL_NOTIFICATIONS: ${VITE_FEATURE_EMAIL_NOTIFICATIONS:-true}
+        VITE_FEATURE_UNIFIED_BOARD: ${VITE_FEATURE_UNIFIED_BOARD:-false}
     container_name: jobber-frontend
     restart: unless-stopped
     expose:
