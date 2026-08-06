@@ -95,6 +95,7 @@ func buildSnapshot(overview *analyticsModel.OverviewAnalytics, funnel *analytics
 			TotalApplications:      overview.TotalApplications,
 			ActiveApplications:     overview.ActiveApplications,
 			ClosedApplications:     overview.ClosedApplications,
+			RejectedApplications:   overview.RejectedApplications,
 			ResponseRate:           overview.ResponseRate,
 			AvgDaysToFirstResponse: overview.AvgDaysToFirstResponse,
 		},

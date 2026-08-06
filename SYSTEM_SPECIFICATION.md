@@ -1614,7 +1614,9 @@ Categorize and filter applications, jobs, and companies with user-defined labels
 ### 🔹 Feature: Stats Sharing (`modules/sharing`)
 
 #### Purpose
-Let users publish a read-only snapshot of their job search statistics (overview + funnel) via a public link — a growth loop targeting job-seeker audiences on LinkedIn/Twitter.
+Let users publish a read-only snapshot of their job search statistics (overview incl. rejected count + funnel) via a public link — a growth loop targeting job-seeker audiences on LinkedIn/Twitter.
+
+Note: `rejected_applications` was added to the analytics overview (API + UI card) together with this feature — it is a subset of `closed_applications` (closed = rejected + offer + archived).
 
 #### User Flow
 1. User opens Analytics page and clicks "Share"

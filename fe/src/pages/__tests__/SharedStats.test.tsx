@@ -55,6 +55,7 @@ describe("SharedStats", () => {
           total_applications: 127,
           active_applications: 40,
           closed_applications: 87,
+          rejected_applications: 61,
           response_rate: 18.5,
           avg_days_to_first_response: 6.2,
         },

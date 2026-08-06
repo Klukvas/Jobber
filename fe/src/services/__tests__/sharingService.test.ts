@@ -29,6 +29,7 @@ describe("sharingService", () => {
             total_applications: 10,
             active_applications: 4,
             closed_applications: 6,
+            rejected_applications: 5,
             response_rate: 20,
             avg_days_to_first_response: 3,
           },

@@ -854,6 +854,7 @@
       "totalApplications": "Всього заявок",
       "activeApplications": "Активні",
       "closedApplications": "Закриті",
+      "rejectedApplications": "Відмови",
       "responseRate": "Відсоток відповідей",
       "avgResponseTime": "Сер. час відповіді"
     },

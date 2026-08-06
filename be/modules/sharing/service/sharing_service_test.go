@@ -75,6 +75,7 @@ func statsProviderFixture() *MockStatsProvider {
 				TotalApplications:      127,
 				ActiveApplications:     40,
 				ClosedApplications:     87,
+				RejectedApplications:   61,
 				ResponseRate:           18.5,
 				AvgDaysToFirstResponse: 6.2,
 			}, nil
@@ -113,6 +114,7 @@ func TestSharingService_Create(t *testing.T) {
 		assert.Equal(t, model.SnapshotSchemaVersion, result.Snapshot.SchemaVersion)
 		assert.False(t, result.Snapshot.GeneratedAt.IsZero())
 		assert.Equal(t, 127, result.Snapshot.Overview.TotalApplications)
+		assert.Equal(t, 61, result.Snapshot.Overview.RejectedApplications)
 		assert.Equal(t, 18.5, result.Snapshot.Overview.ResponseRate)
 		require.Len(t, result.Snapshot.Funnel, 2)
 		assert.Equal(t, "Interview", result.Snapshot.Funnel[1].StageName)

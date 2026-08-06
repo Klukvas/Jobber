@@ -3037,6 +3037,9 @@ const docTemplate = `{
                 "closed_applications": {
                     "type": "integer"
                 },
+                "rejected_applications": {
+                    "type": "integer"
+                },
                 "response_rate": {
                     "type": "number"
                 },
@@ -3834,6 +3837,9 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "closed_applications": {
+                    "type": "integer"
+                },
+                "rejected_applications": {
                     "type": "integer"
                 },
                 "response_rate": {

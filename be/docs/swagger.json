@@ -3031,6 +3031,9 @@
                 "closed_applications": {
                     "type": "integer"
                 },
+                "rejected_applications": {
+                    "type": "integer"
+                },
                 "response_rate": {
                     "type": "number"
                 },
@@ -3828,6 +3831,9 @@
                     "type": "number"
                 },
                 "closed_applications": {
+                    "type": "integer"
+                },
+                "rejected_applications": {
                     "type": "integer"
                 },
                 "response_rate": {

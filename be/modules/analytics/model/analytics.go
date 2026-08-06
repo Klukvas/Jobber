@@ -1,10 +1,13 @@
 package model
 
-// OverviewAnalytics contains high-level application statistics
+// OverviewAnalytics contains high-level application statistics.
+// RejectedApplications is a subset of ClosedApplications (closed = rejected +
+// offer + archived) — broken out so rejections are visible on their own.
 type OverviewAnalytics struct {
 	TotalApplications      int     `json:"total_applications"`
 	ActiveApplications     int     `json:"active_applications"`
 	ClosedApplications     int     `json:"closed_applications"`
+	RejectedApplications   int     `json:"rejected_applications"`
 	ResponseRate           float64 `json:"response_rate"`
 	AvgDaysToFirstResponse float64 `json:"avg_days_to_first_response"`
 }

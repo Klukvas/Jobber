@@ -37,7 +37,8 @@ func (r *AnalyticsRepository) GetOverview(ctx context.Context, userID string) (*
 			SELECT
 				COUNT(*) AS total,
 				COUNT(*) FILTER (WHERE status IN ('applied', 'on_hold')) AS active,
-				COUNT(*) FILTER (WHERE status IN ('rejected', 'offer', 'archived')) AS closed
+				COUNT(*) FILTER (WHERE status IN ('rejected', 'offer', 'archived')) AS closed,
+				COUNT(*) FILTER (WHERE status = 'rejected') AS rejected
 			FROM jobs
 			WHERE user_id = $1 AND applied_at IS NOT NULL
 		),
@@ -71,6 +72,7 @@ func (r *AnalyticsRepository) GetOverview(ctx context.Context, userID string) (*
 			COALESCE(app_stats.total, 0) AS total_applications,
 			COALESCE(app_stats.active, 0) AS active_applications,
 			COALESCE(app_stats.closed, 0) AS closed_applications,
+			COALESCE(app_stats.rejected, 0) AS rejected_applications,
 			CASE
 				WHEN app_stats.total > 0 THEN
 					ROUND((response_stats.apps_with_response::numeric / app_stats.total) * 100, 2)
@@ -87,6 +89,7 @@ func (r *AnalyticsRepository) GetOverview(ctx context.Context, userID string) (*
 		&analytics.TotalApplications,
 		&analytics.ActiveApplications,
 		&analytics.ClosedApplications,
+		&analytics.RejectedApplications,
 		&analytics.ResponseRate,
 		&analytics.AvgDaysToFirstResponse,
 	)

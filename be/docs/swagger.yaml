@@ -61,6 +61,8 @@ definitions:
         type: number
       closed_applications:
         type: integer
+      rejected_applications:
+        type: integer
       response_rate:
         type: number
       total_applications:
@@ -589,6 +591,8 @@ definitions:
       avg_days_to_first_response:
         type: number
       closed_applications:
+        type: integer
+      rejected_applications:
         type: integer
       response_rate:
         type: number

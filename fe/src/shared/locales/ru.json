@@ -854,6 +854,7 @@
       "totalApplications": "Всего заявок",
       "activeApplications": "Активные",
       "closedApplications": "Закрытые",
+      "rejectedApplications": "Отказы",
       "responseRate": "Процент ответов",
       "avgResponseTime": "Ср. время ответа"
     },
