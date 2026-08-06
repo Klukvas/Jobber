@@ -944,7 +944,8 @@ Track job postings and applications in unified pipeline. Manage saved wishlist c
 - Kanban columns: Saved | Applied | On Hold | Offer | Rejected | Archived
 - List view with pagination, filtering, sorting
 - Job card: title, company, match score, last activity, favorite toggle
-- Job detail page: full job info, stages timeline, comments, resume
+- Job detail page: full job info, stages timeline, comments, resume. The Application Pipeline block shows BOTH axes side by side: status (+ Change Status modal) and current stage (+ one-click Complete)
+- Card context menu (kanban/list/mobile): Add Comment, Add Stage, "Complete current stage" (only when the job has one), Change Status as an inline submenu with one-click status pick (`StatusQuickPick`, offers every status except the current; transition semantics stay on the backend)
 - Create job modal (initializes as saved)
 - Update job/status modal
 - Apply confirmation dialog (resume selection)
@@ -953,6 +954,8 @@ Track job postings and applications in unified pipeline. Manage saved wishlist c
 - Create job (saved)
 - Fetch jobs list with status filtering
 - Drag-drop to change status (PATCH)
+- One-click status change from the context menu submenu (same PATCH as the modal)
+- Complete current stage from the context menu / Pipeline block (PATCH stage status=completed)
 - Update job details
 - Mark favorite
 - Delete job

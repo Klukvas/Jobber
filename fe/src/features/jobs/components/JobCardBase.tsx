@@ -15,9 +15,12 @@ import {
   Archive,
   Building2,
   Trash2,
+  CheckCircle,
+  ChevronRight,
 } from "lucide-react";
 import { StatusBadge } from "@/shared/ui/StatusBadge";
-import type { JobDTO } from "@/shared/types/api";
+import { StatusQuickPick } from "./StatusQuickPick";
+import type { JobDTO, JobStatus } from "@/shared/types/api";
 
 interface JobCardBaseProps {
   job: JobDTO;
@@ -25,6 +28,11 @@ interface JobCardBaseProps {
   onAddComment: (job: JobDTO) => void;
   onAddStage: (job: JobDTO) => void;
   onChangeStatus: (job: JobDTO) => void;
+  /** One-click status pick; when provided, "Change Status" expands an inline
+   * submenu instead of opening the modal */
+  onStatusSelect?: (job: JobDTO, status: JobStatus) => void;
+  /** Completes the current stage; the item only renders when the job has one */
+  onCompleteStage?: (job: JobDTO) => void;
   onDelete: (job: JobDTO) => void;
   /** Ref callback from useDraggable — omit for non-draggable cards */
   dragRef?: (element: HTMLElement | null) => void;
@@ -42,6 +50,8 @@ export const JobCardBase = memo(function JobCardBase({
   onAddComment,
   onAddStage,
   onChangeStatus,
+  onStatusSelect,
+  onCompleteStage,
   onDelete,
   dragRef,
   dragStyle,
@@ -50,6 +60,7 @@ export const JobCardBase = memo(function JobCardBase({
 }: JobCardBaseProps) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [statusSubmenuOpen, setStatusSubmenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const firstItemRef = useRef<HTMLButtonElement>(null);
@@ -61,6 +72,7 @@ export const JobCardBase = memo(function JobCardBase({
     if (toggleRef.current?.contains(e.target as Node)) return;
     if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
       setMenuOpen(false);
+      setStatusSubmenuOpen(false);
     }
   }, []);
 
@@ -85,10 +97,12 @@ export const JobCardBase = memo(function JobCardBase({
     };
   }, [menuOpen, handleClickOutside, handleKeyDown]);
 
-  // Move focus into the menu when it opens
+  // Move focus into the menu when it opens; collapse the submenu on close
   useEffect(() => {
     if (menuOpen) {
       firstItemRef.current?.focus();
+    } else {
+      setStatusSubmenuOpen(false);
     }
   }, [menuOpen]);
 
@@ -167,19 +181,69 @@ export const JobCardBase = memo(function JobCardBase({
                 <GitBranch className="h-3.5 w-3.5" />
                 {t("jobs.addStage")}
               </button>
-              <button
-                role="menuitem"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onChangeStatus(job);
-                  setMenuOpen(false);
-                }}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="flex items-center gap-2 w-full px-3 py-2.5 text-sm hover:bg-accent text-left"
-              >
-                <Archive className="h-3.5 w-3.5" />
-                {t("jobs.changeStatus")}
-              </button>
+              {job.current_stage_id && onCompleteStage && (
+                <button
+                  role="menuitem"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCompleteStage(job);
+                    setMenuOpen(false);
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="flex items-center gap-2 w-full px-3 py-2.5 text-sm hover:bg-accent text-left"
+                >
+                  <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span className="truncate">
+                    {t("jobs.completeCurrentStage")}
+                  </span>
+                </button>
+              )}
+              {onStatusSelect ? (
+                <>
+                  <button
+                    role="menuitem"
+                    aria-expanded={statusSubmenuOpen}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setStatusSubmenuOpen((prev) => !prev);
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="flex items-center gap-2 w-full px-3 py-2.5 text-sm hover:bg-accent text-left"
+                  >
+                    <Archive className="h-3.5 w-3.5" />
+                    {t("jobs.changeStatus")}
+                    <ChevronRight
+                      className={`h-3.5 w-3.5 ml-auto transition-transform ${statusSubmenuOpen ? "rotate-90" : ""}`}
+                    />
+                  </button>
+                  {statusSubmenuOpen && (
+                    <div className="border-t bg-muted/40">
+                      <StatusQuickPick
+                        currentStatus={job.status}
+                        onSelect={(status) => {
+                          onStatusSelect(job, status);
+                          setStatusSubmenuOpen(false);
+                          setMenuOpen(false);
+                        }}
+                      />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <button
+                  role="menuitem"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChangeStatus(job);
+                    setMenuOpen(false);
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="flex items-center gap-2 w-full px-3 py-2.5 text-sm hover:bg-accent text-left"
+                >
+                  <Archive className="h-3.5 w-3.5" />
+                  {t("jobs.changeStatus")}
+                </button>
+              )}
               <div className="my-1 border-t" role="separator" />
               <button
                 role="menuitem"

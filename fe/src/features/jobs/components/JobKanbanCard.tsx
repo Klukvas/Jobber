@@ -2,13 +2,15 @@ import { memo } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { useNavigate } from "react-router-dom";
 import { JobCardBase } from "./JobCardBase";
-import type { JobDTO } from "@/shared/types/api";
+import type { JobDTO, JobStatus } from "@/shared/types/api";
 
 interface JobKanbanCardProps {
   job: JobDTO;
   onAddComment: (job: JobDTO) => void;
   onAddStage: (job: JobDTO) => void;
   onChangeStatus: (job: JobDTO) => void;
+  onStatusSelect?: (job: JobDTO, status: JobStatus) => void;
+  onCompleteStage?: (job: JobDTO) => void;
   onDelete: (job: JobDTO) => void;
 }
 
@@ -17,6 +19,8 @@ export const JobKanbanCard = memo(function JobKanbanCard({
   onAddComment,
   onAddStage,
   onChangeStatus,
+  onStatusSelect,
+  onCompleteStage,
   onDelete,
 }: JobKanbanCardProps) {
   const navigate = useNavigate();
@@ -39,6 +43,8 @@ export const JobKanbanCard = memo(function JobKanbanCard({
       onAddComment={onAddComment}
       onAddStage={onAddStage}
       onChangeStatus={onChangeStatus}
+      onStatusSelect={onStatusSelect}
+      onCompleteStage={onCompleteStage}
       onDelete={onDelete}
       dragRef={setNodeRef}
       dragStyle={dragStyle}

@@ -38,6 +38,8 @@ import {
   Chrome,
   Trash2,
   X,
+  CheckCircle,
+  ChevronRight,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useDateLocale } from "@/shared/lib/dateFnsLocale";
@@ -45,6 +47,7 @@ import { CreateJobModal } from "@/features/jobs/modals/CreateJobModal";
 import { AddCommentModal } from "@/features/jobs/modals/AddCommentModal";
 import { AddStageModal } from "@/features/jobs/modals/AddStageModal";
 import { UpdateJobStatusModal } from "@/features/jobs/modals/UpdateJobStatusModal";
+import { StatusQuickPick } from "@/features/jobs/components/StatusQuickPick";
 import {
   JobKanbanBoard,
   JOBS_KANBAN_QUERY_KEY,
@@ -107,6 +110,7 @@ export default function JobsPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [statusSubmenuId, setStatusSubmenuId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
   const [activeQuickAction, setActiveQuickAction] = useState<{
     type: "comment" | "stage" | "status";
@@ -126,7 +130,10 @@ export default function JobsPage() {
   // Close context menu when clicking outside
   useEffect(() => {
     if (!openMenuId) return;
-    const handleClickOutside = () => setOpenMenuId(null);
+    const handleClickOutside = () => {
+      setOpenMenuId(null);
+      setStatusSubmenuId(null);
+    };
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
   }, [openMenuId]);
@@ -177,6 +184,47 @@ export default function JobsPage() {
       showErrorNotification(err.message || t("jobs.deleteError"));
     },
   });
+
+  // One-click status change from the card context menu (no modal)
+  const quickStatusMutation = useMutation({
+    mutationFn: ({ job, status }: { job: JobDTO; status: JobStatus }) =>
+      jobsService.update(job.id, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      showSuccessNotification(t("jobs.statusUpdateSuccess"));
+    },
+    onError: (err: Error) => {
+      showErrorNotification(err.message || t("jobs.statusUpdateError"));
+    },
+  });
+
+  // Completes the job's current stage straight from the context menu
+  const completeStageMutation = useMutation({
+    mutationFn: (job: JobDTO) =>
+      jobsService.updateStage(job.id, job.current_stage_id!, {
+        status: "completed",
+        completed_at: new Date().toISOString(),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      showSuccessNotification(t("jobs.stageCompletedSuccess"));
+    },
+    onError: (err: Error) => {
+      showErrorNotification(err.message || t("jobs.stageStatusUpdateError"));
+    },
+  });
+
+  const handleStatusSelect = (job: JobDTO, status: JobStatus) => {
+    setOpenMenuId(null);
+    quickStatusMutation.mutate({ job, status });
+  };
+
+  const handleCompleteStage = (job: JobDTO) => {
+    setOpenMenuId(null);
+    if (job.current_stage_id) {
+      completeStageMutation.mutate(job);
+    }
+  };
 
   const toggleSort = (field: SortBy) => {
     if (sortBy === field) {
@@ -304,6 +352,8 @@ export default function JobsPage() {
           onAddComment={(job) => handleQuickAction("comment", job)}
           onAddStage={(job) => handleQuickAction("stage", job)}
           onChangeStatus={(job) => handleQuickAction("status", job)}
+          onStatusSelect={handleStatusSelect}
+          onCompleteStage={handleCompleteStage}
           onDelete={(job) => handleDelete(job)}
         />
       ) : (
@@ -417,17 +467,56 @@ export default function JobsPage() {
                                   <GitBranch className="h-4 w-4" />
                                   {t("jobs.addStage")}
                                 </button>
+                                {job.current_stage_id && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleCompleteStage(job);
+                                    }}
+                                    className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
+                                  >
+                                    <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                                    <span className="truncate">
+                                      {t("jobs.completeCurrentStage")}
+                                    </span>
+                                  </button>
+                                )}
                                 <button
                                   onClick={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    handleQuickAction("status", job);
+                                    setStatusSubmenuId(
+                                      statusSubmenuId === job.id
+                                        ? null
+                                        : job.id,
+                                    );
                                   }}
                                   className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
                                 >
                                   <Archive className="h-4 w-4" />
                                   {t("jobs.changeStatus")}
+                                  <ChevronRight
+                                    className={`h-4 w-4 ml-auto transition-transform ${statusSubmenuId === job.id ? "rotate-90" : ""}`}
+                                  />
                                 </button>
+                                {statusSubmenuId === job.id && (
+                                  <div
+                                    className="border-t bg-muted/40"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                    }}
+                                  >
+                                    <StatusQuickPick
+                                      currentStatus={job.status}
+                                      onSelect={(status) => {
+                                        setStatusSubmenuId(null);
+                                        handleStatusSelect(job, status);
+                                      }}
+                                    />
+                                  </div>
+                                )}
                                 <div
                                   className="my-1 border-t"
                                   role="separator"

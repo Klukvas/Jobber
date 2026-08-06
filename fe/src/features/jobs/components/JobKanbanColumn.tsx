@@ -3,7 +3,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { useTranslation } from "react-i18next";
 import { JobKanbanCard } from "./JobKanbanCard";
 import { STATUS_TOP_BORDER_COLORS } from "../lib/jobStatusColors";
-import type { JobDTO } from "@/shared/types/api";
+import type { JobDTO, JobStatus } from "@/shared/types/api";
 
 interface JobKanbanColumnProps {
   columnId: string;
@@ -12,6 +12,8 @@ interface JobKanbanColumnProps {
   onAddComment: (job: JobDTO) => void;
   onAddStage: (job: JobDTO) => void;
   onChangeStatus: (job: JobDTO) => void;
+  onStatusSelect?: (job: JobDTO, status: JobStatus) => void;
+  onCompleteStage?: (job: JobDTO) => void;
   onDelete: (job: JobDTO) => void;
 }
 
@@ -22,6 +24,8 @@ export const JobKanbanColumn = memo(function JobKanbanColumn({
   onAddComment,
   onAddStage,
   onChangeStatus,
+  onStatusSelect,
+  onCompleteStage,
   onDelete,
 }: JobKanbanColumnProps) {
   const { t } = useTranslation();
@@ -57,6 +61,8 @@ export const JobKanbanColumn = memo(function JobKanbanColumn({
               onAddComment={onAddComment}
               onAddStage={onAddStage}
               onChangeStatus={onChangeStatus}
+              onStatusSelect={onStatusSelect}
+              onCompleteStage={onCompleteStage}
               onDelete={onDelete}
             />
           ))
