@@ -113,6 +113,33 @@ describe("jobsService", () => {
     });
   });
 
+  describe("move", () => {
+    it("posts a stage target to jobs/{id}/move", async () => {
+      const mockJob = { id: "j1", status: "applied" };
+      mockApiClient.post.mockResolvedValue(mockJob);
+
+      const result = await jobsService.move("j1", {
+        type: "stage",
+        stage_template_id: "tpl-1",
+      });
+
+      expect(mockApiClient.post).toHaveBeenCalledWith("jobs/j1/move", {
+        target: { type: "stage", stage_template_id: "tpl-1" },
+      });
+      expect(result).toEqual(mockJob);
+    });
+
+    it("posts a phase target including rejected", async () => {
+      mockApiClient.post.mockResolvedValue({ id: "j1", status: "rejected" });
+
+      await jobsService.move("j1", { type: "phase", phase: "rejected" });
+
+      expect(mockApiClient.post).toHaveBeenCalledWith("jobs/j1/move", {
+        target: { type: "phase", phase: "rejected" },
+      });
+    });
+  });
+
   describe("toggleFavorite", () => {
     it("calls POST on jobs/{id}/favorite", async () => {
       const mockResponse = { is_favorite: true };

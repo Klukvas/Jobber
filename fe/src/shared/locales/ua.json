@@ -430,7 +430,16 @@
     "deleteSuccess": "Шаблон етапу успішно видалено",
     "updateSuccess": "Шаблон етапу успішно оновлено",
     "updateError": "Не вдалося оновити шаблон етапу",
-    "created": "Створено {{date}}"
+    "created": "Створено {{date}}",
+    "negotiating": "Перемовини",
+    "phase": {
+      "label": "Фаза",
+      "description": "Фіксована зона пайплайна, до якої належить етап. Етапи інтерв'ю живуть в In Progress.",
+      "wishlist": "Вішліст",
+      "applied": "Подано",
+      "inProgress": "В процесі",
+      "offer": "Офер"
+    }
   },
   "settings": {
     "title": "Налаштування",

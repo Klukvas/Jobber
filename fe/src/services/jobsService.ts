@@ -1,5 +1,6 @@
 import { apiClient } from "./api";
 import type {
+  MoveTarget,
   JobDTO,
   JobStatus,
   CreateJobRequest,
@@ -53,6 +54,11 @@ export const jobsService = {
 
   async delete(id: string): Promise<void> {
     return apiClient.delete<void>(`jobs/${id}`);
+  },
+
+  // Atomic unified-board move: sets stage/status consistently on the backend
+  async move(id: string, target: MoveTarget): Promise<JobDTO> {
+    return apiClient.post<JobDTO>(`jobs/${id}/move`, { target });
   },
 
   async toggleFavorite(id: string): Promise<{ is_favorite: boolean }> {
