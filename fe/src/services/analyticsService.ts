@@ -19,8 +19,22 @@ export interface FunnelStage {
   drop_off_rate: number;
 }
 
+export interface RejectedStageCount {
+  stage_name: string;
+  stage_order: number;
+  count: number;
+}
+
+// Terminal rejections summary: rejection is a status, not a stage, so it is
+// reported next to the funnel, grouped by the furthest stage reached.
+export interface RejectedSummary {
+  total: number;
+  by_stage: RejectedStageCount[];
+}
+
 export interface FunnelAnalytics {
   stages: FunnelStage[];
+  rejected?: RejectedSummary;
 }
 
 export interface StageTimeMetrics {

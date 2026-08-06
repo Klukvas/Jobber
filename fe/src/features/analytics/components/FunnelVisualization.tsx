@@ -9,7 +9,7 @@ import {
 } from "@/shared/ui/Card";
 import { Skeleton } from "@/shared/ui/Skeleton";
 import { EmptyState } from "@/shared/ui/EmptyState";
-import { TrendingUp, ArrowRight } from "lucide-react";
+import { TrendingUp, ArrowRight, XCircle } from "lucide-react";
 
 export function FunnelVisualization({
   data,
@@ -119,6 +119,41 @@ export function FunnelVisualization({
             );
           })}
         </div>
+
+        {/* Terminal rejections: a status outcome, not a pipeline stage */}
+        {data.rejected && data.rejected.total > 0 && (
+          <div className="mt-5 border-t pt-4 space-y-1">
+            <div className="flex flex-col gap-0.5 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <span className="flex items-center gap-1.5 font-medium text-red-600 dark:text-red-400">
+                <XCircle className="h-4 w-4" />
+                {t("analytics.funnel.rejected")}
+              </span>
+              <span className="text-muted-foreground">
+                {data.rejected.total} {t("analytics.applications")}
+              </span>
+            </div>
+            <div className="h-8 bg-muted rounded-md overflow-hidden">
+              <div
+                className="h-full bg-red-500/70 rounded-md transition-all duration-500 flex items-center justify-end pr-2"
+                style={{
+                  width: `${Math.max((data.rejected.total / maxCount) * 100, 5)}%`,
+                }}
+              >
+                {(data.rejected.total / maxCount) * 100 > 15 && (
+                  <span className="text-xs text-white font-medium">
+                    {data.rejected.total}
+                  </span>
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t("analytics.funnel.rejectedByStage")}:{" "}
+              {data.rejected.by_stage
+                .map((s) => `${s.stage_name} — ${s.count}`)
+                .join(" · ")}
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

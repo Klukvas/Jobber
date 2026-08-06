@@ -864,7 +864,9 @@
       "noData": "No funnel data",
       "noDataDescription": "Create stage templates and add stages to applications",
       "converted": "converted",
-      "dropOff": "drop-off"
+      "dropOff": "drop-off",
+      "rejected": "Rejected",
+      "rejectedByStage": "By furthest stage reached"
     },
     "stageTime": {
       "title": "Time in Stages",

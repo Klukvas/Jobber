@@ -2991,6 +2991,14 @@
         "github_com_andreypavlenko_jobber_modules_analytics_model.FunnelAnalytics": {
             "type": "object",
             "properties": {
+                "rejected": {
+                    "description": "Rejected is nil when the user has no rejected applications.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.RejectedSummary"
+                        }
+                    ]
+                },
                 "stages": {
                     "type": "array",
                     "items": {
@@ -3038,6 +3046,34 @@
                     "type": "number"
                 },
                 "total_applications": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_analytics_model.RejectedStageCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "stage_name": {
+                    "type": "string"
+                },
+                "stage_order": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_analytics_model.RejectedSummary": {
+            "type": "object",
+            "properties": {
+                "by_stage": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.RejectedStageCount"
+                    }
+                },
+                "total": {
                     "type": "integer"
                 }
             }

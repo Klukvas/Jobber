@@ -21,9 +21,27 @@ type FunnelStage struct {
 	DropOffRate    float64 `json:"drop_off_rate"`
 }
 
+// RejectedStageCount is how many rejected applications ended at a given
+// stage (the furthest stage they reached before the rejection).
+type RejectedStageCount struct {
+	StageName  string `json:"stage_name"`
+	StageOrder int    `json:"stage_order"`
+	Count      int    `json:"count"`
+}
+
+// RejectedSummary is the terminal "rejections" block next to the funnel.
+// Rejection is a status, not a stage — it can happen at any pipeline depth,
+// so it is reported alongside the stages, not as one of them.
+type RejectedSummary struct {
+	Total   int                  `json:"total"`
+	ByStage []RejectedStageCount `json:"by_stage"`
+}
+
 // FunnelAnalytics contains the complete funnel analysis
 type FunnelAnalytics struct {
 	Stages []FunnelStage `json:"stages"`
+	// Rejected is nil when the user has no rejected applications.
+	Rejected *RejectedSummary `json:"rejected,omitempty"`
 }
 
 // StageTimeMetrics contains timing metrics for a single stage
