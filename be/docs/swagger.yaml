@@ -61,6 +61,8 @@ definitions:
         type: number
       closed_applications:
         type: integer
+      rejected_applications:
+        type: integer
       response_rate:
         type: number
       total_applications:
@@ -568,6 +570,65 @@ definitions:
         type: boolean
       title:
         type: string
+    type: object
+  github_com_andreypavlenko_jobber_modules_sharing_model.FunnelStageSnapshot:
+    properties:
+      conversion_rate:
+        type: number
+      count:
+        type: integer
+      drop_off_rate:
+        type: number
+      stage_name:
+        type: string
+      stage_order:
+        type: integer
+    type: object
+  github_com_andreypavlenko_jobber_modules_sharing_model.OverviewSnapshot:
+    properties:
+      active_applications:
+        type: integer
+      avg_days_to_first_response:
+        type: number
+      closed_applications:
+        type: integer
+      rejected_applications:
+        type: integer
+      response_rate:
+        type: number
+      total_applications:
+        type: integer
+    type: object
+  github_com_andreypavlenko_jobber_modules_sharing_model.PublicShareDTO:
+    properties:
+      created_at:
+        type: string
+      snapshot:
+        $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_sharing_model.StatsSnapshot'
+    type: object
+  github_com_andreypavlenko_jobber_modules_sharing_model.ShareDTO:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      snapshot:
+        $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_sharing_model.StatsSnapshot'
+      token:
+        type: string
+    type: object
+  github_com_andreypavlenko_jobber_modules_sharing_model.StatsSnapshot:
+    properties:
+      funnel:
+        items:
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_sharing_model.FunnelStageSnapshot'
+        type: array
+      generated_at:
+        type: string
+      overview:
+        $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_sharing_model.OverviewSnapshot'
+      schema_version:
+        type: integer
     type: object
   github_com_andreypavlenko_jobber_modules_support_model.CreateSupportRequest:
     properties:
@@ -1911,6 +1972,57 @@ paths:
       summary: Ping
       tags:
       - system
+  /public/shares/{token}:
+    get:
+      description: Get the frozen stats snapshot behind a share token. No authentication.
+      parameters:
+      - description: Share token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_sharing_model.PublicShareDTO'
+        "404":
+          description: Share not found
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      summary: Get a shared snapshot (public)
+      tags:
+      - sharing
+  /public/shares/{token}/preview-html:
+    get:
+      description: Minimal HTML with Open Graph meta for social media crawlers. Humans
+        are redirected to the SPA share page.
+      parameters:
+      - description: Share token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: HTML with OG meta
+          schema:
+            type: string
+        "404":
+          description: HTML for unknown share
+          schema:
+            type: string
+      summary: OG preview page for a share (public)
+      tags:
+      - sharing
   /resumes:
     get:
       description: Get a paginated list of resume versions for the authenticated user
@@ -2198,6 +2310,93 @@ paths:
       summary: Session check
       tags:
       - system
+  /shares:
+    get:
+      description: Get all share links created by the caller
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_sharing_model.ShareDTO'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List own shares
+      tags:
+      - sharing
+    post:
+      description: Freeze the caller's aggregate stats into a public snapshot and
+        return its share link token
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_sharing_model.ShareDTO'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "409":
+          description: Share limit reached
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Share current analytics
+      tags:
+      - sharing
+  /shares/{id}:
+    delete:
+      description: Delete a share link; its public URL stops working immediately
+      parameters:
+      - description: Share ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "404":
+          description: Share not found
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Revoke a share
+      tags:
+      - sharing
   /stage-templates:
     get:
       description: Get a paginated list of the user's stage templates

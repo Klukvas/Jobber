@@ -52,6 +52,10 @@ import (
 	analyticsRepo "github.com/andreypavlenko/jobber/modules/analytics/repository"
 	analyticsService "github.com/andreypavlenko/jobber/modules/analytics/service"
 
+	sharingHandler "github.com/andreypavlenko/jobber/modules/sharing/handler"
+	sharingRepo "github.com/andreypavlenko/jobber/modules/sharing/repository"
+	sharingService "github.com/andreypavlenko/jobber/modules/sharing/service"
+
 	calendarHandler "github.com/andreypavlenko/jobber/modules/calendar/handler"
 	calendarRepo "github.com/andreypavlenko/jobber/modules/calendar/repository"
 	calendarService "github.com/andreypavlenko/jobber/modules/calendar/service"
@@ -271,6 +275,7 @@ func main() {
 	jobStageRepository := jobRepo.NewJobStageRepository(pgClient.Pool)
 	commentRepository := commentRepo.NewCommentRepository(pgClient.Pool)
 	analyticsRepository := analyticsRepo.NewAnalyticsRepository(pgClient.Pool)
+	sharingRepository := sharingRepo.NewSharingRepository(pgClient.Pool)
 	subscriptionRepository := subRepo.NewSubscriptionRepository(pgClient.Pool)
 
 	// Initialize subscription service (used as limit checker by other services)
@@ -325,6 +330,7 @@ func main() {
 	)
 	commentSvc := commentService.NewCommentService(commentRepository)
 	analyticsSvc := analyticsService.NewAnalyticsService(analyticsRepository)
+	sharingSvc := sharingService.NewSharingService(sharingRepository, analyticsRepository)
 
 	// Initialize handlers
 	cookieCfg := auth.NewCookieConfig(cfg.Server.Env)
@@ -334,6 +340,7 @@ func main() {
 	resumeHdl := resumeHandler.NewResumeHandler(resumeSvc)
 	commentHdl := commentHandler.NewCommentHandler(commentSvc)
 	analyticsHdl := analyticsHandler.NewAnalyticsHandler(analyticsSvc)
+	sharingHdl := sharingHandler.NewSharingHandler(sharingSvc, cfg.Server.FrontendURL)
 	subscriptionHdl := subHandler.NewSubscriptionHandler(subscriptionSvc, logger.Logger)
 	webhookHdl := subHandler.NewWebhookHandler(subscriptionSvc, logger.Logger)
 
@@ -497,6 +504,14 @@ func main() {
 		KeyPrefix:   "cover_letter_ai",
 	}, logger.Logger)
 
+	// Per-IP rate limiting for public share pages (unauthenticated; keeps
+	// share-token scanning impractical)
+	publicShareRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
+		MaxRequests: 30,
+		Window:      1 * time.Minute,
+		KeyPrefix:   "public_share",
+	}, logger.Logger)
+
 	// Per-user rate limiting for support endpoint (3 requests per 5 minutes)
 	supportRateLimiter := httpPlatform.UserRateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
 		MaxRequests: 3,
@@ -539,6 +554,7 @@ func main() {
 		resumeHdl.RegisterRoutes(v1, authMiddleware)
 		commentHdl.RegisterRoutes(v1, authMiddleware)
 		analyticsHdl.RegisterRoutes(v1, authMiddleware)
+		sharingHdl.RegisterRoutes(v1, authMiddleware, publicShareRateLimiter)
 		resumeBuilderHdl.RegisterRoutes(v1, authMiddleware)
 		contentLibraryHdl.RegisterRoutes(v1, authMiddleware)
 		coverLetterHdl.RegisterRoutes(v1, authMiddleware)

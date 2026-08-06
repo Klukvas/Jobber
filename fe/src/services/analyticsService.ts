@@ -1,10 +1,12 @@
-import { apiClient } from './api';
+import { apiClient } from "./api";
 
 // Analytics DTOs
 export interface OverviewAnalytics {
   total_applications: number;
   active_applications: number;
   closed_applications: number;
+  // subset of closed (closed = rejected + offer + archived)
+  rejected_applications: number;
   response_rate: number;
   avg_days_to_first_response: number;
 }
@@ -60,22 +62,22 @@ export interface SourceAnalytics {
 
 export const analyticsService = {
   async getOverview(): Promise<OverviewAnalytics> {
-    return apiClient.get<OverviewAnalytics>('analytics/overview');
+    return apiClient.get<OverviewAnalytics>("analytics/overview");
   },
 
   async getFunnel(): Promise<FunnelAnalytics> {
-    return apiClient.get<FunnelAnalytics>('analytics/funnel');
+    return apiClient.get<FunnelAnalytics>("analytics/funnel");
   },
 
   async getStageTime(): Promise<StageTimeAnalytics> {
-    return apiClient.get<StageTimeAnalytics>('analytics/stages');
+    return apiClient.get<StageTimeAnalytics>("analytics/stages");
   },
 
   async getResumeEffectiveness(): Promise<ResumeAnalytics> {
-    return apiClient.get<ResumeAnalytics>('analytics/resumes');
+    return apiClient.get<ResumeAnalytics>("analytics/resumes");
   },
 
   async getSourceAnalytics(): Promise<SourceAnalytics> {
-    return apiClient.get<SourceAnalytics>('analytics/sources');
+    return apiClient.get<SourceAnalytics>("analytics/sources");
   },
 };

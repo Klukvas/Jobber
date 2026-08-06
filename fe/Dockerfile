@@ -33,8 +33,18 @@ FROM nginx:alpine
 # Copy custom nginx config
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Create nginx config for SPA with API proxy
-RUN echo 'server { \
+# Create nginx config for SPA with API proxy.
+# CAUTION: the Dockerfile parser strips whole '# ... \'-lines inside RUN and
+# joins the rest into ONE line — so comments are safe, but the echo string
+# must never START with '#', or the entire one-line config becomes a comment.
+RUN echo 'map $http_user_agent $jobber_social_bot { \
+    # Social media crawlers (link previews) — routed to the backend \
+    # OG-preview endpoint for /s/ share links; humans get the SPA shell. \
+    default 0; \
+    ~*(facebookexternalhit|twitterbot|linkedinbot|slackbot|telegrambot|whatsapp|discordbot|pinterestbot|redditbot|vkshare) 1; \
+} \
+\
+server { \
     listen 80; \
     server_name _; \
     root /usr/share/nginx/html; \
@@ -101,6 +111,17 @@ RUN echo 'server { \
     location ~* \.(png|jpg|jpeg|gif|ico|svg)$ { \
         expires 7d; \
         add_header Cache-Control "public"; \
+    } \
+    \
+    # Shared stats links: crawlers need OG meta the SPA cannot render, \
+    # so bots are proxied to the backend preview-html endpoint \
+    location ~ ^/s/(?<share_token>[A-Za-z0-9_-]+)$ { \
+        if ($jobber_social_bot) { \
+            rewrite ^ /api/v1/public/shares/$share_token/preview-html break; \
+            proxy_pass http://backend:8080; \
+        } \
+        try_files /index.html =404; \
+        add_header Cache-Control "no-cache, no-store, must-revalidate"; \
     } \
     \
     # SPA routing - prerendered HTML first, then SPA shell fallback \

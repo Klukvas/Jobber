@@ -34,9 +34,10 @@ func TestAnalyticsRepository_GetOverview(t *testing.T) {
 			"total_applications",
 			"active_applications",
 			"closed_applications",
+			"rejected_applications",
 			"response_rate",
 			"avg_days_to_first_response",
-		}).AddRow(10, 5, 5, 50.0, 3.5)
+		}).AddRow(10, 5, 5, 3, 50.0, 3.5)
 
 		mock.ExpectQuery("WITH app_stats AS").
 			WithArgs(userID).
@@ -48,6 +49,7 @@ func TestAnalyticsRepository_GetOverview(t *testing.T) {
 		assert.Equal(t, 10, result.TotalApplications)
 		assert.Equal(t, 5, result.ActiveApplications)
 		assert.Equal(t, 5, result.ClosedApplications)
+		assert.Equal(t, 3, result.RejectedApplications)
 		assert.Equal(t, 50.0, result.ResponseRate)
 		assert.Equal(t, 3.5, result.AvgDaysToFirstResponse)
 
@@ -59,9 +61,10 @@ func TestAnalyticsRepository_GetOverview(t *testing.T) {
 			"total_applications",
 			"active_applications",
 			"closed_applications",
+			"rejected_applications",
 			"response_rate",
 			"avg_days_to_first_response",
-		}).AddRow(0, 0, 0, 0.0, 0.0)
+		}).AddRow(0, 0, 0, 0, 0.0, 0.0)
 
 		mock.ExpectQuery("WITH app_stats AS").
 			WithArgs(userID).

@@ -1611,6 +1611,76 @@ Categorize and filter applications, jobs, and companies with user-defined labels
 
 ---
 
+### 🔹 Feature: Stats Sharing (`modules/sharing`)
+
+#### Purpose
+Let users publish a read-only snapshot of their job search statistics (overview incl. rejected count + funnel) via a public link — a growth loop targeting job-seeker audiences on LinkedIn/Twitter.
+
+Note: `rejected_applications` was added to the analytics overview (API + UI card) together with this feature — it is a subset of `closed_applications` (closed = rejected + offer + archived).
+
+#### User Flow
+1. User opens Analytics page and clicks "Share"
+2. User sees a preview of exactly what will be published
+3. User confirms → backend freezes current aggregates into a snapshot and returns a share link `/s/{token}`
+4. User copies the link and posts it anywhere
+5. Anyone opening the link sees the frozen stats (no auth required) with a "Track your job search with Jobber" CTA
+6. User can list and revoke share links; a revoked link stops working immediately
+
+#### Business Rules
+
+**Allowed:**
+- Share on any plan (free included — growth feature, deliberately not plan-gated)
+- Up to 20 active share links per user (`MaxActiveShares`)
+- Multiple snapshots at different points in time
+
+**Forbidden:**
+- Personal identifiers in the public payload: no company names, resume titles, sources, user id, or email — aggregates only
+- Guessable share URLs (token = 32 random bytes, base64url, 256-bit entropy)
+- Search engine indexing of share pages (`noindex` meta + `X-Robots-Tag`)
+
+**Edge Cases:**
+- Snapshot is frozen at creation: later changes to jobs/stages do NOT update published shares
+- Snapshot carries `schema_version` so future format changes can render old payloads
+- Deleting a user cascades to their shares (FK `ON DELETE CASCADE`)
+- Concurrent creates use single-statement check-and-insert against the cap
+- Custom stage names ARE included in the funnel — the pre-publish preview is the user's consent step
+
+#### API Endpoints
+
+**Authenticated:**
+- POST /api/v1/shares → freeze current stats, returns `ShareDTO {id, token, snapshot, created_at}` (409 `SHARE_LIMIT_REACHED` at cap)
+- GET /api/v1/shares → list own shares
+- DELETE /api/v1/shares/{id} → revoke (404 `SHARE_NOT_FOUND` if foreign/missing)
+
+**Public (no auth, IP rate limit 30 req/min, key prefix `public_share`):**
+- GET /api/v1/public/shares/{token} → `PublicShareDTO {snapshot, created_at}` (owner/id stripped)
+- GET /api/v1/public/shares/{token}/preview-html → minimal HTML with Open Graph meta for social crawlers; humans hitting it directly are meta-refreshed to the SPA page `/s/{token}`
+
+#### Backend Logic
+
+**Create Share:**
+1. Load overview + funnel from analytics repository (`StatsProvider` port, satisfied structurally)
+2. Map into `StatsSnapshot` (schema_version=1, generated_at)
+3. Generate token (crypto/rand 32 bytes → base64url, 43 chars)
+4. Atomic insert while user is under `MaxActiveShares`, else `SHARE_LIMIT_REACHED`
+
+**Storage:** `shared_stats` table (migration 000035): id UUID PK, user_id FK→users CASCADE, token TEXT UNIQUE, snapshot JSONB, created_at.
+
+**OG preview:** nginx routes social-crawler user agents hitting `/s/{token}` to `preview-html`; og:title/description carry the headline numbers, og:image is the static `/og-image.png`.
+
+#### Frontend Responsibilities
+
+**What Frontend Renders:**
+- Share button + modal on Analytics page (preview, create, copy link, list/revoke)
+- Public page `/s/{token}` reusing Analytics presentational components, with CTA footer
+- "Link revoked or not found" state for dead tokens
+
+**What Frontend Must NOT Compute:**
+- Snapshot contents (backend freezes them — frontend renders the returned snapshot verbatim)
+- Token generation
+
+---
+
 ## 5️⃣ State vs History (UNCHANGED PRINCIPLE - Updated Terminology)
 
 ### Current State Entities

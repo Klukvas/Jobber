@@ -1,9 +1,8 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   analyticsService,
-  type OverviewAnalytics,
-  type FunnelAnalytics,
   type StageTimeAnalytics,
   type ResumeAnalytics,
   type SourceAnalytics,
@@ -18,220 +17,13 @@ import {
 import { Skeleton } from "@/shared/ui/Skeleton";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { ErrorState } from "@/shared/ui/ErrorState";
-import {
-  BarChart3,
-  TrendingUp,
-  Clock,
-  FileText,
-  Globe,
-  Activity,
-  CheckCircle,
-  ArrowRight,
-  Briefcase,
-} from "lucide-react";
+import { Button } from "@/shared/ui/Button";
+import { BarChart3, Clock, FileText, Globe, Share2 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
-
-// Overview Cards Component
-function OverviewCards({
-  data,
-  isLoading,
-}: {
-  data?: OverviewAnalytics;
-  isLoading: boolean;
-}) {
-  const { t } = useTranslation();
-
-  if (isLoading) {
-    return (
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Card key={i}>
-            <CardContent className="p-6">
-              <Skeleton className="h-4 w-24 mb-2" />
-              <Skeleton className="h-8 w-16" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    );
-  }
-
-  if (!data) return null;
-
-  const cards = [
-    {
-      title: t("analytics.overview.totalApplications"),
-      value: data.total_applications,
-      icon: Briefcase,
-      color: "text-blue-500 dark:text-blue-400",
-    },
-    {
-      title: t("analytics.overview.activeApplications"),
-      value: data.active_applications,
-      icon: Activity,
-      color: "text-green-500 dark:text-green-400",
-    },
-    {
-      title: t("analytics.overview.closedApplications"),
-      value: data.closed_applications,
-      icon: CheckCircle,
-      color: "text-gray-500 dark:text-gray-400",
-    },
-    {
-      title: t("analytics.overview.responseRate"),
-      value: `${data.response_rate}%`,
-      icon: TrendingUp,
-      color: "text-purple-500 dark:text-purple-400",
-    },
-    {
-      title: t("analytics.overview.avgResponseTime"),
-      value:
-        data.avg_days_to_first_response > 0
-          ? `${data.avg_days_to_first_response} ${t("analytics.days")}`
-          : "-",
-      icon: Clock,
-      color: "text-orange-500 dark:text-orange-400",
-    },
-  ];
-
-  return (
-    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-      {cards.map((card) => {
-        const Icon = card.icon;
-        return (
-          <Card key={card.title}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    {card.title}
-                  </p>
-                  <p className="text-2xl font-bold mt-1">{card.value}</p>
-                </div>
-                <Icon className={cn("h-8 w-8", card.color)} />
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
-  );
-}
-
-// Funnel Visualization Component
-function FunnelVisualization({
-  data,
-  isLoading,
-}: {
-  data?: FunnelAnalytics;
-  isLoading: boolean;
-}) {
-  const { t } = useTranslation();
-
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            {t("analytics.funnel.title")}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-4">
-                <Skeleton className="h-12 flex-1" />
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!data?.stages || data.stages.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            {t("analytics.funnel.title")}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <EmptyState
-            icon={<TrendingUp className="h-12 w-12" />}
-            title={t("analytics.funnel.noData")}
-            description={t("analytics.funnel.noDataDescription")}
-          />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const maxCount = Math.max(...data.stages.map((s) => s.count), 1);
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <TrendingUp className="h-5 w-5" />
-          {t("analytics.funnel.title")}
-        </CardTitle>
-        <CardDescription>{t("analytics.funnel.description")}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          {data.stages.map((stage, index) => {
-            const widthPercent = (stage.count / maxCount) * 100;
-            return (
-              <div key={stage.stage_name} className="space-y-1">
-                <div className="flex flex-col gap-0.5 text-sm sm:flex-row sm:items-center sm:justify-between">
-                  <span className="font-medium">{stage.stage_name}</span>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-muted-foreground">
-                    <span>
-                      {stage.count} {t("analytics.applications")}
-                    </span>
-                    {index > 0 && (
-                      <>
-                        <span className="text-green-600">
-                          {stage.conversion_rate}%{" "}
-                          {t("analytics.funnel.converted")}
-                        </span>
-                        <span className="text-red-500">
-                          {stage.drop_off_rate}% {t("analytics.funnel.dropOff")}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-                <div className="h-8 bg-muted rounded-md overflow-hidden">
-                  <div
-                    className="h-full bg-primary/80 rounded-md transition-all duration-500 flex items-center justify-end pr-2"
-                    style={{ width: `${Math.max(widthPercent, 5)}%` }}
-                  >
-                    {widthPercent > 15 && (
-                      <span className="text-xs text-primary-foreground font-medium">
-                        {stage.count}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {index < data.stages.length - 1 && (
-                  <div className="flex justify-center py-1">
-                    <ArrowRight className="h-4 w-4 text-muted-foreground rotate-90" />
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+import { OverviewCards } from "@/features/analytics/components/OverviewCards";
+import { FunnelVisualization } from "@/features/analytics/components/FunnelVisualization";
+import { ShareStatsModal } from "@/features/sharing/components/ShareStatsModal";
 
 // Stage Time Table Component
 function StageTimeTable({
@@ -718,6 +510,7 @@ function SourceAnalyticsTable({
 export default function Analytics() {
   const { t } = useTranslation();
   usePageMeta({ titleKey: "analytics.title", noindex: true });
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   const overviewQuery = useQuery({
     queryKey: ["analytics", "overview"],
@@ -809,13 +602,31 @@ export default function Analytics() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <BarChart3 className="h-8 w-8 text-primary" />
-        <div>
-          <h1 className="text-3xl font-bold">{t("analytics.title")}</h1>
-          <p className="text-muted-foreground">{t("analytics.description")}</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <BarChart3 className="h-8 w-8 text-primary" />
+          <div>
+            <h1 className="text-3xl font-bold">{t("analytics.title")}</h1>
+            <p className="text-muted-foreground">
+              {t("analytics.description")}
+            </p>
+          </div>
         </div>
+        <Button
+          variant="outline"
+          onClick={() => setShareModalOpen(true)}
+          className="self-start sm:self-auto"
+        >
+          <Share2 className="h-4 w-4 mr-2" />
+          {t("sharing.shareButton")}
+        </Button>
       </div>
+      <ShareStatsModal
+        open={shareModalOpen}
+        onOpenChange={setShareModalOpen}
+        overview={overviewQuery.data}
+        funnel={funnelQuery.data}
+      />
 
       {/* Overview Cards */}
       <OverviewCards
