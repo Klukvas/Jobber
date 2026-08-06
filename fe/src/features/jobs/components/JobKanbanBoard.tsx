@@ -24,7 +24,21 @@ import {
   JobMobileAccordion,
   type MobileColumnData,
 } from "./JobMobileAccordion";
-import type { JobDTO, JobStatus, PaginatedResponse } from "@/shared/types/api";
+import type {
+  JobDTO,
+  JobStatus,
+  MoveTarget,
+  PaginatedResponse,
+  StagePhase,
+} from "@/shared/types/api";
+import { FEATURES } from "@/shared/lib/features";
+import {
+  buildUnifiedColumns,
+  columnMoveTarget,
+  placeJob,
+  shouldHideBase,
+  type UnifiedColumn,
+} from "../lib/unifiedBoard";
 
 export const JOBS_KANBAN_QUERY_KEY = ["jobs", "kanban"] as const;
 
@@ -64,11 +78,13 @@ export function JobKanbanBoard({
   const queryClient = useQueryClient();
   const [activeJob, setActiveJob] = useState<JobDTO | null>(null);
   const [groupBy, setGroupBy] = useState<GroupBy>("status");
+  const [showArchived, setShowArchived] = useState(false);
+  const unified = FEATURES.UNIFIED_BOARD;
 
   const { data: stageTemplatesData } = useQuery({
     queryKey: ["stage-templates"],
     queryFn: () => stageTemplatesService.list({ limit: 100, offset: 0 }),
-    enabled: groupBy === "stage",
+    enabled: unified || groupBy === "stage",
     staleTime: 5 * 60 * 1000,
   });
 
@@ -168,6 +184,54 @@ export function JobKanbanBoard({
     },
   });
 
+  const unifiedColumns = useMemo(
+    () => (unified ? buildUnifiedColumns(stageTemplates, showArchived) : []),
+    [unified, stageTemplates, showArchived],
+  );
+
+  // Unified board: one atomic call keeps status and stage consistent
+  const { mutate: moveJob } = useMutation({
+    mutationFn: ({
+      id,
+      target,
+    }: {
+      id: string;
+      target: MoveTarget;
+      optimistic: Partial<JobDTO>;
+    }) => jobsService.move(id, target),
+    onMutate: async ({ id, optimistic }) => {
+      await queryClient.cancelQueries({ queryKey: JOBS_KANBAN_QUERY_KEY });
+      const previous = queryClient.getQueryData<PaginatedResponse<JobDTO>>(
+        JOBS_KANBAN_QUERY_KEY,
+      );
+      queryClient.setQueryData<PaginatedResponse<JobDTO>>(
+        JOBS_KANBAN_QUERY_KEY,
+        (oldData) => {
+          if (!oldData) return oldData;
+          return {
+            ...oldData,
+            items: oldData.items.map((j) =>
+              j.id === id ? { ...j, ...optimistic } : j,
+            ),
+          };
+        },
+      );
+      return { previous };
+    },
+    onSuccess: () => {
+      showSuccessNotification(t("jobs.board.moveSuccess"));
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(JOBS_KANBAN_QUERY_KEY, context.previous);
+      }
+      showErrorNotification(t("jobs.board.moveError"));
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: JOBS_KANBAN_QUERY_KEY });
+    },
+  });
+
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       const draggedJob = jobs.find((j) => j.id === event.active.id);
@@ -189,6 +253,33 @@ export function JobKanbanBoard({
 
       const jobId = active.id as string;
       const targetColumn = over.id as string;
+
+      if (unified) {
+        const column = unifiedColumns.find((c) => c.id === targetColumn);
+        if (!column) return;
+        const target = columnMoveTarget(column);
+        if (!target) return; // archived column is not a drop target
+
+        const cachedData = queryClient.getQueryData<PaginatedResponse<JobDTO>>(
+          JOBS_KANBAN_QUERY_KEY,
+        );
+        const currentJob = cachedData?.items.find((j) => j.id === jobId);
+        if (!currentJob) return;
+        if (placeJob(currentJob, stageTemplates) === column.id) return;
+
+        const optimistic: Partial<JobDTO> =
+          column.kind === "stage" && column.template
+            ? {
+                status: unifiedPhaseStatus(column.template.phase),
+                current_stage_name: column.template.name,
+              }
+            : {
+                status: unifiedPhaseStatus(column.phase),
+                current_stage_name: undefined,
+              };
+        moveJob({ id: jobId, target, optimistic });
+        return;
+      }
 
       if (groupBy === "status") {
         const cachedData = queryClient.getQueryData<PaginatedResponse<JobDTO>>(
@@ -220,21 +311,58 @@ export function JobKanbanBoard({
         });
       }
     },
-    [groupBy, queryClient, stageTemplates, updateStatus, addStageToJob],
+    [
+      groupBy,
+      unified,
+      unifiedColumns,
+      queryClient,
+      stageTemplates,
+      updateStatus,
+      addStageToJob,
+      moveJob,
+    ],
   );
 
-  const columns = useMemo(
-    () =>
-      groupBy === "status"
-        ? buildStatusColumns(jobs, t)
-        : buildStageColumns(jobs, stageTemplates, t),
-    [groupBy, jobs, stageTemplates, t],
-  );
+  const columns = useMemo(() => {
+    if (unified) {
+      return unifiedColumns
+        .map((col) => ({
+          col,
+          data: {
+            id: col.id,
+            label:
+              col.kind === "stage" && col.template
+                ? col.template.name
+                : t(col.labelKey ?? ""),
+            jobs: jobs.filter((j) => placeJob(j, stageTemplates) === col.id),
+          },
+        }))
+        .filter(
+          ({ col, data }) =>
+            !shouldHideBase(col, data.jobs.length, unifiedColumns),
+        )
+        .map(({ data }) => data);
+    }
+    return groupBy === "status"
+      ? buildStatusColumns(jobs, t)
+      : buildStageColumns(jobs, stageTemplates, t);
+  }, [unified, unifiedColumns, groupBy, jobs, stageTemplates, t]);
 
   return (
     <div className="space-y-4">
-      {/* Grouping toggle */}
+      {/* Grouping toggle (legacy) / archived filter (unified) */}
       <div className="flex items-center gap-2">
+        {unified ? (
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+              className="h-4 w-4 rounded border-input accent-primary"
+            />
+            {t("jobs.board.showArchived")}
+          </label>
+        ) : (
         <div className="flex items-center rounded-lg border bg-muted p-0.5">
           <button
             onClick={() => setGroupBy("status")}
@@ -257,6 +385,7 @@ export function JobKanbanBoard({
             {t("jobs.board.groupByStage")}
           </button>
         </div>
+        )}
       </div>
 
       {/* Mobile accordion — replaces horizontal board on small screens */}
@@ -358,4 +487,21 @@ function buildStageColumns(
       jobs: jobs.filter((j) => j.current_stage_name === template.name),
     })),
   ];
+}
+
+// Client-side mirror of the backend's StatusForPhase derivation — used only
+// for optimistic cache updates; the server response is authoritative.
+function unifiedPhaseStatus(phase: UnifiedColumn["phase"] | StagePhase): JobStatus {
+  switch (phase) {
+    case "wishlist":
+      return "saved";
+    case "offer":
+      return "offer";
+    case "rejected":
+      return "rejected";
+    case "archived":
+      return "archived";
+    default:
+      return "applied";
+  }
 }

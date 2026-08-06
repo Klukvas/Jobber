@@ -342,7 +342,8 @@
       "offer": "Offer",
       "rejected": "Rejected",
       "archived": "Archived",
-      "noStage": "No Stage"
+      "noStage": "No Stage",
+      "showArchived": "Show archived"
     },
     "matchScore": {
       "checkMatch": "Check Match",

@@ -342,7 +342,8 @@
       "offer": "Оффер",
       "rejected": "Відхилено",
       "archived": "Архів",
-      "noStage": "Без етапу"
+      "noStage": "Без етапу",
+      "showArchived": "Показувати архів"
     },
     "matchScore": {
       "checkMatch": "Перевірити відповідність",

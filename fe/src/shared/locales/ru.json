@@ -342,7 +342,8 @@
       "offer": "Оффер",
       "rejected": "Отклонено",
       "archived": "Архив",
-      "noStage": "Без этапа"
+      "noStage": "Без этапа",
+      "showArchived": "Показывать архив"
     },
     "matchScore": {
       "checkMatch": "Проверить соответствие",

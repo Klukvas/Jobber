@@ -6,6 +6,12 @@ export const STATUS_TOP_BORDER_COLORS: Record<string, string> = {
   offer: "border-t-blue-500",
   rejected: "border-t-red-500",
   archived: "border-t-gray-500",
+  // Unified-board base columns
+  "phase:wishlist": "border-t-sky-500",
+  "phase:applied": "border-t-green-500",
+  "phase:offer": "border-t-blue-500",
+  "phase:rejected": "border-t-red-500",
+  "phase:archived": "border-t-gray-500",
 };
 
 /** Tailwind left-border color classes keyed by job status / column ID */
