@@ -896,12 +896,14 @@ Track job postings and applications in unified pipeline. Manage saved wishlist c
 - `total_applications`: COUNT WHERE applied_at IS NOT NULL
 - `active_applications`: COUNT WHERE status IN ('applied', 'on_hold')
 - `closed_applications`: COUNT WHERE status IN ('rejected', 'offer', 'archived') AND applied_at IS NOT NULL
+- `rejected_applications`: COUNT WHERE status = 'rejected' (subset of closed; rendered as its own card)
 
 **Funnel (GET /analytics/funnel):**
 - First bucket "Applied" (stage_order 1) is derived directly from jobs (applied_at IS NOT NULL). It does NOT require stage templates or job_stages — a user with applications but no tracked stages still sees this bucket. Omitted when the user has zero applications.
 - Subsequent buckets come from the user's stage_templates with `order > 1` (the same "got a response" convention as response_rate/sources), counting DISTINCT applied jobs that have a job_stage for that template.
 - Stage templates with `order = 1` (e.g. a user-created "Applied" template) are NOT shown as a separate bucket — the jobs-derived bucket replaces them.
 - Conversion/drop-off rates are computed between adjacent buckets (LAG over stage_order).
+- `rejected` (nullable): terminal summary rendered below the funnel. Rejection is a STATUS, not a stage, so it is never a funnel bucket. Groups applications with status='rejected' by the furthest stage they reached (max stage_template order among their job_stages; no tracked stages → the synthetic "Applied" bucket, order 1). Shape: `{total, by_stage: [{stage_name, stage_order, count}]}`; omitted when the user has no rejections. NOT included in the shared-stats snapshot — public shares show funnel stages only.
 
 #### Backend Logic
 

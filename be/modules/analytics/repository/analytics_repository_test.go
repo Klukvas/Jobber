@@ -117,11 +117,23 @@ func TestAnalyticsRepository_GetFunnel(t *testing.T) {
 		mock.ExpectQuery("WITH applied_total AS").
 			WithArgs(userID).
 			WillReturnRows(rows)
+		mock.ExpectQuery("WITH rejected AS").
+			WithArgs(userID).
+			WillReturnRows(pgxmock.NewRows([]string{"stage_name", "stage_order", "count"}).
+				AddRow("Applied", 1, 3).
+				AddRow("Interview", 3, 2))
 
 		result, err := repo.GetFunnel(context.Background(), userID)
 
 		require.NoError(t, err)
 		require.Len(t, result.Stages, 4)
+
+		require.NotNil(t, result.Rejected)
+		assert.Equal(t, 5, result.Rejected.Total)
+		require.Len(t, result.Rejected.ByStage, 2)
+		assert.Equal(t, "Applied", result.Rejected.ByStage[0].StageName)
+		assert.Equal(t, 3, result.Rejected.ByStage[0].Count)
+		assert.Equal(t, "Interview", result.Rejected.ByStage[1].StageName)
 
 		assert.Equal(t, "Applied", result.Stages[0].StageName)
 		assert.Equal(t, 100, result.Stages[0].Count)
@@ -148,11 +160,15 @@ func TestAnalyticsRepository_GetFunnel(t *testing.T) {
 		mock.ExpectQuery("WITH applied_total AS").
 			WithArgs(userID).
 			WillReturnRows(rows)
+		mock.ExpectQuery("WITH rejected AS").
+			WithArgs(userID).
+			WillReturnRows(pgxmock.NewRows([]string{"stage_name", "stage_order", "count"}))
 
 		result, err := repo.GetFunnel(context.Background(), userID)
 
 		require.NoError(t, err)
 		require.Len(t, result.Stages, 1)
+		assert.Nil(t, result.Rejected)
 		assert.Equal(t, "Applied", result.Stages[0].StageName)
 		assert.Equal(t, 2, result.Stages[0].Count)
 
@@ -171,11 +187,15 @@ func TestAnalyticsRepository_GetFunnel(t *testing.T) {
 		mock.ExpectQuery("WITH applied_total AS").
 			WithArgs(userID).
 			WillReturnRows(rows)
+		mock.ExpectQuery("WITH rejected AS").
+			WithArgs(userID).
+			WillReturnRows(pgxmock.NewRows([]string{"stage_name", "stage_order", "count"}))
 
 		result, err := repo.GetFunnel(context.Background(), userID)
 
 		require.NoError(t, err)
 		assert.Empty(t, result.Stages)
+		assert.Nil(t, result.Rejected)
 
 		require.NoError(t, mock.ExpectationsWereMet())
 	})

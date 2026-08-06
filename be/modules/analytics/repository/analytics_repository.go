@@ -183,7 +183,65 @@ func (r *AnalyticsRepository) GetFunnel(ctx context.Context, userID string) (*mo
 		return nil, err
 	}
 
-	return &model.FunnelAnalytics{Stages: stages}, nil
+	rejected, err := r.getRejectedSummary(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.FunnelAnalytics{Stages: stages, Rejected: rejected}, nil
+}
+
+// getRejectedSummary groups rejected applications by the furthest stage they
+// reached. Applications rejected with no tracked stages fall into the
+// synthetic "Applied" bucket (order 1) — same convention as the funnel.
+func (r *AnalyticsRepository) getRejectedSummary(ctx context.Context, userID string) (*model.RejectedSummary, error) {
+	query := `
+		WITH rejected AS (
+			SELECT j.id
+			FROM jobs j
+			WHERE j.user_id = $1 AND j.applied_at IS NOT NULL AND j.status = 'rejected'
+		),
+		last_stage AS (
+			SELECT DISTINCT ON (js.job_id)
+				js.job_id, st.name, st."order"
+			FROM job_stages js
+			JOIN stage_templates st ON st.id = js.stage_template_id
+			JOIN rejected r ON r.id = js.job_id
+			ORDER BY js.job_id, st."order" DESC
+		)
+		SELECT
+			COALESCE(ls.name, 'Applied') AS stage_name,
+			COALESCE(ls."order", 1) AS stage_order,
+			COUNT(*) AS count
+		FROM rejected r
+		LEFT JOIN last_stage ls ON ls.job_id = r.id
+		GROUP BY 1, 2
+		ORDER BY 2
+	`
+
+	rows, err := r.pool.Query(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	summary := &model.RejectedSummary{}
+	for rows.Next() {
+		var sc model.RejectedStageCount
+		if err := rows.Scan(&sc.StageName, &sc.StageOrder, &sc.Count); err != nil {
+			return nil, err
+		}
+		summary.ByStage = append(summary.ByStage, sc)
+		summary.Total += sc.Count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if summary.Total == 0 {
+		return nil, nil
+	}
+	return summary, nil
 }
 
 // GetStageTime returns timing metrics per stage

@@ -35,6 +35,10 @@ definitions:
     type: object
   github_com_andreypavlenko_jobber_modules_analytics_model.FunnelAnalytics:
     properties:
+      rejected:
+        allOf:
+        - $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.RejectedSummary'
+        description: Rejected is nil when the user has no rejected applications.
       stages:
         items:
           $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.FunnelStage'
@@ -66,6 +70,24 @@ definitions:
       response_rate:
         type: number
       total_applications:
+        type: integer
+    type: object
+  github_com_andreypavlenko_jobber_modules_analytics_model.RejectedStageCount:
+    properties:
+      count:
+        type: integer
+      stage_name:
+        type: string
+      stage_order:
+        type: integer
+    type: object
+  github_com_andreypavlenko_jobber_modules_analytics_model.RejectedSummary:
+    properties:
+      by_stage:
+        items:
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.RejectedStageCount'
+        type: array
+      total:
         type: integer
     type: object
   github_com_andreypavlenko_jobber_modules_analytics_model.ResumeAnalytics:
