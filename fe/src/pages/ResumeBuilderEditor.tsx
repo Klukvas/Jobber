@@ -41,7 +41,7 @@ export default function ResumeBuilderEditorPage() {
 
   const isDirty = useResumeBuilderStore((s) => s.isDirty);
 
-  usePageMeta({ titleKey: "resumeBuilder.editor" });
+  usePageMeta({ titleKey: "resumeBuilder.editor", noindex: true });
   useAutoSave();
 
   // Warn user about unsaved changes before leaving

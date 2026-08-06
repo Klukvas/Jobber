@@ -7,10 +7,12 @@ import { Button } from "@/shared/ui/Button";
 import { PasswordInput } from "@/shared/ui/PasswordInput";
 import { Label } from "@/shared/ui/Label";
 import { ApiError } from "@/services/api";
+import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 
 export default function ResetPassword() {
   const { t } = useTranslation();
+  usePageMeta({ noindex: true });
   const [searchParams] = useSearchParams();
   const email = searchParams.get("email") ?? "";
   const code = searchParams.get("code") ?? "";

@@ -39,6 +39,10 @@ RUN echo 'server { \
     server_name _; \
     root /usr/share/nginx/html; \
     index index.html; \
+    # Serve prerendered /route/index.html directly at /route — no 301 to \
+    # trailing slash (the redirect chain went through plain http and made \
+    # every sitemap/canonical URL a redirect for crawlers). \
+    absolute_redirect off; \
     \
     # Security headers \
     add_header X-Frame-Options "SAMEORIGIN" always; \
@@ -99,9 +103,9 @@ RUN echo 'server { \
         add_header Cache-Control "public"; \
     } \
     \
-    # SPA routing - all routes go to index.html \
+    # SPA routing - prerendered HTML first, then SPA shell fallback \
     location / { \
-        try_files $uri $uri/ /index.html; \
+        try_files $uri $uri/index.html /index.html; \
         add_header Cache-Control "no-cache, no-store, must-revalidate"; \
     } \
 }' > /etc/nginx/conf.d/default.conf

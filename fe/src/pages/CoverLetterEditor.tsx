@@ -117,7 +117,7 @@ export default function CoverLetterEditorPage() {
 
   const isDesktop = useMediaQuery("(min-width: 1024px)");
 
-  usePageMeta({ titleKey: "coverLetter.editor" });
+  usePageMeta({ titleKey: "coverLetter.editor", noindex: true });
   useAutoSaveCoverLetter();
   const exportPDF = useExportCoverLetterPDF();
   const exportDOCX = useExportCoverLetterDOCX();

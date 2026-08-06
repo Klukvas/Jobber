@@ -24,6 +24,7 @@ export default function BlogPost() {
       ? {
           title: `${post.title} — Jobber`,
           description: post.description,
+          ogType: "article" as const,
         }
       : { titleKey: "blog.notFound", noindex: true },
   );

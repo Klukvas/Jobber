@@ -10,9 +10,19 @@ function buildJsonLd() {
       "@type": "WebApplication",
       name: "Jobber",
       url: SITE_URL,
-      description: "Job application tracking platform",
+      description:
+        "AI-powered job application tracker: organize your job search on a Kanban board, build ATS-friendly resumes, and generate tailored cover letters.",
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web",
+      image: `${SITE_URL}/og-image.png`,
+      featureList: [
+        "Job application tracking with Kanban board",
+        "Custom application stages",
+        "AI resume builder with ATS-friendly templates",
+        "AI cover letter generator",
+        "Company and contact management",
+        "Job search analytics",
+      ],
       offers: {
         "@type": "Offer",
         price: "0",

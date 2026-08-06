@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 
 const SITE_URL = "https://jobber-app.com";
-const HREFLANGS = ["en", "ru", "uk", "x-default"] as const;
+const INDEX_ROBOTS = "index, follow, max-image-preview:large";
 
 interface PageMetaOptions {
   readonly title?: string;
@@ -11,6 +11,7 @@ interface PageMetaOptions {
   readonly description?: string;
   readonly descriptionKey?: string;
   readonly noindex?: boolean;
+  readonly ogType?: "website" | "article";
 }
 
 function setMetaTag(name: string, content: string) {
@@ -37,10 +38,6 @@ function setOgTag(property: string, content: string) {
   document.head.appendChild(meta);
 }
 
-function removeMetaTag(name: string) {
-  document.querySelector(`meta[name="${name}"]`)?.remove();
-}
-
 function setCanonical(href: string) {
   let link = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
   if (link) {
@@ -53,21 +50,6 @@ function setCanonical(href: string) {
   document.head.appendChild(link);
 }
 
-function setHreflang(lang: string, href: string) {
-  let link = document.querySelector<HTMLLinkElement>(
-    `link[rel="alternate"][hreflang="${lang}"]`,
-  );
-  if (link) {
-    link.href = href;
-    return;
-  }
-  link = document.createElement("link");
-  link.rel = "alternate";
-  link.hreflang = lang;
-  link.href = href;
-  document.head.appendChild(link);
-}
-
 export function usePageMeta(options: PageMetaOptions = {}) {
   const {
     title: literalTitle,
@@ -75,6 +57,7 @@ export function usePageMeta(options: PageMetaOptions = {}) {
     description: literalDescription,
     descriptionKey,
     noindex = false,
+    ogType = "website",
   } = options;
   const { t } = useTranslation();
   const { pathname } = useLocation();
@@ -93,20 +76,18 @@ export function usePageMeta(options: PageMetaOptions = {}) {
     setOgTag("og:title", title);
     setOgTag("og:description", description);
     setOgTag("og:url", pageUrl);
+    setOgTag("og:type", ogType);
+    // Twitter/X prefers twitter:* over og:* when both exist, so the static
+    // tags from index.html must be kept in sync with the page-level values.
+    setMetaTag("twitter:title", title);
+    setMetaTag("twitter:description", description);
     setCanonical(pageUrl);
-    for (const lang of HREFLANGS) {
-      setHreflang(lang, pageUrl);
-    }
 
-    if (noindex) {
-      setMetaTag("robots", "noindex, nofollow");
-    } else {
-      removeMetaTag("robots");
-    }
+    setMetaTag("robots", noindex ? "noindex, nofollow" : INDEX_ROBOTS);
 
     return () => {
       if (noindex) {
-        removeMetaTag("robots");
+        setMetaTag("robots", INDEX_ROBOTS);
       }
     };
   }, [
@@ -115,6 +96,7 @@ export function usePageMeta(options: PageMetaOptions = {}) {
     literalDescription,
     descriptionKey,
     noindex,
+    ogType,
     pathname,
     t,
   ]);

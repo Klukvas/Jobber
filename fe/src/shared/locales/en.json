@@ -509,8 +509,8 @@
     "defaultTitle": "Jobber — Job Application Tracker",
     "defaultDescription": "Track your job applications, manage companies, and analyze your job search progress with Jobber.",
     "home": {
-      "title": "Jobber — Track Your Job Search",
-      "description": "Organize and manage your job search with a Kanban board, analytics, and stage tracking."
+      "title": "Jobber — AI Job Application Tracker & Job Search Organizer",
+      "description": "Track job applications on a Kanban board, build ATS-friendly resumes, and generate AI cover letters. Free job application tracker with analytics."
     },
     "jobs": {
       "title": "Jobs — Jobber",
@@ -529,8 +529,8 @@
       "description": "Get insights into your job search with detailed analytics."
     },
     "blog": {
-      "title": "Blog — Jobber",
-      "description": "Tips and insights to help you land your next job."
+      "title": "Job Search Blog: Resume & Interview Tips — Jobber",
+      "description": "Practical job search advice: resume tips, cover letter examples, interview prep, and strategies to organize your job applications."
     }
   },
   "blog": {
@@ -1380,7 +1380,7 @@
   "featurePages": {
     "applications": {
       "meta": {
-        "title": "Application Tracker - Jobber",
+        "title": "Job Application Tracker with Kanban Board — Jobber",
         "description": "Track every job application with a Kanban board, custom stages, and analytics. Never lose track of your job search again."
       },
       "hero": {
@@ -1418,7 +1418,7 @@
     },
     "resumeBuilder": {
       "meta": {
-        "title": "Resume Builder - Jobber",
+        "title": "AI Resume Builder — ATS-Friendly Templates — Jobber",
         "description": "Build ATS-optimized resumes with AI-powered bullet suggestions, multiple templates, and one-click PDF export."
       },
       "hero": {
@@ -1456,7 +1456,7 @@
     },
     "coverLetters": {
       "meta": {
-        "title": "Cover Letters - Jobber",
+        "title": "AI Cover Letter Generator — Jobber",
         "description": "Write cover letters that get you interviews. AI-powered generation tailored to each job description in seconds."
       },
       "hero": {

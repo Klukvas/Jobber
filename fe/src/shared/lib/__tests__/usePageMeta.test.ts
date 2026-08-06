@@ -101,20 +101,43 @@ describe("usePageMeta", () => {
     expect(meta?.getAttribute("content")).toBe("noindex, nofollow");
   });
 
-  it("does not add robots tag when noindex is false", () => {
+  it("sets indexable robots tag when noindex is false", () => {
     renderHook(() => usePageMeta({ noindex: false }), { wrapper });
     const meta = document.querySelector('meta[name="robots"]');
-    expect(meta).toBeNull();
+    expect(meta?.getAttribute("content")).toBe(
+      "index, follow, max-image-preview:large",
+    );
   });
 
-  it("removes robots tag on cleanup when noindex was true", () => {
+  it("restores indexable robots tag on cleanup when noindex was true", () => {
     const { unmount } = renderHook(() => usePageMeta({ noindex: true }), {
       wrapper,
     });
-    expect(document.querySelector('meta[name="robots"]')).not.toBeNull();
+    expect(
+      document.querySelector('meta[name="robots"]')?.getAttribute("content"),
+    ).toBe("noindex, nofollow");
 
     unmount();
-    expect(document.querySelector('meta[name="robots"]')).toBeNull();
+    expect(
+      document.querySelector('meta[name="robots"]')?.getAttribute("content"),
+    ).toBe("index, follow, max-image-preview:large");
+  });
+
+  it("syncs twitter:title and twitter:description with page values", () => {
+    renderHook(
+      () => usePageMeta({ title: "Tw Title", description: "Tw Desc" }),
+      { wrapper },
+    );
+    expect(
+      document
+        .querySelector('meta[name="twitter:title"]')
+        ?.getAttribute("content"),
+    ).toBe("Tw Title");
+    expect(
+      document
+        .querySelector('meta[name="twitter:description"]')
+        ?.getAttribute("content"),
+    ).toBe("Tw Desc");
   });
 
   it("updates existing meta tags instead of creating duplicates", () => {
@@ -137,8 +160,6 @@ describe("usePageMeta", () => {
     expect(ogUrl?.getAttribute("content")).toBe("https://jobber-app.com/test");
 
     const canonical = document.querySelector('link[rel="canonical"]');
-    expect(canonical?.getAttribute("href")).toBe(
-      "https://jobber-app.com/test",
-    );
+    expect(canonical?.getAttribute("href")).toBe("https://jobber-app.com/test");
   });
 });

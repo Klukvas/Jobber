@@ -31,7 +31,7 @@ export default function CoverLettersPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  usePageMeta({ titleKey: "coverLetter.title" });
+  usePageMeta({ titleKey: "coverLetter.title", noindex: true });
 
   const { canCreate } = useSubscription();
   const limitReached = !canCreate("cover_letters");

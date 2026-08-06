@@ -1,16 +1,21 @@
 # Jobber
-> Job application tracking platform
+> AI-powered job application tracker
 
 Jobber helps job seekers organize their job search with a Kanban-style board,
-company management, resume tracking, application stages, and analytics.
+company management, an AI resume builder, an AI cover letter generator,
+application stages, and analytics.
 
 ## Features
-- Track job applications across customizable stages
+- Track job applications across customizable stages on a Kanban board
 - Manage companies and contacts
-- Store multiple resumes
-- Analytics dashboard with insights
-- Multi-language support (English, Ukrainian)
+- Build ATS-friendly resumes with AI suggestions and PDF export
+- Generate tailored cover letters with AI
+- Analytics dashboard with job search insights
+- Multi-language support (English, Russian, Ukrainian)
 
 ## Links
-- Homepage: https://jobber-app
-- Blog: https://jobber-app/blog
+- Homepage: https://jobber-app.com/
+- Application tracker: https://jobber-app.com/features/applications
+- Resume builder: https://jobber-app.com/features/resume-builder
+- Cover letters: https://jobber-app.com/features/cover-letters
+- Blog: https://jobber-app.com/blog

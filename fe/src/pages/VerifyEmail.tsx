@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { authService } from "@/services/authService";
+import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 
@@ -9,6 +10,7 @@ type Status = "loading" | "success" | "error";
 
 export default function VerifyEmail() {
   const { t } = useTranslation();
+  usePageMeta({ noindex: true });
   const [searchParams] = useSearchParams();
   const email = searchParams.get("email") ?? "";
   const code = searchParams.get("code") ?? "";
