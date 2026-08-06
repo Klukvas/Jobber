@@ -1967,6 +1967,82 @@ const docTemplate = `{
                 }
             }
         },
+        "/public/shares/{token}": {
+            "get": {
+                "description": "Get the frozen stats snapshot behind a share token. No authentication.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sharing"
+                ],
+                "summary": "Get a shared snapshot (public)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Share token",
+                        "name": "token",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_sharing_model.PublicShareDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "Share not found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/public/shares/{token}/preview-html": {
+            "get": {
+                "description": "Minimal HTML with Open Graph meta for social media crawlers. Humans are redirected to the SPA share page.",
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "sharing"
+                ],
+                "summary": "OG preview page for a share (public)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Share token",
+                        "name": "token",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HTML with OG meta",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "HTML for unknown share",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/resumes": {
             "get": {
                 "security": [
@@ -2414,6 +2490,142 @@ const docTemplate = `{
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/shares": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all share links created by the caller",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sharing"
+                ],
+                "summary": "List own shares",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_sharing_model.ShareDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Freeze the caller's aggregate stats into a public snapshot and return its share link token",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sharing"
+                ],
+                "summary": "Share current analytics",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_sharing_model.ShareDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Share limit reached",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/shares/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete a share link; its public URL stops working immediately",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sharing"
+                ],
+                "summary": "Revoke a share",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Share ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Share not found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
                         }
                     }
                 }
@@ -3589,6 +3801,94 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_sharing_model.FunnelStageSnapshot": {
+            "type": "object",
+            "properties": {
+                "conversion_rate": {
+                    "type": "number"
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "drop_off_rate": {
+                    "type": "number"
+                },
+                "stage_name": {
+                    "type": "string"
+                },
+                "stage_order": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_sharing_model.OverviewSnapshot": {
+            "type": "object",
+            "properties": {
+                "active_applications": {
+                    "type": "integer"
+                },
+                "avg_days_to_first_response": {
+                    "type": "number"
+                },
+                "closed_applications": {
+                    "type": "integer"
+                },
+                "response_rate": {
+                    "type": "number"
+                },
+                "total_applications": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_sharing_model.PublicShareDTO": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "snapshot": {
+                    "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_sharing_model.StatsSnapshot"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_sharing_model.ShareDTO": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "snapshot": {
+                    "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_sharing_model.StatsSnapshot"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_sharing_model.StatsSnapshot": {
+            "type": "object",
+            "properties": {
+                "funnel": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_sharing_model.FunnelStageSnapshot"
+                    }
+                },
+                "generated_at": {
+                    "type": "string"
+                },
+                "overview": {
+                    "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_sharing_model.OverviewSnapshot"
+                },
+                "schema_version": {
+                    "type": "integer"
                 }
             }
         },

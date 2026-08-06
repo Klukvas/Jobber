@@ -898,6 +898,34 @@
       "conversionRate": "Conversion Rate"
     }
   },
+  "sharing": {
+    "shareButton": "Share",
+    "modalTitle": "Share your stats",
+    "modalDescription": "Publish a read-only snapshot of your job search stats. Anyone with the link can view it.",
+    "whatWillBeShared": "What will be published",
+    "privacyNote": "Aggregate numbers only — no company names, resume titles or sources.",
+    "createButton": "Create share link",
+    "linkReady": "Your link is ready",
+    "linkCopied": "Link copied to clipboard",
+    "copyFailed": "Failed to copy the link",
+    "snapshotNote": "The snapshot is frozen at creation — future changes won't affect published links.",
+    "existingShares": "Your share links",
+    "noShares": "No share links yet",
+    "revoked": "Share link revoked",
+    "revokeError": "Failed to revoke the link",
+    "createError": "Failed to create share link",
+    "limitReached": "Share link limit reached. Revoke an old link to create a new one.",
+    "public": {
+      "title": "Job Search Stats",
+      "sharedOn": "Shared on {{date}}",
+      "notFoundTitle": "Link not found",
+      "notFoundDescription": "This share link does not exist or was revoked by its owner.",
+      "loadError": "Failed to load shared stats",
+      "ctaTitle": "Track your own job search with Jobber",
+      "ctaDescription": "Applications tracker, funnel analytics, resume builder and AI cover letters — free to start.",
+      "ctaButton": "Get started free"
+    }
+  },
   "resumeBuilder": {
     "title": "Resume Builder",
     "editor": "Resume Editor",

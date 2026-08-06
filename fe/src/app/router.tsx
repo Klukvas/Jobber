@@ -37,6 +37,9 @@ const CoverLettersPage = lazy(() => import("@/pages/CoverLetters"));
 const CoverLetterEditorPage = lazy(() => import("@/pages/CoverLetterEditor"));
 const NotFoundPage = lazy(() => import("@/pages/NotFound"));
 
+// Public shared-stats page (no auth; opened from links posted on social media)
+const SharedStatsPage = lazy(() => import("@/pages/SharedStats"));
+
 export const router = sentryCreateBrowserRouter([
   {
     path: "/print/resume",
@@ -119,6 +122,10 @@ export const router = sentryCreateBrowserRouter([
             element: <FeatureCoverLettersPage />,
           },
         ],
+      },
+      {
+        path: "s/:token",
+        element: <SharedStatsPage />,
       },
       {
         path: "app",
