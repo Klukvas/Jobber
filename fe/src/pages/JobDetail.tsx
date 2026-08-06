@@ -355,6 +355,8 @@ export default function JobDetail() {
     );
   }
 
+  const notesDirty = editableFields.notes !== (job.notes ?? "");
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -590,13 +592,31 @@ export default function JobDetail() {
         <CardHeader>
           <CardTitle className="text-lg">{t("jobs.notes")}</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <Textarea
             value={editableFields.notes}
             onChange={(e) => updateField("notes", e.target.value)}
             placeholder={t("jobs.notesPlaceholder")}
             className="min-h-[80px]"
           />
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={
+                !notesDirty ||
+                updateMutation.isPending ||
+                !editableFields.title.trim()
+              }
+            >
+              {updateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              {t("common.save")}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
