@@ -609,7 +609,8 @@
       "wishlist": "Wishlist",
       "applied": "Applied",
       "inProgress": "In Progress",
-      "offer": "Offer"
+      "offer": "Offer",
+      "emptyGroup": "No stages in this phase yet"
     }
   },
   "home": {

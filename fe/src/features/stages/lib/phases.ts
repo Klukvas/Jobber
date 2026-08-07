@@ -28,7 +28,9 @@ export function compareTemplates(
   return byPhase !== 0 ? byPhase : a.order - b.order;
 }
 
-// Groups templates by phase preserving pipeline order; empty phases omitted
+// Groups templates by phase preserving pipeline order. Empty phases are
+// kept — the Stages page always shows all four groups so the pipeline
+// structure stays visible.
 export function groupTemplatesByPhase(
   templates: StageTemplateDTO[],
 ): { phase: StagePhase; templates: StageTemplateDTO[] }[] {
@@ -37,5 +39,5 @@ export function groupTemplatesByPhase(
     templates: templates
       .filter((tpl) => tpl.phase === phase)
       .sort((a, b) => a.order - b.order),
-  })).filter((group) => group.templates.length > 0);
+  }));
 }

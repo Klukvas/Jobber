@@ -21,11 +21,9 @@ import {
   DialogFooter,
 } from "@/shared/ui/Dialog";
 import { StageTemplateListSkeleton } from "@/shared/ui/PageSkeleton";
-import { EmptyState } from "@/shared/ui/EmptyState";
 import { ErrorState } from "@/shared/ui/ErrorState";
 import {
   Plus,
-  ListOrdered,
   Trash2,
   Edit2,
   Check,
@@ -64,6 +62,9 @@ export default function StageTemplates() {
   const queryClient = useQueryClient();
   const dateLocale = useDateLocale();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createPhase, setCreatePhase] = useState<StagePhase | undefined>(
+    undefined,
+  );
   const [editingTemplate, setEditingTemplate] =
     useState<StageTemplateDTO | null>(null);
   const [deletingTemplate, setDeletingTemplate] =
@@ -171,7 +172,12 @@ export default function StageTemplates() {
             {t("stages.description")}
           </p>
         </div>
-        <Button onClick={() => setIsCreateModalOpen(true)}>
+        <Button
+          onClick={() => {
+            setCreatePhase(undefined);
+            setIsCreateModalOpen(true);
+          }}
+        >
           <Plus className="h-4 w-4" />
           {t("stages.create")}
         </Button>
@@ -228,26 +234,32 @@ export default function StageTemplates() {
         </CardContent>
       </Card>
 
-      {/* User's Stage Templates */}
-      {stages.length === 0 ? (
-        <EmptyState
-          icon={<ListOrdered className="h-12 w-12" />}
-          title={t("stages.noStages")}
-          description={t("stages.noStagesDescription")}
-          action={
-            <Button onClick={() => setIsCreateModalOpen(true)}>
-              <Plus className="h-4 w-4" />
-              {t("stages.create")}
-            </Button>
-          }
-        />
-      ) : (
+      {/* User's Stage Templates — all four phase groups, empty ones included */}
+      {(
         <div className="space-y-6">
           {phaseGroups.map((group) => (
             <div key={group.phase} className="space-y-3">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                 {t(PHASE_LABEL_KEYS[group.phase])}
               </h2>
+              {group.templates.length === 0 && (
+                <div className="flex items-center justify-between rounded-lg border border-dashed px-4 py-3">
+                  <p className="text-sm text-muted-foreground">
+                    {t("stages.phase.emptyGroup")}
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setCreatePhase(group.phase);
+                      setIsCreateModalOpen(true);
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                    {t("stages.create")}
+                  </Button>
+                </div>
+              )}
               {group.templates.map((stage) => (
             <Card key={stage.id}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
@@ -296,6 +308,7 @@ export default function StageTemplates() {
       <CreateStageTemplateModal
         open={isCreateModalOpen}
         onOpenChange={setIsCreateModalOpen}
+        initialPhase={createPhase}
       />
 
       <EditStageTemplateModal

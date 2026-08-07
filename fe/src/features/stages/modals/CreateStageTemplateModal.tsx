@@ -24,17 +24,30 @@ import type { StagePhase } from "@/shared/types/api";
 interface CreateStageTemplateModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Phase preselected when the modal opens (e.g. from an empty group CTA) */
+  initialPhase?: StagePhase;
 }
 
 export function CreateStageTemplateModal({
   open,
   onOpenChange,
+  initialPhase,
 }: CreateStageTemplateModalProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [order, setOrder] = useState("");
-  const [phase, setPhase] = useState<StagePhase>("in_progress");
+  const [phase, setPhase] = useState<StagePhase>(initialPhase ?? "in_progress");
+  const [prevOpen, setPrevOpen] = useState(open);
+
+  // Sync the preselected phase on each open (render-time state adjustment —
+  // the set-state-in-effect lint rule forbids the effect version)
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) {
+      setPhase(initialPhase ?? "in_progress");
+    }
+  }
 
   const createMutation = useMutation({
     mutationFn: stageTemplatesService.create,
