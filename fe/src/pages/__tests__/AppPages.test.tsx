@@ -355,9 +355,14 @@ describe("StageTemplates", () => {
     expect(screen.getByText("stages.title")).toBeInTheDocument();
   });
 
-  it("shows empty state when no data", () => {
+  it("shows all four phase groups with empty placeholders when no data", () => {
     render(<StageTemplates />);
-    expect(screen.getByText("stages.noStages")).toBeInTheDocument();
+    // all phase headers render even with zero templates
+    expect(screen.getByText("stages.phase.wishlist")).toBeInTheDocument();
+    expect(screen.getByText("stages.phase.applied")).toBeInTheDocument();
+    expect(screen.getByText("stages.phase.inProgress")).toBeInTheDocument();
+    expect(screen.getByText("stages.phase.offer")).toBeInTheDocument();
+    expect(screen.getAllByText("stages.phase.emptyGroup")).toHaveLength(4);
   });
 
   it("shows create button", () => {
