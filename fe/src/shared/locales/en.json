@@ -612,7 +612,10 @@
       "offer": "Offer",
       "emptyGroup": "No stages in this phase yet",
       "rejected": "Rejected"
-    }
+    },
+    "researching": "Researching",
+    "followedUp": "Followed up",
+    "requestedFeedback": "Requested feedback"
   },
   "home": {
     "nav": {
