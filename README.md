@@ -342,13 +342,15 @@ make test-coverage
 
 - **Authentication** - JWT-based registration/login with access + refresh tokens
 - **Company Management** - Track companies with derived stats (active apps, last activity)
-- **Job Management** - Save job postings with Kanban board (drag-and-drop) and grid views
+- **Job Management** - Save job postings with a unified Kanban board (drag-and-drop) and grid views
+- **Pipeline Phases** - Five fixed phases (Wishlist → Applied → In Progress → Offer → Rejected) that contain user-defined stages; a card's status is derived from its position on the board
 - **Resume Management** - Multiple resume versions with S3 file storage
 - **Application Tracking** - Core feature: link job + resume, track through interview pipeline
-- **Stage Templates** - Customizable interview stage definitions
+- **Stage Templates** - Customizable interview stage definitions, each assigned to a phase
 - **Comments** - Append-only notes on applications and stages
 - **Timeline** - Visual history of application progress
-- **Analytics** - Dashboard with pipeline stats and conversion metrics
+- **Analytics** - Dashboard with pipeline stats (incl. rejected count) and conversion metrics
+- **Stats Sharing** - Publish a read-only snapshot of your job-search stats via a public `/s/{token}` link (aggregates only, `noindex`, revocable)
 - **Job Import** - Import jobs from LinkedIn, Indeed, DOU by URL (JSON-LD + Claude AI fallback)
 - **AI Match Score** - Resume-to-job matching with Claude Haiku (score, categories, missing keywords)
 - **Subscriptions** - Free/Pro/Enterprise plans with Paddle integration
@@ -491,6 +493,8 @@ Fully implemented — users can connect Google Calendar in Settings and schedule
 1. Google Cloud Console → OAuth consent screen → **Publish App**
 2. Set `FEATURES.GOOGLE_CALENDAR = true` in `fe/src/shared/lib/features.ts`
 3. Deploy
+
+See [docs/FEATURES.md](docs/FEATURES.md) for the full feature-flag reference (including `UNIFIED_BOARD`).
 
 ---
 
