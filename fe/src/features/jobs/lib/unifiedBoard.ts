@@ -43,15 +43,15 @@ export function buildUnifiedColumns(
   const byPhase = (phase: StagePhase) =>
     templates
       .filter((tpl) => tpl.phase === phase)
-      .sort((a, b) => phaseRank(a.phase) - phaseRank(b.phase) || a.order - b.order)
-      .map(
-        (tpl): UnifiedColumn => ({
-          id: stageColumnId(tpl),
-          kind: "stage",
-          phase: tpl.phase,
-          template: tpl,
-        }),
-      );
+      .sort(
+        (a, b) => phaseRank(a.phase) - phaseRank(b.phase) || a.order - b.order,
+      )
+      .map((tpl): UnifiedColumn => ({
+        id: stageColumnId(tpl),
+        kind: "stage",
+        phase: tpl.phase,
+        template: tpl,
+      }));
 
   const columns: UnifiedColumn[] = [
     {
@@ -82,6 +82,7 @@ export function buildUnifiedColumns(
       phase: "rejected",
       labelKey: UNIFIED_PHASE_LABEL_KEYS.rejected,
     },
+    ...byPhase("rejected"),
   ];
 
   if (showArchived) {
@@ -111,7 +112,9 @@ export function placeJob(
     case "archived":
       return phaseColumnId("archived"); // rendered only when the filter is on
     case "rejected":
-      return phaseColumnId("rejected");
+      return currentTemplate?.phase === "rejected"
+        ? stageColumnId(currentTemplate)
+        : phaseColumnId("rejected");
     case "saved":
       return currentTemplate?.phase === "wishlist"
         ? stageColumnId(currentTemplate)
@@ -142,7 +145,7 @@ export function columnMoveTarget(column: UnifiedColumn): MoveTarget | null {
   if (column.kind === "phase" && column.phase !== "archived") {
     return {
       type: "phase",
-      phase: column.phase as StagePhase | "rejected",
+      phase: column.phase as StagePhase,
     };
   }
   return null;
@@ -151,16 +154,14 @@ export function columnMoveTarget(column: UnifiedColumn): MoveTarget | null {
 // Legacy dedup: users whose old templates mirror base columns (an "Applied"
 // stage in the applied phase) would see two identical columns. An EMPTY base
 // column is hidden when its phase already has stage columns; it reappears as
-// soon as a card lands in the "no stage" state. Rejected/Archived never hide.
+// soon as a card lands in the "no stage" state. Archived never hides.
 export function shouldHideBase(
   column: UnifiedColumn,
   jobCount: number,
   allColumns: UnifiedColumn[],
 ): boolean {
   if (column.kind !== "phase") return false;
-  if (column.phase === "rejected" || column.phase === "archived") return false;
+  if (column.phase === "archived") return false;
   if (jobCount > 0) return false;
-  return allColumns.some(
-    (c) => c.kind === "stage" && c.phase === column.phase,
-  );
+  return allColumns.some((c) => c.kind === "stage" && c.phase === column.phase);
 }

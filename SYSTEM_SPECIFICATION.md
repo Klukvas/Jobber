@@ -347,7 +347,7 @@ Jobber is a **job application tracking platform** that provides centralized mana
 - `user_id` (owner)
 - `name` (e.g., "HR Screen", "Technical Interview")
 - `order` (suggested sequence, scoped within a phase)
-- `phase` (fixed system phase the stage belongs to: `wishlist | applied | in_progress | offer`; default `in_progress`. `rejected` is terminal and never carries stages. Migration 000036; backfill: order=1 → applied, name ILIKE 'offer%' → offer, else in_progress)
+- `phase` (fixed system phase the stage belongs to: `wishlist | applied | in_progress | offer | rejected`; default `in_progress`. Migration 000036 added the column; 000037 added `rejected` as a full phase. Backfill: order=1 → applied, name ILIKE 'offer%' → offer, else in_progress)
 
 **Relationships:**
 - Belongs to: User
@@ -358,6 +358,7 @@ Jobber is a **job application tracking platform** that provides centralized mana
 - Reusable across multiple applications
 - Cannot delete if referenced by active application stages
 - Phases themselves are system-fixed and not user-editable
+- All five phases (including rejected) can carry stages — the phases mirror the full application lifecycle
 
 **Phases & the unified board:** phases give users a single mental axis. The
 board renders base columns Wishlist/Applied/Offer/Rejected (always) plus the

@@ -25,6 +25,7 @@ const templates: StageTemplateDTO[] = [
   tpl("t-tech", "Technical Interview", 2, "in_progress"),
   tpl("t-nego", "Negotiating", 1, "offer"),
   tpl("t-research", "Researching", 1, "wishlist"),
+  tpl("t-feedback", "Requested feedback", 1, "rejected"),
 ];
 
 const job = (over: Partial<JobDTO>): JobDTO =>
@@ -50,6 +51,7 @@ describe("buildUnifiedColumns", () => {
       "phase:offer",
       "stage:t-nego",
       "phase:rejected",
+      "stage:t-feedback",
     ]);
   });
 
@@ -70,9 +72,14 @@ describe("buildUnifiedColumns", () => {
 });
 
 describe("placeJob", () => {
-  it("terminal statuses win over the current stage", () => {
+  it("rejected without a rejected-phase stage lands in the Rejected base", () => {
     const j = job({ status: "rejected", current_stage_name: "Screening" });
     expect(placeJob(j, templates)).toBe("phase:rejected");
+  });
+
+  it("rejected with a rejected-phase stage stands on it", () => {
+    const j = job({ status: "rejected", current_stage_name: "Requested feedback" });
+    expect(placeJob(j, templates)).toBe("stage:t-feedback");
   });
 
   it("active job stands on its stage column", () => {

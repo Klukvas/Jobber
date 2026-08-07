@@ -440,7 +440,8 @@
       "applied": "Подано",
       "inProgress": "В процесі",
       "offer": "Офер",
-      "emptyGroup": "У цій фазі поки немає етапів"
+      "emptyGroup": "У цій фазі поки немає етапів",
+      "rejected": "Відмова"
     }
   },
   "settings": {
