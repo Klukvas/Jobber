@@ -3683,6 +3683,7 @@
                 "applied",
                 "in_progress",
                 "offer",
+                "rejected",
                 "in_progress"
             ],
             "x-enum-varnames": [
@@ -3690,6 +3691,7 @@
                 "PhaseApplied",
                 "PhaseInProgress",
                 "PhaseOffer",
+                "PhaseRejected",
                 "DefaultPhase"
             ]
         },

@@ -6,6 +6,7 @@ export const PHASE_LABEL_KEYS: Record<StagePhase, string> = {
   applied: "stages.phase.applied",
   in_progress: "stages.phase.inProgress",
   offer: "stages.phase.offer",
+  rejected: "stages.phase.rejected",
 };
 
 const PHASE_RANK: Record<StagePhase, number> = {
@@ -13,6 +14,7 @@ const PHASE_RANK: Record<StagePhase, number> = {
   applied: 1,
   in_progress: 2,
   offer: 3,
+  rejected: 4,
 };
 
 export function phaseRank(phase: StagePhase): number {

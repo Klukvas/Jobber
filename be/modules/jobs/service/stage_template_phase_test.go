@@ -95,7 +95,7 @@ func TestCreateStageTemplate_Phase(t *testing.T) {
 
 		dto, err := svc.CreateStageTemplate(context.Background(), userID, &model.CreateStageTemplateRequest{
 			Name:  "Ghosted",
-			Phase: model.Phase("rejected"), // terminal — never a template phase
+			Phase: model.Phase("archived"), // not a template phase
 		})
 
 		assert.Nil(t, dto)

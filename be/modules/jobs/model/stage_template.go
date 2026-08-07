@@ -3,7 +3,7 @@ package model
 import "time"
 
 // Phase is a fixed, system-defined pipeline zone that contains user stages.
-// Rejected is terminal and never carries stages, so it is not a phase here.
+// The five phases mirror the whole application lifecycle.
 type Phase string
 
 const (
@@ -11,6 +11,7 @@ const (
 	PhaseApplied    Phase = "applied"
 	PhaseInProgress Phase = "in_progress"
 	PhaseOffer      Phase = "offer"
+	PhaseRejected   Phase = "rejected"
 )
 
 // DefaultPhase is applied when a template is created without an explicit
@@ -24,6 +25,7 @@ var PhaseRank = map[Phase]int{
 	PhaseApplied:    1,
 	PhaseInProgress: 2,
 	PhaseOffer:      3,
+	PhaseRejected:   4,
 }
 
 func IsValidPhase(p Phase) bool {
@@ -40,6 +42,8 @@ func StatusForPhase(p Phase) JobStatus {
 		return StatusSaved
 	case PhaseOffer:
 		return StatusOffer
+	case PhaseRejected:
+		return StatusRejected
 	default:
 		return StatusApplied
 	}

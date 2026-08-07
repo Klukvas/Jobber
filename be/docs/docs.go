@@ -3689,6 +3689,7 @@ const docTemplate = `{
                 "applied",
                 "in_progress",
                 "offer",
+                "rejected",
                 "in_progress"
             ],
             "x-enum-varnames": [
@@ -3696,6 +3697,7 @@ const docTemplate = `{
                 "PhaseApplied",
                 "PhaseInProgress",
                 "PhaseOffer",
+                "PhaseRejected",
                 "DefaultPhase"
             ]
         },

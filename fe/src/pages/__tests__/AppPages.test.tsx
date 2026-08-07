@@ -362,7 +362,8 @@ describe("StageTemplates", () => {
     expect(screen.getByText("stages.phase.applied")).toBeInTheDocument();
     expect(screen.getByText("stages.phase.inProgress")).toBeInTheDocument();
     expect(screen.getByText("stages.phase.offer")).toBeInTheDocument();
-    expect(screen.getAllByText("stages.phase.emptyGroup")).toHaveLength(4);
+    expect(screen.getByText("stages.phase.rejected")).toBeInTheDocument();
+    expect(screen.getAllByText("stages.phase.emptyGroup")).toHaveLength(5);
   });
 
   it("shows create button", () => {

@@ -610,7 +610,8 @@
       "applied": "Applied",
       "inProgress": "In Progress",
       "offer": "Offer",
-      "emptyGroup": "No stages in this phase yet"
+      "emptyGroup": "No stages in this phase yet",
+      "rejected": "Rejected"
     }
   },
   "home": {

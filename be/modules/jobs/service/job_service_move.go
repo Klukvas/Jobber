@@ -11,12 +11,8 @@ import (
 )
 
 // movePhaseStatus maps a phase-target of a unified-board move to the derived
-// job status. "rejected" is a valid move target (terminal board column) even
-// though it is never a template phase.
+// job status.
 func movePhaseStatus(phase model.Phase) (string, error) {
-	if phase == model.Phase(model.StatusRejected) {
-		return string(model.StatusRejected), nil
-	}
 	if !model.IsValidPhase(phase) {
 		return "", model.ErrInvalidPhase
 	}

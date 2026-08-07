@@ -445,6 +445,7 @@ definitions:
     - applied
     - in_progress
     - offer
+    - rejected
     - in_progress
     type: string
     x-enum-varnames:
@@ -452,6 +453,7 @@ definitions:
     - PhaseApplied
     - PhaseInProgress
     - PhaseOffer
+    - PhaseRejected
     - DefaultPhase
   github_com_andreypavlenko_jobber_modules_jobs_model.ResumeNestedDTO:
     properties:
