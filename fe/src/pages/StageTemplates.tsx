@@ -22,20 +22,17 @@ import {
 } from "@/shared/ui/Dialog";
 import { StageTemplateListSkeleton } from "@/shared/ui/PageSkeleton";
 import { ErrorState } from "@/shared/ui/ErrorState";
-import {
-  Plus,
-  Trash2,
-  Edit2,
-  Check,
-  Sparkles,
-  Loader2,
-} from "lucide-react";
+import { Plus, Trash2, Edit2, Check, Sparkles, Loader2 } from "lucide-react";
 import { CreateStageTemplateModal } from "@/features/stages/modals/CreateStageTemplateModal";
 import { EditStageTemplateModal } from "@/features/stages/modals/EditStageTemplateModal";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { showErrorNotification } from "@/shared/lib/notifications";
 import { ApiError } from "@/services/api";
-import type { StagePhase, StageTemplateDTO } from "@/shared/types/api";
+import {
+  STAGE_PHASES,
+  type StagePhase,
+  type StageTemplateDTO,
+} from "@/shared/types/api";
 import {
   PHASE_LABEL_KEYS,
   groupTemplatesByPhase,
@@ -49,12 +46,22 @@ const RECOMMENDED_STAGES: {
   order: number;
   phase: StagePhase;
 }[] = [
+  { nameKey: "stages.researching", order: 1, phase: "wishlist" },
+  { nameKey: "stages.followedUp", order: 1, phase: "applied" },
   { nameKey: "stages.phoneScreen", order: 1, phase: "in_progress" },
   { nameKey: "stages.technicalInterview", order: 2, phase: "in_progress" },
   { nameKey: "stages.onsiteInterview", order: 3, phase: "in_progress" },
   { nameKey: "stages.hrInterview", order: 4, phase: "in_progress" },
   { nameKey: "stages.negotiating", order: 1, phase: "offer" },
+  { nameKey: "stages.requestedFeedback", order: 1, phase: "rejected" },
 ];
+
+// Recommendations grouped by phase, in pipeline order — mirrors the layout
+// of the user's own stage groups below so it's clear where each chip lands.
+const RECOMMENDED_BY_PHASE = STAGE_PHASES.map((phase) => ({
+  phase,
+  items: RECOMMENDED_STAGES.filter((rec) => rec.phase === phase),
+})).filter((group) => group.items.length > 0);
 
 export default function StageTemplates() {
   usePageMeta({ titleKey: "nav.stages", noindex: true });
@@ -207,35 +214,42 @@ export default function StageTemplates() {
             {t("stages.recommendedDescription")}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {RECOMMENDED_STAGES.map((rec) => {
-              const added = isRecommendedAdded(rec.nameKey);
-              return (
-                <Button
-                  key={rec.nameKey}
-                  variant={added ? "secondary" : "outline"}
-                  size="sm"
-                  disabled={added || createMutation.isPending}
-                  onClick={() =>
-                    handleAddRecommended(rec.nameKey, rec.order, rec.phase)
-                  }
-                >
-                  {added ? (
-                    <Check className="h-4 w-4" />
-                  ) : (
-                    <Plus className="h-4 w-4" />
-                  )}
-                  {t(rec.nameKey)}
-                </Button>
-              );
-            })}
-          </div>
+        <CardContent className="space-y-4">
+          {RECOMMENDED_BY_PHASE.map((group) => (
+            <div key={group.phase} className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t(PHASE_LABEL_KEYS[group.phase])}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {group.items.map((rec) => {
+                  const added = isRecommendedAdded(rec.nameKey);
+                  return (
+                    <Button
+                      key={rec.nameKey}
+                      variant={added ? "secondary" : "outline"}
+                      size="sm"
+                      disabled={added || createMutation.isPending}
+                      onClick={() =>
+                        handleAddRecommended(rec.nameKey, rec.order, rec.phase)
+                      }
+                    >
+                      {added ? (
+                        <Check className="h-4 w-4" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
+                      {t(rec.nameKey)}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </CardContent>
       </Card>
 
       {/* User's Stage Templates — all four phase groups, empty ones included */}
-      {(
+      {
         <div className="space-y-6">
           {phaseGroups.map((group) => (
             <div key={group.phase} className="space-y-3">
@@ -261,49 +275,49 @@ export default function StageTemplates() {
                 </div>
               )}
               {group.templates.map((stage) => (
-            <Card key={stage.id}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                    {stage.order}
-                  </div>
-                  <CardTitle className="text-lg">{stage.name}</CardTitle>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setEditingTemplate(stage)}
-                    aria-label={t("common.edit")}
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(stage)}
-                    disabled={deleteMutation.isPending}
-                    aria-label={t("common.delete")}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0 pb-3">
-                <p className="text-sm text-muted-foreground">
-                  {t("stages.created", {
-                    date: format(new Date(stage.created_at), "PP", {
-                      locale: dateLocale,
-                    }),
-                  })}
-                </p>
-              </CardContent>
-            </Card>
+                <Card key={stage.id}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                        {stage.order}
+                      </div>
+                      <CardTitle className="text-lg">{stage.name}</CardTitle>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setEditingTemplate(stage)}
+                        aria-label={t("common.edit")}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(stage)}
+                        disabled={deleteMutation.isPending}
+                        aria-label={t("common.delete")}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0 pb-3">
+                    <p className="text-sm text-muted-foreground">
+                      {t("stages.created", {
+                        date: format(new Date(stage.created_at), "PP", {
+                          locale: dateLocale,
+                        }),
+                      })}
+                    </p>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           ))}
         </div>
-      )}
+      }
 
       <CreateStageTemplateModal
         open={isCreateModalOpen}

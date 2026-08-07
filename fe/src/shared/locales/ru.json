@@ -612,7 +612,10 @@
       "offer": "Оффер",
       "emptyGroup": "В этой фазе пока нет этапов",
       "rejected": "Отказ"
-    }
+    },
+    "researching": "Изучаю",
+    "followedUp": "Напомнил о себе",
+    "requestedFeedback": "Запросил фидбек"
   },
   "home": {
     "nav": {
