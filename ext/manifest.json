@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Jobber - Smart Job Saver",
-  "version": "1.1.0",
-  "description": "Save job postings from any website into Jobber with one click. AI-powered parsing.",
+  "version": "1.1.1",
+  "description": "Save jobs from any site to Jobber in one click — AI parsing, resume-to-job match score, and one-tap application autofill.",
   "permissions": [
     "activeTab",
     "storage",
