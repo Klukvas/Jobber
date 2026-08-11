@@ -256,7 +256,10 @@ export default function JobsPage() {
 
   const jobs = data?.items || [];
   const pagination = data?.pagination;
-  const isFiltered = statusFilter !== "";
+  // An active search is also a "filter": without this, a search with no matches
+  // falls through to the first-run onboarding empty state (and hides the search
+  // box entirely), instead of showing a "no results" message.
+  const isFiltered = statusFilter !== "" || debouncedSearch !== "";
 
   return (
     <div className="space-y-6">
@@ -430,9 +433,36 @@ export default function JobsPage() {
 
           {jobs.length === 0 ? (
             <EmptyState
-              icon={<Briefcase className="h-12 w-12" />}
-              title={t("jobs.noJobsForFilter")}
-              description={t("jobs.tryAnotherFilter")}
+              icon={
+                debouncedSearch ? (
+                  <Search className="h-12 w-12" />
+                ) : (
+                  <Briefcase className="h-12 w-12" />
+                )
+              }
+              title={
+                debouncedSearch
+                  ? t("jobs.noSearchResults", { query: debouncedSearch })
+                  : t("jobs.noJobsForFilter")
+              }
+              description={
+                debouncedSearch
+                  ? t("jobs.noSearchResultsHint")
+                  : t("jobs.tryAnotherFilter")
+              }
+              action={
+                debouncedSearch ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSearchInput("");
+                      setPage(0);
+                    }}
+                  >
+                    {t("jobs.clearSearch")}
+                  </Button>
+                ) : undefined
+              }
             />
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
