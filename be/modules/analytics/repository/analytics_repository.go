@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"math"
 
 	"github.com/andreypavlenko/jobber/modules/analytics/model"
 	"github.com/jackc/pgx/v5"
@@ -100,86 +101,64 @@ func (r *AnalyticsRepository) GetOverview(ctx context.Context, userID string) (*
 	return analytics, nil
 }
 
-// GetFunnel returns stage-based funnel metrics.
+// Fixed pipeline phases, in funnel order. Rejection is terminal (reported
+// separately by getRejectedSummary), so it is not one of these buckets.
+var funnelPhases = []struct {
+	key   string
+	order int
+}{
+	{"applied", 1},
+	{"in_progress", 2},
+	{"offer", 3},
+}
+
+// GetFunnel returns the phase-based application funnel.
 //
-// The first "Applied" bucket is derived directly from job cards
-// (applied_at IS NOT NULL): every application counts even when the user has
-// not tracked any pipeline stages for it, and it does not depend on stage
-// templates existing. Later buckets come from stage templates with order > 1
-// (the same "got a response" convention used by response_rate and sources).
+// Buckets are the fixed pipeline phases (Applied → In Progress → Offer). A job
+// "reaches" a phase when its current status maps to that phase or higher, or
+// when it recorded a stage whose template belongs to that phase — so progress
+// still counts for jobs that were later rejected. The In Progress phase carries
+// a drill-down of the user's own in-progress stage templates. Rejection is a
+// terminal status, reported separately (getRejectedSummary), not as a bucket.
 func (r *AnalyticsRepository) GetFunnel(ctx context.Context, userID string) (*model.FunnelAnalytics, error) {
-	query := `
-		WITH applied_total AS (
-			SELECT COUNT(*) AS app_count
-			FROM jobs
-			WHERE user_id = $1 AND applied_at IS NOT NULL
+	const phaseQuery = `
+		WITH applied_jobs AS (
+			SELECT j.id, j.status
+			FROM jobs j
+			WHERE j.user_id = $1 AND j.applied_at IS NOT NULL
 		),
-		template_counts AS (
+		job_reach AS (
 			SELECT
-				st.name AS stage_name,
-				st."order" AS stage_order,
-				COUNT(DISTINCT j.id) AS app_count
-			FROM stage_templates st
-			LEFT JOIN job_stages js ON js.stage_template_id = st.id
-			LEFT JOIN jobs j ON j.id = js.job_id AND j.user_id = $1 AND j.applied_at IS NOT NULL
-			WHERE st.user_id = $1 AND st."order" > 1
-			GROUP BY st.id, st.name, st."order"
-		),
-		combined AS (
-			SELECT 'Applied' AS stage_name, 1 AS stage_order, app_count
-			FROM applied_total
-			WHERE app_count > 0
-			UNION ALL
-			SELECT stage_name, stage_order, app_count
-			FROM template_counts
-		),
-		ordered_stages AS (
-			SELECT
-				stage_name,
-				stage_order,
-				app_count,
-				LAG(app_count) OVER (ORDER BY stage_order) AS prev_count
-			FROM combined
+				aj.id,
+				GREATEST(
+					1,
+					CASE aj.status WHEN 'offer' THEN 3 WHEN 'on_hold' THEN 2 ELSE 1 END,
+					COALESCE(MAX(CASE st.phase WHEN 'offer' THEN 3 WHEN 'in_progress' THEN 2 ELSE 1 END), 1)
+				) AS reached
+			FROM applied_jobs aj
+			LEFT JOIN job_stages js ON js.job_id = aj.id
+			LEFT JOIN stage_templates st ON st.id = js.stage_template_id
+			GROUP BY aj.id, aj.status
 		)
 		SELECT
-			stage_name,
-			stage_order,
-			app_count,
-			CASE
-				WHEN prev_count IS NULL OR prev_count = 0 THEN 100.0
-				ELSE ROUND((app_count::numeric / prev_count) * 100, 2)
-			END AS conversion_rate,
-			CASE
-				WHEN prev_count IS NULL THEN 0.0
-				WHEN prev_count = 0 THEN 0.0
-				ELSE ROUND(((prev_count - app_count)::numeric / prev_count) * 100, 2)
-			END AS drop_off_rate
-		FROM ordered_stages
-		ORDER BY stage_order
+			COUNT(*) AS applied,
+			COUNT(*) FILTER (WHERE reached >= 2) AS in_progress,
+			COUNT(*) FILTER (WHERE reached >= 3) AS offer
+		FROM job_reach
 	`
 
-	rows, err := r.pool.Query(ctx, query, userID)
-	if err != nil {
+	var applied, inProgress, offer int
+	if err := r.pool.QueryRow(ctx, phaseQuery, userID).Scan(&applied, &inProgress, &offer); err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var stages []model.FunnelStage
-	for rows.Next() {
-		var stage model.FunnelStage
-		if err := rows.Scan(
-			&stage.StageName,
-			&stage.StageOrder,
-			&stage.Count,
-			&stage.ConversionRate,
-			&stage.DropOffRate,
-		); err != nil {
-			return nil, err
-		}
-		stages = append(stages, stage)
+	// No applications → empty funnel (the frontend shows an empty state).
+	if applied == 0 {
+		return &model.FunnelAnalytics{}, nil
 	}
 
-	if err := rows.Err(); err != nil {
+	subStages, err := r.getInProgressBreakdown(ctx, userID)
+	if err != nil {
 		return nil, err
 	}
 
@@ -188,7 +167,69 @@ func (r *AnalyticsRepository) GetFunnel(ctx context.Context, userID string) (*mo
 		return nil, err
 	}
 
-	return &model.FunnelAnalytics{Stages: stages, Rejected: rejected}, nil
+	return &model.FunnelAnalytics{
+		Stages:   buildPhaseFunnel(applied, inProgress, offer, subStages),
+		Rejected: rejected,
+	}, nil
+}
+
+// getInProgressBreakdown lists the user's in-progress stage templates that at
+// least one applied job reached — the drill-down under the In Progress phase.
+func (r *AnalyticsRepository) getInProgressBreakdown(ctx context.Context, userID string) ([]model.FunnelStage, error) {
+	const query = `
+		SELECT st.name, st."order", COUNT(DISTINCT js.job_id) AS cnt
+		FROM stage_templates st
+		JOIN job_stages js ON js.stage_template_id = st.id
+		JOIN jobs j ON j.id = js.job_id AND j.user_id = $1 AND j.applied_at IS NOT NULL
+		WHERE st.user_id = $1 AND st.phase = 'in_progress'
+		GROUP BY st.id, st.name, st."order"
+		HAVING COUNT(DISTINCT js.job_id) > 0
+		ORDER BY st."order", st.name
+	`
+	rows, err := r.pool.Query(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var stages []model.FunnelStage
+	for rows.Next() {
+		var s model.FunnelStage
+		if err := rows.Scan(&s.StageName, &s.StageOrder, &s.Count); err != nil {
+			return nil, err
+		}
+		stages = append(stages, s)
+	}
+	return stages, rows.Err()
+}
+
+// buildPhaseFunnel turns the three phase counts into funnel buckets, computing
+// conversion/drop-off relative to the previous phase and attaching the
+// in-progress drill-down. Pure — unit-tested.
+func buildPhaseFunnel(applied, inProgress, offer int, inProgressSub []model.FunnelStage) []model.FunnelStage {
+	counts := []int{applied, inProgress, offer}
+	stages := make([]model.FunnelStage, 0, len(funnelPhases))
+	prev := 0
+	for i, p := range funnelPhases {
+		s := model.FunnelStage{StageName: p.key, StageOrder: p.order, Count: counts[i]}
+		if i == 0 || prev == 0 {
+			s.ConversionRate = 100
+			s.DropOffRate = 0
+		} else {
+			s.ConversionRate = roundRate(float64(counts[i]) / float64(prev) * 100)
+			s.DropOffRate = roundRate(float64(prev-counts[i]) / float64(prev) * 100)
+		}
+		if p.key == "in_progress" {
+			s.SubStages = inProgressSub
+		}
+		stages = append(stages, s)
+		prev = counts[i]
+	}
+	return stages
+}
+
+func roundRate(v float64) float64 {
+	return math.Round(v*100) / 100
 }
 
 // getRejectedSummary groups rejected applications by the furthest stage they

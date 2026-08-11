@@ -56,6 +56,10 @@ definitions:
         type: string
       stage_order:
         type: integer
+      sub_stages:
+        items:
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.FunnelStage'
+        type: array
     type: object
   github_com_andreypavlenko_jobber_modules_analytics_model.OverviewAnalytics:
     properties:

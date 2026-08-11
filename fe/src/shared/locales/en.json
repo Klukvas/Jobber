@@ -903,10 +903,11 @@
       "title": "Application Funnel",
       "description": "Track your progress through application stages",
       "noData": "No funnel data",
-      "noDataDescription": "Create stage templates and add stages to applications",
+      "noDataDescription": "Apply to jobs and move them through your pipeline to see the funnel",
       "converted": "converted",
       "dropOff": "drop-off",
       "rejected": "Rejected",
+      "stageBreakdown": "Stage breakdown",
       "rejectedByStage": "By furthest stage reached"
     },
     "stageTime": {

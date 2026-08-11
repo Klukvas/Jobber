@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/andreypavlenko/jobber/modules/analytics/model"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -89,8 +90,8 @@ func TestAnalyticsRepository_GetFunnel(t *testing.T) {
 	repo := NewAnalyticsRepositoryWithPool(mock)
 	userID := "user-123"
 
-	t.Run("returns error when query fails", func(t *testing.T) {
-		mock.ExpectQuery("WITH applied_total AS").
+	t.Run("returns error when the phase query fails", func(t *testing.T) {
+		mock.ExpectQuery("WITH applied_jobs AS").
 			WithArgs(userID).
 			WillReturnError(assert.AnError)
 
@@ -101,95 +102,58 @@ func TestAnalyticsRepository_GetFunnel(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("returns funnel stages successfully", func(t *testing.T) {
-		rows := pgxmock.NewRows([]string{
-			"stage_name",
-			"stage_order",
-			"app_count",
-			"conversion_rate",
-			"drop_off_rate",
-		}).
-			AddRow("Applied", 1, 100, 100.0, 0.0).
-			AddRow("Phone Screen", 2, 50, 50.0, 50.0).
-			AddRow("Interview", 3, 25, 50.0, 50.0).
-			AddRow("Offer", 4, 10, 40.0, 60.0)
-
-		mock.ExpectQuery("WITH applied_total AS").
+	t.Run("builds phase funnel with an in-progress drill-down", func(t *testing.T) {
+		// applied=100, in_progress=50, offer=10
+		mock.ExpectQuery("WITH applied_jobs AS").
 			WithArgs(userID).
-			WillReturnRows(rows)
+			WillReturnRows(pgxmock.NewRows([]string{"applied", "in_progress", "offer"}).
+				AddRow(100, 50, 10))
+		// in-progress drill-down
+		mock.ExpectQuery("SELECT st.name").
+			WithArgs(userID).
+			WillReturnRows(pgxmock.NewRows([]string{"name", "order", "cnt"}).
+				AddRow("HR Interview", 1, 50).
+				AddRow("Technical Interview", 2, 20))
+		// rejected summary
 		mock.ExpectQuery("WITH rejected AS").
 			WithArgs(userID).
 			WillReturnRows(pgxmock.NewRows([]string{"stage_name", "stage_order", "count"}).
-				AddRow("Applied", 1, 3).
-				AddRow("Interview", 3, 2))
+				AddRow("Applied", 1, 3))
 
 		result, err := repo.GetFunnel(context.Background(), userID)
 
 		require.NoError(t, err)
-		require.Len(t, result.Stages, 4)
+		require.Len(t, result.Stages, 3)
 
-		require.NotNil(t, result.Rejected)
-		assert.Equal(t, 5, result.Rejected.Total)
-		require.Len(t, result.Rejected.ByStage, 2)
-		assert.Equal(t, "Applied", result.Rejected.ByStage[0].StageName)
-		assert.Equal(t, 3, result.Rejected.ByStage[0].Count)
-		assert.Equal(t, "Interview", result.Rejected.ByStage[1].StageName)
-
-		assert.Equal(t, "Applied", result.Stages[0].StageName)
+		// Phase buckets carry the phase key for the frontend to localize.
+		assert.Equal(t, "applied", result.Stages[0].StageName)
 		assert.Equal(t, 100, result.Stages[0].Count)
-		assert.Equal(t, 100.0, result.Stages[0].ConversionRate)
 
-		assert.Equal(t, "Phone Screen", result.Stages[1].StageName)
+		assert.Equal(t, "in_progress", result.Stages[1].StageName)
 		assert.Equal(t, 50, result.Stages[1].Count)
 		assert.Equal(t, 50.0, result.Stages[1].ConversionRate)
 		assert.Equal(t, 50.0, result.Stages[1].DropOffRate)
+		require.Len(t, result.Stages[1].SubStages, 2)
+		assert.Equal(t, "HR Interview", result.Stages[1].SubStages[0].StageName)
+		assert.Equal(t, 50, result.Stages[1].SubStages[0].Count)
+
+		assert.Equal(t, "offer", result.Stages[2].StageName)
+		assert.Equal(t, 10, result.Stages[2].Count)
+		assert.Equal(t, 20.0, result.Stages[2].ConversionRate) // 10/50
+		assert.Empty(t, result.Stages[2].SubStages)
+
+		require.NotNil(t, result.Rejected)
+		assert.Equal(t, 3, result.Rejected.Total)
 
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("shows the Applied bucket even when the user has no stage templates", func(t *testing.T) {
-		rows := pgxmock.NewRows([]string{
-			"stage_name",
-			"stage_order",
-			"app_count",
-			"conversion_rate",
-			"drop_off_rate",
-		}).
-			AddRow("Applied", 1, 2, 100.0, 0.0)
-
-		mock.ExpectQuery("WITH applied_total AS").
+	t.Run("returns an empty funnel when there are no applications", func(t *testing.T) {
+		// applied=0 → GetFunnel short-circuits, no drill-down/rejected queries.
+		mock.ExpectQuery("WITH applied_jobs AS").
 			WithArgs(userID).
-			WillReturnRows(rows)
-		mock.ExpectQuery("WITH rejected AS").
-			WithArgs(userID).
-			WillReturnRows(pgxmock.NewRows([]string{"stage_name", "stage_order", "count"}))
-
-		result, err := repo.GetFunnel(context.Background(), userID)
-
-		require.NoError(t, err)
-		require.Len(t, result.Stages, 1)
-		assert.Nil(t, result.Rejected)
-		assert.Equal(t, "Applied", result.Stages[0].StageName)
-		assert.Equal(t, 2, result.Stages[0].Count)
-
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("returns empty stages for user without data", func(t *testing.T) {
-		rows := pgxmock.NewRows([]string{
-			"stage_name",
-			"stage_order",
-			"app_count",
-			"conversion_rate",
-			"drop_off_rate",
-		})
-
-		mock.ExpectQuery("WITH applied_total AS").
-			WithArgs(userID).
-			WillReturnRows(rows)
-		mock.ExpectQuery("WITH rejected AS").
-			WithArgs(userID).
-			WillReturnRows(pgxmock.NewRows([]string{"stage_name", "stage_order", "count"}))
+			WillReturnRows(pgxmock.NewRows([]string{"applied", "in_progress", "offer"}).
+				AddRow(0, 0, 0))
 
 		result, err := repo.GetFunnel(context.Background(), userID)
 
@@ -198,6 +162,41 @@ func TestAnalyticsRepository_GetFunnel(t *testing.T) {
 		assert.Nil(t, result.Rejected)
 
 		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestBuildPhaseFunnel(t *testing.T) {
+	t.Run("computes conversion and drop-off between phases", func(t *testing.T) {
+		stages := buildPhaseFunnel(100, 40, 10, nil)
+
+		require.Len(t, stages, 3)
+		assert.Equal(t, "applied", stages[0].StageName)
+		assert.Equal(t, 100.0, stages[0].ConversionRate)
+
+		assert.Equal(t, "in_progress", stages[1].StageName)
+		assert.Equal(t, 40.0, stages[1].ConversionRate) // 40/100
+		assert.Equal(t, 60.0, stages[1].DropOffRate)    // 60/100
+
+		assert.Equal(t, "offer", stages[2].StageName)
+		assert.Equal(t, 25.0, stages[2].ConversionRate) // 10/40
+		assert.Equal(t, 75.0, stages[2].DropOffRate)    // 30/40
+	})
+
+	t.Run("attaches the drill-down only to the in_progress phase", func(t *testing.T) {
+		sub := []model.FunnelStage{{StageName: "HR Interview", Count: 5}}
+		stages := buildPhaseFunnel(10, 5, 0, sub)
+
+		assert.Empty(t, stages[0].SubStages)
+		assert.Equal(t, sub, stages[1].SubStages)
+		assert.Empty(t, stages[2].SubStages)
+	})
+
+	t.Run("avoids divide-by-zero when the previous phase is empty", func(t *testing.T) {
+		stages := buildPhaseFunnel(0, 0, 0, nil)
+		for _, s := range stages {
+			assert.Equal(t, 100.0, s.ConversionRate)
+			assert.Equal(t, 0.0, s.DropOffRate)
+		}
 	})
 }
 

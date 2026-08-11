@@ -12,11 +12,15 @@ export interface OverviewAnalytics {
 }
 
 export interface FunnelStage {
+  // For top-level funnel buckets this is the phase key ("applied",
+  // "in_progress", "offer"); for a drill-down sub-stage it is the template name.
   stage_name: string;
   stage_order: number;
   count: number;
   conversion_rate: number;
   drop_off_rate: number;
+  // Drill-down: the in-progress phase carries the user's own interview stages.
+  sub_stages?: FunnelStage[];
 }
 
 export interface RejectedStageCount {

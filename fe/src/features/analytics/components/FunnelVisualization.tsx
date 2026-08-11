@@ -11,6 +11,15 @@ import { Skeleton } from "@/shared/ui/Skeleton";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { TrendingUp, ArrowRight, XCircle } from "lucide-react";
 
+// Top-level funnel buckets are pipeline phases; map their key to a localized
+// label. Unknown names (drill-down sub-stages, or older shared snapshots that
+// stored template names) fall back to the raw name.
+const PHASE_LABEL_KEY: Record<string, string> = {
+  applied: "stages.phase.applied",
+  in_progress: "stages.phase.inProgress",
+  offer: "stages.phase.offer",
+};
+
 export function FunnelVisualization({
   data,
   isLoading,
@@ -80,7 +89,11 @@ export function FunnelVisualization({
             return (
               <div key={stage.stage_name} className="space-y-1">
                 <div className="flex flex-col gap-0.5 text-sm sm:flex-row sm:items-center sm:justify-between">
-                  <span className="font-medium">{stage.stage_name}</span>
+                  <span className="font-medium">
+                    {PHASE_LABEL_KEY[stage.stage_name]
+                      ? t(PHASE_LABEL_KEY[stage.stage_name])
+                      : stage.stage_name}
+                  </span>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-muted-foreground">
                     <span>
                       {stage.count} {t("analytics.applications")}
@@ -110,6 +123,22 @@ export function FunnelVisualization({
                     )}
                   </div>
                 </div>
+                {stage.sub_stages && stage.sub_stages.length > 0 && (
+                  <div className="mt-1.5 space-y-1 border-l-2 border-muted pl-3">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {t("analytics.funnel.stageBreakdown")}
+                    </p>
+                    {stage.sub_stages.map((sub) => (
+                      <div
+                        key={sub.stage_name}
+                        className="flex items-center justify-between text-xs text-muted-foreground"
+                      >
+                        <span>{sub.stage_name}</span>
+                        <span>{sub.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {index < data.stages.length - 1 && (
                   <div className="flex justify-center py-1">
                     <ArrowRight className="h-4 w-4 text-muted-foreground rotate-90" />

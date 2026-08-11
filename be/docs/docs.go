@@ -3771,6 +3771,12 @@ const docTemplate = `{
                 },
                 "stage_order": {
                     "type": "integer"
+                },
+                "sub_stages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.FunnelStage"
+                    }
                 }
             }
         },

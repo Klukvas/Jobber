@@ -12,13 +12,19 @@ type OverviewAnalytics struct {
 	AvgDaysToFirstResponse float64 `json:"avg_days_to_first_response"`
 }
 
-// FunnelStage represents a single stage in the application funnel
+// FunnelStage represents one bucket of the application funnel.
+//
+// Top-level funnel buckets are the fixed pipeline PHASES — StageName carries the
+// phase key ("applied", "in_progress", "offer") for the frontend to localize.
+// SubStages is the optional drill-down: for the "in_progress" phase it lists the
+// user's own in-progress stage templates (StageName = the template name).
 type FunnelStage struct {
-	StageName      string  `json:"stage_name"`
-	StageOrder     int     `json:"stage_order"`
-	Count          int     `json:"count"`
-	ConversionRate float64 `json:"conversion_rate"`
-	DropOffRate    float64 `json:"drop_off_rate"`
+	StageName      string        `json:"stage_name"`
+	StageOrder     int           `json:"stage_order"`
+	Count          int           `json:"count"`
+	ConversionRate float64       `json:"conversion_rate"`
+	DropOffRate    float64       `json:"drop_off_rate"`
+	SubStages      []FunnelStage `json:"sub_stages,omitempty"`
 }
 
 // RejectedStageCount is how many rejected applications ended at a given
@@ -46,12 +52,12 @@ type FunnelAnalytics struct {
 
 // StageTimeMetrics contains timing metrics for a single stage
 type StageTimeMetrics struct {
-	StageName     string  `json:"stage_name"`
-	StageOrder    int     `json:"stage_order"`
-	AvgDays       float64 `json:"avg_days"`
-	MinDays       float64 `json:"min_days"`
-	MaxDays       float64 `json:"max_days"`
-	ApplicationsCount int `json:"applications_count"`
+	StageName         string  `json:"stage_name"`
+	StageOrder        int     `json:"stage_order"`
+	AvgDays           float64 `json:"avg_days"`
+	MinDays           float64 `json:"min_days"`
+	MaxDays           float64 `json:"max_days"`
+	ApplicationsCount int     `json:"applications_count"`
 }
 
 // StageTimeAnalytics contains timing metrics for all stages
@@ -61,11 +67,11 @@ type StageTimeAnalytics struct {
 
 // ResumeEffectiveness contains effectiveness metrics for a resume
 type ResumeEffectiveness struct {
-	ResumeID          string `json:"resume_id"`
-	ResumeTitle       string `json:"resume_title"`
-	ApplicationsCount int    `json:"applications_count"`
-	ResponsesCount    int    `json:"responses_count"`
-	InterviewsCount   int    `json:"interviews_count"`
+	ResumeID          string  `json:"resume_id"`
+	ResumeTitle       string  `json:"resume_title"`
+	ApplicationsCount int     `json:"applications_count"`
+	ResponsesCount    int     `json:"responses_count"`
+	InterviewsCount   int     `json:"interviews_count"`
 	ResponseRate      float64 `json:"response_rate"`
 }
 
