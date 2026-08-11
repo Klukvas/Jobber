@@ -17,6 +17,9 @@ type ListOptions struct {
 	// (backward compatible with pre-merge clients incl. the Chrome extension),
 	// "all" means no filter, otherwise an exact pipeline status.
 	Status string
+	// Search is a case-insensitive substring matched against the job title and
+	// the linked company name. Empty means no search filter.
+	Search string
 }
 
 // JobRepository defines the interface for job data access

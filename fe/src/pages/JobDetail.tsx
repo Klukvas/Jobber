@@ -27,6 +27,8 @@ import {
 } from "@/shared/ui/Dialog";
 import { MatchScoreCard } from "@/features/jobs/components/MatchScoreCard";
 import { Timeline } from "@/features/jobs/components/Timeline";
+import { JobReminders } from "@/features/jobs/components/JobReminders";
+import { JobTags } from "@/features/jobs/components/JobTags";
 import { AddStageModal } from "@/features/jobs/modals/AddStageModal";
 import { UpdateJobStatusModal } from "@/features/jobs/modals/UpdateJobStatusModal";
 import { CompanySelectWithQuickAdd } from "@/features/jobs/components/CompanySelectWithQuickAdd";
@@ -740,6 +742,9 @@ export default function JobDetail() {
 
       {matchScore && <MatchScoreCard data={matchScore} />}
 
+      {/* Tags */}
+      <JobTags jobId={id!} />
+
       {/* Comments */}
       <Card>
         <CardHeader>
@@ -786,6 +791,9 @@ export default function JobDetail() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Reminders */}
+      <JobReminders jobId={id!} />
 
       {/* Timeline */}
       <Card>

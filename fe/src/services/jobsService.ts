@@ -20,6 +20,8 @@ export interface ListJobsParams {
    */
   status?: JobStatus | "active" | "all";
   sort?: string; // Format: "field:dir" (e.g., "last_activity:desc", "title:asc")
+  /** Case-insensitive search matched against job title and company name. */
+  search?: string;
 }
 
 export const jobsService = {
@@ -30,6 +32,7 @@ export const jobsService = {
       searchParams.set("offset", params.offset.toString());
     if (params.status) searchParams.set("status", params.status);
     if (params.sort) searchParams.set("sort", params.sort);
+    if (params.search) searchParams.set("search", params.search);
 
     return apiClient.get<PaginatedResponse<JobDTO>>(
       `jobs?${searchParams.toString()}`,

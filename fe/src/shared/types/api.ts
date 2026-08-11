@@ -112,11 +112,7 @@ export interface UpdateStageRequest {
 // Fixed pipeline phases that contain user stages. Rejected is terminal and
 // never carries stages; it exists only as a board column / move target.
 export type StagePhase =
-  | "wishlist"
-  | "applied"
-  | "in_progress"
-  | "offer"
-  | "rejected";
+  "wishlist" | "applied" | "in_progress" | "offer" | "rejected";
 
 export const STAGE_PHASES: StagePhase[] = [
   "wishlist",
@@ -328,6 +324,50 @@ export interface CreateCommentRequest {
   job_id: string;
   stage_id?: string;
   content: string;
+}
+
+// Reminders
+export interface ReminderDTO {
+  id: string;
+  job_id: string;
+  stage_id?: string;
+  remind_at: string; // ISO datetime
+  message: string;
+  is_done: boolean;
+  created_at: string;
+}
+
+export interface CreateReminderRequest {
+  job_id: string;
+  stage_id?: string;
+  remind_at: string;
+  message: string;
+}
+
+export interface UpdateReminderRequest {
+  message?: string;
+  remind_at?: string;
+  is_done?: boolean;
+}
+
+// Tags
+export type TagEntityType = "job" | "company";
+
+export interface TagDTO {
+  id: string;
+  name: string;
+  color?: string;
+  created_at: string;
+}
+
+export interface CreateTagRequest {
+  name: string;
+  color?: string;
+}
+
+export interface AttachTagRequest {
+  entity_type: TagEntityType;
+  entity_id: string;
 }
 
 // Subscription

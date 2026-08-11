@@ -48,6 +48,14 @@ import (
 	commentRepo "github.com/andreypavlenko/jobber/modules/comments/repository"
 	commentService "github.com/andreypavlenko/jobber/modules/comments/service"
 
+	reminderHandler "github.com/andreypavlenko/jobber/modules/reminders/handler"
+	reminderRepo "github.com/andreypavlenko/jobber/modules/reminders/repository"
+	reminderService "github.com/andreypavlenko/jobber/modules/reminders/service"
+
+	tagHandler "github.com/andreypavlenko/jobber/modules/tags/handler"
+	tagRepo "github.com/andreypavlenko/jobber/modules/tags/repository"
+	tagService "github.com/andreypavlenko/jobber/modules/tags/service"
+
 	analyticsHandler "github.com/andreypavlenko/jobber/modules/analytics/handler"
 	analyticsRepo "github.com/andreypavlenko/jobber/modules/analytics/repository"
 	analyticsService "github.com/andreypavlenko/jobber/modules/analytics/service"
@@ -228,7 +236,7 @@ func main() {
 
 	// Health check endpoint
 	router.GET("/health", healthCheckHandler(ctx, pgClient, redisClient))
-	
+
 	// Ping endpoint
 	router.GET("/ping", pingHandler)
 
@@ -274,6 +282,8 @@ func main() {
 	stageTemplateRepository := jobRepo.NewStageTemplateRepository(pgClient.Pool)
 	jobStageRepository := jobRepo.NewJobStageRepository(pgClient.Pool)
 	commentRepository := commentRepo.NewCommentRepository(pgClient.Pool)
+	reminderRepository := reminderRepo.NewReminderRepository(pgClient.Pool)
+	tagRepository := tagRepo.NewTagRepository(pgClient.Pool)
 	analyticsRepository := analyticsRepo.NewAnalyticsRepository(pgClient.Pool)
 	sharingRepository := sharingRepo.NewSharingRepository(pgClient.Pool)
 	subscriptionRepository := subRepo.NewSubscriptionRepository(pgClient.Pool)
@@ -333,6 +343,8 @@ func main() {
 	resumeSvc := resumeService.NewResumeService(resumeRepository, s3Client, subscriptionSvc, matchScoreCacheRepo)
 
 	commentSvc := commentService.NewCommentService(commentRepository)
+	reminderSvc := reminderService.NewReminderService(reminderRepository)
+	tagSvc := tagService.NewTagService(tagRepository)
 	analyticsSvc := analyticsService.NewAnalyticsService(analyticsRepository)
 	sharingSvc := sharingService.NewSharingService(sharingRepository, analyticsRepository)
 
@@ -343,6 +355,8 @@ func main() {
 	jobHdl := jobHandler.NewJobHandler(jobSvc)
 	resumeHdl := resumeHandler.NewResumeHandler(resumeSvc)
 	commentHdl := commentHandler.NewCommentHandler(commentSvc)
+	reminderHdl := reminderHandler.NewReminderHandler(reminderSvc)
+	tagHdl := tagHandler.NewTagHandler(tagSvc)
 	analyticsHdl := analyticsHandler.NewAnalyticsHandler(analyticsSvc)
 	sharingHdl := sharingHandler.NewSharingHandler(sharingSvc, cfg.Server.FrontendURL)
 	subscriptionHdl := subHandler.NewSubscriptionHandler(subscriptionSvc, logger.Logger)
@@ -545,7 +559,6 @@ func main() {
 		// /auth/* endpoints, and this endpoint must trigger that refresh.
 		v1.GET("/session", authMiddleware, sessionHandler)
 
-
 		// Register module routes
 		authHdl.RegisterRoutes(v1, authHandler.AuthRouteConfig{
 			AuthMiddleware:   authMiddleware,
@@ -557,6 +570,8 @@ func main() {
 		jobHdl.RegisterRoutes(v1, authMiddleware)
 		resumeHdl.RegisterRoutes(v1, authMiddleware)
 		commentHdl.RegisterRoutes(v1, authMiddleware)
+		reminderHdl.RegisterRoutes(v1, authMiddleware)
+		tagHdl.RegisterRoutes(v1, authMiddleware)
 		analyticsHdl.RegisterRoutes(v1, authMiddleware)
 		sharingHdl.RegisterRoutes(v1, authMiddleware, publicShareRateLimiter)
 		resumeBuilderHdl.RegisterRoutes(v1, authMiddleware)

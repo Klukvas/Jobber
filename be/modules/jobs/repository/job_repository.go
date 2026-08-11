@@ -116,12 +116,27 @@ func statusFilter(status string, args *[]any) string {
 	}
 }
 
+// searchFilter builds a case-insensitive search WHERE fragment matching the
+// job title or the linked company name. LIKE wildcards in the user input are
+// escaped so the term is matched literally. Empty search yields no fragment.
+func searchFilter(search string, args *[]any) string {
+	term := strings.TrimSpace(search)
+	if term == "" {
+		return ""
+	}
+	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(term)
+	*args = append(*args, "%"+escaped+"%")
+	idx := len(*args)
+	return fmt.Sprintf(" AND (j.title ILIKE $%d OR c.name ILIKE $%d)", idx, idx)
+}
+
 // List retrieves enriched jobs for a user with pagination, filtering, and sorting.
 // Single query (no N+1): company/resume/current-stage joins, last-activity CTEs
 // and COUNT(*) OVER() for the total.
 func (r *JobRepository) List(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.JobDTO, int, error) {
 	args := []any{userID}
 	filter := statusFilter(opts.Status, &args)
+	filter += searchFilter(opts.Search, &args)
 
 	sortDir := "DESC"
 	if strings.EqualFold(opts.SortDir, "asc") {

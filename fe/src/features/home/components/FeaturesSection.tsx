@@ -1,13 +1,23 @@
 import { useTranslation } from "react-i18next";
+import {
+  Kanban,
+  Sparkles,
+  FileText,
+  Link2,
+  BarChart3,
+  CalendarDays,
+  type LucideIcon,
+} from "lucide-react";
 
-const FEATURES = [
-  { key: "kanban", emoji: "\u{1F5C2}" },
-  { key: "aiMatch", emoji: "\u{1F916}" },
-  { key: "resume", emoji: "\u{1F4C4}" },
-  { key: "jobImport", emoji: "\u{1F517}" },
-  { key: "analyticsCard", emoji: "\u{1F4CA}" },
-  { key: "calendar", emoji: "\u{1F5D3}" },
-] as const;
+const FEATURES: readonly { readonly key: string; readonly Icon: LucideIcon }[] =
+  [
+    { key: "kanban", Icon: Kanban },
+    { key: "aiMatch", Icon: Sparkles },
+    { key: "resume", Icon: FileText },
+    { key: "jobImport", Icon: Link2 },
+    { key: "analyticsCard", Icon: BarChart3 },
+    { key: "calendar", Icon: CalendarDays },
+  ];
 
 export function FeaturesSection() {
   const { t } = useTranslation();
@@ -26,16 +36,16 @@ export function FeaturesSection() {
         </p>
 
         <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map(({ key, emoji }) => (
+          {FEATURES.map(({ key, Icon }) => (
             <div
               key={key}
               className="group rounded-xl border border-white/[0.07] bg-card p-7 transition-all hover:border-white/[0.14] hover:shadow-[0_0_0_1px_rgba(163,230,53,0.06),0_8px_32px_rgba(0,0,0,0.3)]"
             >
               <div
-                className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg border border-lime-400/20 bg-lime-400/[0.08] text-[17px]"
+                className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg border border-lime-400/20 bg-lime-400/[0.08]"
                 aria-hidden="true"
               >
-                {emoji}
+                <Icon className="h-[18px] w-[18px] text-lime-400" />
               </div>
               <h3 className="mb-1.5 text-[15px] font-bold tracking-[-0.02em] text-slate-100">
                 {t(`home.features.${key}.title`)}

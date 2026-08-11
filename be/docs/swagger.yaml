@@ -563,6 +563,48 @@ definitions:
       summary:
         type: string
     type: object
+  github_com_andreypavlenko_jobber_modules_reminders_model.CreateReminderRequest:
+    properties:
+      job_id:
+        type: string
+      message:
+        minLength: 1
+        type: string
+      remind_at:
+        type: string
+      stage_id:
+        type: string
+    required:
+    - job_id
+    - message
+    - remind_at
+    type: object
+  github_com_andreypavlenko_jobber_modules_reminders_model.ReminderDTO:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      is_done:
+        type: boolean
+      job_id:
+        type: string
+      message:
+        type: string
+      remind_at:
+        type: string
+      stage_id:
+        type: string
+    type: object
+  github_com_andreypavlenko_jobber_modules_reminders_model.UpdateReminderRequest:
+    properties:
+      is_done:
+        type: boolean
+      message:
+        type: string
+      remind_at:
+        type: string
+    type: object
   github_com_andreypavlenko_jobber_modules_resumes_model.CreateResumeRequest:
     properties:
       file_url:
@@ -716,6 +758,41 @@ definitions:
     required:
     - message
     - subject
+    type: object
+  github_com_andreypavlenko_jobber_modules_tags_model.AttachTagRequest:
+    properties:
+      entity_id:
+        type: string
+      entity_type:
+        enum:
+        - job
+        - company
+        type: string
+    required:
+    - entity_id
+    - entity_type
+    type: object
+  github_com_andreypavlenko_jobber_modules_tags_model.CreateTagRequest:
+    properties:
+      color:
+        type: string
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+    required:
+    - name
+    type: object
+  github_com_andreypavlenko_jobber_modules_tags_model.TagDTO:
+    properties:
+      color:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
     type: object
   github_com_andreypavlenko_jobber_modules_users_model.UserDTO:
     properties:
@@ -1500,6 +1577,36 @@ paths:
       summary: Get related jobs and applications count
       tags:
       - companies
+  /companies/{id}/tags:
+    get:
+      parameters:
+      - description: Company ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_tags_model.TagDTO'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List tags for a company
+      tags:
+      - tags
   /health:
     get:
       description: Check the health status of the application and its dependencies
@@ -1536,6 +1643,11 @@ paths:
           title:asc, company_name:asc, status:asc, applied_at:desc)'
         in: query
         name: sort
+        type: string
+      - description: Case-insensitive search matched against job title and company
+          name (max 100 chars)
+        in: query
+        name: search
         type: string
       produces:
       - application/json
@@ -1830,6 +1942,37 @@ paths:
       summary: Move a job on the unified board
       tags:
       - jobs
+  /jobs/{id}/reminders:
+    get:
+      description: Get all reminders for a specific job
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_reminders_model.ReminderDTO'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List reminders for a job
+      tags:
+      - reminders
   /jobs/{id}/stages:
     get:
       description: Get the full stage history of a job
@@ -1999,6 +2142,36 @@ paths:
       summary: Update a job stage
       tags:
       - stages
+  /jobs/{id}/tags:
+    get:
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_tags_model.TagDTO'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List tags for a job
+      tags:
+      - tags
   /jobs/parse:
     post:
       consumes:
@@ -2141,6 +2314,149 @@ paths:
       summary: OG preview page for a share (public)
       tags:
       - sharing
+  /reminders:
+    get:
+      description: Get all reminders for the authenticated user, ordered by remind_at
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_reminders_model.ReminderDTO'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List all reminders
+      tags:
+      - reminders
+    post:
+      consumes:
+      - application/json
+      description: Create a reminder for a job (optionally a specific stage)
+      parameters:
+      - description: Reminder details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_reminders_model.CreateReminderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_reminders_model.ReminderDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "404":
+          description: Job not found
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a reminder
+      tags:
+      - reminders
+  /reminders/{id}:
+    delete:
+      description: Delete a reminder by ID
+      parameters:
+      - description: Reminder ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "404":
+          description: Reminder not found
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a reminder
+      tags:
+      - reminders
+    patch:
+      consumes:
+      - application/json
+      description: Partially update a reminder (message, remind_at, and/or is_done)
+      parameters:
+      - description: Reminder ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_reminders_model.UpdateReminderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_reminders_model.ReminderDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "404":
+          description: Reminder not found
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a reminder
+      tags:
+      - reminders
   /resumes:
     get:
       description: Get a paginated list of resume versions for the authenticated user
@@ -2712,6 +3028,196 @@ paths:
       summary: Submit a support request
       tags:
       - support
+  /tags:
+    get:
+      description: List all tags for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_tags_model.TagDTO'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List tags
+      tags:
+      - tags
+    post:
+      consumes:
+      - application/json
+      description: Create a tag for the authenticated user
+      parameters:
+      - description: Tag details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_tags_model.CreateTagRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_tags_model.TagDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "409":
+          description: Tag name already exists
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a tag
+      tags:
+      - tags
+  /tags/{id}:
+    delete:
+      description: Delete a tag by ID (also removes its relations)
+      parameters:
+      - description: Tag ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "404":
+          description: Tag not found
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a tag
+      tags:
+      - tags
+  /tags/{id}/relations:
+    delete:
+      description: Remove a tag from a job or company
+      parameters:
+      - description: Tag ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 'Entity type: job or company'
+        in: query
+        name: entity_type
+        required: true
+        type: string
+      - description: Entity ID
+        in: query
+        name: entity_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Detach a tag from an entity
+      tags:
+      - tags
+    post:
+      consumes:
+      - application/json
+      description: Attach a tag to a job or company owned by the user
+      parameters:
+      - description: Tag ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Entity to attach the tag to
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_tags_model.AttachTagRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "404":
+          description: Tag or entity not found
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Attach a tag to an entity
+      tags:
+      - tags
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer" followed by a space and JWT token.

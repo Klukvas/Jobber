@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
@@ -125,6 +126,7 @@ func (h *JobHandler) Get(c *gin.Context) {
 // @Param offset query int false "Number of items to skip (default: 0)"
 // @Param status query string false "Filter by status: saved, applied, on_hold, offer, rejected, archived, all. Empty and the legacy value 'active' mean everything except archived."
 // @Param sort query string false "Sort format: field:order (e.g., last_activity:desc, created_at:desc, title:asc, company_name:asc, status:asc, applied_at:desc)"
+// @Param search query string false "Case-insensitive search matched against job title and company name (max 100 chars)"
 // @Success 200 {object} httpPlatform.PaginatedResponse{items=[]model.JobDTO}
 // @Failure 400 {object} httpPlatform.ErrorResponse "Invalid pagination parameters"
 // @Failure 401 {object} httpPlatform.ErrorResponse
@@ -178,12 +180,22 @@ func (h *JobHandler) List(c *gin.Context) {
 		}
 	}
 
+	// Optional case-insensitive search across job title and company name.
+	// Cap the length to bound the LIKE pattern and reject abuse. Truncate by
+	// rune (not byte) so a multibyte name — e.g. Cyrillic — is never split
+	// into invalid UTF-8, which would make Postgres reject the ILIKE argument.
+	search := strings.TrimSpace(c.Query("search"))
+	if runes := []rune(search); len(runes) > 100 {
+		search = string(runes[:100])
+	}
+
 	opts := &ports.ListOptions{
 		Limit:   pagination.Limit,
 		Offset:  pagination.Offset,
 		SortBy:  sortBy,
 		SortDir: sortOrder,
 		Status:  status,
+		Search:  search,
 	}
 
 	jobs, total, err := h.service.List(c.Request.Context(), userID, opts)

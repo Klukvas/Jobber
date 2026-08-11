@@ -40,6 +40,7 @@ import {
   X,
   CheckCircle,
   ChevronRight,
+  Search,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useDateLocale } from "@/shared/lib/dateFnsLocale";
@@ -53,6 +54,7 @@ import {
   JOBS_KANBAN_QUERY_KEY,
 } from "@/features/jobs/components/JobKanbanBoard";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
+import { useDebounce } from "@/shared/hooks/useDebounce";
 import type { JobDTO, JobStatus } from "@/shared/types/api";
 
 type SortBy =
@@ -109,6 +111,8 @@ export default function JobsPage() {
   const [sortBy, setSortBy] = useState<SortBy>("last_activity");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebounce(searchInput.trim(), 300);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [statusSubmenuId, setStatusSubmenuId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
@@ -142,7 +146,7 @@ export default function JobsPage() {
   const queryKey =
     viewMode === "kanban"
       ? [...JOBS_KANBAN_QUERY_KEY]
-      : ["jobs", "list", page, statusFilter, sortBy, sortDir];
+      : ["jobs", "list", page, statusFilter, sortBy, sortDir, debouncedSearch];
 
   const listParams: ListJobsParams =
     viewMode === "kanban"
@@ -152,6 +156,7 @@ export default function JobsPage() {
           offset: page * PAGE_SIZE,
           status: statusFilter || undefined,
           sort: `${sortBy}:${sortDir}`,
+          search: debouncedSearch || undefined,
         };
 
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -360,6 +365,20 @@ export default function JobsPage() {
         <>
           {/* Filter + Sorting Controls */}
           <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => {
+                  setSearchInput(e.target.value);
+                  setPage(0);
+                }}
+                placeholder={t("jobs.searchPlaceholder")}
+                aria-label={t("jobs.searchPlaceholder")}
+                className="flex h-9 w-56 rounded-md border border-input bg-background pl-8 pr-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
             <div className="flex items-center gap-2">
               <label
                 htmlFor="status-filter"

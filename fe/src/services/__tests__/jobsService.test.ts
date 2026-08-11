@@ -49,6 +49,24 @@ describe("jobsService", () => {
       const url = mockApiClient.get.mock.calls[0][0] as string;
       expect(url).toBe("jobs?");
     });
+
+    it("includes and encodes the search param when provided", async () => {
+      mockApiClient.get.mockResolvedValue({ items: [], total: 0 });
+
+      await jobsService.list({ search: "acme corp" });
+
+      const url = mockApiClient.get.mock.calls[0][0] as string;
+      expect(url).toContain("search=acme+corp");
+    });
+
+    it("omits an empty search param", async () => {
+      mockApiClient.get.mockResolvedValue({ items: [], total: 0 });
+
+      await jobsService.list({ search: "" });
+
+      const url = mockApiClient.get.mock.calls[0][0] as string;
+      expect(url).not.toContain("search=");
+    });
   });
 
   describe("getById", () => {

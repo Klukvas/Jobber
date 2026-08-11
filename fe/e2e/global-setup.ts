@@ -15,7 +15,12 @@ setup("authenticate", async ({ page }) => {
 
   await page.locator("#login-email").fill(EMAIL);
   await page.locator("#login-password").fill(PASSWORD);
-  await page.getByRole("button", { name: /log\s*in|sign\s*in|вход/i }).click();
+  // Scope to the login dialog: the navbar also has a "Login" button, so an
+  // unscoped role locator matches two elements (strict-mode violation).
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /log\s*in|sign\s*in|вход|увійти/i })
+    .click();
 
   // Wait for redirect to app after successful login
   await page.waitForURL("/app/**", { timeout: 15_000 });
