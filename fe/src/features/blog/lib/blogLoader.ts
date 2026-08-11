@@ -120,10 +120,21 @@ export function getAllPosts(lang: string): readonly BlogPost[] {
   return enPosts;
 }
 
+const ALL_LANGS = ["en", "ua", "ru"] as const;
+
 export function getPostBySlug(
   slug: string,
   lang: string,
 ): BlogPost | undefined {
-  const posts = getAllPosts(lang);
-  return posts.find((p) => p.slug === slug);
+  // Prefer the requested language, then fall back to any language. Localized
+  // posts have unique slugs, so a RU/UA URL still resolves when the UI language
+  // is English — e.g. a crawler (or shared link) hitting the localized URL.
+  const inLang = getAllPosts(lang).find((p) => p.slug === slug);
+  if (inLang) return inLang;
+  for (const l of ALL_LANGS) {
+    if (l === lang) continue;
+    const found = getAllPosts(l).find((p) => p.slug === slug);
+    if (found) return found;
+  }
+  return undefined;
 }

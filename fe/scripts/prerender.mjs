@@ -16,7 +16,8 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const DIST = path.join(ROOT, "dist");
-const BLOG_DIR = path.join(ROOT, "src/content/blog/en");
+const BLOG_ROOT = path.join(ROOT, "src/content/blog");
+const BLOG_LANGS = ["en", "ru", "ua"];
 
 const STATIC_ROUTES = [
   "/",
@@ -49,19 +50,24 @@ function extractSlug(content) {
 }
 
 async function collectBlogRoutes() {
-  try {
-    const files = await fs.readdir(BLOG_DIR);
-    const routes = [];
-    for (const file of files) {
-      if (!file.endsWith(".md")) continue;
-      const content = await fs.readFile(path.join(BLOG_DIR, file), "utf8");
-      const slug = extractSlug(content);
-      if (slug) routes.push(`/blog/${slug}`);
+  // Prerender every localized post. Slugs are unique per language; dedup in case
+  // one is shared across languages (same /blog/<slug> URL).
+  const routes = new Set();
+  for (const lang of BLOG_LANGS) {
+    const dir = path.join(BLOG_ROOT, lang);
+    try {
+      const files = await fs.readdir(dir);
+      for (const file of files) {
+        if (!file.endsWith(".md")) continue;
+        const content = await fs.readFile(path.join(dir, file), "utf8");
+        const slug = extractSlug(content);
+        if (slug) routes.add(`/blog/${slug}`);
+      }
+    } catch {
+      // language directory missing — skip
     }
-    return routes.sort();
-  } catch {
-    return [];
   }
+  return [...routes].sort();
 }
 
 function outPathFor(route) {

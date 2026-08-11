@@ -56,17 +56,24 @@ function extractFromFrontmatter(content: string): {
   return { slug, date, dateModified };
 }
 
+// Localized posts have unique per-language slugs, so every language directory
+// contributes its own /blog/<slug> URLs. Dedup by slug in case one is shared
+// across languages (it maps to the same URL).
 function collectBlogEntries(blogDir: string): BlogEntry[] {
-  const enDir = path.join(blogDir, "en");
-  if (!fs.existsSync(enDir)) return [];
-
   const entries: BlogEntry[] = [];
-  for (const file of fs.readdirSync(enDir)) {
-    if (!file.endsWith(".md")) continue;
-    const content = fs.readFileSync(path.join(enDir, file), "utf-8");
-    const { slug, date, dateModified } = extractFromFrontmatter(content);
-    if (slug) {
-      entries.push({ slug, lastmod: dateModified ?? date ?? "" });
+  const seen = new Set<string>();
+
+  for (const lang of ["en", "ru", "ua"]) {
+    const dir = path.join(blogDir, lang);
+    if (!fs.existsSync(dir)) continue;
+    for (const file of fs.readdirSync(dir)) {
+      if (!file.endsWith(".md")) continue;
+      const content = fs.readFileSync(path.join(dir, file), "utf-8");
+      const { slug, date, dateModified } = extractFromFrontmatter(content);
+      if (slug && !seen.has(slug)) {
+        seen.add(slug);
+        entries.push({ slug, lastmod: dateModified ?? date ?? "" });
+      }
     }
   }
   return entries.sort((a, b) => a.slug.localeCompare(b.slug));
