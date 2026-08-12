@@ -630,6 +630,25 @@ jobs:
             exit 1
           fi
 
+          # Apply Caddyfile changes.
+          # The Caddyfile is bind-mounted read-only, so `up -d` does NOT recreate
+          # the caddy container when only the file CONTENTS change — the running
+          # process keeps its old in-memory config. Reload it explicitly
+          # (zero-downtime). Validate first so a broken Caddyfile never takes the
+          # edge proxy down; fall back to a restart if a live reload fails.
+          echo ""
+          echo "🔁 Reloading Caddy to apply Caddyfile changes..."
+          if docker exec jobber-caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile; then
+            if docker exec jobber-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile; then
+              echo "✅ Caddy reloaded"
+            else
+              echo "⚠️  caddy reload failed — restarting caddy container"
+              docker compose -f docker-compose.yml -f docker-compose.deploy.yml restart caddy || true
+            fi
+          else
+            echo "❌ Caddyfile validation failed — keeping the current running config"
+          fi
+
           # Wait for services to become healthy with timeout
           echo ""
           echo "⏳ Waiting for services to become healthy..."
