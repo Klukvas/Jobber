@@ -54,31 +54,20 @@ func NewS3Client(cfg config.S3Config) (*S3Client, error) {
 	}, nil
 }
 
-// GeneratePresignedUploadURL generates a presigned URL for uploading a file
+// GeneratePresignedUploadURL generates a presigned URL for uploading a file.
 //
-// CRITICAL: Presigned URL Security
-// When ContentType is set in PutObjectInput, the AWS SDK automatically includes
-// "content-type" in X-Amz-SignedHeaders. This means:
-//   1. The frontend MUST send the exact same Content-Type header when uploading
-//   2. The Content-Type value must match exactly what was used during signing
-//   3. If the frontend sends ANY different headers or omits Content-Type, upload fails
-//
-// Example signed headers: X-Amz-SignedHeaders=content-type;host
-//
-// Why this matters:
-//   - S3 signature v4 validates that signed headers match exactly
-//   - Adding/removing/changing headers invalidates the signature
-//   - This prevents tampering and ensures upload integrity
+// NOTE on signed headers: aws-sdk-go-v2's presigner signs ONLY the host header
+// for presigned PUT URLs (the resulting query has X-Amz-SignedHeaders=host).
+// The contentType passed here is NOT added to the signature, so the client may
+// send any Content-Type (or none) without triggering a signature mismatch —
+// whatever Content-Type the client sends on the actual PUT is what the object
+// is stored with. We still pass it to document the expected type.
 func (c *S3Client) GeneratePresignedUploadURL(ctx context.Context, key string, contentType string, expiry time.Duration) (string, error) {
 	presignClient := s3.NewPresignClient(c.client)
 
-	// Include ContentType in PutObjectInput to sign it explicitly
-	// This ensures only clients with the correct Content-Type can upload
 	request, err := presignClient.PresignPutObject(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(c.bucket),
-		Key:    aws.String(key),
-		// ContentType is included in signed headers (content-type;host)
-		// Frontend MUST send: Content-Type: application/pdf (or whatever was specified)
+		Bucket:      aws.String(c.bucket),
+		Key:         aws.String(key),
 		ContentType: aws.String(contentType),
 	}, func(opts *s3.PresignOptions) {
 		opts.Expires = expiry

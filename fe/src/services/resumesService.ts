@@ -56,15 +56,17 @@ export const resumesService = {
   },
 
   async uploadToS3(uploadUrl: string, file: File): Promise<void> {
-    // CRITICAL: The Content-Type header MUST match what was used when generating
-    // the presigned URL. The backend signs with 'application/pdf', so we must
-    // send exactly that. The presigned URL includes X-Amz-SignedHeaders=content-type;host
-    // which means S3 will reject the request if headers don't match exactly.
+    // The presigned URL signs only the host header (X-Amz-SignedHeaders=host),
+    // so Content-Type is NOT part of the signature and does not need to match
+    // anything. We still send file.type so the object is stored with the right
+    // Content-Type.
+    // GOTCHA: this cross-origin fetch fails with "Failed to fetch" unless the
+    // app origin is allowed BOTH in the bucket CORS rules (be/scripts/setup-cors.go)
+    // AND in the CSP connect-src directive (Caddyfile).
     const response = await fetch(uploadUrl, {
       method: "PUT",
       headers: {
-        // Must match the content_type sent to /upload-url endpoint
-        "Content-Type": file.type, // Should be 'application/pdf'
+        "Content-Type": file.type,
       },
       body: file,
     });
