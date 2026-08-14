@@ -1,14 +1,6 @@
 import { StatusBadge } from "@/shared/ui/StatusBadge";
 import type { JobStatus } from "@/shared/types/api";
-
-const JOB_STATUS_VALUES: JobStatus[] = [
-  "saved",
-  "applied",
-  "on_hold",
-  "offer",
-  "rejected",
-  "archived",
-];
+import { JOB_STATUS_VALUES } from "@/shared/lib/jobStatus";
 
 interface StatusQuickPickProps {
   currentStatus: JobStatus;

@@ -205,11 +205,15 @@ export default function JobsPage() {
 
   // Completes the job's current stage straight from the context menu
   const completeStageMutation = useMutation({
-    mutationFn: (job: JobDTO) =>
-      jobsService.updateStage(job.id, job.current_stage_id!, {
+    mutationFn: (job: JobDTO) => {
+      if (!job.current_stage_id) {
+        return Promise.reject(new Error("No active stage"));
+      }
+      return jobsService.updateStage(job.id, job.current_stage_id, {
         status: "completed",
         completed_at: new Date().toISOString(),
-      }),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
       showSuccessNotification(t("jobs.stageCompletedSuccess"));

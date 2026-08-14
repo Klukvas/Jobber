@@ -91,7 +91,6 @@ export function usePaddleCheckout() {
         "subscription",
       ]);
       const baseline = subData?.plan ?? "free";
-      console.log("[Checkout] saving baseline to sessionStorage:", baseline);
       sessionStorage.setItem(PRE_CHECKOUT_PLAN_KEY, baseline);
 
       window.Paddle.Checkout.open({
@@ -99,8 +98,7 @@ export function usePaddleCheckout() {
         customer: user?.email ? { email: user.email } : undefined,
         customData: user?.id ? { user_id: user.id } : undefined,
         settings: {
-          successUrl:
-            window.location.origin + "/app/jobs?subscription=success",
+          successUrl: window.location.origin + "/app/jobs?subscription=success",
         },
       });
     },

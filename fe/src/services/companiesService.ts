@@ -14,8 +14,10 @@ export const companiesService = {
     sort_dir?: "asc" | "desc";
   }): Promise<PaginatedResponse<CompanyDTO>> {
     const searchParams = new URLSearchParams();
-    if (params.limit) searchParams.set("limit", params.limit.toString());
-    if (params.offset) searchParams.set("offset", params.offset.toString());
+    if (params.limit !== undefined)
+      searchParams.set("limit", params.limit.toString());
+    if (params.offset !== undefined)
+      searchParams.set("offset", params.offset.toString());
     if (params.sort_by) searchParams.set("sort_by", params.sort_by);
     if (params.sort_dir) searchParams.set("sort_dir", params.sort_dir);
 

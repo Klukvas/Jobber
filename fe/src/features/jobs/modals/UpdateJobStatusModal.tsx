@@ -18,28 +18,18 @@ import { Button } from "@/shared/ui/Button";
 import { Label } from "@/shared/ui/Label";
 import { Loader2 } from "lucide-react";
 import type { JobStatus } from "@/shared/types/api";
+import {
+  JOB_STATUS_VALUES,
+  JOB_STATUS_LABEL_KEYS,
+  JOB_STATUS_DESC_KEYS,
+} from "@/shared/lib/jobStatus";
+import { JOBS_KANBAN_QUERY_KEY } from "@/features/jobs/components/JobKanbanBoard";
 
 interface UpdateJobStatusModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   jobId: string;
   currentStatus: JobStatus;
-}
-
-const JOB_STATUS_VALUES: JobStatus[] = [
-  "saved",
-  "applied",
-  "on_hold",
-  "offer",
-  "rejected",
-  "archived",
-];
-
-function statusToTranslationKey(status: string): string {
-  return status
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join("");
 }
 
 export function UpdateJobStatusModal({
@@ -57,6 +47,7 @@ export function UpdateJobStatusModal({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["job", jobId] });
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: JOBS_KANBAN_QUERY_KEY });
       showSuccessNotification(t("jobs.statusUpdateSuccess"));
       onOpenChange(false);
     },
@@ -88,7 +79,7 @@ export function UpdateJobStatusModal({
             <div className="space-y-2">
               <Label>{t("jobs.currentStatus")}</Label>
               <div className="rounded-md bg-muted px-3 py-2 text-sm">
-                {t(`jobs.status${statusToTranslationKey(currentStatus)}`)}
+                {t(JOB_STATUS_LABEL_KEYS[currentStatus])}
               </div>
             </div>
             <div className="space-y-2">
@@ -100,14 +91,12 @@ export function UpdateJobStatusModal({
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 required
               >
-                {JOB_STATUS_VALUES.map((value) => {
-                  const key = statusToTranslationKey(value);
-                  return (
-                    <option key={value} value={value}>
-                      {t(`jobs.status${key}`)} - {t(`jobs.status${key}Desc`)}
-                    </option>
-                  );
-                })}
+                {JOB_STATUS_VALUES.map((value) => (
+                  <option key={value} value={value}>
+                    {t(JOB_STATUS_LABEL_KEYS[value])} -{" "}
+                    {t(JOB_STATUS_DESC_KEYS[value])}
+                  </option>
+                ))}
               </select>
             </div>
             {updateStatusMutation.isError && (

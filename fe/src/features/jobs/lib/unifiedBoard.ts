@@ -4,7 +4,6 @@ import type {
   StagePhase,
   StageTemplateDTO,
 } from "@/shared/types/api";
-import { phaseRank } from "@/features/stages/lib/phases";
 
 // A unified-board column is either a phase base column (always present for
 // wishlist/applied/offer/rejected) or one of the user's stage columns.
@@ -43,9 +42,8 @@ export function buildUnifiedColumns(
   const byPhase = (phase: StagePhase) =>
     templates
       .filter((tpl) => tpl.phase === phase)
-      .sort(
-        (a, b) => phaseRank(a.phase) - phaseRank(b.phase) || a.order - b.order,
-      )
+      // All items share `phase` after the filter, so order alone decides.
+      .sort((a, b) => a.order - b.order)
       .map((tpl): UnifiedColumn => ({
         id: stageColumnId(tpl),
         kind: "stage",

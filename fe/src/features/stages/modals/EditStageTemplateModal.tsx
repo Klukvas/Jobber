@@ -19,6 +19,7 @@ import { Input } from "@/shared/ui/Input";
 import { Label } from "@/shared/ui/Label";
 import { Loader2 } from "lucide-react";
 import { PhasePicker } from "../components/PhasePicker";
+import { ApiError } from "@/services/api";
 import type { StagePhase } from "@/shared/types/api";
 import type { StageTemplateDTO } from "@/shared/types/api";
 
@@ -56,6 +57,13 @@ export function EditStageTemplateModal({
       onOpenChange(false);
     },
     onError: (error: Error) => {
+      if (
+        error instanceof ApiError &&
+        error.code === "STAGE_TEMPLATE_NAME_EXISTS"
+      ) {
+        showErrorNotification(t("stages.nameExists"));
+        return;
+      }
       showErrorNotification(error.message || t("stages.updateError"));
     },
   });

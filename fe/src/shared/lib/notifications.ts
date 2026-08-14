@@ -37,7 +37,6 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
 
   try {
     const registration = await navigator.serviceWorker.register("/sw.js");
-    console.log("Service Worker registered:", registration);
     return registration;
   } catch (error) {
     console.error("Service Worker registration failed:", error);
@@ -56,7 +55,6 @@ export async function subscribeToPushNotifications(
       applicationServerKey: applicationServerKey as BufferSource,
     });
 
-    console.log("Push subscription:", subscription);
     // Send this subscription to your backend
     return subscription;
   } catch (error) {
@@ -82,18 +80,15 @@ export async function initializePushNotifications(): Promise<void> {
   // Request permission
   const permission = await requestNotificationPermission();
   if (permission !== "granted") {
-    console.log("Notification permission not granted");
     return;
   }
 
   // Register service worker
   const registration = await registerServiceWorker();
   if (!registration) {
-    console.log("Service Worker registration failed");
     return;
   }
 
   // Note: In production, you would get the VAPID public key from your backend
   // and subscribe to push notifications here
-  console.log("Push notifications initialized");
 }

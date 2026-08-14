@@ -32,7 +32,9 @@
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",
     "closeSidebar": "Close sidebar",
-    "deleting": "Deleting..."
+    "deleting": "Deleting...",
+    "accessDenied": "Access denied",
+    "serverError": "Server error"
   },
   "auth": {
     "login": "Login",
@@ -71,6 +73,7 @@
     "resetPasswordDescription": "Enter your new password below.",
     "newPassword": "New password",
     "invalidCode": "Invalid or expired code",
+    "invalidResetLink": "Invalid or expired reset link",
     "passwordResetDone": "Password reset!",
     "passwordResetDoneDescription": "Your password has been updated. You can now log in with your new password.",
     "enterCode": "Enter verification code",
@@ -614,6 +617,7 @@
     "createDescription": "Add a new stage to your application process",
     "createSuccess": "Stage template created successfully",
     "createError": "Failed to create stage template",
+    "nameExists": "A stage with this name already exists",
     "stageNamePlaceholder": "e.g., Applied, Phone Screen, Interview, Offer",
     "orderPlaceholder": "e.g., 0, 1, 2...",
     "orderDescription": "The position of this stage in the application process (0-based)",

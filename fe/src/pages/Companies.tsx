@@ -84,11 +84,10 @@ export default function Companies() {
       });
       return { previous, queryKey };
     },
-    onError: (err, _companyId, context) => {
+    onError: (_err, _companyId, context) => {
       if (context?.previous && context?.queryKey) {
         queryClient.setQueryData(context.queryKey, context.previous);
       }
-      console.error("[Companies] toggleFavorite failed:", err);
       showErrorNotification(t("common.error"));
     },
     onSettled: () => {

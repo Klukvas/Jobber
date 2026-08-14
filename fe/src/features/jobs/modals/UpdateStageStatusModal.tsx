@@ -34,6 +34,24 @@ const STAGE_STATUS_VALUES = [
   "cancelled",
 ] as const;
 
+// Static i18n keys — a missing translation for a new stage status surfaces at
+// build/lint time instead of silently rendering a broken runtime-built key.
+const STAGE_STATUS_LABEL_KEYS: Record<JobStageDTO["status"], string> = {
+  pending: "jobs.stageStatusPending",
+  active: "jobs.stageStatusActive",
+  completed: "jobs.stageStatusCompleted",
+  skipped: "jobs.stageStatusSkipped",
+  cancelled: "jobs.stageStatusCancelled",
+};
+
+const STAGE_STATUS_DESC_KEYS: Record<JobStageDTO["status"], string> = {
+  pending: "jobs.stageStatusPendingDesc",
+  active: "jobs.stageStatusActiveDesc",
+  completed: "jobs.stageStatusCompletedDesc",
+  skipped: "jobs.stageStatusSkippedDesc",
+  cancelled: "jobs.stageStatusCancelledDesc",
+};
+
 export function UpdateStageStatusModal({
   open,
   onOpenChange,
@@ -101,13 +119,8 @@ export function UpdateStageStatusModal({
               >
                 {STAGE_STATUS_VALUES.map((value) => (
                   <option key={value} value={value}>
-                    {t(
-                      `jobs.stageStatus${value.charAt(0).toUpperCase() + value.slice(1)}`,
-                    )}{" "}
-                    -{" "}
-                    {t(
-                      `jobs.stageStatus${value.charAt(0).toUpperCase() + value.slice(1)}Desc`,
-                    )}
+                    {t(STAGE_STATUS_LABEL_KEYS[value])} -{" "}
+                    {t(STAGE_STATUS_DESC_KEYS[value])}
                   </option>
                 ))}
               </select>

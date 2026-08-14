@@ -27,7 +27,8 @@ export interface ListJobsParams {
 export const jobsService = {
   async list(params: ListJobsParams): Promise<PaginatedResponse<JobDTO>> {
     const searchParams = new URLSearchParams();
-    if (params.limit) searchParams.set("limit", params.limit.toString());
+    if (params.limit !== undefined)
+      searchParams.set("limit", params.limit.toString());
     if (params.offset !== undefined)
       searchParams.set("offset", params.offset.toString());
     if (params.status) searchParams.set("status", params.status);

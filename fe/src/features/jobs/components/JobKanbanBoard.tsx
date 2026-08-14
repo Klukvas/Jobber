@@ -39,17 +39,11 @@ import {
   shouldHideBase,
   type UnifiedColumn,
 } from "../lib/unifiedBoard";
+import { JOB_STATUS_VALUES } from "@/shared/lib/jobStatus";
 
 export const JOBS_KANBAN_QUERY_KEY = ["jobs", "kanban"] as const;
 
-const STATUS_COLUMNS: JobStatus[] = [
-  "saved",
-  "applied",
-  "on_hold",
-  "offer",
-  "rejected",
-  "archived",
-];
+const STATUS_COLUMNS: JobStatus[] = JOB_STATUS_VALUES;
 
 const NO_STAGE_COLUMN_ID = "__no_stage__";
 
@@ -168,7 +162,27 @@ export function JobKanbanBoard({
 
       return { previous };
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      // Fold in the authoritative current_stage_id so the card's "Complete
+      // Current Stage" action works right away, before the reconciling refetch.
+      queryClient.setQueryData<PaginatedResponse<JobDTO>>(
+        JOBS_KANBAN_QUERY_KEY,
+        (oldData) =>
+          oldData
+            ? {
+                ...oldData,
+                items: oldData.items.map((j) =>
+                  j.id === variables.id
+                    ? {
+                        ...j,
+                        current_stage_id: data.id,
+                        current_stage_name: data.stage_name,
+                      }
+                    : j,
+                ),
+              }
+            : oldData,
+      );
       showSuccessNotification(t("jobs.board.moveSuccess"));
     },
     onError: (_err, _vars, context) => {
@@ -218,7 +232,20 @@ export function JobKanbanBoard({
       );
       return { previous };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // The move response is the fully-enriched card (status, current_stage_id,
+      // current_stage_name) — fold it in so the optimistic guess converges to
+      // the server truth before the reconciling refetch lands.
+      queryClient.setQueryData<PaginatedResponse<JobDTO>>(
+        JOBS_KANBAN_QUERY_KEY,
+        (oldData) =>
+          oldData
+            ? {
+                ...oldData,
+                items: oldData.items.map((j) => (j.id === data.id ? data : j)),
+              }
+            : oldData,
+      );
       showSuccessNotification(t("jobs.board.moveSuccess"));
     },
     onError: (_err, _vars, context) => {
@@ -363,28 +390,28 @@ export function JobKanbanBoard({
             {t("jobs.board.showArchived")}
           </label>
         ) : (
-        <div className="flex items-center rounded-lg border bg-muted p-0.5">
-          <button
-            onClick={() => setGroupBy("status")}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              groupBy === "status"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t("jobs.board.groupByStatus")}
-          </button>
-          <button
-            onClick={() => setGroupBy("stage")}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              groupBy === "stage"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t("jobs.board.groupByStage")}
-          </button>
-        </div>
+          <div className="flex items-center rounded-lg border bg-muted p-0.5">
+            <button
+              onClick={() => setGroupBy("status")}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                groupBy === "status"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t("jobs.board.groupByStatus")}
+            </button>
+            <button
+              onClick={() => setGroupBy("stage")}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                groupBy === "stage"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t("jobs.board.groupByStage")}
+            </button>
+          </div>
         )}
       </div>
 
@@ -491,7 +518,9 @@ function buildStageColumns(
 
 // Client-side mirror of the backend's StatusForPhase derivation — used only
 // for optimistic cache updates; the server response is authoritative.
-function unifiedPhaseStatus(phase: UnifiedColumn["phase"] | StagePhase): JobStatus {
+function unifiedPhaseStatus(
+  phase: UnifiedColumn["phase"] | StagePhase,
+): JobStatus {
   switch (phase) {
     case "wishlist":
       return "saved";

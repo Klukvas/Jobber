@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { JobStatus } from "@/shared/types/api";
+import { JOB_STATUS_LABEL_KEYS } from "@/shared/lib/jobStatus";
 
 interface StatusBadgeProps {
   status: JobStatus;
@@ -17,15 +18,6 @@ const statusClassNames: Record<JobStatus, string> = {
   archived: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
 };
 
-const statusLabelKeys: Record<JobStatus, string> = {
-  saved: "jobs.statusSaved",
-  applied: "jobs.statusApplied",
-  on_hold: "jobs.statusOnHold",
-  rejected: "jobs.statusRejected",
-  offer: "jobs.statusOffer",
-  archived: "jobs.statusArchived",
-};
-
 const sizeClasses = {
   sm: "text-xs px-2 py-0.5",
   md: "text-sm px-2.5 py-1",
@@ -35,7 +27,7 @@ const sizeClasses = {
 export function StatusBadge({ status, size = "md" }: StatusBadgeProps) {
   const { t } = useTranslation();
   const className = statusClassNames[status];
-  const labelKey = statusLabelKeys[status];
+  const labelKey = JOB_STATUS_LABEL_KEYS[status];
 
   if (!className) {
     return (
