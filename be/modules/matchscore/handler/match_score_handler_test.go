@@ -75,7 +75,7 @@ func (m *MockJobRepository) ToggleFavorite(ctx context.Context, userID, jobID st
 	return false, nil
 }
 
-func (m *MockJobRepository) GetLastActivityAt(ctx context.Context, jobID string) (time.Time, error) {
+func (m *MockJobRepository) GetLastActivityAt(ctx context.Context, userID, jobID string) (time.Time, error) {
 	if m.GetLastActivityAtFunc != nil {
 		return m.GetLastActivityAtFunc(ctx, jobID)
 	}

@@ -79,7 +79,7 @@ func (m *mockCoverLetterRepo) Update(ctx context.Context, cl *model.CoverLetter)
 	return cl, nil
 }
 
-func (m *mockCoverLetterRepo) Delete(ctx context.Context, id string) error {
+func (m *mockCoverLetterRepo) Delete(ctx context.Context, userID, id string) error {
 	if m.DeleteFunc != nil {
 		return m.DeleteFunc(ctx, id)
 	}
@@ -96,6 +96,10 @@ func (m *mockLimitChecker) CheckLimit(ctx context.Context, userID, resource stri
 	if m.CheckLimitFunc != nil {
 		return m.CheckLimitFunc(ctx, userID, resource)
 	}
+	return nil
+}
+
+func (m *mockLimitChecker) RecordAIUsage(ctx context.Context, userID string) error {
 	return nil
 }
 

@@ -68,7 +68,15 @@ func (s *AIService) Generate(ctx context.Context, userID, coverLetterID, jobDesc
 		}
 	}
 
-	return s.aiClient.GenerateCoverLetter(ctx, cl.CompanyName, cl.RecipientName, cl.RecipientTitle, jobDescription, resumeContext)
+	content, err := s.aiClient.GenerateCoverLetter(ctx, cl.CompanyName, cl.RecipientName, cl.RecipientTitle, jobDescription, resumeContext)
+	if err != nil {
+		return nil, err
+	}
+	// Record the billable AI call so it counts against the user's quota.
+	if err := s.limitChecker.RecordAIUsage(ctx, userID); err != nil {
+		slog.Warn("failed to record AI usage", "user_id", userID, "error", err)
+	}
+	return content, nil
 }
 
 func buildResumeContext(resume *rbModel.FullResumeDTO) string {

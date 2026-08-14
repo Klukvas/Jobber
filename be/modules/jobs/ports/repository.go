@@ -30,7 +30,7 @@ type JobRepository interface {
 	Update(ctx context.Context, job *model.Job) error
 	Delete(ctx context.Context, userID, jobID string) error
 	ToggleFavorite(ctx context.Context, userID, jobID string) (bool, error)
-	GetLastActivityAt(ctx context.Context, jobID string) (time.Time, error)
+	GetLastActivityAt(ctx context.Context, userID, jobID string) (time.Time, error)
 }
 
 // StageTemplateRepository defines the interface for stage template data access
@@ -45,7 +45,7 @@ type StageTemplateRepository interface {
 // JobStageRepository defines the interface for job stage data access
 type JobStageRepository interface {
 	Create(ctx context.Context, stage *model.JobStage) error
-	GetByID(ctx context.Context, stageID string) (*model.JobStage, error)
+	GetByID(ctx context.Context, stageID, jobID string) (*model.JobStage, error)
 	ListByJob(ctx context.Context, jobID string) ([]*model.JobStage, error)
 	Update(ctx context.Context, stage *model.JobStage) error
 	Delete(ctx context.Context, stageID string) error

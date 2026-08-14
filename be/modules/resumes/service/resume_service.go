@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andreypavlenko/jobber/internal/platform/netsafe"
 	"github.com/andreypavlenko/jobber/internal/platform/storage"
 	"github.com/andreypavlenko/jobber/modules/resumes/model"
 	"github.com/andreypavlenko/jobber/modules/resumes/ports"
@@ -61,9 +62,14 @@ func (s *ResumeService) Create(ctx context.Context, userID string, req *model.Cr
 	var fileURL *string
 	storageType := model.StorageTypeExternal
 
-	// If file_url is provided, use it as external storage
+	// If file_url is provided, use it as external storage. Validate it at write
+	// time (SSRF) so a private/internal URL can never be persisted and later
+	// fetched by the match-score flow.
 	if req.FileURL != nil && strings.TrimSpace(*req.FileURL) != "" {
 		trimmedURL := strings.TrimSpace(*req.FileURL)
+		if err := netsafe.ValidateExternalURL(trimmedURL); err != nil {
+			return nil, model.ErrInvalidFileURL
+		}
 		fileURL = &trimmedURL
 	}
 
@@ -130,6 +136,9 @@ func (s *ResumeService) Update(ctx context.Context, userID, resumeID string, req
 		if fileURL == "" {
 			resume.FileURL = nil
 		} else {
+			if err := netsafe.ValidateExternalURL(fileURL); err != nil {
+				return nil, model.ErrInvalidFileURL
+			}
 			resume.FileURL = &fileURL
 		}
 	}

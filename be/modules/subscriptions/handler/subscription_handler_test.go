@@ -140,6 +140,10 @@ func (m *MockSubscriptionRepository) TryClaimWebhookEvent(ctx context.Context, e
 	return true, nil
 }
 
+func (m *MockSubscriptionRepository) ReleaseWebhookEvent(ctx context.Context, eventID string) error {
+	return nil
+}
+
 func setupTestRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	return gin.New()

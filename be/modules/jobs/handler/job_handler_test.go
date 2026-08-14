@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
+	commentModel "github.com/andreypavlenko/jobber/modules/comments/model"
 	companyModel "github.com/andreypavlenko/jobber/modules/companies/model"
 	companyPorts "github.com/andreypavlenko/jobber/modules/companies/ports"
-	commentModel "github.com/andreypavlenko/jobber/modules/comments/model"
 	"github.com/andreypavlenko/jobber/modules/jobs/model"
 	"github.com/andreypavlenko/jobber/modules/jobs/ports"
 	"github.com/andreypavlenko/jobber/modules/jobs/service"
@@ -56,7 +56,7 @@ type MockCommentRepository struct{}
 func (m *MockCommentRepository) Create(ctx context.Context, comment *commentModel.Comment) error {
 	return nil
 }
-func (m *MockCommentRepository) ListByJob(ctx context.Context, jobID string, userID ...string) ([]*commentModel.Comment, error) {
+func (m *MockCommentRepository) ListByJob(ctx context.Context, jobID, userID string) ([]*commentModel.Comment, error) {
 	return nil, nil
 }
 func (m *MockCommentRepository) Delete(ctx context.Context, userID, commentID string) error {
@@ -118,7 +118,7 @@ func (m *MockJobRepository) ToggleFavorite(ctx context.Context, userID, jobID st
 	return false, nil
 }
 
-func (m *MockJobRepository) GetLastActivityAt(ctx context.Context, jobID string) (time.Time, error) {
+func (m *MockJobRepository) GetLastActivityAt(ctx context.Context, userID, jobID string) (time.Time, error) {
 	if m.GetLastActivityAtFunc != nil {
 		return m.GetLastActivityAtFunc(ctx, jobID)
 	}

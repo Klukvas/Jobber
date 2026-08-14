@@ -32,7 +32,14 @@ func (r *StageTemplateRepository) Create(ctx context.Context, template *model.St
 	template.UpdatedAt = now
 
 	_, err := r.pool.Exec(ctx, query, template.ID, template.UserID, template.Name, template.Order, template.Phase, template.CreatedAt, template.UpdatedAt)
-	return err
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return model.ErrStageTemplateNameExists
+		}
+		return err
+	}
+	return nil
 }
 
 func (r *StageTemplateRepository) GetByID(ctx context.Context, userID, templateID string) (*model.StageTemplate, error) {
@@ -72,6 +79,7 @@ func (r *StageTemplateRepository) List(ctx context.Context, userID string, limit
 			WHEN 'applied' THEN 1
 			WHEN 'in_progress' THEN 2
 			WHEN 'offer' THEN 3
+			WHEN 'rejected' THEN 4
 		END ASC, "order" ASC
 		LIMIT $2 OFFSET $3
 	`
@@ -102,6 +110,10 @@ func (r *StageTemplateRepository) Update(ctx context.Context, template *model.St
 	template.UpdatedAt = time.Now().UTC()
 	result, err := r.pool.Exec(ctx, query, template.ID, template.UserID, template.Name, template.Order, template.Phase, template.UpdatedAt)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return model.ErrStageTemplateNameExists
+		}
 		return err
 	}
 	if result.RowsAffected() == 0 {

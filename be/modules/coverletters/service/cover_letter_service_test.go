@@ -49,7 +49,7 @@ func (m *MockCoverLetterRepository) Update(ctx context.Context, cl *model.CoverL
 	return cl, nil
 }
 
-func (m *MockCoverLetterRepository) Delete(ctx context.Context, id string) error {
+func (m *MockCoverLetterRepository) Delete(ctx context.Context, userID, id string) error {
 	if m.DeleteFunc != nil {
 		return m.DeleteFunc(ctx, id)
 	}
@@ -67,10 +67,14 @@ func (m *MockLimitChecker) CheckLimit(ctx context.Context, userID, resource stri
 	return nil
 }
 
+func (m *MockLimitChecker) RecordAIUsage(ctx context.Context, userID string) error {
+	return nil
+}
+
 // --- Helpers ---
 
-func strPtr(s string) *string   { return &s }
-func intPtr(i int) *int         { return &i }
+func strPtr(s string) *string          { return &s }
+func intPtr(i int) *int                { return &i }
 func strSlicePtr(s []string) *[]string { return &s }
 
 func newTestCoverLetter() *model.CoverLetter {

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/andreypavlenko/jobber/internal/platform/ai"
@@ -33,18 +34,31 @@ func NewAIService(repo ports.ResumeBuilderRepository, aiClient ResumeAIClient, l
 	}
 }
 
+// recordAIUsage records a billable AI call. Best-effort: a bookkeeping failure
+// must not fail the user's already-completed request.
+func (s *AIService) recordAIUsage(ctx context.Context, userID string) {
+	if err := s.limitChecker.RecordAIUsage(ctx, userID); err != nil {
+		slog.Warn("failed to record AI usage", "user_id", userID, "error", err)
+	}
+}
+
 // SuggestBulletPoints generates bullet point suggestions for a work experience.
 func (s *AIService) SuggestBulletPoints(ctx context.Context, userID, jobTitle, company, currentDescription string) (*ai.BulletSuggestions, error) {
-	if err := s.limitChecker.CheckLimit(ctx, userID, "ai_requests"); err != nil {
+	if err := s.limitChecker.CheckLimit(ctx, userID, "ai"); err != nil {
 		return nil, err
 	}
 
-	return s.aiClient.SuggestBulletPoints(ctx, jobTitle, company, currentDescription)
+	res, err := s.aiClient.SuggestBulletPoints(ctx, jobTitle, company, currentDescription)
+	if err != nil {
+		return nil, err
+	}
+	s.recordAIUsage(ctx, userID)
+	return res, nil
 }
 
 // SuggestSummary generates a professional summary based on resume context.
 func (s *AIService) SuggestSummary(ctx context.Context, userID, resumeID string) (string, error) {
-	if err := s.limitChecker.CheckLimit(ctx, userID, "ai_requests"); err != nil {
+	if err := s.limitChecker.CheckLimit(ctx, userID, "ai"); err != nil {
 		return "", err
 	}
 
@@ -78,21 +92,31 @@ func (s *AIService) SuggestSummary(ctx context.Context, userID, resumeID string)
 		jobTitle = resume.Experiences[0].Position
 	}
 
-	return s.aiClient.SuggestSummary(ctx, name, jobTitle, strings.Join(contextParts, "\n\n"))
+	summary, err := s.aiClient.SuggestSummary(ctx, name, jobTitle, strings.Join(contextParts, "\n\n"))
+	if err != nil {
+		return "", err
+	}
+	s.recordAIUsage(ctx, userID)
+	return summary, nil
 }
 
 // ImproveText improves a text snippet based on an instruction.
 func (s *AIService) ImproveText(ctx context.Context, userID, text, instruction string) (string, error) {
-	if err := s.limitChecker.CheckLimit(ctx, userID, "ai_requests"); err != nil {
+	if err := s.limitChecker.CheckLimit(ctx, userID, "ai"); err != nil {
 		return "", err
 	}
 
-	return s.aiClient.ImproveText(ctx, text, instruction)
+	improved, err := s.aiClient.ImproveText(ctx, text, instruction)
+	if err != nil {
+		return "", err
+	}
+	s.recordAIUsage(ctx, userID)
+	return improved, nil
 }
 
 // ATSCheck analyzes a resume for ATS compatibility.
 func (s *AIService) ATSCheck(ctx context.Context, userID, resumeID, locale string) (*ai.ATSCheckResult, error) {
-	if err := s.limitChecker.CheckLimit(ctx, userID, "ai_requests"); err != nil {
+	if err := s.limitChecker.CheckLimit(ctx, userID, "ai"); err != nil {
 		return nil, err
 	}
 
@@ -183,5 +207,10 @@ func (s *AIService) ATSCheck(ctx context.Context, userID, resumeID, locale strin
 	if len(resumeText) > maxATSResumeTextLen {
 		resumeText = resumeText[:maxATSResumeTextLen]
 	}
-	return s.aiClient.AnalyzeATS(ctx, resumeText, locale)
+	result, err := s.aiClient.AnalyzeATS(ctx, resumeText, locale)
+	if err != nil {
+		return nil, err
+	}
+	s.recordAIUsage(ctx, userID)
+	return result, nil
 }

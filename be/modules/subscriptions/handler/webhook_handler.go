@@ -23,7 +23,9 @@ func NewWebhookHandler(service *service.SubscriptionService, logger *zap.Logger)
 
 // HandlePaddleWebhook processes incoming Paddle webhook events.
 func (h *WebhookHandler) HandlePaddleWebhook(c *gin.Context) {
-	body, err := io.ReadAll(c.Request.Body)
+	// Cap the body on this unauthenticated endpoint so a huge payload can't
+	// exhaust memory. Paddle events are well under 1 MB.
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, 1<<20))
 	if err != nil {
 		httpPlatform.RespondWithError(c, http.StatusBadRequest, "BAD_REQUEST", "Failed to read request body")
 		return

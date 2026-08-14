@@ -299,7 +299,7 @@ func TestImportFromPDF_Handler_Success(t *testing.T) {
 	router := importSetupRouter()
 	router.POST("/import/pdf", importAuthMiddleware("user-1"), handler.ImportFromPDF)
 
-	req := createMultipartPDFRequest(t, "file", []byte("fake-pdf-content"), "My PDF Resume")
+	req := createMultipartPDFRequest(t, "file", []byte("%PDF-1.4 fake-pdf-content"), "My PDF Resume")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -318,7 +318,7 @@ func TestImportFromPDF_Handler_Unauthorized(t *testing.T) {
 	router := importSetupRouter()
 	router.POST("/import/pdf", handler.ImportFromPDF) // No auth middleware
 
-	req := createMultipartPDFRequest(t, "file", []byte("fake-pdf"), "")
+	req := createMultipartPDFRequest(t, "file", []byte("%PDF-1.4 fake-pdf"), "")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -362,7 +362,7 @@ func TestImportFromPDF_Handler_PlanLimitReached(t *testing.T) {
 	router := importSetupRouter()
 	router.POST("/import/pdf", importAuthMiddleware("user-1"), handler.ImportFromPDF)
 
-	req := createMultipartPDFRequest(t, "file", []byte("fake-pdf"), "")
+	req := createMultipartPDFRequest(t, "file", []byte("%PDF-1.4 fake-pdf"), "")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -394,7 +394,7 @@ func TestImportFromPDF_Handler_ServiceError(t *testing.T) {
 	router := importSetupRouter()
 	router.POST("/import/pdf", importAuthMiddleware("user-1"), handler.ImportFromPDF)
 
-	req := createMultipartPDFRequest(t, "file", []byte("fake-pdf"), "Title")
+	req := createMultipartPDFRequest(t, "file", []byte("%PDF-1.4 fake-pdf"), "Title")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -429,7 +429,7 @@ func TestImportFromPDF_Handler_WithTitle(t *testing.T) {
 	router := importSetupRouter()
 	router.POST("/import/pdf", importAuthMiddleware("user-1"), handler.ImportFromPDF)
 
-	req := createMultipartPDFRequest(t, "file", []byte("pdf"), "Custom PDF Title")
+	req := createMultipartPDFRequest(t, "file", []byte("%PDF-1.4 pdf"), "Custom PDF Title")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -520,7 +520,7 @@ func TestImportRegisterRoutes(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w.Code)
 
 	// Test PDF import route
-	req2 := createMultipartPDFRequest(t, "file", []byte("pdf-content"), "")
+	req2 := createMultipartPDFRequest(t, "file", []byte("%PDF-1.4 pdf-content"), "")
 	req2.URL.Path = "/api/resume-builder/import/pdf"
 	w2 := httptest.NewRecorder()
 	router.ServeHTTP(w2, req2)

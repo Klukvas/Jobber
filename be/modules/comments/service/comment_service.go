@@ -34,8 +34,8 @@ func (s *CommentService) Create(ctx context.Context, userID string, req *model.C
 	return comment.ToDTO(), nil
 }
 
-func (s *CommentService) ListByJob(ctx context.Context, jobID string, userID ...string) ([]*model.CommentDTO, error) {
-	comments, err := s.repo.ListByJob(ctx, jobID, userID...)
+func (s *CommentService) ListByJob(ctx context.Context, jobID, userID string) ([]*model.CommentDTO, error) {
+	comments, err := s.repo.ListByJob(ctx, jobID, userID)
 	if err != nil {
 		return nil, err
 	}

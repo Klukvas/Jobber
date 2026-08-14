@@ -49,11 +49,15 @@ func AuthMiddleware(jwtManager *JWTManager) gin.HandlerFunc {
 
 // GetUserID extracts user ID from context
 func GetUserID(c *gin.Context) (string, bool) {
-	userID, exists := c.Get("user_id")
+	val, exists := c.Get("user_id")
 	if !exists {
 		return "", false
 	}
-	return userID.(string), true
+	userID, ok := val.(string)
+	if !ok {
+		return "", false
+	}
+	return userID, true
 }
 
 // MustGetUserID extracts user ID from context and responds with 401 if not found.

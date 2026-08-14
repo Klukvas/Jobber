@@ -29,7 +29,7 @@ type ResumeDTO struct {
 	Title             string      `json:"title"`
 	FileURL           *string     `json:"file_url"`
 	StorageType       StorageType `json:"storage_type"`
-	StorageKey        *string     `json:"storage_key,omitempty"`
+	StorageKey        *string     `json:"-"` // internal S3 key — never exposed via API
 	IsActive          bool        `json:"is_active"`
 	ApplicationsCount int         `json:"applications_count"`
 	CanDelete         bool        `json:"can_delete"`

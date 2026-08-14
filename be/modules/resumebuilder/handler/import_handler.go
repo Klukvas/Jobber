@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"net/http"
@@ -100,6 +101,12 @@ func (h *ImportHandler) ImportFromPDF(c *gin.Context) {
 
 	if len(pdfBytes) > pdf.MaxPDFSize {
 		httpPlatform.RespondWithError(c, http.StatusBadRequest, "FILE_TOO_LARGE", "PDF file exceeds 5MB limit")
+		return
+	}
+
+	// Validate real content, not the client-declared type: a PDF starts with %PDF-.
+	if !bytes.HasPrefix(pdfBytes, []byte("%PDF-")) {
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, "INVALID_PDF", "Uploaded file is not a valid PDF")
 		return
 	}
 

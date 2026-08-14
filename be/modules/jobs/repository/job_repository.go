@@ -339,7 +339,7 @@ func (r *JobRepository) Delete(ctx context.Context, userID, jobID string) error 
 
 // GetLastActivityAt returns the most recent activity timestamp for a job
 // (job update, stage creation or comment creation)
-func (r *JobRepository) GetLastActivityAt(ctx context.Context, jobID string) (time.Time, error) {
+func (r *JobRepository) GetLastActivityAt(ctx context.Context, userID, jobID string) (time.Time, error) {
 	query := `
 		SELECT GREATEST(
 			j.updated_at,
@@ -347,9 +347,9 @@ func (r *JobRepository) GetLastActivityAt(ctx context.Context, jobID string) (ti
 			COALESCE((SELECT MAX(created_at) FROM comments WHERE job_id = j.id), j.updated_at)
 		) as last_activity_at
 		FROM jobs j
-		WHERE j.id = $1
+		WHERE j.id = $1 AND j.user_id = $2
 	`
 	var lastActivity time.Time
-	err := r.pool.QueryRow(ctx, query, jobID).Scan(&lastActivity)
+	err := r.pool.QueryRow(ctx, query, jobID, userID).Scan(&lastActivity)
 	return lastActivity, err
 }

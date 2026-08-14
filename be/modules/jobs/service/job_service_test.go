@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
+	commentModel "github.com/andreypavlenko/jobber/modules/comments/model"
 	companyModel "github.com/andreypavlenko/jobber/modules/companies/model"
 	companyPorts "github.com/andreypavlenko/jobber/modules/companies/ports"
-	commentModel "github.com/andreypavlenko/jobber/modules/comments/model"
 	"github.com/andreypavlenko/jobber/modules/jobs/model"
 	"github.com/andreypavlenko/jobber/modules/jobs/ports"
 	"github.com/stretchr/testify/assert"
@@ -56,7 +56,7 @@ type MockCommentRepository struct{}
 func (m *MockCommentRepository) Create(ctx context.Context, comment *commentModel.Comment) error {
 	return nil
 }
-func (m *MockCommentRepository) ListByJob(ctx context.Context, jobID string, userID ...string) ([]*commentModel.Comment, error) {
+func (m *MockCommentRepository) ListByJob(ctx context.Context, jobID, userID string) ([]*commentModel.Comment, error) {
 	return nil, nil
 }
 func (m *MockCommentRepository) Delete(ctx context.Context, userID, commentID string) error {
@@ -67,13 +67,13 @@ var defaultMockCommentRepo = &MockCommentRepository{}
 
 // MockJobRepository implements ports.JobRepository
 type MockJobRepository struct {
-	CreateFunc             func(ctx context.Context, job *model.Job) error
-	GetByIDFunc            func(ctx context.Context, userID, jobID string) (*model.Job, error)
-	ListFunc               func(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.JobDTO, int, error)
-	UpdateFunc             func(ctx context.Context, job *model.Job) error
-	DeleteFunc             func(ctx context.Context, userID, jobID string) error
-	ToggleFavoriteFunc     func(ctx context.Context, userID, jobID string) (bool, error)
-	GetLastActivityAtFunc  func(ctx context.Context, jobID string) (time.Time, error)
+	CreateFunc            func(ctx context.Context, job *model.Job) error
+	GetByIDFunc           func(ctx context.Context, userID, jobID string) (*model.Job, error)
+	ListFunc              func(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.JobDTO, int, error)
+	UpdateFunc            func(ctx context.Context, job *model.Job) error
+	DeleteFunc            func(ctx context.Context, userID, jobID string) error
+	ToggleFavoriteFunc    func(ctx context.Context, userID, jobID string) (bool, error)
+	GetLastActivityAtFunc func(ctx context.Context, jobID string) (time.Time, error)
 }
 
 func (m *MockJobRepository) Create(ctx context.Context, job *model.Job) error {
@@ -118,7 +118,7 @@ func (m *MockJobRepository) ToggleFavorite(ctx context.Context, userID, jobID st
 	return false, nil
 }
 
-func (m *MockJobRepository) GetLastActivityAt(ctx context.Context, jobID string) (time.Time, error) {
+func (m *MockJobRepository) GetLastActivityAt(ctx context.Context, userID, jobID string) (time.Time, error) {
 	if m.GetLastActivityAtFunc != nil {
 		return m.GetLastActivityAtFunc(ctx, jobID)
 	}

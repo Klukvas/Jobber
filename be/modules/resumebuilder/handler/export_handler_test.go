@@ -39,13 +39,13 @@ func exportMockAuthMiddleware(userID string) gin.HandlerFunc {
 // --- Mock repository (reuses the same pattern as service tests) ---
 
 type mockResumeBuilderRepo struct {
-	VerifyOwnershipFunc func(ctx context.Context, userID, resumeBuilderID string) error
-	GetFullResumeFunc   func(ctx context.Context, id string) (*model.FullResumeDTO, error)
-	CreateFunc          func(ctx context.Context, rb *model.ResumeBuilder) error
-	GetByIDFunc         func(ctx context.Context, id string) (*model.ResumeBuilder, error)
-	ListFunc            func(ctx context.Context, userID string) ([]*model.ResumeBuilderDTO, error)
-	UpdateFunc          func(ctx context.Context, rb *model.ResumeBuilder) error
-	DeleteFunc          func(ctx context.Context, id string) error
+	VerifyOwnershipFunc  func(ctx context.Context, userID, resumeBuilderID string) error
+	GetFullResumeFunc    func(ctx context.Context, id string) (*model.FullResumeDTO, error)
+	CreateFunc           func(ctx context.Context, rb *model.ResumeBuilder) error
+	GetByIDFunc          func(ctx context.Context, id string) (*model.ResumeBuilder, error)
+	ListFunc             func(ctx context.Context, userID string) ([]*model.ResumeBuilderDTO, error)
+	UpdateFunc           func(ctx context.Context, rb *model.ResumeBuilder) error
+	DeleteFunc           func(ctx context.Context, id string) error
 	RunInTransactionFunc func(ctx context.Context, fn func(txRepo ports.ResumeBuilderRepository) error) error
 
 	UpsertContactFunc        func(ctx context.Context, contact *model.Contact) error
@@ -484,6 +484,10 @@ func (m *mockLimitChecker) CheckLimit(ctx context.Context, userID, resource stri
 	if m.CheckLimitFunc != nil {
 		return m.CheckLimitFunc(ctx, userID, resource)
 	}
+	return nil
+}
+
+func (m *mockLimitChecker) RecordAIUsage(ctx context.Context, userID string) error {
 	return nil
 }
 

@@ -43,23 +43,17 @@ func (r *CommentRepository) Create(ctx context.Context, comment *model.Comment) 
 	return nil
 }
 
-func (r *CommentRepository) ListByJob(ctx context.Context, jobID string, userID ...string) ([]*model.Comment, error) {
+func (r *CommentRepository) ListByJob(ctx context.Context, jobID, userID string) ([]*model.Comment, error) {
+	// userID is required: comments are always scoped to the job's owner so a
+	// caller can never accidentally read another user's comments.
 	query := `
 		SELECT c.id, c.user_id, c.job_id, c.stage_id, c.content, c.created_at, c.updated_at
 		FROM comments c
+		JOIN jobs j ON c.job_id = j.id AND j.user_id = $1
+		WHERE c.job_id = $2 ORDER BY c.created_at ASC
 	`
-	var args []interface{}
 
-	if len(userID) > 0 && userID[0] != "" {
-		query += ` JOIN jobs j ON c.job_id = j.id AND j.user_id = $1
-		WHERE c.job_id = $2 ORDER BY c.created_at ASC`
-		args = append(args, userID[0], jobID)
-	} else {
-		query += ` WHERE c.job_id = $1 ORDER BY c.created_at ASC`
-		args = append(args, jobID)
-	}
-
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := r.pool.Query(ctx, query, userID, jobID)
 	if err != nil {
 		return nil, err
 	}

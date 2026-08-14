@@ -48,7 +48,7 @@ func (s *JobService) Move(ctx context.Context, userID, jobID string, req *model.
 		if err != nil {
 			return nil, err
 		}
-		return s.moveToPhaseBase(ctx, job, newStatus)
+		return s.moveToPhaseBase(ctx, userID, job, newStatus)
 	default:
 		return nil, model.ErrInvalidMoveTarget
 	}
@@ -60,9 +60,9 @@ func (s *JobService) moveToStage(ctx context.Context, userID string, job *model.
 	// No-op guard: dropping a card back on its own column must not spawn a
 	// duplicate stage entry.
 	if job.CurrentStageID != nil && *job.CurrentStageID != "" && job.Status == newStatus {
-		current, err := s.stageRepo.GetByID(ctx, *job.CurrentStageID)
+		current, err := s.stageRepo.GetByID(ctx, *job.CurrentStageID, job.ID)
 		if err == nil && current.StageTemplateID == template.ID && current.Status != "completed" {
-			return job.ToDTO(), nil
+			return s.buildJobDTO(ctx, userID, job, false)
 		}
 	}
 
@@ -80,8 +80,8 @@ func (s *JobService) moveToStage(ctx context.Context, userID string, job *model.
 	}
 
 	var order int
-	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM job_stages WHERE job_id = $1`, job.ID).Scan(&order); err != nil {
-		return nil, fmt.Errorf("failed to count stages: %w", err)
+	if err := tx.QueryRow(ctx, `SELECT COALESCE(MAX("order"), -1) + 1 FROM job_stages WHERE job_id = $1`, job.ID).Scan(&order); err != nil {
+		return nil, fmt.Errorf("failed to compute stage order: %w", err)
 	}
 
 	// Complete the current active stage (if any)
@@ -126,15 +126,15 @@ func (s *JobService) moveToStage(ctx context.Context, userID string, job *model.
 		zap.String("status", job.Status),
 		zap.String("user_id", userID))
 
-	return job.ToDTO(), nil
+	return s.buildJobDTO(ctx, userID, job, false)
 }
 
-func (s *JobService) moveToPhaseBase(ctx context.Context, job *model.Job, newStatus string) (*model.JobDTO, error) {
+func (s *JobService) moveToPhaseBase(ctx context.Context, userID string, job *model.Job, newStatus string) (*model.JobDTO, error) {
 	hasStage := job.CurrentStageID != nil && *job.CurrentStageID != ""
 
 	// No-op guard: already in this base column
 	if job.Status == newStatus && !hasStage {
-		return job.ToDTO(), nil
+		return s.buildJobDTO(ctx, userID, job, false)
 	}
 
 	now := time.Now().UTC()
@@ -179,5 +179,5 @@ func (s *JobService) moveToPhaseBase(ctx context.Context, job *model.Job, newSta
 		zap.String("job_id", job.ID),
 		zap.String("status", job.Status))
 
-	return job.ToDTO(), nil
+	return s.buildJobDTO(ctx, userID, job, false)
 }

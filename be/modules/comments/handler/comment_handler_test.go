@@ -30,9 +30,9 @@ func (m *MockCommentRepository) Create(ctx context.Context, comment *model.Comme
 	return nil
 }
 
-func (m *MockCommentRepository) ListByJob(ctx context.Context, jobID string, userID ...string) ([]*model.Comment, error) {
+func (m *MockCommentRepository) ListByJob(ctx context.Context, jobID, userID string) ([]*model.Comment, error) {
 	if m.ListByJobFunc != nil {
-		return m.ListByJobFunc(ctx, jobID, userID...)
+		return m.ListByJobFunc(ctx, jobID, userID)
 	}
 	return nil, nil
 }

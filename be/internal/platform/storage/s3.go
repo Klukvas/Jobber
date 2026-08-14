@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 // S3Client provides S3 storage operations
@@ -139,8 +141,12 @@ func (c *S3Client) ObjectExists(ctx context.Context, key string) (bool, error) {
 	})
 
 	if err != nil {
-		// Check if error is "NotFound"
-		return false, nil
+		var nf *s3types.NotFound
+		if errors.As(err, &nf) {
+			return false, nil
+		}
+		// A transient/permission error must NOT be reported as "not found".
+		return false, fmt.Errorf("failed to check object existence: %w", err)
 	}
 
 	return true, nil

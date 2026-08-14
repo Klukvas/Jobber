@@ -181,7 +181,7 @@ func TestSuggestBulletPoints(t *testing.T) {
 		svc := newAIService(&MockResumeBuilderRepository{}, &MockResumeAIClient{}, limitChecker)
 		_, _ = svc.SuggestBulletPoints(ctx, userID, "Engineer", "Corp", "desc")
 
-		assert.Equal(t, "ai_requests", capturedResource)
+		assert.Equal(t, "ai", capturedResource)
 	})
 }
 
@@ -439,7 +439,7 @@ func TestImproveText(t *testing.T) {
 		svc := newAIService(&MockResumeBuilderRepository{}, &MockResumeAIClient{}, limitChecker)
 		_, _ = svc.ImproveText(ctx, userID, "text", "instruction")
 
-		assert.Equal(t, "ai_requests", capturedResource)
+		assert.Equal(t, "ai", capturedResource)
 	})
 }
 

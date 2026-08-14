@@ -21,6 +21,10 @@ var (
 	// ErrStageTemplateInUse is returned when a stage template is referenced by job stages
 	ErrStageTemplateInUse = errors.New("stage template is still in use by jobs")
 
+	// ErrStageTemplateNameExists is returned when a stage template name collides
+	// with an existing one for the same user (UNIQUE(user_id, name))
+	ErrStageTemplateNameExists = errors.New("stage template name already exists")
+
 	// ErrInvalidPhase is returned when a stage template phase is not one of the fixed phases
 	ErrInvalidPhase = errors.New("invalid stage template phase")
 
@@ -47,20 +51,21 @@ var (
 type ErrorCode string
 
 const (
-	CodeJobNotFound           ErrorCode = "JOB_NOT_FOUND"
-	CodeJobTitleRequired      ErrorCode = "JOB_TITLE_REQUIRED"
-	CodeInvalidJobStatus      ErrorCode = "INVALID_JOB_STATUS"
-	CodeCompanyNotFound       ErrorCode = "COMPANY_NOT_FOUND"
-	CodeStageTemplateNotFound ErrorCode = "STAGE_TEMPLATE_NOT_FOUND"
-	CodeInvalidPhase          ErrorCode = "INVALID_PHASE"
-	CodeInvalidMoveTarget     ErrorCode = "INVALID_MOVE_TARGET"
-	CodeStageTemplateInUse    ErrorCode = "STAGE_TEMPLATE_IN_USE"
-	CodeJobStageNotFound      ErrorCode = "JOB_STAGE_NOT_FOUND"
-	CodeInvalidStatus         ErrorCode = "INVALID_STATUS"
-	CodeStageNameRequired     ErrorCode = "STAGE_NAME_REQUIRED"
-	CodeBothResumeTypesSet    ErrorCode = "BOTH_RESUME_TYPES_SET"
-	CodeResumeNotFound        ErrorCode = "RESUME_NOT_FOUND"
-	CodeInternalError         ErrorCode = "INTERNAL_ERROR"
+	CodeJobNotFound             ErrorCode = "JOB_NOT_FOUND"
+	CodeJobTitleRequired        ErrorCode = "JOB_TITLE_REQUIRED"
+	CodeInvalidJobStatus        ErrorCode = "INVALID_JOB_STATUS"
+	CodeCompanyNotFound         ErrorCode = "COMPANY_NOT_FOUND"
+	CodeStageTemplateNotFound   ErrorCode = "STAGE_TEMPLATE_NOT_FOUND"
+	CodeInvalidPhase            ErrorCode = "INVALID_PHASE"
+	CodeInvalidMoveTarget       ErrorCode = "INVALID_MOVE_TARGET"
+	CodeStageTemplateInUse      ErrorCode = "STAGE_TEMPLATE_IN_USE"
+	CodeStageTemplateNameExists ErrorCode = "STAGE_TEMPLATE_NAME_EXISTS"
+	CodeJobStageNotFound        ErrorCode = "JOB_STAGE_NOT_FOUND"
+	CodeInvalidStatus           ErrorCode = "INVALID_STATUS"
+	CodeStageNameRequired       ErrorCode = "STAGE_NAME_REQUIRED"
+	CodeBothResumeTypesSet      ErrorCode = "BOTH_RESUME_TYPES_SET"
+	CodeResumeNotFound          ErrorCode = "RESUME_NOT_FOUND"
+	CodeInternalError           ErrorCode = "INTERNAL_ERROR"
 )
 
 // GetErrorCode maps errors to error codes
@@ -78,6 +83,8 @@ func GetErrorCode(err error) ErrorCode {
 		return CodeStageTemplateNotFound
 	case errors.Is(err, ErrStageTemplateInUse):
 		return CodeStageTemplateInUse
+	case errors.Is(err, ErrStageTemplateNameExists):
+		return CodeStageTemplateNameExists
 	case errors.Is(err, ErrInvalidPhase):
 		return CodeInvalidPhase
 	case errors.Is(err, ErrInvalidMoveTarget):
@@ -112,8 +119,10 @@ func GetErrorMessage(err error) string {
 		return "Stage template not found"
 	case errors.Is(err, ErrStageTemplateInUse):
 		return "Stage template is still in use by jobs and cannot be deleted"
+	case errors.Is(err, ErrStageTemplateNameExists):
+		return "A stage with this name already exists"
 	case errors.Is(err, ErrInvalidPhase):
-		return "Phase must be one of: wishlist, applied, in_progress, offer"
+		return "Phase must be one of: wishlist, applied, in_progress, offer, rejected"
 	case errors.Is(err, ErrInvalidMoveTarget):
 		return "Move target must be a stage (with stage_template_id) or a phase"
 	case errors.Is(err, ErrJobStageNotFound):

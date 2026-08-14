@@ -14,6 +14,7 @@ var colorRegex = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 // LimitChecker checks subscription resource limits.
 type LimitChecker interface {
 	CheckLimit(ctx context.Context, userID, resource string) error
+	RecordAIUsage(ctx context.Context, userID string) error
 }
 
 // CoverLetterService handles cover letter business logic.
@@ -220,5 +221,5 @@ func (s *CoverLetterService) Delete(ctx context.Context, userID, id string) erro
 		return model.ErrNotAuthorized
 	}
 
-	return s.repo.Delete(ctx, id)
+	return s.repo.Delete(ctx, userID, id)
 }

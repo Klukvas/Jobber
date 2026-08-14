@@ -217,3 +217,10 @@ func (r *SubscriptionRepository) TryClaimWebhookEvent(ctx context.Context, event
 	}
 	return tag.RowsAffected() == 1, nil
 }
+
+// ReleaseWebhookEvent removes a claimed event ID so a retry can reprocess it.
+// Called when handling failed after the claim was taken.
+func (r *SubscriptionRepository) ReleaseWebhookEvent(ctx context.Context, eventID string) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM webhook_events WHERE event_id = $1`, eventID)
+	return err
+}

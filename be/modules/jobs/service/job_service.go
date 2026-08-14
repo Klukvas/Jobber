@@ -223,7 +223,7 @@ func (s *JobService) buildJobDTO(ctx context.Context, userID string, job *model.
 	}
 
 	// Last activity
-	if lastActivity, err := s.repo.GetLastActivityAt(ctx, job.ID); err != nil {
+	if lastActivity, err := s.repo.GetLastActivityAt(ctx, userID, job.ID); err != nil {
 		s.log.Warn("failed to get last activity", zap.String("job_id", job.ID), zap.Error(err))
 		dto.LastActivityAt = job.UpdatedAt
 	} else {
@@ -232,7 +232,7 @@ func (s *JobService) buildJobDTO(ctx context.Context, userID string, job *model.
 
 	// Current stage name
 	if job.CurrentStageID != nil && *job.CurrentStageID != "" {
-		if stage, err := s.stageRepo.GetByID(ctx, *job.CurrentStageID); err != nil {
+		if stage, err := s.stageRepo.GetByID(ctx, *job.CurrentStageID, job.ID); err != nil {
 			s.log.Warn("failed to fetch current stage for DTO",
 				zap.String("job_id", job.ID),
 				zap.String("stage_id", *job.CurrentStageID),
@@ -396,15 +396,16 @@ func (s *JobService) AddStage(ctx context.Context, userID, jobID string, req *mo
 		return nil, fmt.Errorf("failed to lock job: %w", err)
 	}
 
-	// Determine order from a fresh count taken under the lock
+	// Next order = max existing + 1 (taken under the lock). Using MAX rather
+	// than COUNT keeps orders unique after a middle stage is deleted.
 	var order int
-	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM job_stages WHERE job_id = $1`, jobID).Scan(&order); err != nil {
-		return nil, fmt.Errorf("failed to count stages: %w", err)
+	if err := tx.QueryRow(ctx, `SELECT COALESCE(MAX("order"), -1) + 1 FROM job_stages WHERE job_id = $1`, jobID).Scan(&order); err != nil {
+		return nil, fmt.Errorf("failed to compute stage order: %w", err)
 	}
 
 	// Complete the current active stage (if any)
 	if job.CurrentStageID != nil && *job.CurrentStageID != "" {
-		currentStage, err := s.stageRepo.GetByID(ctx, *job.CurrentStageID)
+		currentStage, err := s.stageRepo.GetByID(ctx, *job.CurrentStageID, job.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -436,11 +437,23 @@ func (s *JobService) AddStage(ctx context.Context, userID, jobID string, req *mo
 		return nil, fmt.Errorf("failed to create stage: %w", err)
 	}
 
-	// Update job's current stage
-	_, err = tx.Exec(ctx,
-		`UPDATE jobs SET current_stage_id = $2, updated_at = $3 WHERE id = $1`,
-		job.ID, newStageID, now,
-	)
+	// Update job's current stage. Adding a stage to a wishlist (saved) card
+	// promotes it to an application — mirror the status derivation the Move
+	// path performs so the "has a stage ⇒ it's an application" invariant holds.
+	if job.Status == string(model.StatusSaved) {
+		if err := applyStatusTransition(job, string(model.StatusForPhase(template.Phase)), nil); err != nil {
+			return nil, err
+		}
+		_, err = tx.Exec(ctx,
+			`UPDATE jobs SET current_stage_id = $2, status = $3, applied_at = $4, updated_at = $5 WHERE id = $1`,
+			job.ID, newStageID, job.Status, job.AppliedAt, now,
+		)
+	} else {
+		_, err = tx.Exec(ctx,
+			`UPDATE jobs SET current_stage_id = $2, updated_at = $3 WHERE id = $1`,
+			job.ID, newStageID, now,
+		)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to update job current stage: %w", err)
 	}
@@ -532,8 +545,21 @@ func (s *JobService) UpdateStage(ctx context.Context, userID, jobID, stageID str
 		return nil, err
 	}
 
-	// Get the stage
-	stage, err := s.stageRepo.GetByID(ctx, stageID)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback is a no-op after commit
+
+	// Serialize with AddStage/DeleteStage/Move (which all lock the job row
+	// first) so a concurrent stage add can't clobber completed_at mid-write.
+	if _, err := tx.Exec(ctx, `SELECT id FROM jobs WHERE id = $1 FOR UPDATE`, jobID); err != nil {
+		return nil, fmt.Errorf("failed to lock job: %w", err)
+	}
+
+	// Get the stage (read is safe under the job lock — no concurrent stage
+	// writer for this job can commit while we hold it)
+	stage, err := s.stageRepo.GetByID(ctx, stageID, jobID)
 	if err != nil {
 		return nil, err
 	}
@@ -571,15 +597,26 @@ func (s *JobService) UpdateStage(ctx context.Context, userID, jobID, stageID str
 		stage.CompletedAt = nil
 	}
 
-	// Update in database
-	if err := s.stageRepo.Update(ctx, stage); err != nil {
-		return nil, err
+	// Update within the transaction (under the job lock taken above)
+	res, err := tx.Exec(ctx,
+		`UPDATE job_stages SET status = $2, completed_at = $3 WHERE id = $1`,
+		stage.ID, stage.Status, stage.CompletedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update stage: %w", err)
+	}
+	if res.RowsAffected() == 0 {
+		return nil, model.ErrJobStageNotFound
 	}
 
 	// Get template for DTO
 	template, err := s.templateRepo.GetByID(ctx, userID, stage.StageTemplateID)
 	if err != nil {
 		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	s.log.Info("stage status updated",
@@ -602,7 +639,7 @@ func (s *JobService) DeleteStage(ctx context.Context, userID, jobID, stageID str
 	}
 
 	// Get the stage to be deleted (read, outside tx)
-	stage, err := s.stageRepo.GetByID(ctx, stageID)
+	stage, err := s.stageRepo.GetByID(ctx, stageID, jobID)
 	if err != nil {
 		return err
 	}

@@ -34,14 +34,14 @@ func (r *JobStageRepository) Create(ctx context.Context, stage *model.JobStage) 
 	return err
 }
 
-func (r *JobStageRepository) GetByID(ctx context.Context, stageID string) (*model.JobStage, error) {
+func (r *JobStageRepository) GetByID(ctx context.Context, stageID, jobID string) (*model.JobStage, error) {
 	query := `
 		SELECT id, job_id, stage_template_id, status, "order", started_at, completed_at, created_at
-		FROM job_stages WHERE id = $1
+		FROM job_stages WHERE id = $1 AND job_id = $2
 	`
 
 	stage := &model.JobStage{}
-	err := r.pool.QueryRow(ctx, query, stageID).Scan(
+	err := r.pool.QueryRow(ctx, query, stageID, jobID).Scan(
 		&stage.ID, &stage.JobID, &stage.StageTemplateID, &stage.Status, &stage.Order, &stage.StartedAt, &stage.CompletedAt, &stage.CreatedAt,
 	)
 

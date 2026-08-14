@@ -13,6 +13,7 @@ import (
 // LimitChecker checks subscription resource limits.
 type LimitChecker interface {
 	CheckLimit(ctx context.Context, userID, resource string) error
+	RecordAIUsage(ctx context.Context, userID string) error
 }
 
 // Default section keys and their initial order.

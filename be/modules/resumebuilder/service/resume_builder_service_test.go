@@ -29,41 +29,41 @@ type MockResumeBuilderRepository struct {
 	UpsertSummaryFunc func(ctx context.Context, summary *model.Summary) error
 	GetSummaryFunc    func(ctx context.Context, resumeBuilderID string) (*model.Summary, error)
 
-	CreateExperienceFunc    func(ctx context.Context, exp *model.Experience) error
-	UpdateExperienceFunc    func(ctx context.Context, exp *model.Experience) error
-	DeleteExperienceFunc    func(ctx context.Context, resumeBuilderID, id string) error
-	ListExperiencesFunc     func(ctx context.Context, resumeBuilderID string) ([]*model.Experience, error)
-	GetExperienceByIDFunc   func(ctx context.Context, resumeBuilderID, id string) (*model.Experience, error)
+	CreateExperienceFunc  func(ctx context.Context, exp *model.Experience) error
+	UpdateExperienceFunc  func(ctx context.Context, exp *model.Experience) error
+	DeleteExperienceFunc  func(ctx context.Context, resumeBuilderID, id string) error
+	ListExperiencesFunc   func(ctx context.Context, resumeBuilderID string) ([]*model.Experience, error)
+	GetExperienceByIDFunc func(ctx context.Context, resumeBuilderID, id string) (*model.Experience, error)
 
-	CreateEducationFunc     func(ctx context.Context, edu *model.Education) error
-	UpdateEducationFunc     func(ctx context.Context, edu *model.Education) error
-	DeleteEducationFunc     func(ctx context.Context, resumeBuilderID, id string) error
-	ListEducationsFunc      func(ctx context.Context, resumeBuilderID string) ([]*model.Education, error)
-	GetEducationByIDFunc    func(ctx context.Context, resumeBuilderID, id string) (*model.Education, error)
+	CreateEducationFunc  func(ctx context.Context, edu *model.Education) error
+	UpdateEducationFunc  func(ctx context.Context, edu *model.Education) error
+	DeleteEducationFunc  func(ctx context.Context, resumeBuilderID, id string) error
+	ListEducationsFunc   func(ctx context.Context, resumeBuilderID string) ([]*model.Education, error)
+	GetEducationByIDFunc func(ctx context.Context, resumeBuilderID, id string) (*model.Education, error)
 
-	CreateSkillFunc         func(ctx context.Context, skill *model.Skill) error
-	UpdateSkillFunc         func(ctx context.Context, skill *model.Skill) error
-	DeleteSkillFunc         func(ctx context.Context, resumeBuilderID, id string) error
-	ListSkillsFunc          func(ctx context.Context, resumeBuilderID string) ([]*model.Skill, error)
-	GetSkillByIDFunc        func(ctx context.Context, resumeBuilderID, id string) (*model.Skill, error)
+	CreateSkillFunc  func(ctx context.Context, skill *model.Skill) error
+	UpdateSkillFunc  func(ctx context.Context, skill *model.Skill) error
+	DeleteSkillFunc  func(ctx context.Context, resumeBuilderID, id string) error
+	ListSkillsFunc   func(ctx context.Context, resumeBuilderID string) ([]*model.Skill, error)
+	GetSkillByIDFunc func(ctx context.Context, resumeBuilderID, id string) (*model.Skill, error)
 
-	CreateLanguageFunc      func(ctx context.Context, lang *model.Language) error
-	UpdateLanguageFunc      func(ctx context.Context, lang *model.Language) error
-	DeleteLanguageFunc      func(ctx context.Context, resumeBuilderID, id string) error
-	ListLanguagesFunc       func(ctx context.Context, resumeBuilderID string) ([]*model.Language, error)
-	GetLanguageByIDFunc     func(ctx context.Context, resumeBuilderID, id string) (*model.Language, error)
+	CreateLanguageFunc  func(ctx context.Context, lang *model.Language) error
+	UpdateLanguageFunc  func(ctx context.Context, lang *model.Language) error
+	DeleteLanguageFunc  func(ctx context.Context, resumeBuilderID, id string) error
+	ListLanguagesFunc   func(ctx context.Context, resumeBuilderID string) ([]*model.Language, error)
+	GetLanguageByIDFunc func(ctx context.Context, resumeBuilderID, id string) (*model.Language, error)
 
-	CreateCertificationFunc func(ctx context.Context, cert *model.Certification) error
-	UpdateCertificationFunc func(ctx context.Context, cert *model.Certification) error
-	DeleteCertificationFunc func(ctx context.Context, resumeBuilderID, id string) error
-	ListCertificationsFunc  func(ctx context.Context, resumeBuilderID string) ([]*model.Certification, error)
+	CreateCertificationFunc  func(ctx context.Context, cert *model.Certification) error
+	UpdateCertificationFunc  func(ctx context.Context, cert *model.Certification) error
+	DeleteCertificationFunc  func(ctx context.Context, resumeBuilderID, id string) error
+	ListCertificationsFunc   func(ctx context.Context, resumeBuilderID string) ([]*model.Certification, error)
 	GetCertificationByIDFunc func(ctx context.Context, resumeBuilderID, id string) (*model.Certification, error)
 
-	CreateProjectFunc       func(ctx context.Context, proj *model.Project) error
-	UpdateProjectFunc       func(ctx context.Context, proj *model.Project) error
-	DeleteProjectFunc       func(ctx context.Context, resumeBuilderID, id string) error
-	ListProjectsFunc        func(ctx context.Context, resumeBuilderID string) ([]*model.Project, error)
-	GetProjectByIDFunc      func(ctx context.Context, resumeBuilderID, id string) (*model.Project, error)
+	CreateProjectFunc  func(ctx context.Context, proj *model.Project) error
+	UpdateProjectFunc  func(ctx context.Context, proj *model.Project) error
+	DeleteProjectFunc  func(ctx context.Context, resumeBuilderID, id string) error
+	ListProjectsFunc   func(ctx context.Context, resumeBuilderID string) ([]*model.Project, error)
+	GetProjectByIDFunc func(ctx context.Context, resumeBuilderID, id string) (*model.Project, error)
 
 	CreateVolunteeringFunc  func(ctx context.Context, vol *model.Volunteering) error
 	UpdateVolunteeringFunc  func(ctx context.Context, vol *model.Volunteering) error
@@ -82,219 +82,327 @@ type MockResumeBuilderRepository struct {
 }
 
 func (m *MockResumeBuilderRepository) Create(ctx context.Context, rb *model.ResumeBuilder) error {
-	if m.CreateFunc != nil { return m.CreateFunc(ctx, rb) }
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, rb)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) GetByID(ctx context.Context, id string) (*model.ResumeBuilder, error) {
-	if m.GetByIDFunc != nil { return m.GetByIDFunc(ctx, id) }
+	if m.GetByIDFunc != nil {
+		return m.GetByIDFunc(ctx, id)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) List(ctx context.Context, userID string) ([]*model.ResumeBuilderDTO, error) {
-	if m.ListFunc != nil { return m.ListFunc(ctx, userID) }
+	if m.ListFunc != nil {
+		return m.ListFunc(ctx, userID)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) Update(ctx context.Context, rb *model.ResumeBuilder) error {
-	if m.UpdateFunc != nil { return m.UpdateFunc(ctx, rb) }
+	if m.UpdateFunc != nil {
+		return m.UpdateFunc(ctx, rb)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) Delete(ctx context.Context, id string) error {
-	if m.DeleteFunc != nil { return m.DeleteFunc(ctx, id) }
+	if m.DeleteFunc != nil {
+		return m.DeleteFunc(ctx, id)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) GetFullResume(ctx context.Context, id string) (*model.FullResumeDTO, error) {
-	if m.GetFullResumeFunc != nil { return m.GetFullResumeFunc(ctx, id) }
+	if m.GetFullResumeFunc != nil {
+		return m.GetFullResumeFunc(ctx, id)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) VerifyOwnership(ctx context.Context, userID, resumeBuilderID string) error {
-	if m.VerifyOwnershipFunc != nil { return m.VerifyOwnershipFunc(ctx, userID, resumeBuilderID) }
+	if m.VerifyOwnershipFunc != nil {
+		return m.VerifyOwnershipFunc(ctx, userID, resumeBuilderID)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) RunInTransaction(ctx context.Context, fn func(txRepo ports.ResumeBuilderRepository) error) error {
-	if m.RunInTransactionFunc != nil { return m.RunInTransactionFunc(ctx, fn) }
+	if m.RunInTransactionFunc != nil {
+		return m.RunInTransactionFunc(ctx, fn)
+	}
 	return fn(m)
 }
 func (m *MockResumeBuilderRepository) UpsertContact(ctx context.Context, contact *model.Contact) error {
-	if m.UpsertContactFunc != nil { return m.UpsertContactFunc(ctx, contact) }
+	if m.UpsertContactFunc != nil {
+		return m.UpsertContactFunc(ctx, contact)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) GetContact(ctx context.Context, resumeBuilderID string) (*model.Contact, error) {
-	if m.GetContactFunc != nil { return m.GetContactFunc(ctx, resumeBuilderID) }
+	if m.GetContactFunc != nil {
+		return m.GetContactFunc(ctx, resumeBuilderID)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) UpsertSummary(ctx context.Context, summary *model.Summary) error {
-	if m.UpsertSummaryFunc != nil { return m.UpsertSummaryFunc(ctx, summary) }
+	if m.UpsertSummaryFunc != nil {
+		return m.UpsertSummaryFunc(ctx, summary)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) GetSummary(ctx context.Context, resumeBuilderID string) (*model.Summary, error) {
-	if m.GetSummaryFunc != nil { return m.GetSummaryFunc(ctx, resumeBuilderID) }
+	if m.GetSummaryFunc != nil {
+		return m.GetSummaryFunc(ctx, resumeBuilderID)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) CreateExperience(ctx context.Context, exp *model.Experience) error {
-	if m.CreateExperienceFunc != nil { return m.CreateExperienceFunc(ctx, exp) }
+	if m.CreateExperienceFunc != nil {
+		return m.CreateExperienceFunc(ctx, exp)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) UpdateExperience(ctx context.Context, exp *model.Experience) error {
-	if m.UpdateExperienceFunc != nil { return m.UpdateExperienceFunc(ctx, exp) }
+	if m.UpdateExperienceFunc != nil {
+		return m.UpdateExperienceFunc(ctx, exp)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) DeleteExperience(ctx context.Context, resumeBuilderID, id string) error {
-	if m.DeleteExperienceFunc != nil { return m.DeleteExperienceFunc(ctx, resumeBuilderID, id) }
+	if m.DeleteExperienceFunc != nil {
+		return m.DeleteExperienceFunc(ctx, resumeBuilderID, id)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) ListExperiences(ctx context.Context, resumeBuilderID string) ([]*model.Experience, error) {
-	if m.ListExperiencesFunc != nil { return m.ListExperiencesFunc(ctx, resumeBuilderID) }
+	if m.ListExperiencesFunc != nil {
+		return m.ListExperiencesFunc(ctx, resumeBuilderID)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) GetExperienceByID(ctx context.Context, resumeBuilderID, id string) (*model.Experience, error) {
-	if m.GetExperienceByIDFunc != nil { return m.GetExperienceByIDFunc(ctx, resumeBuilderID, id) }
+	if m.GetExperienceByIDFunc != nil {
+		return m.GetExperienceByIDFunc(ctx, resumeBuilderID, id)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) CreateEducation(ctx context.Context, edu *model.Education) error {
-	if m.CreateEducationFunc != nil { return m.CreateEducationFunc(ctx, edu) }
+	if m.CreateEducationFunc != nil {
+		return m.CreateEducationFunc(ctx, edu)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) UpdateEducation(ctx context.Context, edu *model.Education) error {
-	if m.UpdateEducationFunc != nil { return m.UpdateEducationFunc(ctx, edu) }
+	if m.UpdateEducationFunc != nil {
+		return m.UpdateEducationFunc(ctx, edu)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) DeleteEducation(ctx context.Context, resumeBuilderID, id string) error {
-	if m.DeleteEducationFunc != nil { return m.DeleteEducationFunc(ctx, resumeBuilderID, id) }
+	if m.DeleteEducationFunc != nil {
+		return m.DeleteEducationFunc(ctx, resumeBuilderID, id)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) ListEducations(ctx context.Context, resumeBuilderID string) ([]*model.Education, error) {
-	if m.ListEducationsFunc != nil { return m.ListEducationsFunc(ctx, resumeBuilderID) }
+	if m.ListEducationsFunc != nil {
+		return m.ListEducationsFunc(ctx, resumeBuilderID)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) GetEducationByID(ctx context.Context, resumeBuilderID, id string) (*model.Education, error) {
-	if m.GetEducationByIDFunc != nil { return m.GetEducationByIDFunc(ctx, resumeBuilderID, id) }
+	if m.GetEducationByIDFunc != nil {
+		return m.GetEducationByIDFunc(ctx, resumeBuilderID, id)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) CreateSkill(ctx context.Context, skill *model.Skill) error {
-	if m.CreateSkillFunc != nil { return m.CreateSkillFunc(ctx, skill) }
+	if m.CreateSkillFunc != nil {
+		return m.CreateSkillFunc(ctx, skill)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) UpdateSkill(ctx context.Context, skill *model.Skill) error {
-	if m.UpdateSkillFunc != nil { return m.UpdateSkillFunc(ctx, skill) }
+	if m.UpdateSkillFunc != nil {
+		return m.UpdateSkillFunc(ctx, skill)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) DeleteSkill(ctx context.Context, resumeBuilderID, id string) error {
-	if m.DeleteSkillFunc != nil { return m.DeleteSkillFunc(ctx, resumeBuilderID, id) }
+	if m.DeleteSkillFunc != nil {
+		return m.DeleteSkillFunc(ctx, resumeBuilderID, id)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) ListSkills(ctx context.Context, resumeBuilderID string) ([]*model.Skill, error) {
-	if m.ListSkillsFunc != nil { return m.ListSkillsFunc(ctx, resumeBuilderID) }
+	if m.ListSkillsFunc != nil {
+		return m.ListSkillsFunc(ctx, resumeBuilderID)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) GetSkillByID(ctx context.Context, resumeBuilderID, id string) (*model.Skill, error) {
-	if m.GetSkillByIDFunc != nil { return m.GetSkillByIDFunc(ctx, resumeBuilderID, id) }
+	if m.GetSkillByIDFunc != nil {
+		return m.GetSkillByIDFunc(ctx, resumeBuilderID, id)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) CreateLanguage(ctx context.Context, lang *model.Language) error {
-	if m.CreateLanguageFunc != nil { return m.CreateLanguageFunc(ctx, lang) }
+	if m.CreateLanguageFunc != nil {
+		return m.CreateLanguageFunc(ctx, lang)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) UpdateLanguage(ctx context.Context, lang *model.Language) error {
-	if m.UpdateLanguageFunc != nil { return m.UpdateLanguageFunc(ctx, lang) }
+	if m.UpdateLanguageFunc != nil {
+		return m.UpdateLanguageFunc(ctx, lang)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) DeleteLanguage(ctx context.Context, resumeBuilderID, id string) error {
-	if m.DeleteLanguageFunc != nil { return m.DeleteLanguageFunc(ctx, resumeBuilderID, id) }
+	if m.DeleteLanguageFunc != nil {
+		return m.DeleteLanguageFunc(ctx, resumeBuilderID, id)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) ListLanguages(ctx context.Context, resumeBuilderID string) ([]*model.Language, error) {
-	if m.ListLanguagesFunc != nil { return m.ListLanguagesFunc(ctx, resumeBuilderID) }
+	if m.ListLanguagesFunc != nil {
+		return m.ListLanguagesFunc(ctx, resumeBuilderID)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) GetLanguageByID(ctx context.Context, resumeBuilderID, id string) (*model.Language, error) {
-	if m.GetLanguageByIDFunc != nil { return m.GetLanguageByIDFunc(ctx, resumeBuilderID, id) }
+	if m.GetLanguageByIDFunc != nil {
+		return m.GetLanguageByIDFunc(ctx, resumeBuilderID, id)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) CreateCertification(ctx context.Context, cert *model.Certification) error {
-	if m.CreateCertificationFunc != nil { return m.CreateCertificationFunc(ctx, cert) }
+	if m.CreateCertificationFunc != nil {
+		return m.CreateCertificationFunc(ctx, cert)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) UpdateCertification(ctx context.Context, cert *model.Certification) error {
-	if m.UpdateCertificationFunc != nil { return m.UpdateCertificationFunc(ctx, cert) }
+	if m.UpdateCertificationFunc != nil {
+		return m.UpdateCertificationFunc(ctx, cert)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) DeleteCertification(ctx context.Context, resumeBuilderID, id string) error {
-	if m.DeleteCertificationFunc != nil { return m.DeleteCertificationFunc(ctx, resumeBuilderID, id) }
+	if m.DeleteCertificationFunc != nil {
+		return m.DeleteCertificationFunc(ctx, resumeBuilderID, id)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) ListCertifications(ctx context.Context, resumeBuilderID string) ([]*model.Certification, error) {
-	if m.ListCertificationsFunc != nil { return m.ListCertificationsFunc(ctx, resumeBuilderID) }
+	if m.ListCertificationsFunc != nil {
+		return m.ListCertificationsFunc(ctx, resumeBuilderID)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) GetCertificationByID(ctx context.Context, resumeBuilderID, id string) (*model.Certification, error) {
-	if m.GetCertificationByIDFunc != nil { return m.GetCertificationByIDFunc(ctx, resumeBuilderID, id) }
+	if m.GetCertificationByIDFunc != nil {
+		return m.GetCertificationByIDFunc(ctx, resumeBuilderID, id)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) CreateProject(ctx context.Context, proj *model.Project) error {
-	if m.CreateProjectFunc != nil { return m.CreateProjectFunc(ctx, proj) }
+	if m.CreateProjectFunc != nil {
+		return m.CreateProjectFunc(ctx, proj)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) UpdateProject(ctx context.Context, proj *model.Project) error {
-	if m.UpdateProjectFunc != nil { return m.UpdateProjectFunc(ctx, proj) }
+	if m.UpdateProjectFunc != nil {
+		return m.UpdateProjectFunc(ctx, proj)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) DeleteProject(ctx context.Context, resumeBuilderID, id string) error {
-	if m.DeleteProjectFunc != nil { return m.DeleteProjectFunc(ctx, resumeBuilderID, id) }
+	if m.DeleteProjectFunc != nil {
+		return m.DeleteProjectFunc(ctx, resumeBuilderID, id)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) ListProjects(ctx context.Context, resumeBuilderID string) ([]*model.Project, error) {
-	if m.ListProjectsFunc != nil { return m.ListProjectsFunc(ctx, resumeBuilderID) }
+	if m.ListProjectsFunc != nil {
+		return m.ListProjectsFunc(ctx, resumeBuilderID)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) GetProjectByID(ctx context.Context, resumeBuilderID, id string) (*model.Project, error) {
-	if m.GetProjectByIDFunc != nil { return m.GetProjectByIDFunc(ctx, resumeBuilderID, id) }
+	if m.GetProjectByIDFunc != nil {
+		return m.GetProjectByIDFunc(ctx, resumeBuilderID, id)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) CreateVolunteering(ctx context.Context, vol *model.Volunteering) error {
-	if m.CreateVolunteeringFunc != nil { return m.CreateVolunteeringFunc(ctx, vol) }
+	if m.CreateVolunteeringFunc != nil {
+		return m.CreateVolunteeringFunc(ctx, vol)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) UpdateVolunteering(ctx context.Context, vol *model.Volunteering) error {
-	if m.UpdateVolunteeringFunc != nil { return m.UpdateVolunteeringFunc(ctx, vol) }
+	if m.UpdateVolunteeringFunc != nil {
+		return m.UpdateVolunteeringFunc(ctx, vol)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) DeleteVolunteering(ctx context.Context, resumeBuilderID, id string) error {
-	if m.DeleteVolunteeringFunc != nil { return m.DeleteVolunteeringFunc(ctx, resumeBuilderID, id) }
+	if m.DeleteVolunteeringFunc != nil {
+		return m.DeleteVolunteeringFunc(ctx, resumeBuilderID, id)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) ListVolunteering(ctx context.Context, resumeBuilderID string) ([]*model.Volunteering, error) {
-	if m.ListVolunteeringFunc != nil { return m.ListVolunteeringFunc(ctx, resumeBuilderID) }
+	if m.ListVolunteeringFunc != nil {
+		return m.ListVolunteeringFunc(ctx, resumeBuilderID)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) GetVolunteeringByID(ctx context.Context, resumeBuilderID, id string) (*model.Volunteering, error) {
-	if m.GetVolunteeringByIDFunc != nil { return m.GetVolunteeringByIDFunc(ctx, resumeBuilderID, id) }
+	if m.GetVolunteeringByIDFunc != nil {
+		return m.GetVolunteeringByIDFunc(ctx, resumeBuilderID, id)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) CreateCustomSection(ctx context.Context, cs *model.CustomSection) error {
-	if m.CreateCustomSectionFunc != nil { return m.CreateCustomSectionFunc(ctx, cs) }
+	if m.CreateCustomSectionFunc != nil {
+		return m.CreateCustomSectionFunc(ctx, cs)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) UpdateCustomSection(ctx context.Context, cs *model.CustomSection) error {
-	if m.UpdateCustomSectionFunc != nil { return m.UpdateCustomSectionFunc(ctx, cs) }
+	if m.UpdateCustomSectionFunc != nil {
+		return m.UpdateCustomSectionFunc(ctx, cs)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) DeleteCustomSection(ctx context.Context, resumeBuilderID, id string) error {
-	if m.DeleteCustomSectionFunc != nil { return m.DeleteCustomSectionFunc(ctx, resumeBuilderID, id) }
+	if m.DeleteCustomSectionFunc != nil {
+		return m.DeleteCustomSectionFunc(ctx, resumeBuilderID, id)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) ListCustomSections(ctx context.Context, resumeBuilderID string) ([]*model.CustomSection, error) {
-	if m.ListCustomSectionsFunc != nil { return m.ListCustomSectionsFunc(ctx, resumeBuilderID) }
+	if m.ListCustomSectionsFunc != nil {
+		return m.ListCustomSectionsFunc(ctx, resumeBuilderID)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) GetCustomSectionByID(ctx context.Context, resumeBuilderID, id string) (*model.CustomSection, error) {
-	if m.GetCustomSectionByIDFunc != nil { return m.GetCustomSectionByIDFunc(ctx, resumeBuilderID, id) }
+	if m.GetCustomSectionByIDFunc != nil {
+		return m.GetCustomSectionByIDFunc(ctx, resumeBuilderID, id)
+	}
 	return nil, nil
 }
 func (m *MockResumeBuilderRepository) UpsertSectionOrder(ctx context.Context, resumeBuilderID string, orders []*model.SectionOrder) error {
-	if m.UpsertSectionOrderFunc != nil { return m.UpsertSectionOrderFunc(ctx, resumeBuilderID, orders) }
+	if m.UpsertSectionOrderFunc != nil {
+		return m.UpsertSectionOrderFunc(ctx, resumeBuilderID, orders)
+	}
 	return nil
 }
 func (m *MockResumeBuilderRepository) ListSectionOrders(ctx context.Context, resumeBuilderID string) ([]*model.SectionOrder, error) {
-	if m.ListSectionOrdersFunc != nil { return m.ListSectionOrdersFunc(ctx, resumeBuilderID) }
+	if m.ListSectionOrdersFunc != nil {
+		return m.ListSectionOrdersFunc(ctx, resumeBuilderID)
+	}
 	return nil, nil
 }
 
@@ -306,6 +414,10 @@ func (m *MockLimitChecker) CheckLimit(ctx context.Context, userID, resource stri
 	if m.CheckLimitFunc != nil {
 		return m.CheckLimitFunc(ctx, userID, resource)
 	}
+	return nil
+}
+
+func (m *MockLimitChecker) RecordAIUsage(ctx context.Context, userID string) error {
 	return nil
 }
 

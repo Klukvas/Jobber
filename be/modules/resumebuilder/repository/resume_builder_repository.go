@@ -12,7 +12,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/sync/errgroup"
 )
 
 // dbQuerier is satisfied by both *pgxpool.Pool and pgx.Tx.
@@ -167,161 +166,123 @@ func (r *ResumeBuilderRepository) VerifyOwnership(ctx context.Context, userID, r
 }
 
 func (r *ResumeBuilderRepository) GetFullResume(ctx context.Context, id string) (*model.FullResumeDTO, error) {
-	rb, err := r.GetByID(ctx, id)
+	// Acquire a single connection for the duration of this call.
+	// The previous implementation launched ~11 concurrent goroutines via errgroup,
+	// each acquiring its own pool connection. On the resume editor (re-renders per
+	// keystroke) this exhausted the pool (typically 10-25 conns) and caused
+	// cascading timeouts. Running all section queries sequentially on one connection
+	// keeps pool pressure at exactly 1 connection per call.
+	conn, err := r.pool.Acquire(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("acquire connection: %w", err)
+	}
+	defer conn.Release()
+
+	// connRepo routes all queries through the single acquired connection.
+	connRepo := &ResumeBuilderRepository{pool: r.pool, q: conn}
+
+	rb, err := connRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	// Load all sections in parallel using errgroup.
-	// Each goroutine writes to its own local variable; results are assembled after Wait().
-	g, gctx := errgroup.WithContext(ctx)
+	c, err := connRepo.GetContact(ctx, id)
+	var contact *model.ContactDTO
+	if err != nil && !errors.Is(err, model.ErrSectionEntryNotFound) {
+		return nil, fmt.Errorf("load contact: %w", err)
+	}
+	if err == nil {
+		contact = c.ToDTO()
+	}
 
-	var (
-		contact      *model.ContactDTO
-		summary      *model.SummaryDTO
-		experiences  []*model.ExperienceDTO
-		educations   []*model.EducationDTO
-		skills       []*model.SkillDTO
-		languages    []*model.LanguageDTO
-		certs        []*model.CertificationDTO
-		projects     []*model.ProjectDTO
-		volunteering []*model.VolunteeringDTO
-		customs      []*model.CustomSectionDTO
-		sectionOrder []*model.SectionOrderDTO
-	)
+	s, err := connRepo.GetSummary(ctx, id)
+	var summary *model.SummaryDTO
+	if err != nil && !errors.Is(err, model.ErrSectionEntryNotFound) {
+		return nil, fmt.Errorf("load summary: %w", err)
+	}
+	if err == nil {
+		summary = &model.SummaryDTO{Content: s.Content}
+	}
 
-	g.Go(func() error {
-		c, err := r.GetContact(gctx, id)
-		if err != nil && !errors.Is(err, model.ErrSectionEntryNotFound) {
-			return fmt.Errorf("load contact: %w", err)
-		}
-		if err == nil {
-			contact = c.ToDTO()
-		}
-		return nil
-	})
+	exps, err := connRepo.ListExperiences(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("load experiences: %w", err)
+	}
+	experiences := make([]*model.ExperienceDTO, len(exps))
+	for i, e := range exps {
+		experiences[i] = e.ToDTO()
+	}
 
-	g.Go(func() error {
-		s, err := r.GetSummary(gctx, id)
-		if err != nil && !errors.Is(err, model.ErrSectionEntryNotFound) {
-			return fmt.Errorf("load summary: %w", err)
-		}
-		if err == nil {
-			summary = &model.SummaryDTO{Content: s.Content}
-		}
-		return nil
-	})
+	edus, err := connRepo.ListEducations(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("load educations: %w", err)
+	}
+	educations := make([]*model.EducationDTO, len(edus))
+	for i, e := range edus {
+		educations[i] = e.ToDTO()
+	}
 
-	g.Go(func() error {
-		exps, err := r.ListExperiences(gctx, id)
-		if err != nil {
-			return fmt.Errorf("load experiences: %w", err)
-		}
-		experiences = make([]*model.ExperienceDTO, len(exps))
-		for i, e := range exps {
-			experiences[i] = e.ToDTO()
-		}
-		return nil
-	})
+	ss, err := connRepo.ListSkills(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("load skills: %w", err)
+	}
+	skills := make([]*model.SkillDTO, len(ss))
+	for i, sk := range ss {
+		skills[i] = sk.ToDTO()
+	}
 
-	g.Go(func() error {
-		edus, err := r.ListEducations(gctx, id)
-		if err != nil {
-			return fmt.Errorf("load educations: %w", err)
-		}
-		educations = make([]*model.EducationDTO, len(edus))
-		for i, e := range edus {
-			educations[i] = e.ToDTO()
-		}
-		return nil
-	})
+	ll, err := connRepo.ListLanguages(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("load languages: %w", err)
+	}
+	languages := make([]*model.LanguageDTO, len(ll))
+	for i, l := range ll {
+		languages[i] = l.ToDTO()
+	}
 
-	g.Go(func() error {
-		ss, err := r.ListSkills(gctx, id)
-		if err != nil {
-			return fmt.Errorf("load skills: %w", err)
-		}
-		skills = make([]*model.SkillDTO, len(ss))
-		for i, s := range ss {
-			skills[i] = s.ToDTO()
-		}
-		return nil
-	})
+	cc, err := connRepo.ListCertifications(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("load certifications: %w", err)
+	}
+	certs := make([]*model.CertificationDTO, len(cc))
+	for i, cert := range cc {
+		certs[i] = cert.ToDTO()
+	}
 
-	g.Go(func() error {
-		ll, err := r.ListLanguages(gctx, id)
-		if err != nil {
-			return fmt.Errorf("load languages: %w", err)
-		}
-		languages = make([]*model.LanguageDTO, len(ll))
-		for i, l := range ll {
-			languages[i] = l.ToDTO()
-		}
-		return nil
-	})
+	pp, err := connRepo.ListProjects(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("load projects: %w", err)
+	}
+	projects := make([]*model.ProjectDTO, len(pp))
+	for i, p := range pp {
+		projects[i] = p.ToDTO()
+	}
 
-	g.Go(func() error {
-		cc, err := r.ListCertifications(gctx, id)
-		if err != nil {
-			return fmt.Errorf("load certifications: %w", err)
-		}
-		certs = make([]*model.CertificationDTO, len(cc))
-		for i, c := range cc {
-			certs[i] = c.ToDTO()
-		}
-		return nil
-	})
+	vv, err := connRepo.ListVolunteering(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("load volunteering: %w", err)
+	}
+	volunteering := make([]*model.VolunteeringDTO, len(vv))
+	for i, v := range vv {
+		volunteering[i] = v.ToDTO()
+	}
 
-	g.Go(func() error {
-		pp, err := r.ListProjects(gctx, id)
-		if err != nil {
-			return fmt.Errorf("load projects: %w", err)
-		}
-		projects = make([]*model.ProjectDTO, len(pp))
-		for i, p := range pp {
-			projects[i] = p.ToDTO()
-		}
-		return nil
-	})
+	cs, err := connRepo.ListCustomSections(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("load custom sections: %w", err)
+	}
+	customs := make([]*model.CustomSectionDTO, len(cs))
+	for i, cust := range cs {
+		customs[i] = cust.ToDTO()
+	}
 
-	g.Go(func() error {
-		vv, err := r.ListVolunteering(gctx, id)
-		if err != nil {
-			return fmt.Errorf("load volunteering: %w", err)
-		}
-		volunteering = make([]*model.VolunteeringDTO, len(vv))
-		for i, v := range vv {
-			volunteering[i] = v.ToDTO()
-		}
-		return nil
-	})
-
-	g.Go(func() error {
-		cc, err := r.ListCustomSections(gctx, id)
-		if err != nil {
-			return fmt.Errorf("load custom sections: %w", err)
-		}
-		customs = make([]*model.CustomSectionDTO, len(cc))
-		for i, cs := range cc {
-			customs[i] = cs.ToDTO()
-		}
-		return nil
-	})
-
-	g.Go(func() error {
-		oo, err := r.ListSectionOrders(gctx, id)
-		if err != nil {
-			return fmt.Errorf("load section orders: %w", err)
-		}
-		sectionOrder = make([]*model.SectionOrderDTO, len(oo))
-		for i, o := range oo {
-			sectionOrder[i] = o.ToDTO()
-		}
-		return nil
-	})
-
-	if err := g.Wait(); err != nil {
-		return nil, err
+	oo, err := connRepo.ListSectionOrders(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("load section orders: %w", err)
+	}
+	sectionOrder := make([]*model.SectionOrderDTO, len(oo))
+	for i, o := range oo {
+		sectionOrder[i] = o.ToDTO()
 	}
 
 	return &model.FullResumeDTO{

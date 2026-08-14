@@ -50,6 +50,10 @@ func (h *ResumeHandler) Create(c *gin.Context) {
 			httpPlatform.RespondWithError(c, http.StatusForbidden, "PLAN_LIMIT_REACHED", "You have reached the limit for your current plan.")
 			return
 		}
+		if errors.Is(err, model.ErrInvalidFileURL) || errors.Is(err, model.ErrResumeTitleRequired) {
+			httpPlatform.RespondWithError(c, http.StatusBadRequest, string(model.GetErrorCode(err)), model.GetErrorMessage(err))
+			return
+		}
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, string(model.GetErrorCode(err)), model.GetErrorMessage(err))
 		return
 	}
@@ -105,7 +109,7 @@ func (h *ResumeHandler) List(c *gin.Context) {
 	if !ok {
 		return
 	}
-	
+
 	// Parse pagination parameters
 	pagination, err := httpPlatform.ParsePaginationParams(c)
 	if err != nil {
@@ -155,8 +159,11 @@ func (h *ResumeHandler) Update(c *gin.Context) {
 	resume, err := h.service.Update(c.Request.Context(), userID, resumeID, &req)
 	if err != nil {
 		statusCode := http.StatusInternalServerError
-		if model.GetErrorCode(err) == model.CodeResumeNotFound {
+		switch model.GetErrorCode(err) {
+		case model.CodeResumeNotFound:
 			statusCode = http.StatusNotFound
+		case model.CodeInvalidFileURL, model.CodeResumeTitleRequired:
+			statusCode = http.StatusBadRequest
 		}
 		httpPlatform.RespondWithError(c, statusCode, string(model.GetErrorCode(err)), model.GetErrorMessage(err))
 		return
@@ -186,7 +193,7 @@ func (h *ResumeHandler) Delete(c *gin.Context) {
 	if err := h.service.Delete(c.Request.Context(), userID, resumeID); err != nil {
 		statusCode := http.StatusInternalServerError
 		errCode := model.GetErrorCode(err)
-		
+
 		// Map error codes to appropriate HTTP status codes
 		switch errCode {
 		case model.CodeResumeNotFound:
@@ -194,7 +201,7 @@ func (h *ResumeHandler) Delete(c *gin.Context) {
 		case model.CodeResumeInUse:
 			statusCode = http.StatusBadRequest
 		}
-		
+
 		httpPlatform.RespondWithError(c, statusCode, string(errCode), model.GetErrorMessage(err))
 		return
 	}

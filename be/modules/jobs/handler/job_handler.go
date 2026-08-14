@@ -40,7 +40,7 @@ func respondWithMappedError(c *gin.Context, err error) {
 		model.CodeBothResumeTypesSet, model.CodeInvalidPhase,
 		model.CodeInvalidMoveTarget:
 		statusCode = http.StatusBadRequest
-	case model.CodeStageTemplateInUse:
+	case model.CodeStageTemplateInUse, model.CodeStageTemplateNameExists:
 		statusCode = http.StatusConflict
 	}
 

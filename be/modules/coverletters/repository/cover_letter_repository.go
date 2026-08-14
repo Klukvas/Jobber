@@ -97,13 +97,13 @@ func (r *CoverLetterRepository) Update(ctx context.Context, cl *model.CoverLette
 		title = $1, resume_builder_id = $2, job_id = $3, template = $4, recipient_name = $5,
 		recipient_title = $6, company_name = $7, company_address = $8,
 		greeting = $9, paragraphs = $10, closing = $11, font_family = $12, font_size = $13, primary_color = $14
-		WHERE id = $15 RETURNING updated_at`
+		WHERE id = $15 AND user_id = $16 RETURNING updated_at`
 
 	err := r.pool.QueryRow(ctx, query,
 		cl.Title, cl.ResumeBuilderID, cl.JobID, cl.Template, cl.RecipientName,
 		cl.RecipientTitle, cl.CompanyName, cl.CompanyAddress,
 		cl.Greeting, cl.Paragraphs, cl.Closing, cl.FontFamily, cl.FontSize, cl.PrimaryColor,
-		cl.ID,
+		cl.ID, cl.UserID,
 	).Scan(&cl.UpdatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -116,8 +116,8 @@ func (r *CoverLetterRepository) Update(ctx context.Context, cl *model.CoverLette
 }
 
 // Delete deletes a cover letter.
-func (r *CoverLetterRepository) Delete(ctx context.Context, id string) error {
-	ct, err := r.pool.Exec(ctx, `DELETE FROM cover_letters WHERE id = $1`, id)
+func (r *CoverLetterRepository) Delete(ctx context.Context, userID, id string) error {
+	ct, err := r.pool.Exec(ctx, `DELETE FROM cover_letters WHERE id = $1 AND user_id = $2`, id, userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete cover letter: %w", err)
 	}

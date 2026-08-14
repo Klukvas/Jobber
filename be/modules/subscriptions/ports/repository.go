@@ -26,4 +26,6 @@ type SubscriptionRepository interface {
 	RecordWebhookEvent(ctx context.Context, eventID, eventType string) error
 	// TryClaimWebhookEvent atomically claims an event ID. Returns true if inserted (first claim).
 	TryClaimWebhookEvent(ctx context.Context, eventID, eventType string) (bool, error)
+	// ReleaseWebhookEvent removes a claimed event ID so a failed handler can be retried.
+	ReleaseWebhookEvent(ctx context.Context, eventID string) error
 }

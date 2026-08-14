@@ -98,7 +98,14 @@ func (s *SubscriptionService) CheckLimit(ctx context.Context, userID, resource s
 		}
 	}
 
-	limits := model.GetLimitsForPlan(sub.Plan)
+	// Paid quotas only apply while the subscription is actually paying. A
+	// paused/cancelled paid plan falls back to free limits (past_due keeps a
+	// grace window, matching Subscription.IsActive semantics).
+	effectivePlan := sub.Plan
+	if effectivePlan != "free" && sub.Status != "active" && sub.Status != "past_due" {
+		effectivePlan = "free"
+	}
+	limits := model.GetLimitsForPlan(effectivePlan)
 
 	var current int
 	var max int
@@ -212,19 +219,29 @@ func (s *SubscriptionService) HandleWebhook(ctx context.Context, body []byte, si
 		}
 	}
 
+	var handlerErr error
 	switch event.EventType {
 	case "subscription.created", "subscription.activated":
-		return s.handleSubscriptionActivated(ctx, &event)
+		handlerErr = s.handleSubscriptionActivated(ctx, &event)
 	case "subscription.updated":
-		return s.handleSubscriptionUpdated(ctx, &event)
+		handlerErr = s.handleSubscriptionUpdated(ctx, &event)
 	case "subscription.canceled":
-		return s.handleSubscriptionCanceled(ctx, &event)
+		handlerErr = s.handleSubscriptionCanceled(ctx, &event)
 	case "subscription.past_due":
-		return s.handleSubscriptionPastDue(ctx, &event)
+		handlerErr = s.handleSubscriptionPastDue(ctx, &event)
 	default:
 		// Ignore unhandled events
 		return nil
 	}
+
+	// The event was claimed before processing. If processing failed, release
+	// the claim so Paddle's retry can reprocess it — otherwise a single
+	// transient failure would drop the event permanently. Best-effort: the
+	// handler error itself is returned and logged by the caller.
+	if handlerErr != nil && event.EventID != "" {
+		_ = s.repo.ReleaseWebhookEvent(ctx, event.EventID)
+	}
+	return handlerErr
 }
 
 // paddleBaseURL returns the Paddle API base URL for the configured environment.
@@ -478,9 +495,9 @@ type paddleEvent struct {
 }
 
 type paddleSubscriptionData struct {
-	ID               string  `json:"id"`
-	Status           string  `json:"status"`
-	CustomerID       string  `json:"customer_id"`
+	ID                   string `json:"id"`
+	Status               string `json:"status"`
+	CustomerID           string `json:"customer_id"`
 	CurrentBillingPeriod *struct {
 		StartsAt string `json:"starts_at"`
 		EndsAt   string `json:"ends_at"`

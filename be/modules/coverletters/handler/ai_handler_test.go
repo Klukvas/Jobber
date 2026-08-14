@@ -58,7 +58,7 @@ func (m *mockAICoverLetterRepo) Update(ctx context.Context, cl *clModel.CoverLet
 	return cl, nil
 }
 
-func (m *mockAICoverLetterRepo) Delete(ctx context.Context, id string) error {
+func (m *mockAICoverLetterRepo) Delete(ctx context.Context, userID, id string) error {
 	if m.DeleteFunc != nil {
 		return m.DeleteFunc(ctx, id)
 	}
@@ -468,6 +468,10 @@ func (m *mockAILimitChecker) CheckLimit(ctx context.Context, userID, resource st
 	if m.CheckLimitFunc != nil {
 		return m.CheckLimitFunc(ctx, userID, resource)
 	}
+	return nil
+}
+
+func (m *mockAILimitChecker) RecordAIUsage(ctx context.Context, userID string) error {
 	return nil
 }
 

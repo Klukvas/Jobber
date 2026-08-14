@@ -9,11 +9,11 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
 	"github.com/andreypavlenko/jobber/internal/platform/ai"
+	"github.com/andreypavlenko/jobber/internal/platform/netsafe"
 	"github.com/andreypavlenko/jobber/internal/platform/storage"
 	jobModel "github.com/andreypavlenko/jobber/modules/jobs/model"
 	jobPorts "github.com/andreypavlenko/jobber/modules/jobs/ports"
@@ -25,83 +25,13 @@ import (
 
 const maxResumeSize = 20 * 1024 * 1024 // 20 MB
 
-// privateCIDRs contains IP ranges that must not be accessed via downloadFromURL.
-var privateCIDRs []*net.IPNet
+// isPrivateIP and validateExternalURL delegate to the shared netsafe package,
+// kept as thin wrappers so existing call sites and tests stay unchanged.
+func isPrivateIP(ip net.IP) bool { return netsafe.IsPrivateIP(ip) }
 
-func init() {
-	for _, cidr := range []string{
-		"10.0.0.0/8",
-		"172.16.0.0/12",
-		"192.168.0.0/16",
-		"127.0.0.0/8",
-		"169.254.0.0/16",
-		"::1/128",
-		"fc00::/7",
-	} {
-		_, block, err := net.ParseCIDR(cidr)
-		if err != nil {
-			panic(fmt.Sprintf("invalid CIDR in SSRF protection list: %s: %v", cidr, err))
-		}
-		privateCIDRs = append(privateCIDRs, block)
-	}
-}
+func validateExternalURL(rawURL string) error { return netsafe.ValidateExternalURL(rawURL) }
 
-// isPrivateIP checks whether an IP falls within a private/reserved range.
-func isPrivateIP(ip net.IP) bool {
-	for _, cidr := range privateCIDRs {
-		if cidr.Contains(ip) {
-			return true
-		}
-	}
-	return false
-}
-
-// validateExternalURL ensures the URL is safe to fetch (SSRF protection).
-func validateExternalURL(rawURL string) error {
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return fmt.Errorf("invalid URL: %w", err)
-	}
-
-	if parsed.Scheme != "https" {
-		return fmt.Errorf("only https URLs are allowed, got %q", parsed.Scheme)
-	}
-
-	hostname := parsed.Hostname()
-	if hostname == "" || strings.EqualFold(hostname, "localhost") {
-		return fmt.Errorf("hostname %q is not allowed", hostname)
-	}
-
-	ips, err := net.LookupHost(hostname)
-	if err != nil {
-		return fmt.Errorf("DNS lookup failed for %q: %w", hostname, err)
-	}
-
-	for _, ipStr := range ips {
-		ip := net.ParseIP(ipStr)
-		if ip == nil {
-			continue
-		}
-		if isPrivateIP(ip) {
-			return fmt.Errorf("hostname %q resolves to private IP %s", hostname, ipStr)
-		}
-	}
-
-	return nil
-}
-
-// ssrfSafeClient returns an HTTP client that re-validates each redirect target.
-func ssrfSafeClient() *http.Client {
-	return &http.Client{
-		Timeout: 30 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 10 {
-				return fmt.Errorf("too many redirects")
-			}
-			return validateExternalURL(req.URL.String())
-		},
-	}
-}
+func ssrfSafeClient() *http.Client { return netsafe.SafeClient() }
 
 // LimitChecker checks subscription limits before resource creation.
 type LimitChecker interface {
@@ -267,7 +197,7 @@ func downloadFromURL(ctx context.Context, rawURL string) ([]byte, error) {
 		return nil, err
 	}
 
-	resp, err := ssrfSafeClient().Do(req)
+	resp, err := netsafe.SafeClient().Do(req)
 	if err != nil {
 		return nil, err
 	}

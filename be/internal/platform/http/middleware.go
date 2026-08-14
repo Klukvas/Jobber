@@ -42,13 +42,14 @@ func LoggerMiddleware(log *logger.Logger) gin.HandlerFunc {
 		method := c.Request.Method
 
 		requestID, _ := c.Get("request_id")
+		requestIDStr, _ := requestID.(string)
 
 		c.Next()
 
 		duration := time.Since(start).Milliseconds()
 		statusCode := c.Writer.Status()
 
-		logEntry := log.WithRequestID(requestID.(string)).
+		logEntry := log.WithRequestID(requestIDStr).
 			WithAction(method + " " + path).
 			WithDuration(duration)
 

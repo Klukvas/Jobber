@@ -146,6 +146,10 @@ func (m *MockSubscriptionRepository) TryClaimWebhookEvent(ctx context.Context, e
 	return true, nil
 }
 
+func (m *MockSubscriptionRepository) ReleaseWebhookEvent(ctx context.Context, eventID string) error {
+	return nil
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -956,12 +960,12 @@ func TestChangePlan(t *testing.T) {
 	paddleSubID := "sub_123"
 
 	tests := []struct {
-		name           string
-		newPlan        string
-		setupRepo      func(repo *MockSubscriptionRepository)
-		serverHandler  http.HandlerFunc
-		wantErr        bool
-		errContains    string
+		name          string
+		newPlan       string
+		setupRepo     func(repo *MockSubscriptionRepository)
+		serverHandler http.HandlerFunc
+		wantErr       bool
+		errContains   string
 	}{
 		{
 			name:    "changes plan successfully",

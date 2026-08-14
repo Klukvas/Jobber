@@ -473,7 +473,7 @@ func (m *MockJobRepository) Delete(ctx context.Context, uid, jid string) error  
 func (m *MockJobRepository) ToggleFavorite(ctx context.Context, uid, jid string) (bool, error) {
 	return false, nil
 }
-func (m *MockJobRepository) GetLastActivityAt(ctx context.Context, jobID string) (time.Time, error) {
+func (m *MockJobRepository) GetLastActivityAt(ctx context.Context, userID, jobID string) (time.Time, error) {
 	return time.Time{}, nil
 }
 

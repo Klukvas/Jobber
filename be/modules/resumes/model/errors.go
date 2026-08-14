@@ -7,6 +7,7 @@ var (
 	ErrResumeTitleRequired = errors.New("resume title is required")
 	ErrResumeURLRequired   = errors.New("resume file URL is required")
 	ErrResumeInUse         = errors.New("cannot delete resume: it is used in one or more applications")
+	ErrInvalidFileURL      = errors.New("file URL is not allowed")
 )
 
 type ErrorCode string
@@ -16,6 +17,7 @@ const (
 	CodeResumeTitleRequired ErrorCode = "RESUME_TITLE_REQUIRED"
 	CodeResumeURLRequired   ErrorCode = "RESUME_URL_REQUIRED"
 	CodeResumeInUse         ErrorCode = "RESUME_IN_USE"
+	CodeInvalidFileURL      ErrorCode = "INVALID_FILE_URL"
 	CodeInternalError       ErrorCode = "INTERNAL_ERROR"
 )
 
@@ -29,6 +31,8 @@ func GetErrorCode(err error) ErrorCode {
 		return CodeResumeURLRequired
 	case errors.Is(err, ErrResumeInUse):
 		return CodeResumeInUse
+	case errors.Is(err, ErrInvalidFileURL):
+		return CodeInvalidFileURL
 	default:
 		return CodeInternalError
 	}
@@ -44,6 +48,8 @@ func GetErrorMessage(err error) string {
 		return "Resume file URL is required"
 	case errors.Is(err, ErrResumeInUse):
 		return "Cannot delete resume: it is used in one or more applications"
+	case errors.Is(err, ErrInvalidFileURL):
+		return "The provided file URL is not allowed"
 	default:
 		return "Internal server error"
 	}
