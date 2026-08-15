@@ -101,7 +101,7 @@ func (r *CompanyRepository) GetByIDEnriched(ctx context.Context, userID, company
 			c.created_at,
 			c.updated_at,
 			COALESCE(COUNT(DISTINCT j.id) FILTER (WHERE j.applied_at IS NOT NULL), 0) as applications_count,
-			COALESCE(COUNT(DISTINCT j.id) FILTER (WHERE j.status = 'applied'), 0) as active_applications_count,
+			COALESCE(COUNT(DISTINCT j.id) FILTER (WHERE j.applied_at IS NOT NULL AND j.is_archived = false), 0) as active_applications_count,
 			MAX(GREATEST(j.updated_at, COALESCE(sa.max_created, j.updated_at), COALESCE(ca.max_created, j.updated_at))) as last_activity_at,
 			COALESCE(MAX(sa.cnt), 0) as max_stages
 		FROM companies c
@@ -189,7 +189,7 @@ func (r *CompanyRepository) List(ctx context.Context, userID string, opts *ports
 			c.created_at,
 			c.updated_at,
 			COALESCE(COUNT(DISTINCT j.id) FILTER (WHERE j.applied_at IS NOT NULL), 0) as applications_count,
-			COALESCE(COUNT(DISTINCT j.id) FILTER (WHERE j.status = 'applied'), 0) as active_applications_count,
+			COALESCE(COUNT(DISTINCT j.id) FILTER (WHERE j.applied_at IS NOT NULL AND j.is_archived = false), 0) as active_applications_count,
 			MAX(GREATEST(j.updated_at, COALESCE(sa.max_created, j.updated_at), COALESCE(ca.max_created, j.updated_at))) as last_activity_at,
 			COALESCE(MAX(sa.cnt), 0) as max_stages,
 			COUNT(*) OVER() as total_count
