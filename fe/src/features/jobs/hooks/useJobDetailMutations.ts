@@ -127,8 +127,22 @@ export function useJobDetailMutations({
     },
   });
 
+  // Move the card to a pipeline column (the single write path for its state).
+  const moveMutation = useMutation({
+    mutationFn: (stageTemplateId: string) =>
+      jobsService.move(id!, { stage_template_id: stageTemplateId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["job", id] });
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      showSuccessNotification(t("jobs.board.moveSuccess"));
+    },
+    onError: (err: Error) => {
+      showErrorNotification(err.message || t("jobs.board.moveError"));
+    },
+  });
+
   const archiveMutation = useMutation({
-    mutationFn: jobsService.archive,
+    mutationFn: () => jobsService.archive(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
       queryClient.invalidateQueries({ queryKey: ["job", id] });
@@ -137,6 +151,18 @@ export function useJobDetailMutations({
     },
     onError: () => {
       showErrorNotification(t("jobs.archiveError"));
+    },
+  });
+
+  const unarchiveMutation = useMutation({
+    mutationFn: () => jobsService.unarchive(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["job", id] });
+      showSuccessNotification(t("jobs.unarchiveSuccess"));
+    },
+    onError: () => {
+      showErrorNotification(t("jobs.unarchiveError"));
     },
   });
 
@@ -223,7 +249,9 @@ export function useJobDetailMutations({
     updateMutation,
     changeResumeMutation,
     toggleFavoriteMutation,
+    moveMutation,
     archiveMutation,
+    unarchiveMutation,
     deleteMutation,
     completeCurrentStageMutation,
     addCommentMutation,

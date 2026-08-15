@@ -65,6 +65,32 @@ func (m *MockCommentRepository) Delete(ctx context.Context, userID, commentID st
 
 var defaultMockCommentRepo = &MockCommentRepository{}
 
+// MockStageTemplateRepository implements ports.StageTemplateRepository for
+// handler tests. Its List returns a single first pipeline column so that
+// Create can place a new card in the default column.
+type MockStageTemplateRepository struct{}
+
+func (m *MockStageTemplateRepository) Create(ctx context.Context, template *model.StageTemplate) error {
+	return nil
+}
+func (m *MockStageTemplateRepository) GetByID(ctx context.Context, userID, templateID string) (*model.StageTemplate, error) {
+	return &model.StageTemplate{ID: templateID, UserID: userID, Name: "Wishlist", Order: 0}, nil
+}
+func (m *MockStageTemplateRepository) List(ctx context.Context, userID string, limit, offset int) ([]*model.StageTemplate, int, error) {
+	return []*model.StageTemplate{{ID: "stage-wishlist", UserID: userID, Name: "Wishlist", Order: 0}}, 1, nil
+}
+func (m *MockStageTemplateRepository) Update(ctx context.Context, template *model.StageTemplate) error {
+	return nil
+}
+func (m *MockStageTemplateRepository) Reorder(ctx context.Context, userID string, orderedIDs []string) error {
+	return nil
+}
+func (m *MockStageTemplateRepository) Delete(ctx context.Context, userID, templateID string) error {
+	return nil
+}
+
+var defaultMockStageTemplateRepo = &MockStageTemplateRepository{}
+
 // MockJobRepository implements ports.JobRepository
 type MockJobRepository struct {
 	CreateFunc            func(ctx context.Context, job *model.Job) error
@@ -126,7 +152,7 @@ func (m *MockJobRepository) GetLastActivityAt(ctx context.Context, userID, jobID
 }
 
 func newTestJobService(jobRepo *MockJobRepository) *service.JobService {
-	return service.NewJobService(nil, jobRepo, nil, nil, defaultMockCompanyRepo, nil, nil, defaultMockCommentRepo, nil, nil, nil)
+	return service.NewJobService(nil, jobRepo, nil, defaultMockStageTemplateRepo, defaultMockCompanyRepo, nil, nil, defaultMockCommentRepo, nil, nil, nil)
 }
 
 func setupTestRouter() *gin.Engine {
@@ -148,7 +174,6 @@ func TestJobHandler_Create(t *testing.T) {
 		mockRepo := &MockJobRepository{
 			CreateFunc: func(ctx context.Context, job *model.Job) error {
 				job.ID = "job-1"
-				job.Status = string(model.StatusSaved)
 				job.CreatedAt = time.Now()
 				job.UpdatedAt = time.Now()
 				return nil
@@ -236,7 +261,6 @@ func TestJobHandler_Get(t *testing.T) {
 			ID:        jobID,
 			UserID:    userID,
 			Title:     "Software Engineer",
-			Status:    string(model.StatusSaved),
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}
@@ -336,11 +360,16 @@ func TestJobHandler_List(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
-	t.Run("empty status and active status behave as exclude-archived", func(t *testing.T) {
-		for _, rawStatus := range []string{"", "active"} {
+	t.Run("accepts the archived filter values", func(t *testing.T) {
+		// "" and the legacy "active" mean exclude-archived; "archived" and "all"
+		// are the new explicit values. All must be accepted by the handler and
+		// passed through to the service unchanged.
+		for _, rawStatus := range []string{"", "active", "archived", "all"} {
 			rawStatus := rawStatus
+			var seen string
 			mockRepo := &MockJobRepository{
 				ListFunc: func(ctx context.Context, uid string, opts *ports.ListOptions) ([]*model.JobDTO, int, error) {
+					seen = opts.Status
 					return []*model.JobDTO{}, 0, nil
 				},
 			}
@@ -359,7 +388,23 @@ func TestJobHandler_List(t *testing.T) {
 			router.ServeHTTP(w, req)
 
 			assert.Equal(t, http.StatusOK, w.Code, "status=%q", rawStatus)
+			assert.Equal(t, rawStatus, seen, "handler must forward status=%q unchanged", rawStatus)
 		}
+	})
+
+	t.Run("rejects an unknown status filter", func(t *testing.T) {
+		mockRepo := &MockJobRepository{}
+		svc := newTestJobService(mockRepo)
+		handler := NewJobHandler(svc)
+
+		router := setupTestRouter()
+		router.GET("/jobs", mockAuthMiddleware(userID), handler.List)
+
+		req, _ := http.NewRequest(http.MethodGet, "/jobs?status=bogus", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }
 
@@ -372,7 +417,6 @@ func TestJobHandler_Update(t *testing.T) {
 			ID:        jobID,
 			UserID:    userID,
 			Title:     "Old Title",
-			Status:    string(model.StatusSaved),
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}
@@ -401,6 +445,36 @@ func TestJobHandler_Update(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
+	t.Run("archives a job", func(t *testing.T) {
+		existingJob := &model.Job{ID: jobID, UserID: userID, Title: "Job Title"}
+		var saved *model.Job
+		mockRepo := &MockJobRepository{
+			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
+				return existingJob, nil
+			},
+			UpdateFunc: func(ctx context.Context, job *model.Job) error {
+				saved = job
+				return nil
+			},
+		}
+
+		svc := newTestJobService(mockRepo)
+		handler := NewJobHandler(svc)
+
+		router := setupTestRouter()
+		router.PATCH("/jobs/:id", mockAuthMiddleware(userID), handler.Update)
+
+		body := `{"is_archived":true}`
+		req, _ := http.NewRequest(http.MethodPatch, "/jobs/"+jobID, bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		require.NotNil(t, saved)
+		assert.True(t, saved.IsArchived)
+	})
+
 	t.Run("returns 404 when job not found", func(t *testing.T) {
 		mockRepo := &MockJobRepository{
 			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
@@ -422,15 +496,20 @@ func TestJobHandler_Update(t *testing.T) {
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
+}
 
-	t.Run("returns 400 for invalid status", func(t *testing.T) {
+func TestJobHandler_Move(t *testing.T) {
+	userID := "user-123"
+	jobID := "job-1"
+	stageID := "stage-applied"
+
+	t.Run("no-op move returns the enriched job", func(t *testing.T) {
 		existingJob := &model.Job{
-			ID:     jobID,
-			UserID: userID,
-			Title:  "Job Title",
-			Status: string(model.StatusSaved),
+			ID:                     jobID,
+			UserID:                 userID,
+			Title:                  "Engineer",
+			CurrentStageTemplateID: &stageID,
 		}
-
 		mockRepo := &MockJobRepository{
 			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
 				return existingJob, nil
@@ -441,10 +520,66 @@ func TestJobHandler_Update(t *testing.T) {
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
-		router.PATCH("/jobs/:id", mockAuthMiddleware(userID), handler.Update)
+		router.POST("/jobs/:id/move", mockAuthMiddleware(userID), handler.Move)
 
-		body := `{"status":"invalid"}`
-		req, _ := http.NewRequest(http.MethodPatch, "/jobs/"+jobID, bytes.NewBufferString(body))
+		body := `{"stage_template_id":"` + stageID + `"}`
+		req, _ := http.NewRequest(http.MethodPost, "/jobs/"+jobID+"/move", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("returns 400 for a missing stage template id", func(t *testing.T) {
+		mockRepo := &MockJobRepository{}
+		svc := newTestJobService(mockRepo)
+		handler := NewJobHandler(svc)
+
+		router := setupTestRouter()
+		router.POST("/jobs/:id/move", mockAuthMiddleware(userID), handler.Move)
+
+		body := `{}`
+		req, _ := http.NewRequest(http.MethodPost, "/jobs/"+jobID+"/move", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		// binding:"required" on StageTemplateID rejects the empty payload.
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestJobHandler_ReorderStageTemplates(t *testing.T) {
+	userID := "user-123"
+
+	t.Run("reorders successfully", func(t *testing.T) {
+		mockRepo := &MockJobRepository{}
+		svc := newTestJobService(mockRepo)
+		handler := NewJobHandler(svc)
+
+		router := setupTestRouter()
+		router.POST("/stage-templates/reorder", mockAuthMiddleware(userID), handler.ReorderStageTemplates)
+
+		body := `{"stage_ids":["a","b","c"]}`
+		req, _ := http.NewRequest(http.MethodPost, "/stage-templates/reorder", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("returns 400 for an empty stage id list", func(t *testing.T) {
+		mockRepo := &MockJobRepository{}
+		svc := newTestJobService(mockRepo)
+		handler := NewJobHandler(svc)
+
+		router := setupTestRouter()
+		router.POST("/stage-templates/reorder", mockAuthMiddleware(userID), handler.ReorderStageTemplates)
+
+		body := `{"stage_ids":[]}`
+		req, _ := http.NewRequest(http.MethodPost, "/stage-templates/reorder", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
@@ -588,7 +723,7 @@ func TestJobHandler_RegisterRoutes(t *testing.T) {
 			return nil
 		},
 		GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
-			return &model.Job{ID: jid, Title: "Test", Status: string(model.StatusSaved)}, nil
+			return &model.Job{ID: jid, Title: "Test"}, nil
 		},
 		ListFunc: func(ctx context.Context, uid string, opts *ports.ListOptions) ([]*model.JobDTO, int, error) {
 			return []*model.JobDTO{}, 0, nil
@@ -615,6 +750,8 @@ func TestJobHandler_RegisterRoutes(t *testing.T) {
 		{http.MethodPatch, "/api/v1/jobs/test-id"},
 		{http.MethodDelete, "/api/v1/jobs/test-id"},
 		{http.MethodPost, "/api/v1/jobs/test-id/favorite"},
+		{http.MethodPost, "/api/v1/jobs/test-id/move"},
+		{http.MethodPost, "/api/v1/stage-templates/reorder"},
 	}
 
 	for _, route := range routes {

@@ -13,9 +13,10 @@ vi.mock("react-i18next", () => ({
 const job: JobDTO = {
   id: "job-1",
   title: "Backend Engineer",
-  status: "applied",
+  is_archived: false,
   is_favorite: false,
   company_name: "Acme",
+  current_stage_template_id: "tpl-1",
   current_stage_name: "Screening",
   last_activity_at: "2026-08-01T00:00:00Z",
   created_at: "2026-07-01T00:00:00Z",
@@ -30,7 +31,6 @@ function renderCard(
     onTitleClick: vi.fn(),
     onAddComment: vi.fn(),
     onAddStage: vi.fn(),
-    onChangeStatus: vi.fn(),
     onDelete: vi.fn(),
     ...overrides,
   };
@@ -38,17 +38,30 @@ function renderCard(
   return props;
 }
 
-describe("JobCardBase — delete action", () => {
+describe("JobCardBase — content", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("does not show the menu (incl. delete) until the actions button is clicked", () => {
+  it("shows the title, company, and current stage (its column)", () => {
+    renderCard();
+    expect(screen.getByText("Backend Engineer")).toBeInTheDocument();
+    expect(screen.getByText("Acme")).toBeInTheDocument();
+    expect(screen.getByText("Screening")).toBeInTheDocument();
+  });
+});
+
+describe("JobCardBase — actions menu", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("does not show the menu until the actions button is clicked", () => {
     renderCard();
     expect(screen.queryByText("jobs.delete")).not.toBeInTheDocument();
   });
 
-  it("shows a Delete item in the actions menu", () => {
+  it("shows Add Comment, Add Stage, and Delete in the menu", () => {
     renderCard();
     fireEvent.click(screen.getByLabelText("jobs.actionsMenu"));
+    expect(screen.getByText("jobs.addComment")).toBeInTheDocument();
+    expect(screen.getByText("jobs.addStage")).toBeInTheDocument();
     expect(screen.getByText("jobs.delete")).toBeInTheDocument();
   });
 
@@ -62,73 +75,16 @@ describe("JobCardBase — delete action", () => {
     expect(screen.queryByText("jobs.delete")).not.toBeInTheDocument();
   });
 
-  it("does not trigger delete when other menu items are used", () => {
-    const { onDelete, onAddComment } = renderCard();
+  it("calls onAddComment and onAddStage from the menu", () => {
+    const { onAddComment, onAddStage, onDelete } = renderCard();
     fireEvent.click(screen.getByLabelText("jobs.actionsMenu"));
     fireEvent.click(screen.getByText("jobs.addComment"));
     expect(onAddComment).toHaveBeenCalledWith(job);
+
+    fireEvent.click(screen.getByLabelText("jobs.actionsMenu"));
+    fireEvent.click(screen.getByText("jobs.addStage"));
+    expect(onAddStage).toHaveBeenCalledWith(job);
+
     expect(onDelete).not.toHaveBeenCalled();
-  });
-});
-
-describe("JobCardBase — quick status submenu", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("expands an inline status list and picks a status with one click", () => {
-    const onStatusSelect = vi.fn();
-    const { onChangeStatus } = renderCard({ onStatusSelect });
-
-    fireEvent.click(screen.getByLabelText("jobs.actionsMenu"));
-    fireEvent.click(screen.getByText("jobs.changeStatus"));
-
-    // current status (applied) is not offered in the submenu (the card badge
-    // outside the menu still shows it)
-    const menuItems = screen.getAllByRole("menuitem");
-    expect(
-      menuItems.some((item) =>
-        item.textContent?.includes("jobs.statusApplied"),
-      ),
-    ).toBe(false);
-    fireEvent.click(screen.getByText("jobs.statusRejected"));
-
-    expect(onStatusSelect).toHaveBeenCalledWith(job, "rejected");
-    expect(onChangeStatus).not.toHaveBeenCalled();
-    // menu collapses after picking
-    expect(screen.queryByText("jobs.statusRejected")).not.toBeInTheDocument();
-  });
-
-  it("falls back to the modal handler when no onStatusSelect is given", () => {
-    const { onChangeStatus } = renderCard();
-    fireEvent.click(screen.getByLabelText("jobs.actionsMenu"));
-    fireEvent.click(screen.getByText("jobs.changeStatus"));
-    expect(onChangeStatus).toHaveBeenCalledWith(job);
-  });
-});
-
-describe("JobCardBase — complete current stage", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("offers the item when the job has a current stage", () => {
-    const onCompleteStage = vi.fn();
-    renderCard({
-      job: { ...job, current_stage_id: "stage-1" },
-      onCompleteStage,
-    });
-
-    fireEvent.click(screen.getByLabelText("jobs.actionsMenu"));
-    fireEvent.click(screen.getByText("jobs.completeCurrentStage"));
-
-    expect(onCompleteStage).toHaveBeenCalledWith({
-      ...job,
-      current_stage_id: "stage-1",
-    });
-  });
-
-  it("hides the item when the job has no current stage", () => {
-    renderCard({ onCompleteStage: vi.fn() });
-    fireEvent.click(screen.getByLabelText("jobs.actionsMenu"));
-    expect(
-      screen.queryByText("jobs.completeCurrentStage"),
-    ).not.toBeInTheDocument();
   });
 });

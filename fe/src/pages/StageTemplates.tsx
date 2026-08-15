@@ -22,46 +22,34 @@ import {
 } from "@/shared/ui/Dialog";
 import { StageTemplateListSkeleton } from "@/shared/ui/PageSkeleton";
 import { ErrorState } from "@/shared/ui/ErrorState";
-import { Plus, Trash2, Edit2, Check, Sparkles, Loader2 } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Edit2,
+  Check,
+  Sparkles,
+  Loader2,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
 import { CreateStageTemplateModal } from "@/features/stages/modals/CreateStageTemplateModal";
 import { EditStageTemplateModal } from "@/features/stages/modals/EditStageTemplateModal";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { showErrorNotification } from "@/shared/lib/notifications";
 import { ApiError } from "@/services/api";
-import {
-  STAGE_PHASES,
-  type StagePhase,
-  type StageTemplateDTO,
-} from "@/shared/types/api";
-import {
-  PHASE_LABEL_KEYS,
-  groupTemplatesByPhase,
-} from "@/features/stages/lib/phases";
+import type { StageTemplateDTO } from "@/shared/types/api";
 
-// Interview steps live in in_progress; Negotiating details the Offer phase.
-// No Applied/Offer/Rejected recommendations — the unified board's base
-// columns already cover those zones.
-const RECOMMENDED_STAGES: {
-  nameKey: string;
-  order: number;
-  phase: StagePhase;
-}[] = [
-  { nameKey: "stages.researching", order: 1, phase: "wishlist" },
-  { nameKey: "stages.followedUp", order: 1, phase: "applied" },
-  { nameKey: "stages.phoneScreen", order: 1, phase: "in_progress" },
-  { nameKey: "stages.technicalInterview", order: 2, phase: "in_progress" },
-  { nameKey: "stages.onsiteInterview", order: 3, phase: "in_progress" },
-  { nameKey: "stages.hrInterview", order: 4, phase: "in_progress" },
-  { nameKey: "stages.negotiating", order: 1, phase: "offer" },
-  { nameKey: "stages.requestedFeedback", order: 1, phase: "rejected" },
+// The user's ordered stage templates ARE the single pipeline. Recommended
+// stages are common Huntr-style columns, listed in pipeline order.
+const RECOMMENDED_STAGES: { nameKey: string; order: number }[] = [
+  { nameKey: "stages.wishlist", order: 1 },
+  { nameKey: "stages.applied", order: 2 },
+  { nameKey: "stages.phoneScreen", order: 3 },
+  { nameKey: "stages.technicalInterview", order: 4 },
+  { nameKey: "stages.onsiteInterview", order: 5 },
+  { nameKey: "stages.offer", order: 6 },
+  { nameKey: "stages.rejected", order: 7 },
 ];
-
-// Recommendations grouped by phase, in pipeline order — mirrors the layout
-// of the user's own stage groups below so it's clear where each chip lands.
-const RECOMMENDED_BY_PHASE = STAGE_PHASES.map((phase) => ({
-  phase,
-  items: RECOMMENDED_STAGES.filter((rec) => rec.phase === phase),
-})).filter((group) => group.items.length > 0);
 
 export default function StageTemplates() {
   usePageMeta({ titleKey: "nav.stages", noindex: true });
@@ -69,9 +57,6 @@ export default function StageTemplates() {
   const queryClient = useQueryClient();
   const dateLocale = useDateLocale();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [createPhase, setCreatePhase] = useState<StagePhase | undefined>(
-    undefined,
-  );
   const [editingTemplate, setEditingTemplate] =
     useState<StageTemplateDTO | null>(null);
   const [deletingTemplate, setDeletingTemplate] =
@@ -106,6 +91,16 @@ export default function StageTemplates() {
     },
   });
 
+  const reorderMutation = useMutation({
+    mutationFn: (ids: string[]) => stageTemplatesService.reorder(ids),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stage-templates"] });
+    },
+    onError: () => {
+      showErrorNotification(t("stages.reorderError"));
+    },
+  });
+
   const handleDelete = (template: StageTemplateDTO) => {
     setDeletingTemplate(template);
   };
@@ -118,24 +113,20 @@ export default function StageTemplates() {
     }
   };
 
-  const handleAddRecommended = (
-    nameKey: string,
-    order: number,
-    phase: StagePhase,
-  ) => {
-    createMutation.mutate({ name: t(nameKey), order, phase });
+  const handleAddRecommended = (nameKey: string, order: number) => {
+    createMutation.mutate({ name: t(nameKey), order });
   };
 
   const handleAddAllRecommended = () => {
-    const stages = data?.items || [];
-    const existingNames = new Set(stages.map((s) => s.name.toLowerCase()));
+    const existingNames = new Set(
+      (data?.items || []).map((s) => s.name.toLowerCase()),
+    );
 
     RECOMMENDED_STAGES.forEach((rec) => {
       const allNames = getAllTranslations(rec.nameKey);
       const alreadyExists = allNames.some((n) => existingNames.has(n));
       if (!alreadyExists) {
-        const name = t(rec.nameKey);
-        createMutation.mutate({ name, order: rec.order, phase: rec.phase });
+        createMutation.mutate({ name: t(rec.nameKey), order: rec.order });
       }
     });
   };
@@ -151,6 +142,15 @@ export default function StageTemplates() {
     return stages.some((s) => allNames.includes(s.name.toLowerCase()));
   };
 
+  // Swaps a stage with its neighbour and persists the full ordered id list.
+  const move = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= ordered.length) return;
+    const next = [...ordered];
+    [next[index], next[target]] = [next[target], next[index]];
+    reorderMutation.mutate(next.map((s) => s.id));
+  };
+
   if (isLoading) {
     return <StageTemplateListSkeleton />;
   }
@@ -164,11 +164,13 @@ export default function StageTemplates() {
     );
   }
 
-  const stages = data?.items || [];
-  const phaseGroups = groupTemplatesByPhase(stages);
+  const ordered = [...(data?.items || [])].sort((a, b) => a.order - b.order);
   const allRecommendedAdded = RECOMMENDED_STAGES.every((rec) =>
     isRecommendedAdded(rec.nameKey),
   );
+  const nextOrder = ordered.length
+    ? Math.max(...ordered.map((s) => s.order)) + 1
+    : 1;
 
   return (
     <div className="space-y-6">
@@ -179,12 +181,7 @@ export default function StageTemplates() {
             {t("stages.description")}
           </p>
         </div>
-        <Button
-          onClick={() => {
-            setCreatePhase(undefined);
-            setIsCreateModalOpen(true);
-          }}
-        >
+        <Button onClick={() => setIsCreateModalOpen(true)}>
           <Plus className="h-4 w-4" />
           {t("stages.create")}
         </Button>
@@ -214,115 +211,117 @@ export default function StageTemplates() {
             {t("stages.recommendedDescription")}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {RECOMMENDED_BY_PHASE.map((group) => (
-            <div key={group.phase} className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t(PHASE_LABEL_KEYS[group.phase])}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {group.items.map((rec) => {
-                  const added = isRecommendedAdded(rec.nameKey);
-                  return (
-                    <Button
-                      key={rec.nameKey}
-                      variant={added ? "secondary" : "outline"}
-                      size="sm"
-                      disabled={added || createMutation.isPending}
-                      onClick={() =>
-                        handleAddRecommended(rec.nameKey, rec.order, rec.phase)
-                      }
-                    >
-                      {added ? (
-                        <Check className="h-4 w-4" />
-                      ) : (
-                        <Plus className="h-4 w-4" />
-                      )}
-                      {t(rec.nameKey)}
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            {RECOMMENDED_STAGES.map((rec) => {
+              const added = isRecommendedAdded(rec.nameKey);
+              return (
+                <Button
+                  key={rec.nameKey}
+                  variant={added ? "secondary" : "outline"}
+                  size="sm"
+                  disabled={added || createMutation.isPending}
+                  onClick={() => handleAddRecommended(rec.nameKey, rec.order)}
+                >
+                  {added ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                  {t(rec.nameKey)}
+                </Button>
+              );
+            })}
+          </div>
         </CardContent>
       </Card>
 
-      {/* User's Stage Templates — all four phase groups, empty ones included */}
-      {
-        <div className="space-y-6">
-          {phaseGroups.map((group) => (
-            <div key={group.phase} className="space-y-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                {t(PHASE_LABEL_KEYS[group.phase])}
-              </h2>
-              {group.templates.length === 0 && (
-                <div className="flex items-center justify-between rounded-lg border border-dashed px-4 py-3">
-                  <p className="text-sm text-muted-foreground">
-                    {t("stages.phase.emptyGroup")}
-                  </p>
+      {/* User's Stage Templates — the ordered pipeline. Reorder with arrows. */}
+      {ordered.length === 0 ? (
+        <div className="flex items-center justify-between rounded-lg border border-dashed px-4 py-6">
+          <p className="text-sm text-muted-foreground">
+            {t("stages.noStages")}
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsCreateModalOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            {t("stages.create")}
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {ordered.map((stage, index) => (
+            <Card key={stage.id}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col">
+                    <button
+                      type="button"
+                      onClick={() => move(index, -1)}
+                      disabled={index === 0 || reorderMutation.isPending}
+                      aria-label={t("stages.moveUp")}
+                      className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => move(index, 1)}
+                      disabled={
+                        index === ordered.length - 1 || reorderMutation.isPending
+                      }
+                      aria-label={t("stages.moveDown")}
+                      className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                    {index + 1}
+                  </div>
+                  <CardTitle className="text-lg">{stage.name}</CardTitle>
+                </div>
+                <div className="flex gap-2">
                   <Button
                     variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setCreatePhase(group.phase);
-                      setIsCreateModalOpen(true);
-                    }}
+                    size="icon"
+                    onClick={() => setEditingTemplate(stage)}
+                    aria-label={t("common.edit")}
                   >
-                    <Plus className="h-4 w-4" />
-                    {t("stages.create")}
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDelete(stage)}
+                    disabled={deleteMutation.isPending}
+                    aria-label={t("common.delete")}
+                  >
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
-              )}
-              {group.templates.map((stage) => (
-                <Card key={stage.id}>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                        {stage.order}
-                      </div>
-                      <CardTitle className="text-lg">{stage.name}</CardTitle>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setEditingTemplate(stage)}
-                        aria-label={t("common.edit")}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(stage)}
-                        disabled={deleteMutation.isPending}
-                        aria-label={t("common.delete")}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-0 pb-3">
-                    <p className="text-sm text-muted-foreground">
-                      {t("stages.created", {
-                        date: format(new Date(stage.created_at), "PP", {
-                          locale: dateLocale,
-                        }),
-                      })}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+              </CardHeader>
+              <CardContent className="pt-0 pb-3">
+                <p className="text-sm text-muted-foreground">
+                  {t("stages.created", {
+                    date: format(new Date(stage.created_at), "PP", {
+                      locale: dateLocale,
+                    }),
+                  })}
+                </p>
+              </CardContent>
+            </Card>
           ))}
         </div>
-      }
+      )}
 
       <CreateStageTemplateModal
         open={isCreateModalOpen}
         onOpenChange={setIsCreateModalOpen}
-        initialPhase={createPhase}
+        initialOrder={nextOrder}
       />
 
       <EditStageTemplateModal

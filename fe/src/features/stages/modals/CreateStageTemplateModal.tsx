@@ -18,35 +18,34 @@ import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { Label } from "@/shared/ui/Label";
 import { Loader2 } from "lucide-react";
-import { PhasePicker } from "../components/PhasePicker";
 import { ApiError } from "@/services/api";
-import type { StagePhase } from "@/shared/types/api";
 
 interface CreateStageTemplateModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Phase preselected when the modal opens (e.g. from an empty group CTA) */
-  initialPhase?: StagePhase;
+  /** Order preselected when the modal opens (e.g. append to the end) */
+  initialOrder?: number;
 }
 
 export function CreateStageTemplateModal({
   open,
   onOpenChange,
-  initialPhase,
+  initialOrder,
 }: CreateStageTemplateModalProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
-  const [order, setOrder] = useState("");
-  const [phase, setPhase] = useState<StagePhase>(initialPhase ?? "in_progress");
+  const [order, setOrder] = useState(
+    initialOrder !== undefined ? String(initialOrder) : "",
+  );
   const [prevOpen, setPrevOpen] = useState(open);
 
-  // Sync the preselected phase on each open (render-time state adjustment —
+  // Sync the preselected order on each open (render-time state adjustment —
   // the set-state-in-effect lint rule forbids the effect version)
   if (open !== prevOpen) {
     setPrevOpen(open);
     if (open) {
-      setPhase(initialPhase ?? "in_progress");
+      setOrder(initialOrder !== undefined ? String(initialOrder) : "");
     }
   }
 
@@ -58,7 +57,6 @@ export function CreateStageTemplateModal({
       onOpenChange(false);
       setName("");
       setOrder("");
-      setPhase("in_progress");
     },
     onError: (error: Error) => {
       if (
@@ -78,7 +76,6 @@ export function CreateStageTemplateModal({
       createMutation.mutate({
         name,
         order: parseInt(order),
-        phase,
       });
     }
   };
@@ -101,13 +98,6 @@ export function CreateStageTemplateModal({
                 placeholder={t("stages.stageNamePlaceholder")}
                 required
               />
-            </div>
-            <div className="space-y-2">
-              <Label>{t("stages.phase.label")}</Label>
-              <PhasePicker value={phase} onChange={setPhase} />
-              <p className="text-xs text-muted-foreground">
-                {t("stages.phase.description")}
-              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="order">{`${t("stages.order")} *`}</Label>

@@ -19,9 +19,6 @@
  * PAYMENTS: Paddle checkout & upgrade UI. Set VITE_FEATURE_PAYMENTS=true
  * to enable upgrade banners, pricing modal, and checkout flow.
  * Subscription limits/usage still work regardless of this flag.
- *
- * UNIFIED_BOARD: single-axis board (phases + stages) replacing the
- * By Status / By Stage toggle. Set VITE_FEATURE_UNIFIED_BOARD=true.
  */
 export const FEATURES = {
   GOOGLE_CALENDAR: false,
@@ -29,5 +26,4 @@ export const FEATURES = {
   EMAIL_NOTIFICATIONS:
     import.meta.env.VITE_FEATURE_EMAIL_NOTIFICATIONS !== "false",
   PAYMENTS: import.meta.env.VITE_FEATURE_PAYMENTS === "true",
-  UNIFIED_BOARD: import.meta.env.VITE_FEATURE_UNIFIED_BOARD === "true",
 } as const;

@@ -54,9 +54,13 @@ describe("FunnelVisualization", () => {
   it("localizes phase bucket labels", () => {
     render(<FunnelVisualization data={{ stages }} isLoading={false} />);
 
-    expect(screen.getByText("stages.phase.applied")).toBeInTheDocument();
-    expect(screen.getByText("stages.phase.inProgress")).toBeInTheDocument();
-    expect(screen.getByText("stages.phase.offer")).toBeInTheDocument();
+    expect(
+      screen.getByText("analytics.funnel.phaseApplied"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("analytics.funnel.phaseInProgress"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("analytics.funnel.phaseOffer")).toBeInTheDocument();
   });
 
   it("renders the in-progress stage drill-down", () => {

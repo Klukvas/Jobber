@@ -99,7 +99,7 @@ func main() {
 
 	// ── 1c. resume builders (4 different templates) ─────────────────────
 	type rbDef struct {
-		id, title, templateID, font, color, layout string
+		id, title, templateID, font, color, layout                string
 		spacing, marginTop, marginBot, marginL, marginR, sidebarW int
 	}
 	resumeBuilders := []rbDef{
@@ -301,21 +301,32 @@ func main() {
 	}
 	fmt.Printf("created %d resumes\n", len(resumes))
 
-	// ── 3. stage templates ───────────────────────────────────────────────
-	type stageTempl struct{ id, name string; order int; phase string }
+	// ── 3. stage templates (pipeline COLUMNS) ────────────────────────────
+	// Single-axis model: a card's state is the column (stage_template) it sits
+	// in. No `phase` here — it's gone from the app model and has a DB default,
+	// so it's deliberately left out of the INSERT.
+	//
+	// Column indices used throughout the pipeline section below:
+	//   0 Wishlist · 1 Applied · 2 Screening · 3 Technical Interview
+	//   4 Final Interview · 5 Offer · 6 Rejected
+	type stageTempl struct {
+		id, name string
+		order    int
+	}
 	stages := []stageTempl{
-		{newID(), "Applied", 1, "applied"},
-		{newID(), "Screening", 2, "in_progress"},
-		{newID(), "Technical Interview", 3, "in_progress"},
-		{newID(), "Take-Home Assignment", 4, "in_progress"},
-		{newID(), "Final Interview", 5, "in_progress"},
-		{newID(), "Offer", 6, "offer"},
+		{newID(), "Wishlist", 0},
+		{newID(), "Applied", 1},
+		{newID(), "Screening", 2},
+		{newID(), "Technical Interview", 3},
+		{newID(), "Final Interview", 4},
+		{newID(), "Offer", 5},
+		{newID(), "Rejected", 6},
 	}
 	for _, s := range stages {
 		_, err = tx.Exec(ctx,
-			`INSERT INTO stage_templates (id, user_id, name, "order", phase, created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, $6, $6)`,
-			s.id, userID, s.name, s.order, s.phase, daysAgo(115),
+			`INSERT INTO stage_templates (id, user_id, name, "order", created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $5)`,
+			s.id, userID, s.name, s.order, daysAgo(115),
 		)
 		must(err, "create stage template "+s.name)
 	}
@@ -368,8 +379,11 @@ func main() {
 	fmt.Printf("created %d tags\n", len(tags))
 
 	// ── 6. jobs ──────────────────────────────────────────────────────────
-	// All jobs start as "saved" wishlist cards; the pipeline section below
-	// promotes most of them to applications (status + applied_at + stages).
+	// Every job is first placed in the Wishlist column (stages[0]); the
+	// pipeline section below MOVES most of them along the board by updating
+	// current_stage_template_id + applied_at + is_archived and writing a
+	// job_stages path history. A card without current_stage_template_id would
+	// not appear on the board, so it's set here for all jobs.
 	type job struct {
 		id, companyID, title, source, url, notes string
 		daysAgo                                  int
@@ -404,11 +418,12 @@ func main() {
 		{newID(), companies[7].id, "Infrastructure Engineer", "LinkedIn", "https://linkedin.com/jobs/8004", "Saved from extension", 3},
 	}
 
+	wishlistTemplateID := stages[0].id // "Wishlist" column
 	for _, j := range jobs {
 		_, err = tx.Exec(ctx,
-			`INSERT INTO jobs (id, user_id, company_id, title, source, url, notes, status, created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, 'saved', $8, $8)`,
-			j.id, userID, j.companyID, j.title, j.source, j.url, j.notes, daysAgo(j.daysAgo),
+			`INSERT INTO jobs (id, user_id, company_id, title, source, url, notes, current_stage_template_id, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)`,
+			j.id, userID, j.companyID, j.title, j.source, j.url, j.notes, wishlistTemplateID, daysAgo(j.daysAgo),
 		)
 		must(err, "create job "+j.title)
 	}
@@ -423,13 +438,13 @@ func main() {
 		{tags[5].id, "company", companies[6].id}, // PixelCraft = startup
 		{tags[5].id, "company", companies[5].id}, // FinEdge = startup
 		{tags[8].id, "company", companies[4].id}, // Quantum Labs = good-comp
-		{tags[6].id, "job", jobs[3].id},           // Referral job
-		{tags[6].id, "job", jobs[14].id},          // Referral job
-		{tags[3].id, "job", jobs[0].id},           // high-priority
-		{tags[3].id, "job", jobs[9].id},           // high-priority
-		{tags[7].id, "job", jobs[8].id},           // interesting-tech ML
-		{tags[7].id, "job", jobs[9].id},           // interesting-tech AI
-		{tags[0].id, "job", jobs[2].id},           // remote job
+		{tags[6].id, "job", jobs[3].id},          // Referral job
+		{tags[6].id, "job", jobs[14].id},         // Referral job
+		{tags[3].id, "job", jobs[0].id},          // high-priority
+		{tags[3].id, "job", jobs[9].id},          // high-priority
+		{tags[7].id, "job", jobs[8].id},          // interesting-tech ML
+		{tags[7].id, "job", jobs[9].id},          // interesting-tech AI
+		{tags[0].id, "job", jobs[2].id},          // remote job
 	}
 	for _, tr := range tagRelations {
 		_, err = tx.Exec(ctx,
@@ -441,72 +456,103 @@ func main() {
 	}
 	fmt.Printf("created %d tag relations\n", len(tagRelations))
 
-	// ── 7. pipeline: promote jobs to applications ────────────────────────
-	// Each entry: job index, resume index, label, pipeline status, applied_days_ago, stages
+	// ── 7. pipeline: move jobs into board columns ────────────────────────
+	// The single-axis model: a card's state IS the column it sits in. Each
+	// appDef MOVES a wishlist card into a target column by:
+	//   * pointing jobs.current_stage_template_id at that column's template
+	//   * setting applied_at (all these are past the Wishlist column)
+	//   * flagging is_archived where appropriate
+	//   * writing an append-only job_stages path history along the way, whose
+	//     "current" row (active for in-flight cards, or the terminal row for
+	//     archived/rejected/offer cards) is linked via jobs.current_stage_id
+	//
+	// `path` = the ordered list of column indices the card traversed. The last
+	// entry is the card's CURRENT column (== target). `pathEnd` gives the
+	// job_stages.status for each visited column. Convention:
+	//   * intermediate columns are "completed"
+	//   * the current column is "active" for cards still in flight, or a
+	//     terminal status ("completed" for reached Offer, "cancelled" for
+	//     Rejected, "skipped" for the last column of an archived card).
+	//
+	// Column indices: 0 Wishlist · 1 Applied · 2 Screening ·
+	//                 3 Technical Interview · 4 Final Interview · 5 Offer · 6 Rejected
 	type appDef struct {
-		jobIdx    int
-		resumeIdx int
-		name      string   // internal label used to attach stage comments below
-		status    string   // applied, on_hold, rejected, offer, archived
-		appliedDA int      // days ago
-		stages    []int    // indices into stages slice (how far they progressed)
-		stageEnd  []string // final status for each stage: completed, active, pending, skipped, cancelled
+		jobIdx     int
+		resumeIdx  int
+		name       string // internal label used to attach stage comments below
+		isArchived bool
+		appliedDA  int      // days ago (display + first stage timestamp)
+		path       []int    // ordered column indices traversed (last = current column)
+		pathEnd    []string // job_stages.status for each visited column
 	}
 
 	appDefs := []appDef{
-		// ── ACTIVE apps (still in pipeline) ──
-		{0, 0, "TechNova - Senior SWE", "applied", 82, []int{0, 1, 2}, []string{"completed", "completed", "active"}},
-		{2, 0, "CloudScale - Backend Go", "applied", 78, []int{0, 1}, []string{"completed", "active"}},
-		{4, 2, "DataPulse - Full-Stack", "applied", 72, []int{0, 1, 2, 3}, []string{"completed", "completed", "completed", "active"}},
-		{6, 0, "GreenByte - SWE II", "applied", 68, []int{0}, []string{"active"}},
-		{8, 0, "Quantum Labs - ML Eng", "applied", 62, []int{0, 1, 2}, []string{"completed", "completed", "active"}},
-		{10, 0, "FinEdge - Backend Payments", "applied", 52, []int{0, 1}, []string{"completed", "active"}},
-		{14, 2, "InfraCore - Platform Eng", "applied", 32, []int{0, 1, 2}, []string{"completed", "completed", "active"}},
-		{17, 2, "DataPulse - Data Eng", "applied", 28, []int{0}, []string{"active"}},
+		// ── IN-FLIGHT cards (active in an interview column) ──
+		{0, 0, "TechNova - Senior SWE", false, 82, []int{1, 2, 3}, []string{"completed", "completed", "active"}},                  // Technical Interview
+		{2, 0, "CloudScale - Backend Go", false, 78, []int{1, 2}, []string{"completed", "active"}},                                // Screening
+		{4, 2, "DataPulse - Full-Stack", false, 72, []int{1, 2, 3, 4}, []string{"completed", "completed", "completed", "active"}}, // Final Interview
+		{6, 0, "GreenByte - SWE II", false, 68, []int{1}, []string{"active"}},                                                     // Applied
+		{8, 0, "Quantum Labs - ML Eng", false, 62, []int{1, 2, 3}, []string{"completed", "completed", "active"}},                  // Technical Interview
+		{10, 0, "FinEdge - Backend Payments", false, 52, []int{1, 2}, []string{"completed", "active"}},                            // Screening
+		{14, 2, "InfraCore - Platform Eng", false, 32, []int{1, 2, 3}, []string{"completed", "completed", "active"}},              // Technical Interview
+		{17, 2, "DataPulse - Data Eng", false, 28, []int{1}, []string{"active"}},                                                  // Applied
 
-		// ── ON HOLD ──
-		{1, 0, "TechNova - Staff Platform", "on_hold", 58, []int{0, 1, 2}, []string{"completed", "completed", "completed"}},
-		{9, 0, "Quantum Labs - SWE AI", "on_hold", 48, []int{0, 1}, []string{"completed", "completed"}},
-		{16, 0, "TechNova - Eng Manager", "on_hold", 23, []int{0}, []string{"completed"}},
+		// ── further along, still active ──
+		{1, 0, "TechNova - Staff Platform", false, 58, []int{1, 2, 3, 4}, []string{"completed", "completed", "completed", "active"}}, // Final Interview
+		{9, 0, "Quantum Labs - SWE AI", false, 48, []int{1, 2, 3}, []string{"completed", "completed", "active"}},                     // Technical Interview
+		{16, 0, "TechNova - Eng Manager", false, 23, []int{1, 2}, []string{"completed", "active"}},                                   // Screening
 
-		// ── REJECTED ──
-		{5, 1, "DataPulse - Frontend", "rejected", 88, []int{0, 1}, []string{"completed", "cancelled"}},
-		{7, 0, "GreenByte - DevOps", "rejected", 85, []int{0, 1, 2}, []string{"completed", "completed", "cancelled"}},
-		{13, 1, "PixelCraft - UI Eng", "rejected", 83, []int{0}, []string{"cancelled"}},
-		{18, 0, "Quantum Labs - Research Eng", "rejected", 92, []int{0, 1, 2}, []string{"completed", "completed", "cancelled"}},
+		// ── REJECTED (card sits in the Rejected column) ──
+		{5, 1, "DataPulse - Frontend", false, 88, []int{1, 2, 6}, []string{"completed", "completed", "cancelled"}},                         // Rejected
+		{7, 0, "GreenByte - DevOps", false, 85, []int{1, 2, 3, 6}, []string{"completed", "completed", "completed", "cancelled"}},           // Rejected
+		{13, 1, "PixelCraft - UI Eng", false, 83, []int{1, 6}, []string{"completed", "cancelled"}},                                         // Rejected
+		{18, 0, "Quantum Labs - Research Eng", false, 92, []int{1, 2, 3, 6}, []string{"completed", "completed", "completed", "cancelled"}}, // Rejected
 
-		// ── OFFER ──
-		{3, 0, "CloudScale - Senior Backend", "offer", 43, []int{0, 1, 2, 3, 4, 5}, []string{"completed", "completed", "completed", "completed", "completed", "completed"}},
-		{11, 2, "FinEdge - Senior FS", "offer", 38, []int{0, 1, 2, 4, 5}, []string{"completed", "completed", "completed", "completed", "completed"}},
+		// ── OFFER (card sits in the Offer column) ──
+		{3, 0, "CloudScale - Senior Backend", false, 43, []int{1, 2, 3, 4, 5}, []string{"completed", "completed", "completed", "completed", "completed"}}, // Offer
+		{11, 2, "FinEdge - Senior FS", false, 38, []int{1, 2, 3, 4, 5}, []string{"completed", "completed", "completed", "completed", "completed"}},        // Offer
 
-		// ── ARCHIVED ──
-		{12, 1, "PixelCraft - Frontend React", "archived", 70, []int{0, 1, 2}, []string{"completed", "completed", "skipped"}},
-		{15, 0, "InfraCore - SRE", "archived", 66, []int{0, 1}, []string{"completed", "skipped"}},
-		{19, 0, "FinEdge - VP Eng", "archived", 18, []int{0}, []string{"skipped"}},
+		// ── ARCHIVED (is_archived = true; hidden from the board) ──
+		{12, 1, "PixelCraft - Frontend React", true, 70, []int{1, 2, 3}, []string{"completed", "completed", "skipped"}},
+		{15, 0, "InfraCore - SRE", true, 66, []int{1, 2}, []string{"completed", "skipped"}},
+		{19, 0, "FinEdge - VP Eng", true, 18, []int{1}, []string{"skipped"}},
 	}
 
-	type appRecord struct{ id, name, status string; jobIdx int }
+	type appRecord struct {
+		id, name string
+		jobIdx   int
+	}
 	var appRecords []appRecord
-	type stageRecord struct{ id, appID, stageTemplID, status string; order int }
+	type stageRecord struct {
+		id, appID, stageTemplID, status string
+		order                           int
+	}
 	var stageRecords []stageRecord
 
 	for _, ad := range appDefs {
 		jobID := jobs[ad.jobIdx].id
 		appliedAt := daysAgo(ad.appliedDA)
-		appRecords = append(appRecords, appRecord{jobID, ad.name, ad.status, ad.jobIdx})
+		appRecords = append(appRecords, appRecord{jobID, ad.name, ad.jobIdx})
 
-		// promote the saved card to an application
+		// The card's CURRENT column is the last entry in the path.
+		currentColumnIdx := ad.path[len(ad.path)-1]
+
+		// Move the card: point it at its column, set applied_at (past Wishlist),
+		// attach a resume, flag archived. jobs.status is intentionally NOT set.
 		_, err = tx.Exec(ctx,
-			`UPDATE jobs SET status = $1, applied_at = $2, resume_id = $3, updated_at = $2 WHERE id = $4`,
-			ad.status, appliedAt, resumes[ad.resumeIdx].id, jobID,
+			`UPDATE jobs
+			 SET current_stage_template_id = $1, applied_at = $2, resume_id = $3,
+			     is_archived = $4, updated_at = $2
+			 WHERE id = $5`,
+			stages[currentColumnIdx].id, appliedAt, resumes[ad.resumeIdx].id, ad.isArchived, jobID,
 		)
-		must(err, "promote job "+ad.name)
+		must(err, "move job "+ad.name)
 
-		// create pipeline stages
+		// Write the append-only path history and link the current stage row.
 		var currentStageID *string
-		for i, stageIdx := range ad.stages {
+		for i, colIdx := range ad.path {
 			stageID := newID()
-			stStatus := ad.stageEnd[i]
+			stStatus := ad.pathEnd[i]
 			order := i + 1
 
 			startedAt := appliedAt.Add(time.Duration(i*3+randBetween(0, 5)) * 24 * time.Hour)
@@ -519,18 +565,20 @@ func main() {
 			_, err = tx.Exec(ctx,
 				`INSERT INTO job_stages (id, job_id, stage_template_id, status, "order", started_at, completed_at, created_at)
 				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-				stageID, jobID, stages[stageIdx].id, stStatus, order, startedAt, completedAt, startedAt,
+				stageID, jobID, stages[colIdx].id, stStatus, order, startedAt, completedAt, startedAt,
 			)
-			must(err, fmt.Sprintf("create stage %s for job %s", stages[stageIdx].name, ad.name))
+			must(err, fmt.Sprintf("create stage %s for job %s", stages[colIdx].name, ad.name))
 
-			stageRecords = append(stageRecords, stageRecord{stageID, jobID, stages[stageIdx].id, stStatus, order})
+			stageRecords = append(stageRecords, stageRecord{stageID, jobID, stages[colIdx].id, stStatus, order})
 
-			if stStatus == "active" || stStatus == "pending" || i == len(ad.stages)-1 {
+			// The current stage row is the one for the card's current column
+			// (the last path entry), whatever its terminal status.
+			if i == len(ad.path)-1 {
 				currentStageID = &stageID
 			}
 		}
 
-		// update job with current_stage_id
+		// Link jobs.current_stage_id to the current column's job_stages row.
 		if currentStageID != nil {
 			_, err = tx.Exec(ctx,
 				`UPDATE jobs SET current_stage_id = $1 WHERE id = $2`,
@@ -539,7 +587,7 @@ func main() {
 			must(err, "update current_stage_id for "+ad.name)
 		}
 	}
-	fmt.Printf("promoted %d jobs to applications with stages\n", len(appDefs))
+	fmt.Printf("moved %d jobs into board columns with stage history\n", len(appDefs))
 
 	// ── tag some applied jobs ────────────────────────────────────────────
 	appTagRelations := []struct{ tagIdx, appIdx int }{
@@ -610,12 +658,12 @@ func main() {
 			case ar.name == "DataPulse - Full-Stack" && sr.order == 3:
 				commentDefs = append(commentDefs, commentDef{2, &sr.id, "3-hour technical interview. Covered React, Node, and SQL. Whiteboard coding went smoothly.", 58})
 			case ar.name == "DataPulse - Full-Stack" && sr.order == 4:
-				commentDefs = append(commentDefs, commentDef{2, &sr.id, "Take-home: build a small dashboard app. Given 5 days to complete.", 52})
+				commentDefs = append(commentDefs, commentDef{2, &sr.id, "Final interview with the team lead and a panel. Discussed architecture and past projects.", 52})
 			case ar.name == "Quantum Labs - ML Eng" && sr.order == 3:
 				commentDefs = append(commentDefs, commentDef{4, &sr.id, "ML-focused interview. Questions about attention mechanisms and model optimization. Tough but fair.", 48})
-			case ar.name == "CloudScale - Senior Backend" && sr.order == 5:
+			case ar.name == "CloudScale - Senior Backend" && sr.order == 4:
 				commentDefs = append(commentDefs, commentDef{15, &sr.id, "Final round with CTO. Great conversation about distributed systems architecture.", 22})
-			case ar.name == "CloudScale - Senior Backend" && sr.order == 6:
+			case ar.name == "CloudScale - Senior Backend" && sr.order == 5:
 				commentDefs = append(commentDefs, commentDef{15, &sr.id, "Verbal offer! Will get the written one by EOW.", 18})
 			case ar.name == "FinEdge - Senior FS" && sr.order == 5:
 				commentDefs = append(commentDefs, commentDef{16, &sr.id, "Offer discussion. Equity details look promising given the IPO timeline.", 14})
@@ -674,24 +722,114 @@ func main() {
 	_, _ = tx.Exec(ctx, `DELETE FROM users WHERE email = $1`, reviewerEmail)
 
 	reviewerID := newID()
+	reviewerCreatedAt := daysAgo(30)
 	_, err = tx.Exec(ctx,
 		`INSERT INTO users (id, email, name, password_hash, locale, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $6)`,
-		reviewerID, reviewerEmail, "Chrome Reviewer", hashPassword(reviewerPassword), "en", now,
+		reviewerID, reviewerEmail, "Chrome Reviewer", hashPassword(reviewerPassword), "en", reviewerCreatedAt,
 	)
 	must(err, "create reviewer user")
 
-	// Add minimal data so the reviewer can test the full flow
-	reviewerStages := []struct{ name string; order int; phase string }{
-		{"Applied", 1, "applied"}, {"Interview", 2, "in_progress"}, {"Offer", 3, "offer"},
+	// Reviewer pipeline COLUMNS — same single-axis model, no phase.
+	// Indices: 0 Wishlist · 1 Applied · 2 Interview · 3 Offer · 4 Rejected
+	reviewerStages := []stageTempl{
+		{newID(), "Wishlist", 0},
+		{newID(), "Applied", 1},
+		{newID(), "Interview", 2},
+		{newID(), "Offer", 3},
+		{newID(), "Rejected", 4},
 	}
 	for _, s := range reviewerStages {
 		_, err = tx.Exec(ctx,
-			`INSERT INTO stage_templates (id, user_id, name, "order", phase, created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, $6, $6)`,
-			newID(), reviewerID, s.name, s.order, s.phase, now,
+			`INSERT INTO stage_templates (id, user_id, name, "order", created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $5)`,
+			s.id, reviewerID, s.name, s.order, reviewerCreatedAt,
 		)
 		must(err, "create reviewer stage "+s.name)
+	}
+
+	// A company for the reviewer's jobs.
+	reviewerCompanyID := newID()
+	_, err = tx.Exec(ctx,
+		`INSERT INTO companies (id, user_id, name, location, notes, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $6)`,
+		reviewerCompanyID, reviewerID, "Acme Corp", "Remote", "Sample company for reviewers", reviewerCreatedAt,
+	)
+	must(err, "create reviewer company")
+
+	// Reviewer jobs, each placed in a column via current_stage_template_id.
+	// applied_at is set for cards past the Wishlist column; a plausible
+	// job_stages path history is written for those, with current_stage_id
+	// linked to the current column's row. status is never set.
+	type reviewerJobDef struct {
+		title     string
+		colIdx    int      // target column (index into reviewerStages)
+		appliedDA int      // days ago; 0 => wishlist-only (no applied_at, no history)
+		path      []int    // column indices traversed (last = current); empty for wishlist-only
+		pathEnd   []string // job_stages.status per visited column
+	}
+	reviewerJobs := []reviewerJobDef{
+		{"Frontend Developer", 0, 0, nil, nil},                                                        // Wishlist
+		{"Backend Developer", 1, 20, []int{1}, []string{"active"}},                                    // Applied
+		{"Full-Stack Engineer", 2, 24, []int{1, 2}, []string{"completed", "active"}},                  // Interview
+		{"Senior Engineer", 3, 28, []int{1, 2, 3}, []string{"completed", "completed", "completed"}},   // Offer
+		{"Platform Engineer", 4, 26, []int{1, 2, 4}, []string{"completed", "completed", "cancelled"}}, // Rejected
+	}
+	for _, rj := range reviewerJobs {
+		reviewerJobID := newID()
+		createdAt := daysAgo(rj.appliedDA + 2)
+		if rj.appliedDA == 0 {
+			createdAt = daysAgo(5)
+		}
+
+		var appliedAt *time.Time
+		if rj.appliedDA > 0 {
+			t := daysAgo(rj.appliedDA)
+			appliedAt = &t
+		}
+
+		_, err = tx.Exec(ctx,
+			`INSERT INTO jobs (id, user_id, company_id, title, source, url, notes, current_stage_template_id, applied_at, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)`,
+			reviewerJobID, reviewerID, reviewerCompanyID, rj.title, "Company Website", "", "",
+			reviewerStages[rj.colIdx].id, appliedAt, createdAt,
+		)
+		must(err, "create reviewer job "+rj.title)
+
+		// Path history for cards past Wishlist.
+		if appliedAt != nil {
+			var currentStageID *string
+			for i, colIdx := range rj.path {
+				stageID := newID()
+				stStatus := rj.pathEnd[i]
+				order := i + 1
+
+				startedAt := appliedAt.Add(time.Duration(i*3) * 24 * time.Hour)
+				var completedAt *time.Time
+				if stStatus == "completed" || stStatus == "cancelled" {
+					t := startedAt.Add(time.Duration(randBetween(1, 5)) * 24 * time.Hour)
+					completedAt = &t
+				}
+
+				_, err = tx.Exec(ctx,
+					`INSERT INTO job_stages (id, job_id, stage_template_id, status, "order", started_at, completed_at, created_at)
+					 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+					stageID, reviewerJobID, reviewerStages[colIdx].id, stStatus, order, startedAt, completedAt, startedAt,
+				)
+				must(err, "create reviewer stage for "+rj.title)
+
+				if i == len(rj.path)-1 {
+					currentStageID = &stageID
+				}
+			}
+			if currentStageID != nil {
+				_, err = tx.Exec(ctx,
+					`UPDATE jobs SET current_stage_id = $1 WHERE id = $2`,
+					*currentStageID, reviewerJobID,
+				)
+				must(err, "update reviewer current_stage_id for "+rj.title)
+			}
+		}
 	}
 	fmt.Printf("created reviewer: %s / %s\n", reviewerEmail, reviewerPassword)
 

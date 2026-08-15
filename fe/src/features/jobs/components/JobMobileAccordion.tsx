@@ -3,8 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { JobCardBase } from "./JobCardBase";
-import { STATUS_LEFT_BORDER_COLORS } from "../lib/jobStatusColors";
-import type { JobDTO, JobStatus } from "@/shared/types/api";
+import type { JobDTO } from "@/shared/types/api";
 
 export interface MobileColumnData {
   id: string;
@@ -16,9 +15,6 @@ interface AccordionProps {
   columns: MobileColumnData[];
   onAddComment: (job: JobDTO) => void;
   onAddStage: (job: JobDTO) => void;
-  onChangeStatus: (job: JobDTO) => void;
-  onStatusSelect?: (job: JobDTO, status: JobStatus) => void;
-  onCompleteStage?: (job: JobDTO) => void;
   onDelete: (job: JobDTO) => void;
 }
 
@@ -26,9 +22,6 @@ interface MobileCardProps {
   job: JobDTO;
   onAddComment: (job: JobDTO) => void;
   onAddStage: (job: JobDTO) => void;
-  onChangeStatus: (job: JobDTO) => void;
-  onStatusSelect?: (job: JobDTO, status: JobStatus) => void;
-  onCompleteStage?: (job: JobDTO) => void;
   onDelete: (job: JobDTO) => void;
 }
 
@@ -36,9 +29,6 @@ const MobileCard = memo(function MobileCard({
   job,
   onAddComment,
   onAddStage,
-  onChangeStatus,
-  onStatusSelect,
-  onCompleteStage,
   onDelete,
 }: MobileCardProps) {
   const navigate = useNavigate();
@@ -48,9 +38,6 @@ const MobileCard = memo(function MobileCard({
       onTitleClick={() => navigate(`/app/jobs/${job.id}`)}
       onAddComment={onAddComment}
       onAddStage={onAddStage}
-      onChangeStatus={onChangeStatus}
-      onStatusSelect={onStatusSelect}
-      onCompleteStage={onCompleteStage}
       onDelete={onDelete}
     />
   );
@@ -65,9 +52,6 @@ export function JobMobileAccordion({
   columns,
   onAddComment,
   onAddStage,
-  onChangeStatus,
-  onStatusSelect,
-  onCompleteStage,
   onDelete,
 }: AccordionProps) {
   const { t } = useTranslation();
@@ -96,15 +80,13 @@ export function JobMobileAccordion({
     <div className="space-y-2">
       {columns.map((col) => {
         const isOpen = effectiveOpenIds.has(col.id);
-        const colorClass =
-          STATUS_LEFT_BORDER_COLORS[col.id] ?? "border-l-purple-500";
         const headerId = `accordion-header-${col.id}`;
         const contentId = `accordion-content-${col.id}`;
 
         return (
           <div
             key={col.id}
-            className={`rounded-lg border border-l-4 bg-muted/30 ${colorClass}`}
+            className="rounded-lg border border-l-4 border-l-primary/60 bg-muted/30"
           >
             <button
               id={headerId}
@@ -144,9 +126,6 @@ export function JobMobileAccordion({
                       job={job}
                       onAddComment={onAddComment}
                       onAddStage={onAddStage}
-                      onChangeStatus={onChangeStatus}
-                      onStatusSelect={onStatusSelect}
-                      onCompleteStage={onCompleteStage}
                       onDelete={onDelete}
                     />
                   ))

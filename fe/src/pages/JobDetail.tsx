@@ -28,7 +28,6 @@ import { JobPipelineCard } from "@/features/jobs/components/JobPipelineCard";
 import { JobMatchScoreCard } from "@/features/jobs/components/JobMatchScoreCard";
 import { JobCommentsSection } from "@/features/jobs/components/JobCommentsSection";
 import { AddStageModal } from "@/features/jobs/modals/AddStageModal";
-import { UpdateJobStatusModal } from "@/features/jobs/modals/UpdateJobStatusModal";
 import { PricingModal } from "@/features/subscription/components/PricingModal";
 import { ArrowLeft, Save, Loader2, Plus } from "lucide-react";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
@@ -49,7 +48,6 @@ export default function JobDetail() {
 
   const [fields, setFields] = useState<EditableFields | null>(null);
   const [isAddStageModalOpen, setIsAddStageModalOpen] = useState(false);
-  const [isUpdateStatusModalOpen, setIsUpdateStatusModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [selectedMatchResumeId, setSelectedMatchResumeId] = useState<
@@ -77,8 +75,8 @@ export default function JobDetail() {
     enabled: !!id,
   });
 
-  // Phase breadcrumb for the current stage (matched by name — the job DTO
-  // carries the stage name, not the template id)
+  // The user's ordered stage templates ARE the pipeline columns; the selector
+  // moves the card between them.
   const { data: templatesData } = useQuery({
     queryKey: ["stage-templates"],
     queryFn: () => stageTemplatesService.list({ limit: 100, offset: 0 }),
@@ -130,7 +128,9 @@ export default function JobDetail() {
     updateMutation,
     changeResumeMutation,
     toggleFavoriteMutation,
+    moveMutation,
     archiveMutation,
+    unarchiveMutation,
     deleteMutation,
     completeCurrentStageMutation,
     addCommentMutation,
@@ -207,8 +207,10 @@ export default function JobDetail() {
         onDiscard={handleDiscard}
         onToggleFavorite={() => toggleFavoriteMutation.mutate()}
         isTogglingFavorite={toggleFavoriteMutation.isPending}
-        onArchive={() => archiveMutation.mutate(job.id)}
+        onArchive={() => archiveMutation.mutate()}
         isArchiving={archiveMutation.isPending}
+        onUnarchive={() => unarchiveMutation.mutate()}
+        isUnarchiving={unarchiveMutation.isPending}
         onDelete={() => setIsDeleteConfirmOpen(true)}
         isDeleting={deleteMutation.isPending}
       />
@@ -227,13 +229,16 @@ export default function JobDetail() {
         templates={templatesData?.items ?? []}
         uploadedResumes={uploadedResumes}
         builderResumes={builderResumesList}
+        onMoveToStage={(stageTemplateId) =>
+          moveMutation.mutate(stageTemplateId)
+        }
+        isMoving={moveMutation.isPending}
         onCompleteStage={(stageId) =>
           completeCurrentStageMutation.mutate(stageId)
         }
         isCompletingStage={completeCurrentStageMutation.isPending}
         onChangeResume={(value) => changeResumeMutation.mutate(value)}
         isChangingResume={changeResumeMutation.isPending}
-        onOpenUpdateStatus={() => setIsUpdateStatusModalOpen(true)}
       />
 
       {/* Description */}
@@ -332,14 +337,6 @@ export default function JobDetail() {
         open={isAddStageModalOpen}
         onOpenChange={setIsAddStageModalOpen}
         jobId={id!}
-      />
-
-      <UpdateJobStatusModal
-        key={`${job.status}-${isUpdateStatusModalOpen}`}
-        open={isUpdateStatusModalOpen}
-        onOpenChange={setIsUpdateStatusModalOpen}
-        jobId={id!}
-        currentStatus={job.status}
       />
 
       {/* Delete confirmation */}

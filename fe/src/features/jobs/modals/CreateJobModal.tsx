@@ -139,7 +139,8 @@ function ModalContent({
     };
 
     if (alreadyApplied) {
-      request.status = "applied";
+      // Marking a job as already-applied just records the applied date; the
+      // backend places the card in the appropriate column.
       request.applied_at = appliedDate
         ? new Date(`${appliedDate}T00:00:00`).toISOString()
         : new Date().toISOString();

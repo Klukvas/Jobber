@@ -18,9 +18,7 @@ import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { Label } from "@/shared/ui/Label";
 import { Loader2 } from "lucide-react";
-import { PhasePicker } from "../components/PhasePicker";
 import { ApiError } from "@/services/api";
-import type { StagePhase } from "@/shared/types/api";
 import type { StageTemplateDTO } from "@/shared/types/api";
 
 interface EditStageTemplateModalProps {
@@ -38,18 +36,16 @@ export function EditStageTemplateModal({
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [order, setOrder] = useState("");
-  const [phase, setPhase] = useState<StagePhase>("in_progress");
   const [prevTemplateId, setPrevTemplateId] = useState<string | null>(null);
 
   if (template && template.id !== prevTemplateId) {
     setPrevTemplateId(template.id);
     setName(template.name);
     setOrder(String(template.order));
-    setPhase(template.phase);
   }
 
   const updateMutation = useMutation({
-    mutationFn: (data: { name: string; order: number; phase: StagePhase }) =>
+    mutationFn: (data: { name: string; order: number }) =>
       stageTemplatesService.update(template!.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stage-templates"] });
@@ -74,7 +70,6 @@ export function EditStageTemplateModal({
       updateMutation.mutate({
         name,
         order: parseInt(order),
-        phase,
       });
     }
   };
@@ -96,10 +91,6 @@ export function EditStageTemplateModal({
                 onChange={(e) => setName(e.target.value)}
                 required
               />
-            </div>
-            <div className="space-y-2">
-              <Label>{t("stages.phase.label")}</Label>
-              <PhasePicker value={phase} onChange={setPhase} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-order">{t("stages.order")} *</Label>

@@ -31,9 +31,9 @@ func TestSearchFilter(t *testing.T) {
 		assert.Equal(t, []any{"user-123", "%Stripe%"}, args)
 	})
 
-	t.Run("placeholder index follows already-appended args (e.g. after status filter)", func(t *testing.T) {
-		// Simulate statusFilter having appended a status arg first.
-		args := []any{"user-123", "applied"}
+	t.Run("placeholder index follows already-appended args", func(t *testing.T) {
+		// Simulate a prior arg (e.g. a company id) having been appended first.
+		args := []any{"user-123", "company-1"}
 		frag := searchFilter("acme", &args)
 
 		assert.Equal(t, " AND (j.title ILIKE $3 OR c.name ILIKE $3)", frag)
@@ -56,13 +56,37 @@ func TestSearchFilter(t *testing.T) {
 	})
 }
 
-func TestStatusAndSearchFilterCompose(t *testing.T) {
-	// statusFilter appends the status arg at $2, searchFilter then uses $3.
+func TestArchivedFilter(t *testing.T) {
+	tests := []struct {
+		name   string
+		status string
+		want   string
+	}{
+		// "" and the legacy "active" mean "everything except archived"
+		// (backward compatible with the deployed Chrome extension).
+		{"empty excludes archived", "", " AND j.is_archived = false"},
+		{"legacy active excludes archived", "active", " AND j.is_archived = false"},
+		{"unknown value excludes archived", "applied", " AND j.is_archived = false"},
+		{"archived includes only archived", "archived", " AND j.is_archived = true"},
+		{"all imposes no filter", "all", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, archivedFilter(tt.status))
+		})
+	}
+}
+
+// TestArchivedAndSearchFilterCompose verifies the two WHERE fragments used by
+// List cooperate: the archived filter takes no placeholder, so search still
+// binds at $2.
+func TestArchivedAndSearchFilterCompose(t *testing.T) {
 	args := []any{"user-123"}
-	statusFrag := statusFilter("applied", &args)
+	archivedFrag := archivedFilter("")
 	searchFrag := searchFilter("vercel", &args)
 
-	assert.Equal(t, " AND j.status = $2", statusFrag)
-	assert.Equal(t, " AND (j.title ILIKE $3 OR c.name ILIKE $3)", searchFrag)
-	assert.Equal(t, []any{"user-123", "applied", "%vercel%"}, args)
+	assert.Equal(t, " AND j.is_archived = false", archivedFrag)
+	assert.Equal(t, " AND (j.title ILIKE $2 OR c.name ILIKE $2)", searchFrag)
+	assert.Equal(t, []any{"user-123", "%vercel%"}, args)
 }

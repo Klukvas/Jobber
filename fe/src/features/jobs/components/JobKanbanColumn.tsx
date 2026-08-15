@@ -2,8 +2,7 @@ import { memo } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { useTranslation } from "react-i18next";
 import { JobKanbanCard } from "./JobKanbanCard";
-import { STATUS_TOP_BORDER_COLORS } from "../lib/jobStatusColors";
-import type { JobDTO, JobStatus } from "@/shared/types/api";
+import type { JobDTO } from "@/shared/types/api";
 
 interface JobKanbanColumnProps {
   columnId: string;
@@ -11,9 +10,6 @@ interface JobKanbanColumnProps {
   jobs: JobDTO[];
   onAddComment: (job: JobDTO) => void;
   onAddStage: (job: JobDTO) => void;
-  onChangeStatus: (job: JobDTO) => void;
-  onStatusSelect?: (job: JobDTO, status: JobStatus) => void;
-  onCompleteStage?: (job: JobDTO) => void;
   onDelete: (job: JobDTO) => void;
 }
 
@@ -23,21 +19,15 @@ export const JobKanbanColumn = memo(function JobKanbanColumn({
   jobs,
   onAddComment,
   onAddStage,
-  onChangeStatus,
-  onStatusSelect,
-  onCompleteStage,
   onDelete,
 }: JobKanbanColumnProps) {
   const { t } = useTranslation();
   const { isOver, setNodeRef } = useDroppable({ id: columnId });
 
-  const colorClass =
-    STATUS_TOP_BORDER_COLORS[columnId] ?? "border-t-purple-500";
-
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col rounded-lg border border-t-4 bg-muted/30 min-w-[280px] flex-1 flex-shrink-0 ${colorClass} ${
+      className={`flex flex-col rounded-lg border border-t-4 border-t-primary/60 bg-muted/30 min-w-[280px] flex-1 flex-shrink-0 ${
         isOver ? "ring-2 ring-primary/30 bg-primary/5" : ""
       }`}
     >
@@ -60,9 +50,6 @@ export const JobKanbanColumn = memo(function JobKanbanColumn({
               job={job}
               onAddComment={onAddComment}
               onAddStage={onAddStage}
-              onChangeStatus={onChangeStatus}
-              onStatusSelect={onStatusSelect}
-              onCompleteStage={onCompleteStage}
               onDelete={onDelete}
             />
           ))

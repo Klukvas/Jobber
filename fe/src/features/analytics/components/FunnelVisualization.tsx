@@ -11,13 +11,13 @@ import { Skeleton } from "@/shared/ui/Skeleton";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { TrendingUp, ArrowRight, XCircle } from "lucide-react";
 
-// Top-level funnel buckets are pipeline phases; map their key to a localized
-// label. Unknown names (drill-down sub-stages, or older shared snapshots that
-// stored template names) fall back to the raw name.
+// Top-level funnel buckets are backend-derived phase names; map their key to a
+// localized label. Unknown names (drill-down sub-stages, or older shared
+// snapshots that stored template names) fall back to the raw name.
 const PHASE_LABEL_KEY: Record<string, string> = {
-  applied: "stages.phase.applied",
-  in_progress: "stages.phase.inProgress",
-  offer: "stages.phase.offer",
+  applied: "analytics.funnel.phaseApplied",
+  in_progress: "analytics.funnel.phaseInProgress",
+  offer: "analytics.funnel.phaseOffer",
 };
 
 export function FunnelVisualization({

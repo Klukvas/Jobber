@@ -36,4 +36,11 @@ export const stageTemplatesService = {
   async delete(id: string): Promise<void> {
     return apiClient.delete<void>(`stage-templates/${id}`);
   },
+
+  // Persists the full ordered list of stage-template ids (the pipeline order).
+  async reorder(stageIds: string[]): Promise<void> {
+    return apiClient.post<void>("stage-templates/reorder", {
+      stage_ids: stageIds,
+    });
+  },
 };

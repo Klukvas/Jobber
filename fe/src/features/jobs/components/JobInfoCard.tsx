@@ -4,7 +4,6 @@ import { Calendar, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/shared/ui/Card";
 import { Input } from "@/shared/ui/Input";
 import { Label } from "@/shared/ui/Label";
-import { StatusBadge } from "@/shared/ui/StatusBadge";
 import { CompanySelectWithQuickAdd } from "@/features/jobs/components/CompanySelectWithQuickAdd";
 import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import type { CompanyDTO, JobDTO } from "@/shared/types/api";
@@ -45,7 +44,11 @@ export function JobInfoCard({
             className="text-2xl font-bold border-transparent hover:border-input focus:border-input bg-transparent h-auto py-1 px-2 -ml-2"
             placeholder={t("jobs.titlePlaceholder")}
           />
-          <StatusBadge status={job.status} />
+          <span className="inline-flex flex-shrink-0 items-center rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
+            {job.is_archived
+              ? t("jobs.archived")
+              : (job.current_stage_name ?? t("jobs.board.noStage"))}
+          </span>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

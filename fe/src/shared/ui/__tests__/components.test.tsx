@@ -14,7 +14,6 @@ import { Input } from "../Input";
 import { Label } from "../Label";
 import { ErrorState } from "../ErrorState";
 import { EmptyState } from "../EmptyState";
-import { StatusBadge } from "../StatusBadge";
 import {
   Skeleton,
   SkeletonCard,
@@ -34,16 +33,22 @@ vi.mock("react-i18next", () => ({
 describe("Button", () => {
   it("renders with children", () => {
     render(<Button>Click me</Button>);
-    expect(screen.getByRole("button", { name: "Click me" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Click me" }),
+    ).toBeInTheDocument();
   });
 
-  it.each(["default", "destructive", "outline", "secondary", "ghost", "link"] as const)(
-    "renders variant=%s without crashing",
-    (variant) => {
-      render(<Button variant={variant}>btn</Button>);
-      expect(screen.getByRole("button", { name: "btn" })).toBeInTheDocument();
-    },
-  );
+  it.each([
+    "default",
+    "destructive",
+    "outline",
+    "secondary",
+    "ghost",
+    "link",
+  ] as const)("renders variant=%s without crashing", (variant) => {
+    render(<Button variant={variant}>btn</Button>);
+    expect(screen.getByRole("button", { name: "btn" })).toBeInTheDocument();
+  });
 
   it.each(["default", "sm", "lg", "icon"] as const)(
     "renders size=%s without crashing",
@@ -253,50 +258,8 @@ describe("EmptyState", () => {
   });
 
   it("renders action when provided", () => {
-    render(
-      <EmptyState
-        title="Empty"
-        action={<button>Add</button>}
-      />,
-    );
+    render(<EmptyState title="Empty" action={<button>Add</button>} />);
     expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
-  });
-});
-
-// ---------- StatusBadge ----------
-describe("StatusBadge", () => {
-  it.each([
-    "saved",
-    "applied",
-    "on_hold",
-    "rejected",
-    "offer",
-    "archived",
-  ] as const)("renders status=%s", (status) => {
-    render(<StatusBadge status={status} />);
-    // The translated key should be rendered as the text
-    expect(
-      screen.getByText(
-        `jobs.status${status.charAt(0).toUpperCase() + status.slice(1).replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())}`,
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it("renders unknown status as raw text", () => {
-    render(<StatusBadge status={"unknown" as never} />);
-    expect(screen.getByText("unknown")).toBeInTheDocument();
-  });
-
-  it("renders with small size", () => {
-    const { container } = render(<StatusBadge status="applied" size="sm" />);
-    const span = container.querySelector("span");
-    expect(span?.className).toContain("text-xs");
-  });
-
-  it("renders with large size", () => {
-    const { container } = render(<StatusBadge status="applied" size="lg" />);
-    const span = container.querySelector("span");
-    expect(span?.className).toContain("text-base");
   });
 });
 

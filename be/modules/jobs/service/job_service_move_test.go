@@ -6,37 +6,20 @@ import (
 
 	"github.com/andreypavlenko/jobber/modules/jobs/model"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestMovePhaseStatus(t *testing.T) {
-	cases := []struct {
-		phase   model.Phase
-		status  string
-		wantErr bool
-	}{
-		{model.PhaseWishlist, "saved", false},
-		{model.PhaseApplied, "applied", false},
-		{model.PhaseInProgress, "applied", false},
-		{model.PhaseOffer, "offer", false},
-		{model.Phase("rejected"), "rejected", false}, // terminal board column
-		{model.Phase("archived"), "", true},          // never a move target
-		{model.Phase("nope"), "", true},
-	}
-	for _, tc := range cases {
-		status, err := movePhaseStatus(tc.phase)
-		if tc.wantErr {
-			assert.Error(t, err, string(tc.phase))
-		} else {
-			assert.NoError(t, err, string(tc.phase))
-			assert.Equal(t, tc.status, status, string(tc.phase))
-		}
-	}
-}
+// Move is the single write path for a card's pipeline position. Its transactional
+// body runs against a *pgxpool.Pool that cannot be mocked here, so these tests
+// cover the branches that resolve before the transaction begins: validation, the
+// pre-transaction lookups, and the no-op fast path (already in the target column),
+// which returns an enriched DTO without any writes.
 
 func TestMove_Validation(t *testing.T) {
 	userID := "user-123"
-	job := &model.Job{ID: "job-1", UserID: userID, Status: "applied"}
+	stageID := "stage-applied"
 
+	job := &model.Job{ID: "job-1", UserID: userID, CurrentStageTemplateID: &stageID}
 	jobRepo := &MockJobRepository{
 		GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
 			return job, nil
@@ -44,45 +27,84 @@ func TestMove_Validation(t *testing.T) {
 	}
 
 	newSvc := func() *JobService {
-		return NewJobService(nil, jobRepo, nil, &MockStageTemplateRepository{}, defaultMockCompanyRepo, nil, nil, defaultMockCommentRepo, nil, nil, nil)
+		return newServiceWithTemplates(jobRepo, &MockStageTemplateRepository{})
 	}
 
-	t.Run("rejects unknown target type", func(t *testing.T) {
+	t.Run("rejects empty stage template id", func(t *testing.T) {
 		_, err := newSvc().Move(context.Background(), userID, "job-1", &model.MoveJobRequest{
-			Target: model.MoveTarget{Type: "column"},
+			StageTemplateID: "",
 		})
 		assert.ErrorIs(t, err, model.ErrInvalidMoveTarget)
 	})
 
-	t.Run("rejects stage target without template id", func(t *testing.T) {
-		_, err := newSvc().Move(context.Background(), userID, "job-1", &model.MoveJobRequest{
-			Target: model.MoveTarget{Type: "stage"},
+	t.Run("propagates job lookup error", func(t *testing.T) {
+		failing := newServiceWithTemplates(&MockJobRepository{
+			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
+				return nil, model.ErrJobNotFound
+			},
+		}, &MockStageTemplateRepository{})
+
+		_, err := failing.Move(context.Background(), userID, "job-1", &model.MoveJobRequest{
+			StageTemplateID: "stage-applied",
 		})
-		assert.ErrorIs(t, err, model.ErrInvalidMoveTarget)
+		assert.ErrorIs(t, err, model.ErrJobNotFound)
 	})
 
-	t.Run("rejects phase target without phase", func(t *testing.T) {
-		_, err := newSvc().Move(context.Background(), userID, "job-1", &model.MoveJobRequest{
-			Target: model.MoveTarget{Type: "phase"},
+	t.Run("propagates stage template lookup error", func(t *testing.T) {
+		templateRepo := &MockStageTemplateRepository{
+			GetByIDFunc: func(ctx context.Context, uid, templateID string) (*model.StageTemplate, error) {
+				return nil, model.ErrStageTemplateNotFound
+			},
+		}
+		svc := newServiceWithTemplates(jobRepo, templateRepo)
+
+		_, err := svc.Move(context.Background(), userID, "job-1", &model.MoveJobRequest{
+			StageTemplateID: "missing",
 		})
-		assert.ErrorIs(t, err, model.ErrInvalidMoveTarget)
+		assert.ErrorIs(t, err, model.ErrStageTemplateNotFound)
+	})
+}
+
+func TestMove_NoOp(t *testing.T) {
+	userID := "user-123"
+	stageID := "stage-applied"
+
+	// Card already sits in the target column: Move must return an enriched DTO
+	// with no writes (no *pgxpool.Pool is available in this test).
+	job := &model.Job{
+		ID:                     "job-1",
+		UserID:                 userID,
+		Title:                  "Engineer",
+		CurrentStageTemplateID: &stageID,
+	}
+
+	jobRepo := &MockJobRepository{
+		GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
+			return job, nil
+		},
+		UpdateFunc: func(ctx context.Context, j *model.Job) error {
+			t.Fatalf("no-op Move must not update the job")
+			return nil
+		},
+	}
+	templateRepo := &MockStageTemplateRepository{
+		GetByIDFunc: func(ctx context.Context, uid, templateID string) (*model.StageTemplate, error) {
+			return &model.StageTemplate{ID: templateID, UserID: uid, Name: "Applied", Order: 1}, nil
+		},
+	}
+
+	svc := newServiceWithTemplates(jobRepo, templateRepo)
+
+	dto, err := svc.Move(context.Background(), userID, "job-1", &model.MoveJobRequest{
+		StageTemplateID: stageID,
 	})
 
-	t.Run("rejects archived as phase target", func(t *testing.T) {
-		phase := model.Phase("archived")
-		_, err := newSvc().Move(context.Background(), userID, "job-1", &model.MoveJobRequest{
-			Target: model.MoveTarget{Type: "phase", Phase: &phase},
-		})
-		assert.ErrorIs(t, err, model.ErrInvalidPhase)
-	})
-
-	t.Run("no-op when already in the target base column", func(t *testing.T) {
-		phase := model.PhaseApplied
-		dto, err := newSvc().Move(context.Background(), userID, "job-1", &model.MoveJobRequest{
-			Target: model.MoveTarget{Type: "phase", Phase: &phase},
-		})
-		// job is applied with no current stage → no transaction needed
-		assert.NoError(t, err)
-		assert.Equal(t, "applied", dto.Status)
-	})
+	require.NoError(t, err)
+	require.NotNil(t, dto)
+	assert.Equal(t, "job-1", dto.ID)
+	require.NotNil(t, dto.CurrentStageTemplateID)
+	assert.Equal(t, stageID, *dto.CurrentStageTemplateID)
+	// The enriched DTO carries the current column's name.
+	require.NotNil(t, dto.CurrentStageName)
+	assert.Equal(t, "Applied", *dto.CurrentStageName)
 }

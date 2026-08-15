@@ -112,26 +112,17 @@ func (s *JobService) resolveResumeSelection(ctx context.Context, userID string, 
 	return nil
 }
 
-// applyStatusTransition sets job.Status and keeps applied_at consistent:
-// leaving "saved" stamps applied_at (unless explicitly provided),
-// returning to "saved" clears it.
-func applyStatusTransition(job *model.Job, newStatus string, explicitAppliedAt *time.Time) error {
-	if !model.ValidStatuses[newStatus] {
-		return model.ErrInvalidJobStatus
+// firstStageTemplate returns the user's first pipeline column (lowest order) —
+// the default placement for a new card.
+func (s *JobService) firstStageTemplate(ctx context.Context, userID string) (*model.StageTemplate, error) {
+	templates, _, err := s.templateRepo.List(ctx, userID, 1, 0)
+	if err != nil {
+		return nil, err
 	}
-	job.Status = newStatus
-	if newStatus == string(model.StatusSaved) {
-		job.AppliedAt = nil
-		return nil
+	if len(templates) == 0 {
+		return nil, model.ErrStageTemplateNotFound
 	}
-	if explicitAppliedAt != nil && !explicitAppliedAt.IsZero() {
-		t := explicitAppliedAt.UTC()
-		job.AppliedAt = &t
-	} else if job.AppliedAt == nil {
-		now := time.Now().UTC()
-		job.AppliedAt = &now
-	}
-	return nil
+	return templates[0], nil
 }
 
 // Create creates a new job. Without status/resume fields it creates a "saved"
@@ -156,25 +147,41 @@ func (s *JobService) Create(ctx context.Context, userID string, req *model.Creat
 		}
 	}
 
+	// Determine which pipeline column to place the card in: an explicit one, or
+	// the user's first column (wishlist).
+	var placement *model.StageTemplate
+	if req.StageTemplateID != nil && *req.StageTemplateID != "" {
+		p, err := s.templateRepo.GetByID(ctx, userID, *req.StageTemplateID)
+		if err != nil {
+			return nil, err
+		}
+		placement = p
+	} else {
+		p, err := s.firstStageTemplate(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		placement = p
+	}
+
 	job := &model.Job{
-		UserID:      userID,
-		CompanyID:   req.CompanyID,
-		Title:       strings.TrimSpace(req.Title),
-		Source:      req.Source,
-		URL:         req.URL,
-		Notes:       req.Notes,
-		Description: req.Description,
-		Status:      string(model.StatusSaved),
+		UserID:                 userID,
+		CompanyID:              req.CompanyID,
+		Title:                  strings.TrimSpace(req.Title),
+		Source:                 req.Source,
+		URL:                    req.URL,
+		Notes:                  req.Notes,
+		Description:            req.Description,
+		CurrentStageTemplateID: &placement.ID,
+	}
+	// Placing directly past the first column stamps the applied-at timestamp.
+	if placement.Order > 0 {
+		now := time.Now().UTC()
+		job.AppliedAt = &now
 	}
 
 	if err := s.resolveResumeSelection(ctx, userID, job, req.ResumeID, req.ResumeBuilderID); err != nil {
 		return nil, err
-	}
-
-	if req.Status != nil && *req.Status != "" {
-		if err := applyStatusTransition(job, *req.Status, req.AppliedAt); err != nil {
-			return nil, err
-		}
 	}
 
 	if err := s.repo.Create(ctx, job); err != nil {
@@ -230,16 +237,12 @@ func (s *JobService) buildJobDTO(ctx context.Context, userID string, job *model.
 		dto.LastActivityAt = lastActivity
 	}
 
-	// Current stage name
-	if job.CurrentStageID != nil && *job.CurrentStageID != "" {
-		if stage, err := s.stageRepo.GetByID(ctx, *job.CurrentStageID, job.ID); err != nil {
-			s.log.Warn("failed to fetch current stage for DTO",
+	// Current column (stage) name — the single-axis position
+	if job.CurrentStageTemplateID != nil && *job.CurrentStageTemplateID != "" {
+		if tmpl, err := s.templateRepo.GetByID(ctx, userID, *job.CurrentStageTemplateID); err != nil {
+			s.log.Warn("failed to fetch current stage template for DTO",
 				zap.String("job_id", job.ID),
-				zap.String("stage_id", *job.CurrentStageID),
-				zap.Error(err))
-		} else if tmpl, err := s.templateRepo.GetByID(ctx, userID, stage.StageTemplateID); err != nil {
-			s.log.Warn("failed to fetch stage template for DTO",
-				zap.String("stage_template_id", stage.StageTemplateID),
+				zap.String("stage_template_id", *job.CurrentStageTemplateID),
 				zap.Error(err))
 		} else {
 			dto.CurrentStageName = &tmpl.Name
@@ -323,13 +326,8 @@ func (s *JobService) Update(ctx context.Context, userID, jobID string, req *mode
 		return nil, err
 	}
 
-	if req.Status != nil {
-		if err := applyStatusTransition(job, *req.Status, req.AppliedAt); err != nil {
-			return nil, err
-		}
-	} else if req.AppliedAt != nil && !req.AppliedAt.IsZero() && job.Status != string(model.StatusSaved) {
-		t := req.AppliedAt.UTC()
-		job.AppliedAt = &t
+	if req.IsArchived != nil {
+		job.IsArchived = *req.IsArchived
 	}
 
 	if err := s.repo.Update(ctx, job); err != nil {
@@ -437,23 +435,16 @@ func (s *JobService) AddStage(ctx context.Context, userID, jobID string, req *mo
 		return nil, fmt.Errorf("failed to create stage: %w", err)
 	}
 
-	// Update job's current stage. Adding a stage to a wishlist (saved) card
-	// promotes it to an application — mirror the status derivation the Move
-	// path performs so the "has a stage ⇒ it's an application" invariant holds.
-	if job.Status == string(model.StatusSaved) {
-		if err := applyStatusTransition(job, string(model.StatusForPhase(template.Phase)), nil); err != nil {
-			return nil, err
-		}
-		_, err = tx.Exec(ctx,
-			`UPDATE jobs SET current_stage_id = $2, status = $3, applied_at = $4, updated_at = $5 WHERE id = $1`,
-			job.ID, newStageID, job.Status, job.AppliedAt, now,
-		)
-	} else {
-		_, err = tx.Exec(ctx,
-			`UPDATE jobs SET current_stage_id = $2, updated_at = $3 WHERE id = $1`,
-			job.ID, newStageID, now,
-		)
+	// Update the job's current column + history pointer. Stamp applied_at the
+	// first time a card advances past its first column.
+	appliedAt := job.AppliedAt
+	if appliedAt == nil && template.Order > 0 {
+		appliedAt = &now
 	}
+	_, err = tx.Exec(ctx,
+		`UPDATE jobs SET current_stage_id = $2, current_stage_template_id = $3, applied_at = $4, updated_at = $5 WHERE id = $1`,
+		job.ID, newStageID, template.ID, appliedAt, now,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update job current stage: %w", err)
 	}
@@ -724,25 +715,21 @@ func (s *JobService) CreateStageTemplate(ctx context.Context, userID string, req
 		return nil, model.ErrStageNameRequired
 	}
 
-	phase := req.Phase
-	if phase == "" {
-		phase = model.DefaultPhase
-	}
-	if !model.IsValidPhase(phase) {
-		return nil, model.ErrInvalidPhase
-	}
-
 	template := &model.StageTemplate{
 		UserID: userID,
 		Name:   strings.TrimSpace(req.Name),
 		Order:  req.Order,
-		Phase:  phase,
 	}
 
 	if err := s.templateRepo.Create(ctx, template); err != nil {
 		return nil, err
 	}
 	return template.ToDTO(), nil
+}
+
+// ReorderStageTemplates sets a new order for the user's pipeline columns.
+func (s *JobService) ReorderStageTemplates(ctx context.Context, userID string, stageIDs []string) error {
+	return s.templateRepo.Reorder(ctx, userID, stageIDs)
 }
 
 func (s *JobService) ListStageTemplates(ctx context.Context, userID string, limit, offset int) ([]*model.StageTemplateDTO, int, error) {
@@ -772,12 +759,6 @@ func (s *JobService) UpdateStageTemplate(ctx context.Context, userID, templateID
 	}
 	if req.Order != nil {
 		template.Order = *req.Order
-	}
-	if req.Phase != nil {
-		if !model.IsValidPhase(*req.Phase) {
-			return nil, model.ErrInvalidPhase
-		}
-		template.Phase = *req.Phase
 	}
 
 	if err := s.templateRepo.Update(ctx, template); err != nil {

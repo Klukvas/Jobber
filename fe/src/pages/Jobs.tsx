@@ -16,7 +16,6 @@ import {
 import { ListPageSkeleton } from "@/shared/ui/PageSkeleton";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { ErrorState } from "@/shared/ui/ErrorState";
-import { StatusBadge } from "@/shared/ui/StatusBadge";
 import {
   showSuccessNotification,
   showErrorNotification,
@@ -29,7 +28,6 @@ import {
   Clock,
   MoreVertical,
   MessageSquare,
-  Archive,
   GitBranch,
   ArrowUp,
   ArrowDown,
@@ -38,8 +36,6 @@ import {
   Chrome,
   Trash2,
   X,
-  CheckCircle,
-  ChevronRight,
   Search,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -47,27 +43,19 @@ import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { CreateJobModal } from "@/features/jobs/modals/CreateJobModal";
 import { AddCommentModal } from "@/features/jobs/modals/AddCommentModal";
 import { AddStageModal } from "@/features/jobs/modals/AddStageModal";
-import { UpdateJobStatusModal } from "@/features/jobs/modals/UpdateJobStatusModal";
-import { StatusQuickPick } from "@/features/jobs/components/StatusQuickPick";
 import {
   JobKanbanBoard,
   JOBS_KANBAN_QUERY_KEY,
 } from "@/features/jobs/components/JobKanbanBoard";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { useDebounce } from "@/shared/hooks/useDebounce";
-import type { JobDTO, JobStatus } from "@/shared/types/api";
+import type { JobDTO } from "@/shared/types/api";
+import type { ArchivedFilter } from "@/services/jobsService";
 
 type SortBy =
-  | "last_activity"
-  | "status"
-  | "applied_at"
-  | "created_at"
-  | "title"
-  | "company_name";
+  "last_activity" | "applied_at" | "created_at" | "title" | "company_name";
 type SortDir = "asc" | "desc";
 type ViewMode = "list" | "kanban";
-/** "" => all active (non-archived), "all" => everything, otherwise a single status */
-type StatusFilter = "" | "all" | JobStatus;
 
 const EXTENSION_BANNER_KEY = "jobber-ext-banner-dismissed";
 const VIEW_MODE_KEY = "apps-view-mode";
@@ -79,21 +67,16 @@ const SORT_FIELDS: {
   icon?: "clock" | "calendar";
 }[] = [
   { field: "last_activity", labelKey: "jobs.sortLastActivity", icon: "clock" },
-  { field: "status", labelKey: "jobs.sortStatus" },
   { field: "applied_at", labelKey: "jobs.sortAppliedDate", icon: "calendar" },
   { field: "created_at", labelKey: "jobs.sortCreatedDate", icon: "calendar" },
   { field: "title", labelKey: "jobs.sortJobTitle" },
   { field: "company_name", labelKey: "jobs.sortCompanyName" },
 ];
 
-const STATUS_FILTER_OPTIONS: { value: StatusFilter; labelKey: string }[] = [
+// The list "status" filter now means the archived filter.
+const ARCHIVED_FILTER_OPTIONS: { value: ArchivedFilter; labelKey: string }[] = [
   { value: "", labelKey: "jobs.filterActive" },
-  { value: "saved", labelKey: "jobs.statusSaved" },
-  { value: "applied", labelKey: "jobs.statusApplied" },
-  { value: "on_hold", labelKey: "jobs.statusOnHold" },
-  { value: "offer", labelKey: "jobs.statusOffer" },
-  { value: "rejected", labelKey: "jobs.statusRejected" },
-  { value: "archived", labelKey: "jobs.statusArchived" },
+  { value: "archived", labelKey: "jobs.filterArchived" },
   { value: "all", labelKey: "jobs.filterAll" },
 ];
 
@@ -110,14 +93,14 @@ export default function JobsPage() {
   const [page, setPage] = useState(0);
   const [sortBy, setSortBy] = useState<SortBy>("last_activity");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
+  const [archivedFilter, setArchivedFilter] = useState<ArchivedFilter>("");
+  const [boardShowArchived, setBoardShowArchived] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebounce(searchInput.trim(), 300);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [statusSubmenuId, setStatusSubmenuId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
   const [activeQuickAction, setActiveQuickAction] = useState<{
-    type: "comment" | "stage" | "status";
+    type: "comment" | "stage";
     job: JobDTO;
   } | null>(null);
   const [jobToDelete, setJobToDelete] = useState<JobDTO | null>(null);
@@ -136,25 +119,37 @@ export default function JobsPage() {
     if (!openMenuId) return;
     const handleClickOutside = () => {
       setOpenMenuId(null);
-      setStatusSubmenuId(null);
     };
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
   }, [openMenuId]);
 
-  // Kanban uses a shared constant key; list uses filter/sort-specific keys
+  // Kanban uses a shared constant key (varying only by its archived toggle);
+  // list uses filter/sort-specific keys.
   const queryKey =
     viewMode === "kanban"
-      ? [...JOBS_KANBAN_QUERY_KEY]
-      : ["jobs", "list", page, statusFilter, sortBy, sortDir, debouncedSearch];
+      ? [...JOBS_KANBAN_QUERY_KEY, boardShowArchived]
+      : [
+          "jobs",
+          "list",
+          page,
+          archivedFilter,
+          sortBy,
+          sortDir,
+          debouncedSearch,
+        ];
 
   const listParams: ListJobsParams =
     viewMode === "kanban"
-      ? { limit: 500, offset: 0, status: "all" }
+      ? {
+          limit: 500,
+          offset: 0,
+          status: boardShowArchived ? "all" : "active",
+        }
       : {
           limit: PAGE_SIZE,
           offset: page * PAGE_SIZE,
-          status: statusFilter || undefined,
+          status: archivedFilter || undefined,
           sort: `${sortBy}:${sortDir}`,
           search: debouncedSearch || undefined,
         };
@@ -165,10 +160,7 @@ export default function JobsPage() {
     staleTime: 30_000,
   });
 
-  const handleQuickAction = (
-    type: "comment" | "stage" | "status",
-    job: JobDTO,
-  ) => {
+  const handleQuickAction = (type: "comment" | "stage", job: JobDTO) => {
     setActiveQuickAction({ type, job });
     setOpenMenuId(null);
   };
@@ -189,51 +181,6 @@ export default function JobsPage() {
       showErrorNotification(err.message || t("jobs.deleteError"));
     },
   });
-
-  // One-click status change from the card context menu (no modal)
-  const quickStatusMutation = useMutation({
-    mutationFn: ({ job, status }: { job: JobDTO; status: JobStatus }) =>
-      jobsService.update(job.id, { status }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["jobs"] });
-      showSuccessNotification(t("jobs.statusUpdateSuccess"));
-    },
-    onError: (err: Error) => {
-      showErrorNotification(err.message || t("jobs.statusUpdateError"));
-    },
-  });
-
-  // Completes the job's current stage straight from the context menu
-  const completeStageMutation = useMutation({
-    mutationFn: (job: JobDTO) => {
-      if (!job.current_stage_id) {
-        return Promise.reject(new Error("No active stage"));
-      }
-      return jobsService.updateStage(job.id, job.current_stage_id, {
-        status: "completed",
-        completed_at: new Date().toISOString(),
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["jobs"] });
-      showSuccessNotification(t("jobs.stageCompletedSuccess"));
-    },
-    onError: (err: Error) => {
-      showErrorNotification(err.message || t("jobs.stageStatusUpdateError"));
-    },
-  });
-
-  const handleStatusSelect = (job: JobDTO, status: JobStatus) => {
-    setOpenMenuId(null);
-    quickStatusMutation.mutate({ job, status });
-  };
-
-  const handleCompleteStage = (job: JobDTO) => {
-    setOpenMenuId(null);
-    if (job.current_stage_id) {
-      completeStageMutation.mutate(job);
-    }
-  };
 
   const toggleSort = (field: SortBy) => {
     if (sortBy === field) {
@@ -263,7 +210,7 @@ export default function JobsPage() {
   // An active search is also a "filter": without this, a search with no matches
   // falls through to the first-run onboarding empty state (and hides the search
   // box entirely), instead of showing a "no results" message.
-  const isFiltered = statusFilter !== "" || debouncedSearch !== "";
+  const isFiltered = archivedFilter !== "" || debouncedSearch !== "";
 
   return (
     <div className="space-y-6">
@@ -361,11 +308,10 @@ export default function JobsPage() {
       ) : viewMode === "kanban" ? (
         <JobKanbanBoard
           jobs={jobs}
+          showArchived={boardShowArchived}
+          onToggleArchived={setBoardShowArchived}
           onAddComment={(job) => handleQuickAction("comment", job)}
           onAddStage={(job) => handleQuickAction("stage", job)}
-          onChangeStatus={(job) => handleQuickAction("status", job)}
-          onStatusSelect={handleStatusSelect}
-          onCompleteStage={handleCompleteStage}
           onDelete={(job) => handleDelete(job)}
         />
       ) : (
@@ -395,14 +341,14 @@ export default function JobsPage() {
               </label>
               <select
                 id="status-filter"
-                value={statusFilter}
+                value={archivedFilter}
                 onChange={(e) => {
-                  setStatusFilter(e.target.value as StatusFilter);
+                  setArchivedFilter(e.target.value as ArchivedFilter);
                   setPage(0);
                 }}
                 className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                {STATUS_FILTER_OPTIONS.map((opt) => (
+                {ARCHIVED_FILTER_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {t(opt.labelKey)}
                   </option>
@@ -520,56 +466,6 @@ export default function JobsPage() {
                                   <GitBranch className="h-4 w-4" />
                                   {t("jobs.addStage")}
                                 </button>
-                                {job.current_stage_id && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      handleCompleteStage(job);
-                                    }}
-                                    className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
-                                  >
-                                    <CheckCircle className="h-4 w-4 flex-shrink-0" />
-                                    <span className="truncate">
-                                      {t("jobs.completeCurrentStage")}
-                                    </span>
-                                  </button>
-                                )}
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    setStatusSubmenuId(
-                                      statusSubmenuId === job.id
-                                        ? null
-                                        : job.id,
-                                    );
-                                  }}
-                                  className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
-                                >
-                                  <Archive className="h-4 w-4" />
-                                  {t("jobs.changeStatus")}
-                                  <ChevronRight
-                                    className={`h-4 w-4 ml-auto transition-transform ${statusSubmenuId === job.id ? "rotate-90" : ""}`}
-                                  />
-                                </button>
-                                {statusSubmenuId === job.id && (
-                                  <div
-                                    className="border-t bg-muted/40"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                    }}
-                                  >
-                                    <StatusQuickPick
-                                      currentStatus={job.status}
-                                      onSelect={(status) => {
-                                        setStatusSubmenuId(null);
-                                        handleStatusSelect(job, status);
-                                      }}
-                                    />
-                                  </div>
-                                )}
                                 <div
                                   className="my-1 border-t"
                                   role="separator"
@@ -608,9 +504,14 @@ export default function JobsPage() {
                       </CardHeader>
 
                       <CardContent className="space-y-3 pt-0">
-                        {/* Status - Dominant Signal */}
+                        {/* Pipeline column — the card's state */}
                         <div className="flex items-center justify-between">
-                          <StatusBadge status={job.status} size="lg" />
+                          <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
+                            {job.is_archived
+                              ? t("jobs.archived")
+                              : (job.current_stage_name ??
+                                t("jobs.board.noStage"))}
+                          </span>
                         </div>
 
                         {/* Meta Information */}
@@ -708,19 +609,6 @@ export default function JobsPage() {
           open={true}
           onOpenChange={(open) => !open && setActiveQuickAction(null)}
           jobId={activeQuickAction.job.id}
-        />
-      )}
-
-      {activeQuickAction?.type === "status" && (
-        <UpdateJobStatusModal
-          open={true}
-          onOpenChange={(open) => {
-            if (!open) {
-              setActiveQuickAction(null);
-            }
-          }}
-          jobId={activeQuickAction.job.id}
-          currentStatus={activeQuickAction.job.status}
         />
       )}
 

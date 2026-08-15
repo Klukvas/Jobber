@@ -108,14 +108,28 @@ describe("jobsService", () => {
   });
 
   describe("archive", () => {
-    it("calls PATCH on jobs/{id} with archived status", async () => {
-      const mockResponse = { id: "j1", status: "archived" };
+    it("calls PATCH on jobs/{id} with is_archived: true", async () => {
+      const mockResponse = { id: "j1", is_archived: true };
       mockApiClient.patch.mockResolvedValue(mockResponse);
 
       const result = await jobsService.archive("j1");
 
       expect(mockApiClient.patch).toHaveBeenCalledWith("jobs/j1", {
-        status: "archived",
+        is_archived: true,
+      });
+      expect(result).toEqual(mockResponse);
+    });
+  });
+
+  describe("unarchive", () => {
+    it("calls PATCH on jobs/{id} with is_archived: false", async () => {
+      const mockResponse = { id: "j1", is_archived: false };
+      mockApiClient.patch.mockResolvedValue(mockResponse);
+
+      const result = await jobsService.unarchive("j1");
+
+      expect(mockApiClient.patch).toHaveBeenCalledWith("jobs/j1", {
+        is_archived: false,
       });
       expect(result).toEqual(mockResponse);
     });
@@ -132,29 +146,22 @@ describe("jobsService", () => {
   });
 
   describe("move", () => {
-    it("posts a stage target to jobs/{id}/move", async () => {
-      const mockJob = { id: "j1", status: "applied" };
+    it("posts the target stage_template_id to jobs/{id}/move", async () => {
+      const mockJob = {
+        id: "j1",
+        current_stage_template_id: "tpl-1",
+        current_stage_name: "Screening",
+      };
       mockApiClient.post.mockResolvedValue(mockJob);
 
       const result = await jobsService.move("j1", {
-        type: "stage",
         stage_template_id: "tpl-1",
       });
 
       expect(mockApiClient.post).toHaveBeenCalledWith("jobs/j1/move", {
-        target: { type: "stage", stage_template_id: "tpl-1" },
+        stage_template_id: "tpl-1",
       });
       expect(result).toEqual(mockJob);
-    });
-
-    it("posts a phase target including rejected", async () => {
-      mockApiClient.post.mockResolvedValue({ id: "j1", status: "rejected" });
-
-      await jobsService.move("j1", { type: "phase", phase: "rejected" });
-
-      expect(mockApiClient.post).toHaveBeenCalledWith("jobs/j1/move", {
-        target: { type: "phase", phase: "rejected" },
-      });
     });
   });
 

@@ -1,8 +1,12 @@
 package model
 
-// OverviewAnalytics contains high-level application statistics.
-// RejectedApplications is a subset of ClosedApplications (closed = rejected +
-// offer + archived) — broken out so rejections are visible on their own.
+// OverviewAnalytics contains high-level pipeline statistics.
+//
+// In the single-axis stage model there is no status, so the buckets are:
+//   - ActiveApplications  = cards currently sitting in a column
+//   - ClosedApplications  = archived cards
+//   - RejectedApplications = always 0 (rejection was a status; it no longer
+//     exists). The field is retained for DTO/JSON stability.
 type OverviewAnalytics struct {
 	TotalApplications      int     `json:"total_applications"`
 	ActiveApplications     int     `json:"active_applications"`
@@ -12,12 +16,12 @@ type OverviewAnalytics struct {
 	AvgDaysToFirstResponse float64 `json:"avg_days_to_first_response"`
 }
 
-// FunnelStage represents one bucket of the application funnel.
+// FunnelStage represents one bucket of the stage funnel — one of the user's own
+// pipeline columns (stage_templates), in "order". StageName is the column name,
+// Count the number of non-archived cards that reached it.
 //
-// Top-level funnel buckets are the fixed pipeline PHASES — StageName carries the
-// phase key ("applied", "in_progress", "offer") for the frontend to localize.
-// SubStages is the optional drill-down: for the "in_progress" phase it lists the
-// user's own in-progress stage templates (StageName = the template name).
+// SubStages is retained for JSON/DTO stability but is no longer populated: the
+// single-axis model has no phase drill-down.
 type FunnelStage struct {
 	StageName      string        `json:"stage_name"`
 	StageOrder     int           `json:"stage_order"`
@@ -27,26 +31,26 @@ type FunnelStage struct {
 	SubStages      []FunnelStage `json:"sub_stages,omitempty"`
 }
 
-// RejectedStageCount is how many rejected applications ended at a given
-// stage (the furthest stage they reached before the rejection).
+// RejectedStageCount is retained for JSON/DTO stability. Rejection was a status
+// and no longer exists in the single-axis model, so this is never populated.
 type RejectedStageCount struct {
 	StageName  string `json:"stage_name"`
 	StageOrder int    `json:"stage_order"`
 	Count      int    `json:"count"`
 }
 
-// RejectedSummary is the terminal "rejections" block next to the funnel.
-// Rejection is a status, not a stage — it can happen at any pipeline depth,
-// so it is reported alongside the stages, not as one of them.
+// RejectedSummary is retained for JSON/DTO stability. Rejection was a status and
+// no longer exists in the single-axis model, so it is never populated.
 type RejectedSummary struct {
 	Total   int                  `json:"total"`
 	ByStage []RejectedStageCount `json:"by_stage"`
 }
 
-// FunnelAnalytics contains the complete funnel analysis
+// FunnelAnalytics contains the complete funnel analysis.
 type FunnelAnalytics struct {
 	Stages []FunnelStage `json:"stages"`
-	// Rejected is nil when the user has no rejected applications.
+	// Rejected is retained for JSON/DTO stability but is always nil in the
+	// single-axis model.
 	Rejected *RejectedSummary `json:"rejected,omitempty"`
 }
 

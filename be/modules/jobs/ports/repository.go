@@ -39,6 +39,7 @@ type StageTemplateRepository interface {
 	GetByID(ctx context.Context, userID, templateID string) (*model.StageTemplate, error)
 	List(ctx context.Context, userID string, limit, offset int) ([]*model.StageTemplate, int, error)
 	Update(ctx context.Context, template *model.StageTemplate) error
+	Reorder(ctx context.Context, userID string, orderedIDs []string) error
 	Delete(ctx context.Context, userID, templateID string) error
 }
 

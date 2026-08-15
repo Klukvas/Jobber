@@ -35,9 +35,9 @@ func respondWithMappedError(c *gin.Context, err error) {
 		model.CodeStageTemplateNotFound, model.CodeJobStageNotFound,
 		model.CodeResumeNotFound:
 		statusCode = http.StatusNotFound
-	case model.CodeJobTitleRequired, model.CodeInvalidJobStatus,
+	case model.CodeJobTitleRequired,
 		model.CodeInvalidStatus, model.CodeStageNameRequired,
-		model.CodeBothResumeTypesSet, model.CodeInvalidPhase,
+		model.CodeBothResumeTypesSet, model.CodeReorderMismatch,
 		model.CodeInvalidMoveTarget:
 		statusCode = http.StatusBadRequest
 	case model.CodeStageTemplateInUse, model.CodeStageTemplateNameExists:
@@ -146,14 +146,12 @@ func (h *JobHandler) List(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate filter parameters.
-	// "" and the legacy "active" mean "everything except archived" — backward
-	// compatible with the deployed Chrome extension and pre-merge clients.
+	// Filter: "" and the legacy "active" mean "not archived" (backward
+	// compatible with the deployed Chrome extension); "archived" = only
+	// archived; "all" = both.
 	status := c.Query("status")
 	switch status {
-	case "", "active", "all",
-		string(model.StatusSaved), string(model.StatusApplied), string(model.StatusOnHold),
-		string(model.StatusOffer), string(model.StatusRejected), string(model.StatusArchived):
+	case "", "active", "all", "archived":
 		// valid
 	default:
 		httpPlatform.RespondWithError(c, http.StatusBadRequest, "INVALID_STATUS", "Invalid status filter")
@@ -530,6 +528,38 @@ func (h *JobHandler) CreateStageTemplate(c *gin.Context) {
 	httpPlatform.RespondWithData(c, http.StatusCreated, template)
 }
 
+// ReorderStageTemplates godoc
+// @Summary Reorder the user's pipeline columns
+// @Tags stage-templates
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param request body model.ReorderStageTemplatesRequest true "Ordered stage ids"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} httpPlatform.ErrorResponse
+// @Failure 401 {object} httpPlatform.ErrorResponse
+// @Router /stage-templates/reorder [post]
+func (h *JobHandler) ReorderStageTemplates(c *gin.Context) {
+	userID, exists := auth.GetUserID(c)
+	if !exists {
+		httpPlatform.RespondWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized")
+		return
+	}
+
+	var req model.ReorderStageTemplatesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request payload")
+		return
+	}
+
+	if err := h.service.ReorderStageTemplates(c.Request.Context(), userID, req.StageIDs); err != nil {
+		respondWithMappedError(c, err)
+		return
+	}
+
+	httpPlatform.RespondWithData(c, http.StatusOK, gin.H{"status": "ok"})
+}
+
 // ListStageTemplates godoc
 // @Summary List stage templates
 // @Description Get a paginated list of the user's stage templates
@@ -656,6 +686,7 @@ func (h *JobHandler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.
 	templates.Use(authMiddleware)
 	{
 		templates.POST("", h.CreateStageTemplate)
+		templates.POST("/reorder", h.ReorderStageTemplates)
 		templates.GET("", h.ListStageTemplates)
 		templates.PATCH("/:templateId", h.UpdateStageTemplate)
 		templates.DELETE("/:templateId", h.DeleteStageTemplate)

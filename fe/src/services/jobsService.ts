@@ -1,8 +1,7 @@
 import { apiClient } from "./api";
 import type {
-  MoveTarget,
+  MoveJobRequest,
   JobDTO,
-  JobStatus,
   CreateJobRequest,
   UpdateJobRequest,
   PaginatedResponse,
@@ -11,14 +10,17 @@ import type {
   UpdateStageRequest,
 } from "@/shared/types/api";
 
+/** Archived filter passed as the list `status` query param. */
+export type ArchivedFilter = "" | "active" | "archived" | "all";
+
 export interface ListJobsParams {
   limit?: number;
   offset?: number;
   /**
-   * Omitted / "active" => everything except archived (legacy-compatible),
-   * "all" => no filter, or one of the six job statuses.
+   * Archived filter: "" / "active" => not archived, "archived" => only
+   * archived, "all" => both.
    */
-  status?: JobStatus | "active" | "all";
+  status?: ArchivedFilter;
   sort?: string; // Format: "field:dir" (e.g., "last_activity:desc", "title:asc")
   /** Case-insensitive search matched against job title and company name. */
   search?: string;
@@ -53,16 +55,20 @@ export const jobsService = {
   },
 
   async archive(id: string): Promise<JobDTO> {
-    return apiClient.patch<JobDTO>(`jobs/${id}`, { status: "archived" });
+    return apiClient.patch<JobDTO>(`jobs/${id}`, { is_archived: true });
+  },
+
+  async unarchive(id: string): Promise<JobDTO> {
+    return apiClient.patch<JobDTO>(`jobs/${id}`, { is_archived: false });
   },
 
   async delete(id: string): Promise<void> {
     return apiClient.delete<void>(`jobs/${id}`);
   },
 
-  // Atomic unified-board move: sets stage/status consistently on the backend
-  async move(id: string, target: MoveTarget): Promise<JobDTO> {
-    return apiClient.post<JobDTO>(`jobs/${id}/move`, { target });
+  // Moves the card to a pipeline column — the single write path for its state.
+  async move(id: string, data: MoveJobRequest): Promise<JobDTO> {
+    return apiClient.post<JobDTO>(`jobs/${id}/move`, data);
   },
 
   async toggleFavorite(id: string): Promise<{ is_favorite: boolean }> {

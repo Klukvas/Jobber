@@ -21,13 +21,7 @@ describe("FEATURES", () => {
   it("contains exactly the expected keys", () => {
     const keys = Object.keys(FEATURES).sort();
     expect(keys).toEqual(
-      [
-        "EMAIL_NOTIFICATIONS",
-        "GOOGLE_CALENDAR",
-        "PAYMENTS",
-        "SENTRY",
-        "UNIFIED_BOARD",
-      ].sort(),
+      ["EMAIL_NOTIFICATIONS", "GOOGLE_CALENDAR", "PAYMENTS", "SENTRY"].sort(),
     );
   });
 
@@ -35,6 +29,6 @@ describe("FEATURES", () => {
     // The 'as const' assertion makes it readonly at the type level.
     // At runtime we can verify the shape is stable.
     expect(FEATURES).toBeDefined();
-    expect(Object.keys(FEATURES).length).toBe(5);
+    expect(Object.keys(FEATURES).length).toBe(4);
   });
 });

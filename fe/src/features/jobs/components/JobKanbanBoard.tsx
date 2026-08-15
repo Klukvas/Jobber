@@ -26,59 +26,45 @@ import {
 } from "./JobMobileAccordion";
 import type {
   JobDTO,
-  JobStatus,
-  MoveTarget,
   PaginatedResponse,
-  StagePhase,
+  StageTemplateDTO,
 } from "@/shared/types/api";
-import { FEATURES } from "@/shared/lib/features";
-import {
-  buildUnifiedColumns,
-  columnMoveTarget,
-  placeJob,
-  shouldHideBase,
-  type UnifiedColumn,
-} from "../lib/unifiedBoard";
-import { JOB_STATUS_VALUES } from "@/shared/lib/jobStatus";
 
 export const JOBS_KANBAN_QUERY_KEY = ["jobs", "kanban"] as const;
 
-const STATUS_COLUMNS: JobStatus[] = JOB_STATUS_VALUES;
-
-const NO_STAGE_COLUMN_ID = "__no_stage__";
-
-type GroupBy = "status" | "stage";
+// Cards with no column assigned yet gather in a leading "No stage" column.
+export const NO_STAGE_COLUMN_ID = "__no_stage__";
 
 interface JobKanbanBoardProps {
   jobs: JobDTO[];
+  showArchived: boolean;
+  onToggleArchived: (value: boolean) => void;
   onAddComment: (job: JobDTO) => void;
   onAddStage: (job: JobDTO) => void;
-  onChangeStatus: (job: JobDTO) => void;
-  onStatusSelect?: (job: JobDTO, status: JobStatus) => void;
-  onCompleteStage?: (job: JobDTO) => void;
   onDelete: (job: JobDTO) => void;
+}
+
+// Places a card into the column matching its current stage-template id. Cards
+// without one land in the leading "No stage" column.
+function columnIdForJob(job: JobDTO): string {
+  return job.current_stage_template_id ?? NO_STAGE_COLUMN_ID;
 }
 
 export function JobKanbanBoard({
   jobs,
+  showArchived,
+  onToggleArchived,
   onAddComment,
   onAddStage,
-  onChangeStatus,
-  onStatusSelect,
-  onCompleteStage,
   onDelete,
 }: JobKanbanBoardProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [activeJob, setActiveJob] = useState<JobDTO | null>(null);
-  const [groupBy, setGroupBy] = useState<GroupBy>("status");
-  const [showArchived, setShowArchived] = useState(false);
-  const unified = FEATURES.UNIFIED_BOARD;
 
   const { data: stageTemplatesData } = useQuery({
     queryKey: ["stage-templates"],
     queryFn: () => stageTemplatesService.list({ limit: 100, offset: 0 }),
-    enabled: unified || groupBy === "stage",
     staleTime: 5 * 60 * 1000,
   });
 
@@ -94,77 +80,15 @@ export function JobKanbanBoard({
     useSensor(KeyboardSensor),
   );
 
-  const { mutate: updateStatus } = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: JobStatus }) =>
-      jobsService.update(id, { status }),
-    onMutate: async ({ id, status }) => {
+  // The single write path: move the card to a pipeline column.
+  const { mutate: moveJob } = useMutation({
+    mutationFn: ({ id, stageTemplateId }: MoveVars) =>
+      jobsService.move(id, { stage_template_id: stageTemplateId }),
+    onMutate: async ({ id, stageTemplateId, stageName }) => {
       await queryClient.cancelQueries({ queryKey: JOBS_KANBAN_QUERY_KEY });
       const previous = queryClient.getQueryData<PaginatedResponse<JobDTO>>(
         JOBS_KANBAN_QUERY_KEY,
       );
-
-      queryClient.setQueryData<PaginatedResponse<JobDTO>>(
-        JOBS_KANBAN_QUERY_KEY,
-        (oldData) => {
-          if (!oldData) return oldData;
-          return {
-            ...oldData,
-            items: oldData.items.map((j) =>
-              j.id === id ? { ...j, status } : j,
-            ),
-          };
-        },
-      );
-
-      return { previous };
-    },
-    onSuccess: () => {
-      showSuccessNotification(t("jobs.board.moveSuccess"));
-    },
-    onError: (_err, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(JOBS_KANBAN_QUERY_KEY, context.previous);
-      }
-      showErrorNotification(t("jobs.board.moveError"));
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: JOBS_KANBAN_QUERY_KEY });
-    },
-  });
-
-  const { mutate: addStageToJob } = useMutation({
-    mutationFn: ({
-      id,
-      stage_template_id,
-    }: {
-      id: string;
-      stage_template_id: string;
-      targetStageName: string;
-    }) => jobsService.addStage(id, { stage_template_id }),
-    onMutate: async ({ id, targetStageName }) => {
-      await queryClient.cancelQueries({ queryKey: JOBS_KANBAN_QUERY_KEY });
-      const previous = queryClient.getQueryData<PaginatedResponse<JobDTO>>(
-        JOBS_KANBAN_QUERY_KEY,
-      );
-
-      queryClient.setQueryData<PaginatedResponse<JobDTO>>(
-        JOBS_KANBAN_QUERY_KEY,
-        (oldData) => {
-          if (!oldData) return oldData;
-          return {
-            ...oldData,
-            items: oldData.items.map((j) =>
-              j.id === id ? { ...j, current_stage_name: targetStageName } : j,
-            ),
-          };
-        },
-      );
-
-      return { previous };
-    },
-    onSuccess: (data, variables) => {
-      // Fold in the authoritative current_stage_id so the card's "Complete
-      // Current Stage" action works right away, before the reconciling refetch.
       queryClient.setQueryData<PaginatedResponse<JobDTO>>(
         JOBS_KANBAN_QUERY_KEY,
         (oldData) =>
@@ -172,69 +96,21 @@ export function JobKanbanBoard({
             ? {
                 ...oldData,
                 items: oldData.items.map((j) =>
-                  j.id === variables.id
+                  j.id === id
                     ? {
                         ...j,
-                        current_stage_id: data.id,
-                        current_stage_name: data.stage_name,
+                        current_stage_template_id: stageTemplateId,
+                        current_stage_name: stageName,
                       }
                     : j,
                 ),
               }
             : oldData,
       );
-      showSuccessNotification(t("jobs.board.moveSuccess"));
-    },
-    onError: (_err, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(JOBS_KANBAN_QUERY_KEY, context.previous);
-      }
-      showErrorNotification(t("jobs.board.moveError"));
-    },
-    onSettled: () => {
-      // Reconcile the optimistic write with the server, which also updates
-      // current_stage_id and last_activity_at when a stage is added.
-      queryClient.invalidateQueries({ queryKey: JOBS_KANBAN_QUERY_KEY });
-    },
-  });
-
-  const unifiedColumns = useMemo(
-    () => (unified ? buildUnifiedColumns(stageTemplates, showArchived) : []),
-    [unified, stageTemplates, showArchived],
-  );
-
-  // Unified board: one atomic call keeps status and stage consistent
-  const { mutate: moveJob } = useMutation({
-    mutationFn: ({
-      id,
-      target,
-    }: {
-      id: string;
-      target: MoveTarget;
-      optimistic: Partial<JobDTO>;
-    }) => jobsService.move(id, target),
-    onMutate: async ({ id, optimistic }) => {
-      await queryClient.cancelQueries({ queryKey: JOBS_KANBAN_QUERY_KEY });
-      const previous = queryClient.getQueryData<PaginatedResponse<JobDTO>>(
-        JOBS_KANBAN_QUERY_KEY,
-      );
-      queryClient.setQueryData<PaginatedResponse<JobDTO>>(
-        JOBS_KANBAN_QUERY_KEY,
-        (oldData) => {
-          if (!oldData) return oldData;
-          return {
-            ...oldData,
-            items: oldData.items.map((j) =>
-              j.id === id ? { ...j, ...optimistic } : j,
-            ),
-          };
-        },
-      );
       return { previous };
     },
     onSuccess: (data) => {
-      // The move response is the fully-enriched card (status, current_stage_id,
-      // current_stage_name) — fold it in so the optimistic guess converges to
+      // Fold in the authoritative card so the optimistic guess converges to
       // the server truth before the reconciling refetch lands.
       queryClient.setQueryData<PaginatedResponse<JobDTO>>(
         JOBS_KANBAN_QUERY_KEY,
@@ -275,156 +151,60 @@ export function JobKanbanBoard({
     (event: DragEndEvent) => {
       setActiveJob(null);
       const { active, over } = event;
-
       if (!over) return;
 
       const jobId = active.id as string;
       const targetColumn = over.id as string;
 
-      if (unified) {
-        const column = unifiedColumns.find((c) => c.id === targetColumn);
-        if (!column) return;
-        const target = columnMoveTarget(column);
-        if (!target) return; // archived column is not a drop target
+      // The "No stage" column is not a move target — cards leave it by being
+      // dropped into a real stage column.
+      if (targetColumn === NO_STAGE_COLUMN_ID) return;
 
-        const cachedData = queryClient.getQueryData<PaginatedResponse<JobDTO>>(
-          JOBS_KANBAN_QUERY_KEY,
-        );
-        const currentJob = cachedData?.items.find((j) => j.id === jobId);
-        if (!currentJob) return;
-        if (placeJob(currentJob, stageTemplates) === column.id) return;
+      const template = stageTemplates.find((tpl) => tpl.id === targetColumn);
+      if (!template) return;
 
-        const optimistic: Partial<JobDTO> =
-          column.kind === "stage" && column.template
-            ? {
-                status: unifiedPhaseStatus(column.template.phase),
-                current_stage_name: column.template.name,
-              }
-            : {
-                status: unifiedPhaseStatus(column.phase),
-                current_stage_name: undefined,
-              };
-        moveJob({ id: jobId, target, optimistic });
-        return;
-      }
+      const cachedData = queryClient.getQueryData<PaginatedResponse<JobDTO>>(
+        JOBS_KANBAN_QUERY_KEY,
+      );
+      const currentJob = cachedData?.items.find((j) => j.id === jobId);
+      if (!currentJob) return;
+      if (currentJob.current_stage_template_id === template.id) return;
 
-      if (groupBy === "status") {
-        const cachedData = queryClient.getQueryData<PaginatedResponse<JobDTO>>(
-          JOBS_KANBAN_QUERY_KEY,
-        );
-        const currentJob = cachedData?.items.find((j) => j.id === jobId);
-        if (!currentJob || currentJob.status === targetColumn) return;
-
-        updateStatus({ id: jobId, status: targetColumn as JobStatus });
-      } else {
-        // Stage mode: targetColumn is template.id
-        if (targetColumn === NO_STAGE_COLUMN_ID) return;
-
-        const template = stageTemplates.find((st) => st.id === targetColumn);
-        if (!template) return;
-
-        const cachedData = queryClient.getQueryData<PaginatedResponse<JobDTO>>(
-          JOBS_KANBAN_QUERY_KEY,
-        );
-        const currentJob = cachedData?.items.find((j) => j.id === jobId);
-        if (!currentJob) return;
-
-        if (currentJob.current_stage_name === template.name) return;
-
-        addStageToJob({
-          id: jobId,
-          stage_template_id: template.id,
-          targetStageName: template.name,
-        });
-      }
+      moveJob({
+        id: jobId,
+        stageTemplateId: template.id,
+        stageName: template.name,
+      });
     },
-    [
-      groupBy,
-      unified,
-      unifiedColumns,
-      queryClient,
-      stageTemplates,
-      updateStatus,
-      addStageToJob,
-      moveJob,
-    ],
+    [stageTemplates, queryClient, moveJob],
   );
 
-  const columns = useMemo(() => {
-    if (unified) {
-      return unifiedColumns
-        .map((col) => ({
-          col,
-          data: {
-            id: col.id,
-            label:
-              col.kind === "stage" && col.template
-                ? col.template.name
-                : t(col.labelKey ?? ""),
-            jobs: jobs.filter((j) => placeJob(j, stageTemplates) === col.id),
-          },
-        }))
-        .filter(
-          ({ col, data }) =>
-            !shouldHideBase(col, data.jobs.length, unifiedColumns),
-        )
-        .map(({ data }) => data);
-    }
-    return groupBy === "status"
-      ? buildStatusColumns(jobs, t)
-      : buildStageColumns(jobs, stageTemplates, t);
-  }, [unified, unifiedColumns, groupBy, jobs, stageTemplates, t]);
+  const columns = useMemo(
+    () => buildColumns(jobs, stageTemplates, t),
+    [jobs, stageTemplates, t],
+  );
 
   return (
     <div className="space-y-4">
-      {/* Grouping toggle (legacy) / archived filter (unified) */}
+      {/* Archived filter */}
       <div className="flex items-center gap-2">
-        {unified ? (
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={showArchived}
-              onChange={(e) => setShowArchived(e.target.checked)}
-              className="h-4 w-4 rounded border-input accent-primary"
-            />
-            {t("jobs.board.showArchived")}
-          </label>
-        ) : (
-          <div className="flex items-center rounded-lg border bg-muted p-0.5">
-            <button
-              onClick={() => setGroupBy("status")}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                groupBy === "status"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {t("jobs.board.groupByStatus")}
-            </button>
-            <button
-              onClick={() => setGroupBy("stage")}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                groupBy === "stage"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {t("jobs.board.groupByStage")}
-            </button>
-          </div>
-        )}
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={showArchived}
+            onChange={(e) => onToggleArchived(e.target.checked)}
+            className="h-4 w-4 rounded border-input accent-primary"
+          />
+          {t("jobs.board.showArchived")}
+        </label>
       </div>
 
       {/* Mobile accordion — replaces horizontal board on small screens */}
       <div className="md:hidden">
         <JobMobileAccordion
-          key={groupBy}
           columns={columns}
           onAddComment={onAddComment}
           onAddStage={onAddStage}
-          onChangeStatus={onChangeStatus}
-          onStatusSelect={onStatusSelect}
-          onCompleteStage={onCompleteStage}
           onDelete={onDelete}
         />
       </div>
@@ -447,9 +227,6 @@ export function JobKanbanBoard({
                 jobs={col.jobs}
                 onAddComment={onAddComment}
                 onAddStage={onAddStage}
-                onChangeStatus={onChangeStatus}
-                onStatusSelect={onStatusSelect}
-                onCompleteStage={onCompleteStage}
                 onDelete={onDelete}
               />
             ))}
@@ -462,7 +239,6 @@ export function JobKanbanBoard({
                   job={activeJob}
                   onAddComment={() => {}}
                   onAddStage={() => {}}
-                  onChangeStatus={() => {}}
                   onDelete={() => {}}
                 />
               </div>
@@ -474,63 +250,43 @@ export function JobKanbanBoard({
   );
 }
 
+interface MoveVars {
+  id: string;
+  stageTemplateId: string;
+  stageName: string;
+}
+
 // ColumnData is the same shape as MobileColumnData — re-export for consumers
 export type { MobileColumnData as ColumnData };
 
-const STATUS_I18N_MAP: Record<JobStatus, string> = {
-  saved: "saved",
-  applied: "applied",
-  on_hold: "onHold",
-  offer: "offer",
-  rejected: "rejected",
-  archived: "archived",
-};
-
-function buildStatusColumns(
+// One column per stage template (in `order`), preceded by a "No stage" column
+// for cards not yet placed in any column. The "No stage" column is hidden when
+// empty so it does not clutter a fully-triaged board.
+function buildColumns(
   jobs: JobDTO[],
+  stageTemplates: StageTemplateDTO[],
   t: (key: string) => string,
 ): MobileColumnData[] {
-  return STATUS_COLUMNS.map((status) => ({
-    id: status,
-    label: t(`jobs.board.${STATUS_I18N_MAP[status]}`),
-    jobs: jobs.filter((j) => j.status === status),
+  const ordered = [...stageTemplates].sort((a, b) => a.order - b.order);
+
+  const noStageJobs = jobs.filter(
+    (j) => columnIdForJob(j) === NO_STAGE_COLUMN_ID,
+  );
+
+  const stageColumns: MobileColumnData[] = ordered.map((template) => ({
+    id: template.id,
+    label: template.name,
+    jobs: jobs.filter((j) => j.current_stage_template_id === template.id),
   }));
-}
 
-function buildStageColumns(
-  jobs: JobDTO[],
-  stageTemplates: { id: string; name: string }[],
-  t: (key: string) => string,
-): MobileColumnData[] {
+  if (noStageJobs.length === 0) return stageColumns;
+
   return [
     {
       id: NO_STAGE_COLUMN_ID,
       label: t("jobs.board.noStage"),
-      jobs: jobs.filter((j) => !j.current_stage_name),
+      jobs: noStageJobs,
     },
-    ...stageTemplates.map((template) => ({
-      id: template.id,
-      label: template.name,
-      jobs: jobs.filter((j) => j.current_stage_name === template.name),
-    })),
+    ...stageColumns,
   ];
-}
-
-// Client-side mirror of the backend's StatusForPhase derivation — used only
-// for optimistic cache updates; the server response is authoritative.
-function unifiedPhaseStatus(
-  phase: UnifiedColumn["phase"] | StagePhase,
-): JobStatus {
-  switch (phase) {
-    case "wishlist":
-      return "saved";
-    case "offer":
-      return "offer";
-    case "rejected":
-      return "rejected";
-    case "archived":
-      return "archived";
-    default:
-      return "applied";
-  }
 }

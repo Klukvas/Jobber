@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
   Archive,
+  ArchiveRestore,
   Heart,
   Loader2,
   Save,
@@ -22,6 +23,8 @@ interface JobDetailHeaderProps {
   readonly isTogglingFavorite: boolean;
   readonly onArchive: () => void;
   readonly isArchiving: boolean;
+  readonly onUnarchive: () => void;
+  readonly isUnarchiving: boolean;
   readonly onDelete: () => void;
   readonly isDeleting: boolean;
 }
@@ -38,6 +41,8 @@ export function JobDetailHeader({
   isTogglingFavorite,
   onArchive,
   isArchiving,
+  onUnarchive,
+  isUnarchiving,
   onDelete,
   isDeleting,
 }: JobDetailHeaderProps) {
@@ -80,7 +85,18 @@ export function JobDetailHeader({
             className={`h-4 w-4 ${job.is_favorite ? "fill-red-500 text-red-500" : ""}`}
           />
         </Button>
-        {job.status !== "archived" && (
+        {job.is_archived ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onUnarchive}
+            disabled={isUnarchiving}
+            aria-label={t("jobs.unarchive")}
+          >
+            <ArchiveRestore className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">{t("jobs.unarchive")}</span>
+          </Button>
+        ) : (
           <Button
             variant="outline"
             size="sm"
