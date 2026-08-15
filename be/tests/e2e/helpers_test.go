@@ -161,3 +161,50 @@ func cleanupAll(t *testing.T) {
 		"users",
 	)
 }
+
+// seedPipeline inserts an ordered set of pipeline columns (stage templates) for a
+// user and returns a name->id map. Users created via seedUser have no columns
+// (registration seeds them, but seedUser inserts the user directly), so any test
+// that creates jobs must seed a pipeline first — otherwise POST /jobs fails with
+// STAGE_TEMPLATE_NOT_FOUND.
+func seedPipeline(t *testing.T, userID string, names ...string) map[string]string {
+	t.Helper()
+	ids := make(map[string]string, len(names))
+	for i, name := range names {
+		id := uuid.New().String()
+		_, err := pool.Exec(context.Background(),
+			`INSERT INTO stage_templates (id, user_id, name, "order", created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, NOW(), NOW())`,
+			id, userID, name, i,
+		)
+		require.NoError(t, err)
+		ids[name] = id
+	}
+	return ids
+}
+
+// createTestJob creates a job placed in stageTemplateID (empty = the user's first
+// column) optionally linked to companyID, asserts 201, and returns the created
+// job as a map.
+func createTestJob(t *testing.T, token, title, stageTemplateID, companyID string) map[string]interface{} {
+	t.Helper()
+	body := map[string]interface{}{"title": title}
+	if stageTemplateID != "" {
+		body["stage_template_id"] = stageTemplateID
+	}
+	if companyID != "" {
+		body["company_id"] = companyID
+	}
+	resp := doRequest(t, http.MethodPost, "/api/v1/jobs", body, token)
+	assertStatus(t, resp, http.StatusCreated)
+	return parseJSON[map[string]interface{}](t, resp)
+}
+
+// archiveJob flips is_archived on a job via PATCH.
+func archiveJob(t *testing.T, token, jobID string) {
+	t.Helper()
+	resp := doRequest(t, http.MethodPatch, "/api/v1/jobs/"+jobID,
+		map[string]interface{}{"is_archived": true}, token)
+	assertStatus(t, resp, http.StatusOK)
+	resp.Body.Close()
+}
