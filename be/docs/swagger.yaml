@@ -38,7 +38,9 @@ definitions:
       rejected:
         allOf:
         - $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.RejectedSummary'
-        description: Rejected is nil when the user has no rejected applications.
+        description: |-
+          Rejected is retained for JSON/DTO stability but is always nil in the
+          single-axis model.
       stages:
         items:
           $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.FunnelStage'
@@ -311,8 +313,6 @@ definitions:
     type: object
   github_com_andreypavlenko_jobber_modules_jobs_model.CreateJobRequest:
     properties:
-      applied_at:
-        type: string
       company_id:
         type: string
       description:
@@ -325,7 +325,8 @@ definitions:
         type: string
       source:
         type: string
-      status:
+      stage_template_id:
+        description: column to place into; default = first
         type: string
       title:
         maxLength: 255
@@ -345,10 +346,6 @@ definitions:
       order:
         minimum: 0
         type: integer
-      phase:
-        allOf:
-        - $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.Phase'
-        description: Phase defaults to in_progress when omitted
     required:
     - name
     type: object
@@ -366,10 +363,14 @@ definitions:
         type: string
       current_stage_name:
         type: string
+      current_stage_template_id:
+        type: string
       description:
         type: string
       id:
         type: string
+      is_archived:
+        type: boolean
       is_favorite:
         type: boolean
       job_comments:
@@ -388,8 +389,6 @@ definitions:
         items:
           $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_comments_model.CommentDTO'
         type: array
-      status:
-        type: string
       title:
         type: string
       updated_at:
@@ -420,45 +419,21 @@ definitions:
     type: object
   github_com_andreypavlenko_jobber_modules_jobs_model.MoveJobRequest:
     properties:
-      target:
-        $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.MoveTarget'
-    required:
-    - target
-    type: object
-  github_com_andreypavlenko_jobber_modules_jobs_model.MoveTarget:
-    properties:
-      phase:
-        allOf:
-        - $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.Phase'
-        description: |-
-          Phase accepts the four template phases plus "rejected"
-          (terminal board column that is never a template phase).
       stage_template_id:
         type: string
-      type:
-        enum:
-        - stage
-        - phase
-        type: string
     required:
-    - type
+    - stage_template_id
     type: object
-  github_com_andreypavlenko_jobber_modules_jobs_model.Phase:
-    enum:
-    - wishlist
-    - applied
-    - in_progress
-    - offer
-    - rejected
-    - in_progress
-    type: string
-    x-enum-varnames:
-    - PhaseWishlist
-    - PhaseApplied
-    - PhaseInProgress
-    - PhaseOffer
-    - PhaseRejected
-    - DefaultPhase
+  github_com_andreypavlenko_jobber_modules_jobs_model.ReorderStageTemplatesRequest:
+    properties:
+      stage_ids:
+        items:
+          type: string
+        minItems: 1
+        type: array
+    required:
+    - stage_ids
+    type: object
   github_com_andreypavlenko_jobber_modules_jobs_model.ResumeNestedDTO:
     properties:
       id:
@@ -479,17 +454,16 @@ definitions:
         type: string
       order:
         type: integer
-      phase:
-        $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.Phase'
     type: object
   github_com_andreypavlenko_jobber_modules_jobs_model.UpdateJobRequest:
     properties:
-      applied_at:
-        type: string
       company_id:
         type: string
       description:
         type: string
+      is_archived:
+        description: archive / unarchive
+        type: boolean
       notes:
         type: string
       resume_builder_id:
@@ -497,8 +471,6 @@ definitions:
       resume_id:
         type: string
       source:
-        type: string
-      status:
         type: string
       title:
         type: string
@@ -524,8 +496,6 @@ definitions:
         type: string
       order:
         type: integer
-      phase:
-        $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.Phase'
     type: object
   github_com_andreypavlenko_jobber_modules_matchscore_model.MatchScoreCategory:
     properties:
@@ -662,8 +632,6 @@ definitions:
         type: string
       is_active:
         type: boolean
-      storage_key:
-        type: string
       storage_type:
         $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.StorageType'
       title:
@@ -2991,6 +2959,39 @@ paths:
       security:
       - BearerAuth: []
       summary: Update a stage template
+      tags:
+      - stage-templates
+  /stage-templates/reorder:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Ordered stage ids
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.ReorderStageTemplatesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Reorder the user's pipeline columns
       tags:
       - stage-templates
   /support:

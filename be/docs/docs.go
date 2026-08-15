@@ -3197,6 +3197,59 @@ const docTemplate = `{
                 }
             }
         },
+        "/stage-templates/reorder": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stage-templates"
+                ],
+                "summary": "Reorder the user's pipeline columns",
+                "parameters": [
+                    {
+                        "description": "Ordered stage ids",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.ReorderStageTemplatesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/stage-templates/{templateId}": {
             "delete": {
                 "security": [
@@ -3739,7 +3792,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "rejected": {
-                    "description": "Rejected is nil when the user has no rejected applications.",
+                    "description": "Rejected is retained for JSON/DTO stability but is always nil in the\nsingle-axis model.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_analytics_model.RejectedSummary"
@@ -4163,9 +4216,6 @@ const docTemplate = `{
                 "title"
             ],
             "properties": {
-                "applied_at": {
-                    "type": "string"
-                },
                 "company_id": {
                     "type": "string"
                 },
@@ -4184,7 +4234,8 @@ const docTemplate = `{
                 "source": {
                     "type": "string"
                 },
-                "status": {
+                "stage_template_id": {
+                    "description": "column to place into; default = first",
                     "type": "string"
                 },
                 "title": {
@@ -4211,14 +4262,6 @@ const docTemplate = `{
                 "order": {
                     "type": "integer",
                     "minimum": 0
-                },
-                "phase": {
-                    "description": "Phase defaults to in_progress when omitted",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.Phase"
-                        }
-                    ]
                 }
             }
         },
@@ -4243,11 +4286,17 @@ const docTemplate = `{
                 "current_stage_name": {
                     "type": "string"
                 },
+                "current_stage_template_id": {
+                    "type": "string"
+                },
                 "description": {
                     "type": "string"
                 },
                 "id": {
                     "type": "string"
+                },
+                "is_archived": {
+                    "type": "boolean"
                 },
                 "is_favorite": {
                     "type": "boolean"
@@ -4275,9 +4324,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_comments_model.CommentDTO"
                     }
-                },
-                "status": {
-                    "type": "string"
                 },
                 "title": {
                     "type": "string"
@@ -4325,58 +4371,28 @@ const docTemplate = `{
         "github_com_andreypavlenko_jobber_modules_jobs_model.MoveJobRequest": {
             "type": "object",
             "required": [
-                "target"
+                "stage_template_id"
             ],
             "properties": {
-                "target": {
-                    "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.MoveTarget"
-                }
-            }
-        },
-        "github_com_andreypavlenko_jobber_modules_jobs_model.MoveTarget": {
-            "type": "object",
-            "required": [
-                "type"
-            ],
-            "properties": {
-                "phase": {
-                    "description": "Phase accepts the four template phases plus \"rejected\"\n(terminal board column that is never a template phase).",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.Phase"
-                        }
-                    ]
-                },
                 "stage_template_id": {
                     "type": "string"
-                },
-                "type": {
-                    "type": "string",
-                    "enum": [
-                        "stage",
-                        "phase"
-                    ]
                 }
             }
         },
-        "github_com_andreypavlenko_jobber_modules_jobs_model.Phase": {
-            "type": "string",
-            "enum": [
-                "wishlist",
-                "applied",
-                "in_progress",
-                "offer",
-                "rejected",
-                "in_progress"
+        "github_com_andreypavlenko_jobber_modules_jobs_model.ReorderStageTemplatesRequest": {
+            "type": "object",
+            "required": [
+                "stage_ids"
             ],
-            "x-enum-varnames": [
-                "PhaseWishlist",
-                "PhaseApplied",
-                "PhaseInProgress",
-                "PhaseOffer",
-                "PhaseRejected",
-                "DefaultPhase"
-            ]
+            "properties": {
+                "stage_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
         },
         "github_com_andreypavlenko_jobber_modules_jobs_model.ResumeNestedDTO": {
             "type": "object",
@@ -4407,23 +4423,21 @@ const docTemplate = `{
                 },
                 "order": {
                     "type": "integer"
-                },
-                "phase": {
-                    "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.Phase"
                 }
             }
         },
         "github_com_andreypavlenko_jobber_modules_jobs_model.UpdateJobRequest": {
             "type": "object",
             "properties": {
-                "applied_at": {
-                    "type": "string"
-                },
                 "company_id": {
                     "type": "string"
                 },
                 "description": {
                     "type": "string"
+                },
+                "is_archived": {
+                    "description": "archive / unarchive",
+                    "type": "boolean"
                 },
                 "notes": {
                     "type": "string"
@@ -4435,9 +4449,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "source": {
-                    "type": "string"
-                },
-                "status": {
                     "type": "string"
                 },
                 "title": {
@@ -4474,9 +4485,6 @@ const docTemplate = `{
                 },
                 "order": {
                     "type": "integer"
-                },
-                "phase": {
-                    "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.Phase"
                 }
             }
         },
@@ -4683,9 +4691,6 @@ const docTemplate = `{
                 },
                 "is_active": {
                     "type": "boolean"
-                },
-                "storage_key": {
-                    "type": "string"
                 },
                 "storage_type": {
                     "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.StorageType"

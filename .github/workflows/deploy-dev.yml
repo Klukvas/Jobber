@@ -333,7 +333,6 @@ jobs:
             VITE_SENTRY_DSN=${{ secrets.VITE_SENTRY_DSN || '' }}
             VITE_FEATURE_SENTRY=${{ secrets.VITE_FEATURE_SENTRY || 'false' }}
             VITE_FEATURE_PAYMENTS=${{ secrets.VITE_FEATURE_PAYMENTS || 'false' }}
-            VITE_FEATURE_UNIFIED_BOARD=${{ secrets.VITE_FEATURE_UNIFIED_BOARD || 'false' }}
             VITE_FEATURE_EMAIL_NOTIFICATIONS=${{ secrets.VITE_FEATURE_EMAIL_NOTIFICATIONS || 'true' }}
             GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
 

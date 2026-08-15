@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,7 +13,6 @@ import (
 
 	_ "github.com/andreypavlenko/jobber/docs" // swagger docs
 
-	"github.com/andreypavlenko/jobber/internal/backfill"
 	"github.com/andreypavlenko/jobber/internal/config"
 	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
@@ -195,33 +193,6 @@ func main() {
 			zap.Error(err),
 			zap.String("migrations_path", migrationsPath),
 		)
-	}
-
-	// Single-pipeline backfill (migration 040 window). Guarded + idempotent: it
-	// runs ONLY when some card still lacks a current_stage_template_id, so on a
-	// fresh single-pipeline image it places every existing card BEFORE the HTTP
-	// server accepts traffic (zero window of empty boards). It self-disables once
-	// all cards are placed, and after migration 041 makes the column NOT NULL,
-	// Pending() is always false, so this becomes a permanent no-op. Fatal on
-	// error so a bad backfill fails the health check and CI rolls back to the
-	// previous image (which still runs, since 040 kept status/phase).
-	if pending, err := backfill.Pending(ctx, pgClient.Pool); err != nil {
-		logger.Fatal("Failed to check single-pipeline backfill state", zap.Error(err))
-	} else if pending {
-		logger.Info("Single-pipeline backfill: unplaced cards detected, running")
-		bfLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
-		stats, err := backfill.Run(ctx, bfLogger, pgClient.Pool)
-		if err != nil {
-			logger.Fatal("Single-pipeline backfill failed", zap.Error(err))
-		}
-		logger.Info("Single-pipeline backfill complete",
-			zap.Int("users", stats.Users),
-			zap.Int("columns_created", stats.ColumnsCreated),
-			zap.Int("jobs_updated", stats.JobsUpdated),
-			zap.Int("stage_rows_appended", stats.StagesAppended),
-		)
-	} else {
-		logger.Info("Single-pipeline backfill: nothing to do")
 	}
 
 	// Initialize Redis
