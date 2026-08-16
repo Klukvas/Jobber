@@ -15,9 +15,17 @@ import (
 	rbPorts "github.com/andreypavlenko/jobber/modules/resumebuilder/ports"
 	resumePorts "github.com/andreypavlenko/jobber/modules/resumes/ports"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 )
+
+// txBeginner is the minimal transaction-starting surface JobService needs from
+// its database pool. *pgxpool.Pool satisfies it in production; tests inject a
+// pgxmock pool. Depending on this narrow interface (rather than the concrete
+// *pgxpool.Pool) keeps the transactional methods unit-testable.
+type txBeginner interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
 
 // LimitChecker checks subscription limits before resource creation.
 type LimitChecker interface {
@@ -32,7 +40,7 @@ type CacheInvalidator interface {
 // JobService handles job business logic: the job card itself and its
 // application pipeline (status, stages, comments enrichment).
 type JobService struct {
-	pool              *pgxpool.Pool
+	pool              txBeginner
 	repo              ports.JobRepository
 	stageRepo         ports.JobStageRepository
 	templateRepo      ports.StageTemplateRepository
@@ -47,7 +55,7 @@ type JobService struct {
 
 // NewJobService creates a new job service
 func NewJobService(
-	pool *pgxpool.Pool,
+	pool txBeginner,
 	repo ports.JobRepository,
 	stageRepo ports.JobStageRepository,
 	templateRepo ports.StageTemplateRepository,
