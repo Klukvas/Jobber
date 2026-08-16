@@ -56,9 +56,11 @@ vi.mock("@/shared/lib/features", () => ({
 }));
 
 vi.mock("@tanstack/react-query", () => ({
+  keepPreviousData: (prev: unknown) => prev,
   useQuery: () => ({
     data: null,
     isLoading: false,
+    isFetching: false,
     isError: false,
     error: null,
     refetch: vi.fn(),
