@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  keepPreviousData,
+} from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { jobsService, type ListJobsParams } from "@/services/jobsService";
@@ -37,6 +42,7 @@ import {
   Trash2,
   X,
   Search,
+  Loader2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useDateLocale } from "@/shared/lib/dateFnsLocale";
@@ -154,10 +160,14 @@ export default function JobsPage() {
           search: debouncedSearch || undefined,
         };
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey,
     queryFn: () => jobsService.list(listParams),
     staleTime: 30_000,
+    // Keep showing the current results while a new query (search/filter/sort/
+    // page) loads, so only the list updates instead of the whole page falling
+    // back to the skeleton and the search input losing focus.
+    placeholderData: keepPreviousData,
   });
 
   const handleQuickAction = (type: "comment" | "stage", job: JobDTO) => {
@@ -329,8 +339,14 @@ export default function JobsPage() {
                 }}
                 placeholder={t("jobs.searchPlaceholder")}
                 aria-label={t("jobs.searchPlaceholder")}
-                className="flex h-9 w-56 rounded-md border border-input bg-background pl-8 pr-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-9 w-56 rounded-md border border-input bg-background pl-8 pr-8 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
+              {isFetching && (
+                <Loader2
+                  aria-hidden
+                  className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground"
+                />
+              )}
             </div>
             <div className="flex items-center gap-2">
               <label
@@ -415,7 +431,11 @@ export default function JobsPage() {
               }
             />
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div
+              className={`grid gap-4 md:grid-cols-2 lg:grid-cols-3 transition-opacity ${
+                isFetching ? "opacity-60" : ""
+              }`}
+            >
               {jobs.map((job) => (
                 <div key={job.id} className="relative">
                   <Link to={`/app/jobs/${job.id}`}>

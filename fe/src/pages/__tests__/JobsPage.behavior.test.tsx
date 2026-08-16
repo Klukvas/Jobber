@@ -209,6 +209,41 @@ describe("Jobs page", () => {
     );
   });
 
+  it("keeps the search box and current results while a search loads (no full-page skeleton)", async () => {
+    let resolveSearch: (v: PaginatedResponse<JobDTO>) => void = () => {};
+    const searchPending = new Promise<PaginatedResponse<JobDTO>>((res) => {
+      resolveSearch = res;
+    });
+    // Initial load resolves immediately; the search request stays in flight
+    // until we resolve it below.
+    mockList.mockImplementation((params) =>
+      params.search ? searchPending : Promise.resolve(paginated([makeJob()])),
+    );
+    renderPage();
+    await screen.findByText("Frontend Engineer");
+
+    fireEvent.change(screen.getByLabelText("jobs.searchPlaceholder"), {
+      target: { value: "zzz" },
+    });
+
+    await waitFor(() =>
+      expect(mockList).toHaveBeenCalledWith(
+        expect.objectContaining({ search: "zzz" }),
+      ),
+    );
+
+    // While the search is pending the page must NOT fall back to the skeleton:
+    // the search input and the previous results stay mounted, so only the list
+    // updates once results arrive.
+    expect(screen.getByLabelText("jobs.searchPlaceholder")).toBeInTheDocument();
+    expect(screen.getByText("Frontend Engineer")).toBeInTheDocument();
+
+    resolveSearch(paginated([]));
+    expect(
+      await screen.findByText("jobs.noSearchResults:zzz"),
+    ).toBeInTheDocument();
+  });
+
   it("shows pagination controls when total exceeds the page size", async () => {
     const user = userEvent.setup();
     mockList.mockResolvedValue(paginated([makeJob()], 45));
