@@ -55,26 +55,32 @@ export function JobMobileAccordion({
   onDelete,
 }: AccordionProps) {
   const { t } = useTranslation();
-  const [openIds, setOpenIds] = useState<Set<string>>(() =>
-    defaultOpenIds(columns),
-  );
+  // `null` means the user hasn't touched the accordion yet, so we show the
+  // default open column. Any Set (including an empty one) is a user-controlled
+  // state — collapsing every stage must stay collapsed instead of snapping the
+  // default column back open.
+  const [openIds, setOpenIds] = useState<Set<string> | null>(null);
 
   // Derive effective open IDs at render time — avoids setState-in-effect lint rule.
-  // Falls back to the default open column if none of the stored IDs are valid.
+  // Before any interaction, open the default column; afterwards honor the user's
+  // choice (an empty set = all stages collapsed), dropping only stale column IDs.
   const effectiveOpenIds = useMemo(() => {
+    if (openIds === null) return defaultOpenIds(columns);
     const currentIds = new Set(columns.map((c) => c.id));
-    const valid = new Set([...openIds].filter((id) => currentIds.has(id)));
-    return valid.size > 0 ? valid : defaultOpenIds(columns);
+    return new Set([...openIds].filter((id) => currentIds.has(id)));
   }, [openIds, columns]);
 
-  const toggle = useCallback((id: string) => {
-    setOpenIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+  const toggle = useCallback(
+    (id: string) => {
+      setOpenIds((prev) => {
+        const next = new Set(prev ?? defaultOpenIds(columns));
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+    },
+    [columns],
+  );
 
   return (
     <div className="space-y-2">
