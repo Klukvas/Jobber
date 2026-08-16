@@ -259,6 +259,7 @@ export function ForgotPasswordModal({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
+      swipeToDismiss
       className="max-sm:h-full max-sm:max-w-none"
     >
       <DialogContent
