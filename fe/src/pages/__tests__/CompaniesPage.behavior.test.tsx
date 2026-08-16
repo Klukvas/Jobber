@@ -180,6 +180,43 @@ describe("Companies page", () => {
     );
   });
 
+  it("keeps the current cards and controls while re-sorting (no full-page skeleton)", async () => {
+    const user = userEvent.setup();
+    let resolveSort!: (v: PaginatedResponse<CompanyDTO>) => void;
+    const sortPending = new Promise<PaginatedResponse<CompanyDTO>>((r) => {
+      resolveSort = r;
+    });
+    // The re-sort request stays in flight; every other call resolves at once.
+    mockList.mockImplementation((params: { sort_by: string }) =>
+      params.sort_by === "applications_count"
+        ? sortPending
+        : Promise.resolve(paginated([makeCompany({ name: "Acme Corp" })])),
+    );
+    renderPage();
+    await screen.findByText("Acme Corp");
+
+    await user.click(
+      screen.getByRole("button", { name: /companies\.sortApplications/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockList).toHaveBeenCalledWith(
+        expect.objectContaining({ sort_by: "applications_count" }),
+      ),
+    );
+
+    // Regression: the page must not fall back to the skeleton while the new
+    // sort loads — title, sort controls and previous cards stay mounted.
+    expect(screen.getByText("companies.title")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /companies\.sortApplications/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Acme Corp")).toBeInTheDocument();
+
+    resolveSort(paginated([makeCompany({ id: "c2", name: "Beta LLC" })]));
+    expect(await screen.findByText("Beta LLC")).toBeInTheDocument();
+  });
+
   it("navigates to filtered jobs when viewing applications", async () => {
     const user = userEvent.setup();
     mockList.mockResolvedValue(

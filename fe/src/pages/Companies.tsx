@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  keepPreviousData,
+} from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { companiesService } from "@/services/companiesService";
@@ -55,7 +60,7 @@ export default function Companies() {
     return () => document.removeEventListener("click", handleClickOutside);
   }, [openMenuId]);
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: ["companies", sortBy, sortDir],
     queryFn: () =>
       companiesService.list({
@@ -65,6 +70,9 @@ export default function Companies() {
         sort_dir: sortDir,
       }),
     staleTime: 30_000,
+    // Keep the current list visible while re-sorting so only the grid
+    // reorders instead of the whole page falling back to the skeleton.
+    placeholderData: keepPreviousData,
   });
 
   const toggleFavoriteMutation = useMutation({
@@ -237,7 +245,11 @@ export default function Companies() {
           </div>
 
           {/* Company Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div
+            className={`grid gap-4 md:grid-cols-2 lg:grid-cols-3 transition-opacity ${
+              isFetching ? "opacity-60" : ""
+            }`}
+          >
             {companies.map((company) => {
               const statusDisplay = getCompanyStatusDisplay(
                 company.derived_status,
