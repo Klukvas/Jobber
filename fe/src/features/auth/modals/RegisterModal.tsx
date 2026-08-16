@@ -303,8 +303,15 @@ export function RegisterModal({
   onSwitchToLogin,
 }: RegisterModalProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent onClose={() => onOpenChange(false)}>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      className="max-sm:h-full max-sm:max-w-none"
+    >
+      <DialogContent
+        onClose={() => onOpenChange(false)}
+        className="max-sm:m-0 max-sm:h-full max-sm:max-h-none max-sm:max-w-none max-sm:rounded-none max-sm:border-0"
+      >
         <ModalContent
           key={open ? "open" : "closed"}
           onOpenChange={onOpenChange}
