@@ -6,16 +6,15 @@ import (
 
 	"github.com/andreypavlenko/jobber/modules/calendar/model"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // StageRepository implements ports.CalendarStageRepository
 type StageRepository struct {
-	pool *pgxpool.Pool
+	pool PgxDB
 }
 
 // NewStageRepository creates a new stage repository for calendar operations
-func NewStageRepository(pool *pgxpool.Pool) *StageRepository {
+func NewStageRepository(pool PgxDB) *StageRepository {
 	return &StageRepository{pool: pool}
 }
 

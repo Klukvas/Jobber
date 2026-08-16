@@ -8,16 +8,15 @@ import (
 	"github.com/andreypavlenko/jobber/modules/calendar/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // TokenRepository implements ports.CalendarTokenRepository
 type TokenRepository struct {
-	pool *pgxpool.Pool
+	pool PgxDB
 }
 
 // NewTokenRepository creates a new token repository
-func NewTokenRepository(pool *pgxpool.Pool) *TokenRepository {
+func NewTokenRepository(pool PgxDB) *TokenRepository {
 	return &TokenRepository{pool: pool}
 }
 

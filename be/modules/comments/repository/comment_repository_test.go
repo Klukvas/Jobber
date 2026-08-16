@@ -2,216 +2,190 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/andreypavlenko/jobber/modules/comments/model"
-	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+var errDB = errors.New("boom: db failure")
+
+func newCommentRepo(t *testing.T) (*CommentRepository, pgxmock.PgxPoolIface) {
+	t.Helper()
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	t.Cleanup(mock.Close)
+	return NewCommentRepository(mock), mock
+}
+
 func TestCommentRepository_Create(t *testing.T) {
 	t.Run("creates comment successfully", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
-
-		comment := &model.Comment{
-			UserID:  "user-123",
-			JobID:   "job-1",
-			Content: "Test comment",
-		}
+		repo, mock := newCommentRepo(t)
+		comment := &model.Comment{UserID: "user-123", JobID: "job-1", Content: "Test comment"}
 
 		mock.ExpectExec("INSERT INTO comments").
 			WithArgs(pgxmock.AnyArg(), comment.UserID, comment.JobID, comment.StageID, comment.Content, pgxmock.AnyArg(), pgxmock.AnyArg()).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
-		repo := &testCommentRepo{mock: mock}
-		err = repo.Create(context.Background(), comment)
+		err := repo.Create(context.Background(), comment)
 
 		require.NoError(t, err)
 		assert.NotEmpty(t, comment.ID)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("creates comment with stage ID", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
-
+	t.Run("creates comment with stage id", func(t *testing.T) {
+		repo, mock := newCommentRepo(t)
 		stageID := "stage-1"
-		comment := &model.Comment{
-			UserID:  "user-123",
-			JobID:   "job-1",
-			StageID: &stageID,
-			Content: "Stage comment",
-		}
+		comment := &model.Comment{UserID: "user-123", JobID: "job-1", StageID: &stageID, Content: "Stage comment"}
 
 		mock.ExpectExec("INSERT INTO comments").
 			WithArgs(pgxmock.AnyArg(), comment.UserID, comment.JobID, comment.StageID, comment.Content, pgxmock.AnyArg(), pgxmock.AnyArg()).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
-		repo := &testCommentRepo{mock: mock}
-		err = repo.Create(context.Background(), comment)
+		err := repo.Create(context.Background(), comment)
 
 		require.NoError(t, err)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("returns job not found when zero rows affected (ownership guard)", func(t *testing.T) {
+		repo, mock := newCommentRepo(t)
+		comment := &model.Comment{UserID: "user-123", JobID: "foreign-job", Content: "x"}
+
+		mock.ExpectExec("INSERT INTO comments").
+			WithArgs(pgxmock.AnyArg(), comment.UserID, comment.JobID, comment.StageID, comment.Content, pgxmock.AnyArg(), pgxmock.AnyArg()).
+			WillReturnResult(pgxmock.NewResult("INSERT", 0))
+
+		err := repo.Create(context.Background(), comment)
+
+		assert.ErrorIs(t, err, model.ErrJobNotFound)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("propagates db error", func(t *testing.T) {
+		repo, mock := newCommentRepo(t)
+		comment := &model.Comment{UserID: "user-123", JobID: "job-1", Content: "x"}
+
+		mock.ExpectExec("INSERT INTO comments").
+			WithArgs(pgxmock.AnyArg(), comment.UserID, comment.JobID, comment.StageID, comment.Content, pgxmock.AnyArg(), pgxmock.AnyArg()).
+			WillReturnError(errDB)
+
+		err := repo.Create(context.Background(), comment)
+
+		assert.ErrorIs(t, err, errDB)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
 func TestCommentRepository_ListByJob(t *testing.T) {
-	t.Run("returns comments list", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
+	cols := []string{"id", "user_id", "job_id", "stage_id", "content", "created_at", "updated_at"}
 
-		jobID := "job-1"
+	t.Run("returns comments scoped to job owner", func(t *testing.T) {
+		repo, mock := newCommentRepo(t)
 		now := time.Now()
 
-		rows := pgxmock.NewRows([]string{
-			"id", "user_id", "job_id", "stage_id", "content", "created_at", "updated_at",
-		}).
-			AddRow("comment-1", "user-123", jobID, nil, "First comment", now, now).
-			AddRow("comment-2", "user-123", jobID, nil, "Second comment", now, now)
+		// Real query binds user_id at $1 and job_id at $2.
+		mock.ExpectQuery("FROM comments c").
+			WithArgs("user-123", "job-1").
+			WillReturnRows(pgxmock.NewRows(cols).
+				AddRow("comment-1", "user-123", "job-1", nil, "First comment", now, now).
+				AddRow("comment-2", "user-123", "job-1", nil, "Second comment", now, now))
 
-		mock.ExpectQuery("SELECT id, user_id, job_id, stage_id, content, created_at, updated_at").
-			WithArgs(jobID, "user-123").
-			WillReturnRows(rows)
-
-		repo := &testCommentRepo{mock: mock}
-		comments, err := repo.ListByJob(context.Background(), jobID, "user-123")
+		comments, err := repo.ListByJob(context.Background(), "job-1", "user-123")
 
 		require.NoError(t, err)
-		assert.Len(t, comments, 2)
+		require.Len(t, comments, 2)
 		assert.Equal(t, "First comment", comments[0].Content)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("returns empty list", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
+		repo, mock := newCommentRepo(t)
 
-		jobID := "job-1"
+		mock.ExpectQuery("FROM comments c").
+			WithArgs("user-123", "job-1").
+			WillReturnRows(pgxmock.NewRows(cols))
 
-		rows := pgxmock.NewRows([]string{
-			"id", "user_id", "job_id", "stage_id", "content", "created_at", "updated_at",
-		})
-
-		mock.ExpectQuery("SELECT id, user_id, job_id, stage_id, content, created_at, updated_at").
-			WithArgs(jobID, "user-123").
-			WillReturnRows(rows)
-
-		repo := &testCommentRepo{mock: mock}
-		comments, err := repo.ListByJob(context.Background(), jobID, "user-123")
+		comments, err := repo.ListByJob(context.Background(), "job-1", "user-123")
 
 		require.NoError(t, err)
 		assert.Empty(t, comments)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("propagates query error", func(t *testing.T) {
+		repo, mock := newCommentRepo(t)
+
+		mock.ExpectQuery("FROM comments c").
+			WithArgs("user-123", "job-1").
+			WillReturnError(errDB)
+
+		comments, err := repo.ListByJob(context.Background(), "job-1", "user-123")
+
+		assert.Nil(t, comments)
+		assert.ErrorIs(t, err, errDB)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("propagates scan error", func(t *testing.T) {
+		repo, mock := newCommentRepo(t)
+		now := time.Now()
+
+		mock.ExpectQuery("FROM comments c").
+			WithArgs("user-123", "job-1").
+			WillReturnRows(pgxmock.NewRows(cols).
+				AddRow("comment-1", "user-123", "job-1", nil, "x", "not-a-time", now)) // created_at not time.Time -> scan fails
+
+		comments, err := repo.ListByJob(context.Background(), "job-1", "user-123")
+
+		assert.Nil(t, comments)
+		assert.Error(t, err)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
 func TestCommentRepository_Delete(t *testing.T) {
 	t.Run("deletes comment successfully", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
+		repo, mock := newCommentRepo(t)
 
 		mock.ExpectExec("DELETE FROM comments").
 			WithArgs("comment-1", "user-123").
 			WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
-		repo := &testCommentRepo{mock: mock}
-		err = repo.Delete(context.Background(), "user-123", "comment-1")
+		err := repo.Delete(context.Background(), "user-123", "comment-1")
 
 		require.NoError(t, err)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("returns error when comment not found", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
+	t.Run("returns not found when zero rows affected", func(t *testing.T) {
+		repo, mock := newCommentRepo(t)
 
 		mock.ExpectExec("DELETE FROM comments").
 			WithArgs("nonexistent", "user-123").
 			WillReturnResult(pgxmock.NewResult("DELETE", 0))
 
-		repo := &testCommentRepo{mock: mock}
-		err = repo.Delete(context.Background(), "user-123", "nonexistent")
+		err := repo.Delete(context.Background(), "user-123", "nonexistent")
 
-		assert.Equal(t, model.ErrCommentNotFound, err)
+		assert.ErrorIs(t, err, model.ErrCommentNotFound)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
-}
 
-// testCommentRepo is a test wrapper that uses pgxmock
-type testCommentRepo struct {
-	mock pgxmock.PgxPoolIface
-}
+	t.Run("propagates db error", func(t *testing.T) {
+		repo, mock := newCommentRepo(t)
 
-func (r *testCommentRepo) Create(ctx context.Context, comment *model.Comment) error {
-	query := `
-		INSERT INTO comments (id, user_id, job_id, stage_id, content, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`
-	comment.ID = "test-comment-id"
-	now := time.Now().UTC()
-	comment.CreatedAt = now
-	comment.UpdatedAt = now
+		mock.ExpectExec("DELETE FROM comments").
+			WithArgs("comment-1", "user-123").
+			WillReturnError(errDB)
 
-	_, err := r.mock.Exec(ctx, query,
-		comment.ID, comment.UserID, comment.JobID, comment.StageID, comment.Content, comment.CreatedAt, comment.UpdatedAt,
-	)
-	return err
-}
+		err := repo.Delete(context.Background(), "user-123", "comment-1")
 
-func (r *testCommentRepo) ListByJob(ctx context.Context, jobID string, userID ...string) ([]*model.Comment, error) {
-	query := `
-		SELECT id, user_id, job_id, stage_id, content, created_at, updated_at
-		FROM comments
-		WHERE job_id = $1 AND user_id = $2
-		ORDER BY created_at ASC
-	`
-
-	uid := ""
-	if len(userID) > 0 {
-		uid = userID[0]
-	}
-
-	rows, err := r.mock.Query(ctx, query, jobID, uid)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var comments []*model.Comment
-	for rows.Next() {
-		comment := &model.Comment{}
-		if err := rows.Scan(
-			&comment.ID, &comment.UserID, &comment.JobID, &comment.StageID, &comment.Content, &comment.CreatedAt, &comment.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		comments = append(comments, comment)
-	}
-
-	return comments, nil
-}
-
-func (r *testCommentRepo) Delete(ctx context.Context, userID, commentID string) error {
-	query := `DELETE FROM comments WHERE id = $1 AND user_id = $2`
-	result, err := r.mock.Exec(ctx, query, commentID, userID)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return model.ErrCommentNotFound
-		}
-		return err
-	}
-	if result.RowsAffected() == 0 {
-		return model.ErrCommentNotFound
-	}
-	return nil
+		assert.ErrorIs(t, err, errDB)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
 }

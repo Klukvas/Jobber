@@ -6,18 +6,17 @@ import (
 
 	"github.com/andreypavlenko/jobber/modules/users/model"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // UserRepository implements ports.UserRepository
 type UserRepository struct {
-	pool *pgxpool.Pool
+	pool PgxDB
 }
 
 // NewUserRepository creates a new user repository
-func NewUserRepository(pool *pgxpool.Pool) *UserRepository {
+func NewUserRepository(pool PgxDB) *UserRepository {
 	return &UserRepository{pool: pool}
 }
 
@@ -180,4 +179,3 @@ func (r *UserRepository) UpdatePasswordHash(ctx context.Context, userID, hash st
 
 	return nil
 }
-

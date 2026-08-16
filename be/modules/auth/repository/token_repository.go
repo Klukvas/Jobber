@@ -8,16 +8,15 @@ import (
 	"github.com/andreypavlenko/jobber/modules/auth/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // RefreshTokenRepository implements ports.RefreshTokenRepository
 type RefreshTokenRepository struct {
-	pool *pgxpool.Pool
+	pool PgxDB
 }
 
 // NewRefreshTokenRepository creates a new refresh token repository
-func NewRefreshTokenRepository(pool *pgxpool.Pool) *RefreshTokenRepository {
+func NewRefreshTokenRepository(pool PgxDB) *RefreshTokenRepository {
 	return &RefreshTokenRepository{pool: pool}
 }
 

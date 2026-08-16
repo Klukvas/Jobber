@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -13,21 +14,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var errDB = errors.New("boom: db failure")
+
+func newJobRepo(t *testing.T) (*JobRepository, pgxmock.PgxPoolIface) {
+	t.Helper()
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	t.Cleanup(mock.Close)
+	return NewJobRepository(mock), mock
+}
+
 func TestJobRepository_Create(t *testing.T) {
 	t.Run("creates job successfully", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
-
+		repo, mock := newJobRepo(t)
 		stageID := "stage-wishlist"
-		job := &model.Job{
-			UserID:                 "user-123",
-			Title:                  "Software Engineer",
-			CurrentStageTemplateID: &stageID,
-		}
+		job := &model.Job{UserID: "user-123", Title: "Software Engineer", CurrentStageTemplateID: &stageID}
 
-		// New single-pipeline schema: no status column; is_archived,
-		// current_stage_template_id and applied_at are written instead.
 		mock.ExpectExec("INSERT INTO jobs").
 			WithArgs(
 				pgxmock.AnyArg(), job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Notes, job.Description,
@@ -36,82 +38,96 @@ func TestJobRepository_Create(t *testing.T) {
 			).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
-		repo := &testJobRepo{mock: mock}
-		err = repo.Create(context.Background(), job)
+		err := repo.Create(context.Background(), job)
 
 		require.NoError(t, err)
 		assert.NotEmpty(t, job.ID)
 		assert.False(t, job.IsArchived)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
+
+	t.Run("propagates db error", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+		job := &model.Job{UserID: "user-123", Title: "X"}
+
+		mock.ExpectExec("INSERT INTO jobs").
+			WithArgs(
+				pgxmock.AnyArg(), job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Notes, job.Description,
+				job.IsArchived, job.AppliedAt, job.ResumeID, job.ResumeBuilderID,
+				job.CurrentStageTemplateID, pgxmock.AnyArg(), pgxmock.AnyArg(),
+			).
+			WillReturnError(errDB)
+
+		err := repo.Create(context.Background(), job)
+
+		assert.ErrorIs(t, err, errDB)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
 }
 
 func TestJobRepository_GetByID(t *testing.T) {
-	t.Run("returns job successfully", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
+	cols := []string{
+		"id", "user_id", "company_id", "title", "source", "url", "notes", "description",
+		"is_favorite", "is_archived", "applied_at", "resume_id", "resume_builder_id",
+		"current_stage_template_id", "current_stage_id", "created_at", "updated_at",
+	}
 
-		userID := "user-123"
-		jobID := "job-1"
+	t.Run("returns job successfully", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
 		now := time.Now()
 		stageID := "stage-wishlist"
 
-		rows := pgxmock.NewRows([]string{
-			"id", "user_id", "company_id", "title", "source", "url", "notes", "description",
-			"is_favorite", "is_archived", "applied_at", "resume_id", "resume_builder_id",
-			"current_stage_template_id", "current_stage_id", "created_at", "updated_at",
-		}).AddRow(
-			jobID, userID, nil, "Software Engineer", nil, nil, nil, nil,
-			false, false, nil, nil, nil,
-			&stageID, nil, now, now,
-		)
-
 		mock.ExpectQuery("SELECT id, user_id, company_id, title").
-			WithArgs(jobID, userID).
-			WillReturnRows(rows)
+			WithArgs("job-1", "user-123").
+			WillReturnRows(pgxmock.NewRows(cols).AddRow(
+				"job-1", "user-123", nil, "Software Engineer", nil, nil, nil, nil,
+				false, false, nil, nil, nil,
+				&stageID, nil, now, now,
+			))
 
-		repo := &testJobRepo{mock: mock}
-		job, err := repo.GetByID(context.Background(), userID, jobID)
+		job, err := repo.GetByID(context.Background(), "user-123", "job-1")
 
 		require.NoError(t, err)
-		assert.Equal(t, jobID, job.ID)
+		assert.Equal(t, "job-1", job.ID)
 		assert.Equal(t, "Software Engineer", job.Title)
 		require.NotNil(t, job.CurrentStageTemplateID)
 		assert.Equal(t, stageID, *job.CurrentStageTemplateID)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("returns error when job not found", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
+	t.Run("returns not found on ErrNoRows", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
 
 		mock.ExpectQuery("SELECT id, user_id, company_id, title").
 			WithArgs("nonexistent", "user-123").
 			WillReturnError(pgx.ErrNoRows)
 
-		repo := &testJobRepo{mock: mock}
 		job, err := repo.GetByID(context.Background(), "user-123", "nonexistent")
 
 		assert.Nil(t, job)
-		assert.Equal(t, model.ErrJobNotFound, err)
+		assert.ErrorIs(t, err, model.ErrJobNotFound)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("propagates generic db error", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+
+		mock.ExpectQuery("SELECT id, user_id, company_id, title").
+			WithArgs("job-1", "user-123").
+			WillReturnError(errDB)
+
+		job, err := repo.GetByID(context.Background(), "user-123", "job-1")
+
+		assert.Nil(t, job)
+		assert.ErrorIs(t, err, errDB)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
 func TestJobRepository_Update(t *testing.T) {
 	t.Run("updates job successfully", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
-
-		job := &model.Job{
-			ID:         "job-1",
-			UserID:     "user-123",
-			Title:      "Updated Title",
-			IsArchived: true,
-		}
+		repo, mock := newJobRepo(t)
+		job := &model.Job{ID: "job-1", UserID: "user-123", Title: "Updated Title", IsArchived: true}
 
 		mock.ExpectExec("UPDATE jobs").
 			WithArgs(
@@ -121,23 +137,15 @@ func TestJobRepository_Update(t *testing.T) {
 			).
 			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
-		repo := &testJobRepo{mock: mock}
-		err = repo.Update(context.Background(), job)
+		err := repo.Update(context.Background(), job)
 
 		require.NoError(t, err)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("returns error when job not found", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
-
-		job := &model.Job{
-			ID:     "nonexistent",
-			UserID: "user-123",
-			Title:  "Test",
-		}
+	t.Run("returns not found when zero rows affected", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+		job := &model.Job{ID: "nonexistent", UserID: "user-123", Title: "Test"}
 
 		mock.ExpectExec("UPDATE jobs").
 			WithArgs(
@@ -147,106 +155,168 @@ func TestJobRepository_Update(t *testing.T) {
 			).
 			WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 
-		repo := &testJobRepo{mock: mock}
-		err = repo.Update(context.Background(), job)
+		err := repo.Update(context.Background(), job)
 
-		assert.Equal(t, model.ErrJobNotFound, err)
+		assert.ErrorIs(t, err, model.ErrJobNotFound)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("propagates db error", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+		job := &model.Job{ID: "job-1", UserID: "user-123", Title: "X"}
+
+		mock.ExpectExec("UPDATE jobs").
+			WithArgs(
+				job.ID, job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Notes, job.Description,
+				job.IsArchived, job.AppliedAt, job.ResumeID, job.ResumeBuilderID,
+				job.CurrentStageTemplateID, pgxmock.AnyArg(),
+			).
+			WillReturnError(errDB)
+
+		err := repo.Update(context.Background(), job)
+
+		assert.ErrorIs(t, err, errDB)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestJobRepository_ToggleFavorite(t *testing.T) {
+	t.Run("toggles and returns new value", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+
+		mock.ExpectQuery("UPDATE jobs SET is_favorite").
+			WithArgs("job-1", "user-123").
+			WillReturnRows(pgxmock.NewRows([]string{"is_favorite"}).AddRow(true))
+
+		fav, err := repo.ToggleFavorite(context.Background(), "user-123", "job-1")
+
+		require.NoError(t, err)
+		assert.True(t, fav)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("returns not found on ErrNoRows", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+
+		mock.ExpectQuery("UPDATE jobs SET is_favorite").
+			WithArgs("nope", "user-123").
+			WillReturnError(pgx.ErrNoRows)
+
+		fav, err := repo.ToggleFavorite(context.Background(), "user-123", "nope")
+
+		assert.False(t, fav)
+		assert.ErrorIs(t, err, model.ErrJobNotFound)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("propagates generic db error", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+
+		mock.ExpectQuery("UPDATE jobs SET is_favorite").
+			WithArgs("job-1", "user-123").
+			WillReturnError(errDB)
+
+		fav, err := repo.ToggleFavorite(context.Background(), "user-123", "job-1")
+
+		assert.False(t, fav)
+		assert.ErrorIs(t, err, errDB)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
 func TestJobRepository_Delete(t *testing.T) {
 	t.Run("deletes job successfully", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
+		repo, mock := newJobRepo(t)
 
 		mock.ExpectExec("DELETE FROM jobs").
 			WithArgs("job-1", "user-123").
 			WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
-		repo := &testJobRepo{mock: mock}
-		err = repo.Delete(context.Background(), "user-123", "job-1")
+		err := repo.Delete(context.Background(), "user-123", "job-1")
 
 		require.NoError(t, err)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("returns error when job not found", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
+	t.Run("returns not found when zero rows affected", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
 
 		mock.ExpectExec("DELETE FROM jobs").
 			WithArgs("nonexistent", "user-123").
 			WillReturnResult(pgxmock.NewResult("DELETE", 0))
 
-		repo := &testJobRepo{mock: mock}
-		err = repo.Delete(context.Background(), "user-123", "nonexistent")
+		err := repo.Delete(context.Background(), "user-123", "nonexistent")
 
-		assert.Equal(t, model.ErrJobNotFound, err)
+		assert.ErrorIs(t, err, model.ErrJobNotFound)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("propagates db error", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+
+		mock.ExpectExec("DELETE FROM jobs").
+			WithArgs("job-1", "user-123").
+			WillReturnError(errDB)
+
+		err := repo.Delete(context.Background(), "user-123", "job-1")
+
+		assert.ErrorIs(t, err, errDB)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
+// listColumns mirrors the enriched List projection Scan order (22 columns).
+var listColumns = []string{
+	"id", "company_id", "title", "source", "url", "notes", "description",
+	"is_favorite", "is_archived", "applied_at",
+	"current_stage_template_id", "current_stage_id",
+	"created_at", "updated_at",
+	"last_activity_at",
+	"company_name",
+	"resume_id", "resume_title",
+	"resume_builder_id", "resume_builder_title",
+	"current_stage_name",
+	"total_count",
+}
+
 func TestJobRepository_List(t *testing.T) {
-	// listColumns mirrors the enriched List projection.
-	listColumns := []string{
-		"id", "company_id", "title", "source", "url", "notes", "description",
-		"is_favorite", "is_archived", "applied_at",
-		"current_stage_template_id", "current_stage_id",
-		"created_at", "updated_at",
-		"company_name",
-		"total_count",
-	}
-
 	t.Run("returns jobs excluding archived by default", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
-
-		userID := "user-123"
-		opts := &ports.ListOptions{Limit: 20, Offset: 0, Status: ""}
+		repo, mock := newJobRepo(t)
 		now := time.Now()
+		companyName := "Acme"
 
-		listRows := pgxmock.NewRows(listColumns).
-			AddRow("job-1", nil, "Software Engineer", nil, nil, nil, nil, false, false, nil, nil, nil, now, now, nil, 2).
-			AddRow("job-2", nil, "Product Manager", nil, nil, nil, nil, false, false, nil, nil, nil, now, now, nil, 2)
+		rows := pgxmock.NewRows(listColumns).
+			AddRow("job-1", nil, "Software Engineer", nil, nil, nil, nil, false, false, nil, nil, nil, now, now, now, &companyName, nil, nil, nil, nil, nil, 2).
+			AddRow("job-2", nil, "Product Manager", nil, nil, nil, nil, false, false, nil, nil, nil, now, now, now, nil, nil, nil, nil, nil, nil, 2)
 
-		mock.ExpectQuery("SELECT").
-			WithArgs(userID, 20, 0).
-			WillReturnRows(listRows)
+		mock.ExpectQuery("AND j.is_archived = false").
+			WithArgs("user-123", 20, 0).
+			WillReturnRows(rows)
 
-		repo := &testJobRepo{mock: mock}
-		jobs, total, err := repo.List(context.Background(), userID, opts)
+		jobs, total, err := repo.List(context.Background(), "user-123", &ports.ListOptions{Limit: 20, Offset: 0, Status: ""})
 
 		require.NoError(t, err)
-		assert.Len(t, jobs, 2)
+		require.Len(t, jobs, 2)
 		assert.Equal(t, 2, total)
+		assert.Equal(t, "Acme", *jobs[0].CompanyName)
 		for _, j := range jobs {
-			assert.False(t, j.IsArchived, "default filter must exclude archived jobs")
+			assert.False(t, j.IsArchived)
 		}
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("archived filter returns only archived jobs", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
-
-		userID := "user-123"
-		opts := &ports.ListOptions{Limit: 20, Offset: 0, Status: "archived"}
+		repo, mock := newJobRepo(t)
 		now := time.Now()
 
-		listRows := pgxmock.NewRows(listColumns).
-			AddRow("job-3", nil, "Old Role", nil, nil, nil, nil, false, true, nil, nil, nil, now, now, nil, 1)
+		rows := pgxmock.NewRows(listColumns).
+			AddRow("job-3", nil, "Old Role", nil, nil, nil, nil, false, true, nil, nil, nil, now, now, now, nil, nil, nil, nil, nil, nil, 1)
 
-		mock.ExpectQuery("SELECT").
-			WithArgs(userID, 20, 0).
-			WillReturnRows(listRows)
+		mock.ExpectQuery("AND j.is_archived = true").
+			WithArgs("user-123", 20, 0).
+			WillReturnRows(rows)
 
-		repo := &testJobRepo{mock: mock}
-		jobs, total, err := repo.List(context.Background(), userID, opts)
+		jobs, total, err := repo.List(context.Background(), "user-123", &ports.ListOptions{Limit: 20, Offset: 0, Status: "archived"})
 
 		require.NoError(t, err)
 		require.Len(t, jobs, 1)
@@ -254,130 +324,156 @@ func TestJobRepository_List(t *testing.T) {
 		assert.True(t, jobs[0].IsArchived)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
+
+	t.Run("attaches uploaded resume nested dto", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+		now := time.Now()
+		resumeID, resumeTitle := "resume-1", "My CV"
+
+		rows := pgxmock.NewRows(listColumns).
+			AddRow("job-1", nil, "SWE", nil, nil, nil, nil, false, false, nil, nil, nil, now, now, now, nil, &resumeID, &resumeTitle, nil, nil, nil, 1)
+
+		mock.ExpectQuery("FROM jobs j").
+			WithArgs("user-123", 20, 0).
+			WillReturnRows(rows)
+
+		jobs, _, err := repo.List(context.Background(), "user-123", &ports.ListOptions{Limit: 20, Offset: 0})
+
+		require.NoError(t, err)
+		require.Len(t, jobs, 1)
+		require.NotNil(t, jobs[0].Resume)
+		assert.Equal(t, "resume-1", jobs[0].Resume.ID)
+		assert.Equal(t, "My CV", jobs[0].Resume.Name)
+		assert.Equal(t, "uploaded", jobs[0].Resume.Type)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("attaches builder resume nested dto", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+		now := time.Now()
+		builderID, builderTitle := "builder-1", "Generated"
+
+		rows := pgxmock.NewRows(listColumns).
+			AddRow("job-1", nil, "SWE", nil, nil, nil, nil, false, false, nil, nil, nil, now, now, now, nil, nil, nil, &builderID, &builderTitle, nil, 1)
+
+		mock.ExpectQuery("FROM jobs j").
+			WithArgs("user-123", 20, 0).
+			WillReturnRows(rows)
+
+		jobs, _, err := repo.List(context.Background(), "user-123", &ports.ListOptions{Limit: 20, Offset: 0})
+
+		require.NoError(t, err)
+		require.NotNil(t, jobs[0].Resume)
+		assert.Equal(t, "builder-1", jobs[0].Resume.ID)
+		assert.Equal(t, "builder", jobs[0].Resume.Type)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("applies search filter with extra arg", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+		now := time.Now()
+
+		rows := pgxmock.NewRows(listColumns).
+			AddRow("job-1", nil, "Stripe Engineer", nil, nil, nil, nil, false, false, nil, nil, nil, now, now, now, nil, nil, nil, nil, nil, nil, 1)
+
+		// search adds "%Stripe%" as $2, pushing limit/offset to $3/$4.
+		mock.ExpectQuery("ILIKE").
+			WithArgs("user-123", "%Stripe%", 20, 0).
+			WillReturnRows(rows)
+
+		jobs, total, err := repo.List(context.Background(), "user-123", &ports.ListOptions{Limit: 20, Offset: 0, Search: "Stripe"})
+
+		require.NoError(t, err)
+		require.Len(t, jobs, 1)
+		assert.Equal(t, 1, total)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("applies sort by title", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+		now := time.Now()
+
+		rows := pgxmock.NewRows(listColumns).
+			AddRow("job-1", nil, "A", nil, nil, nil, nil, false, false, nil, nil, nil, now, now, now, nil, nil, nil, nil, nil, nil, 1)
+
+		mock.ExpectQuery("ORDER BY LOWER").
+			WithArgs("user-123", 20, 0).
+			WillReturnRows(rows)
+
+		jobs, _, err := repo.List(context.Background(), "user-123", &ports.ListOptions{Limit: 20, Offset: 0, SortBy: "title", SortDir: "asc"})
+
+		require.NoError(t, err)
+		assert.Len(t, jobs, 1)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("propagates query error", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+
+		mock.ExpectQuery("FROM jobs j").
+			WithArgs("user-123", 20, 0).
+			WillReturnError(errDB)
+
+		jobs, total, err := repo.List(context.Background(), "user-123", &ports.ListOptions{Limit: 20, Offset: 0})
+
+		assert.Nil(t, jobs)
+		assert.Zero(t, total)
+		assert.ErrorIs(t, err, errDB)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("propagates scan error", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+		now := time.Now()
+
+		rows := pgxmock.NewRows(listColumns).
+			AddRow("job-1", nil, "A", nil, nil, nil, nil, false, false, nil, nil, nil, now, now, "not-a-time", nil, nil, nil, nil, nil, nil, 1)
+
+		mock.ExpectQuery("FROM jobs j").
+			WithArgs("user-123", 20, 0).
+			WillReturnRows(rows)
+
+		jobs, total, err := repo.List(context.Background(), "user-123", &ports.ListOptions{Limit: 20, Offset: 0})
+
+		assert.Nil(t, jobs)
+		assert.Zero(t, total)
+		assert.Error(t, err)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
 }
 
-// testJobRepo is a test wrapper over pgxmock that mirrors the real repository's
-// queries against the single-pipeline schema (no status column).
-type testJobRepo struct {
-	mock pgxmock.PgxPoolIface
+func TestJobRepository_GetLastActivityAt(t *testing.T) {
+	t.Run("returns last activity timestamp", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+		now := time.Now()
+
+		mock.ExpectQuery("GREATEST").
+			WithArgs("job-1", "user-123").
+			WillReturnRows(pgxmock.NewRows([]string{"last_activity_at"}).AddRow(now))
+
+		got, err := repo.GetLastActivityAt(context.Background(), "user-123", "job-1")
+
+		require.NoError(t, err)
+		assert.WithinDuration(t, now, got, time.Second)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("propagates db error", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+
+		mock.ExpectQuery("GREATEST").
+			WithArgs("job-1", "user-123").
+			WillReturnError(errDB)
+
+		_, err := repo.GetLastActivityAt(context.Background(), "user-123", "job-1")
+
+		assert.ErrorIs(t, err, errDB)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
 }
 
-func (r *testJobRepo) Create(ctx context.Context, job *model.Job) error {
-	query := `
-		INSERT INTO jobs (id, user_id, company_id, title, source, url, notes, description,
-		                  is_archived, applied_at, resume_id, resume_builder_id,
-		                  current_stage_template_id, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-	`
-	job.ID = "test-job-id"
-	now := time.Now().UTC()
-	job.CreatedAt = now
-	job.UpdatedAt = now
-
-	_, err := r.mock.Exec(ctx, query,
-		job.ID, job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Notes, job.Description,
-		job.IsArchived, job.AppliedAt, job.ResumeID, job.ResumeBuilderID,
-		job.CurrentStageTemplateID, job.CreatedAt, job.UpdatedAt,
-	)
-	return err
-}
-
-func (r *testJobRepo) GetByID(ctx context.Context, userID, jobID string) (*model.Job, error) {
-	query := `
-		SELECT id, user_id, company_id, title, source, url, notes, description,
-		       is_favorite, is_archived, applied_at, resume_id, resume_builder_id,
-		       current_stage_template_id, current_stage_id, created_at, updated_at
-		FROM jobs
-		WHERE id = $1 AND user_id = $2
-	`
-	job := &model.Job{}
-	err := r.mock.QueryRow(ctx, query, jobID, userID).Scan(
-		&job.ID, &job.UserID, &job.CompanyID, &job.Title, &job.Source, &job.URL, &job.Notes, &job.Description,
-		&job.IsFavorite, &job.IsArchived, &job.AppliedAt, &job.ResumeID, &job.ResumeBuilderID,
-		&job.CurrentStageTemplateID, &job.CurrentStageID, &job.CreatedAt, &job.UpdatedAt,
-	)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, model.ErrJobNotFound
-		}
-		return nil, err
-	}
-	return job, nil
-}
-
-func (r *testJobRepo) Update(ctx context.Context, job *model.Job) error {
-	query := `
-		UPDATE jobs
-		SET company_id = $3, title = $4, source = $5, url = $6, notes = $7, description = $8,
-		    is_archived = $9, applied_at = $10, resume_id = $11, resume_builder_id = $12,
-		    current_stage_template_id = $13, updated_at = $14
-		WHERE id = $1 AND user_id = $2
-	`
-	job.UpdatedAt = time.Now().UTC()
-	result, err := r.mock.Exec(ctx, query,
-		job.ID, job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Notes, job.Description,
-		job.IsArchived, job.AppliedAt, job.ResumeID, job.ResumeBuilderID,
-		job.CurrentStageTemplateID, job.UpdatedAt,
-	)
-	if err != nil {
-		return err
-	}
-	if result.RowsAffected() == 0 {
-		return model.ErrJobNotFound
-	}
-	return nil
-}
-
-func (r *testJobRepo) Delete(ctx context.Context, userID, jobID string) error {
-	query := `DELETE FROM jobs WHERE id = $1 AND user_id = $2`
-	result, err := r.mock.Exec(ctx, query, jobID, userID)
-	if err != nil {
-		return err
-	}
-	if result.RowsAffected() == 0 {
-		return model.ErrJobNotFound
-	}
-	return nil
-}
-
-func (r *testJobRepo) List(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.JobDTO, int, error) {
-	// The archived filter is inlined by the real repository via archivedFilter();
-	// here it is applied server-side by Postgres, so the test only supplies the
-	// user id, limit and offset args and asserts the returned rows.
-	query := `SELECT ... , COUNT(*) OVER() as total_count FROM jobs j ... WHERE j.user_id = $1` +
-		archivedFilter(opts.Status) + ` LIMIT $2 OFFSET $3`
-	rows, err := r.mock.Query(ctx, query, userID, opts.Limit, opts.Offset)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer rows.Close()
-
-	var jobs []*model.JobDTO
-	var total int
-	for rows.Next() {
-		var companyName *string
-		dto := &model.JobDTO{}
-		if err := rows.Scan(
-			&dto.ID, &dto.CompanyID, &dto.Title, &dto.Source, &dto.URL, &dto.Notes, &dto.Description,
-			&dto.IsFavorite, &dto.IsArchived, &dto.AppliedAt,
-			&dto.CurrentStageTemplateID, &dto.CurrentStageID,
-			&dto.CreatedAt, &dto.UpdatedAt,
-			&companyName,
-			&total,
-		); err != nil {
-			return nil, 0, err
-		}
-		dto.CompanyName = companyName
-		jobs = append(jobs, dto)
-	}
-
-	return jobs, total, rows.Err()
-}
-
-func (r *testJobRepo) ToggleFavorite(ctx context.Context, userID, jobID string) (bool, error) {
-	return false, nil
-}
-
-func (r *testJobRepo) GetLastActivityAt(ctx context.Context, userID, jobID string) (time.Time, error) {
-	return time.Time{}, nil
+func TestSafeString(t *testing.T) {
+	assert.Equal(t, "", safeString(nil))
+	s := "hi"
+	assert.Equal(t, "hi", safeString(&s))
 }

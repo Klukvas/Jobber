@@ -2,313 +2,339 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/andreypavlenko/jobber/modules/resumes/model"
-	"github.com/andreypavlenko/jobber/modules/resumes/ports"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestResumeRepository_Create(t *testing.T) {
-	t.Run("creates resume successfully", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
+var errDB = errors.New("boom: db failure")
 
+func newResumeRepo(t *testing.T) (*ResumeRepository, pgxmock.PgxPoolIface) {
+	t.Helper()
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	t.Cleanup(mock.Close)
+	return NewResumeRepository(mock), mock
+}
+
+func TestResumeRepository_Create(t *testing.T) {
+	t.Run("creates resume successfully and generates id", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
 		resume := &model.Resume{
 			UserID:      "user-123",
-			Title:       "Software Engineer Resume",
+			Title:       "SWE Resume",
 			StorageType: model.StorageTypeExternal,
 			IsActive:    true,
 		}
 
 		mock.ExpectExec("INSERT INTO resumes").
-			WithArgs(pgxmock.AnyArg(), resume.UserID, resume.Title, resume.FileURL, string(resume.StorageType), resume.StorageKey, resume.IsActive, pgxmock.AnyArg(), pgxmock.AnyArg()).
+			WithArgs(pgxmock.AnyArg(), resume.UserID, resume.Title, resume.FileURL, resume.StorageType, resume.StorageKey, resume.IsActive, pgxmock.AnyArg(), pgxmock.AnyArg()).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
-		repo := &testResumeRepo{mock: mock}
-		err = repo.Create(context.Background(), resume)
+		err := repo.Create(context.Background(), resume)
 
 		require.NoError(t, err)
 		assert.NotEmpty(t, resume.ID)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
-}
 
-func TestResumeRepository_GetByID(t *testing.T) {
-	t.Run("returns resume successfully", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
+	t.Run("keeps preset id (S3 upload flow)", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		resume := &model.Resume{
+			ID:          "preset-id",
+			UserID:      "user-123",
+			Title:       "SWE Resume",
+			StorageType: model.StorageTypeS3,
+		}
 
-		userID := "user-123"
-		resumeID := "resume-1"
-		now := time.Now()
+		mock.ExpectExec("INSERT INTO resumes").
+			WithArgs("preset-id", resume.UserID, resume.Title, resume.FileURL, resume.StorageType, resume.StorageKey, resume.IsActive, pgxmock.AnyArg(), pgxmock.AnyArg()).
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
-		rows := pgxmock.NewRows([]string{
-			"id", "user_id", "title", "file_url", "storage_type", "storage_key", "is_active", "created_at", "updated_at",
-		}).AddRow(
-			resumeID, userID, "My Resume", nil, "external", nil, true, now, now,
-		)
-
-		mock.ExpectQuery("SELECT id, user_id, title, file_url, storage_type, storage_key, is_active, created_at, updated_at").
-			WithArgs(resumeID, userID).
-			WillReturnRows(rows)
-
-		repo := &testResumeRepo{mock: mock}
-		resume, err := repo.GetByID(context.Background(), userID, resumeID)
+		err := repo.Create(context.Background(), resume)
 
 		require.NoError(t, err)
-		assert.Equal(t, resumeID, resume.ID)
-		assert.Equal(t, "My Resume", resume.Title)
+		assert.Equal(t, "preset-id", resume.ID)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("returns error when resume not found", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
+	t.Run("propagates db error", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		resume := &model.Resume{UserID: "user-123", Title: "X", StorageType: model.StorageTypeExternal}
 
-		mock.ExpectQuery("SELECT id, user_id, title, file_url, storage_type, storage_key, is_active, created_at, updated_at").
+		mock.ExpectExec("INSERT INTO resumes").
+			WithArgs(pgxmock.AnyArg(), resume.UserID, resume.Title, resume.FileURL, resume.StorageType, resume.StorageKey, resume.IsActive, pgxmock.AnyArg(), pgxmock.AnyArg()).
+			WillReturnError(errDB)
+
+		err := repo.Create(context.Background(), resume)
+
+		assert.ErrorIs(t, err, errDB)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestResumeRepository_GetByID(t *testing.T) {
+	cols := []string{"id", "user_id", "title", "file_url", "storage_type", "storage_key", "is_active", "created_at", "updated_at"}
+
+	t.Run("returns resume successfully", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		now := time.Now()
+
+		mock.ExpectQuery("SELECT id, user_id, title, file_url, storage_type, storage_key, is_active").
+			WithArgs("resume-1", "user-123").
+			WillReturnRows(pgxmock.NewRows(cols).AddRow(
+				"resume-1", "user-123", "My Resume", nil, "external", nil, true, now, now,
+			))
+
+		resume, err := repo.GetByID(context.Background(), "user-123", "resume-1")
+
+		require.NoError(t, err)
+		assert.Equal(t, "resume-1", resume.ID)
+		assert.Equal(t, "My Resume", resume.Title)
+		assert.Equal(t, model.StorageTypeExternal, resume.StorageType)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("returns not found on ErrNoRows", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+
+		mock.ExpectQuery("SELECT id, user_id, title, file_url, storage_type, storage_key, is_active").
 			WithArgs("nonexistent", "user-123").
 			WillReturnError(pgx.ErrNoRows)
 
-		repo := &testResumeRepo{mock: mock}
 		resume, err := repo.GetByID(context.Background(), "user-123", "nonexistent")
 
 		assert.Nil(t, resume)
-		assert.Equal(t, model.ErrResumeNotFound, err)
+		assert.ErrorIs(t, err, model.ErrResumeNotFound)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("propagates generic db error", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+
+		mock.ExpectQuery("SELECT id, user_id, title, file_url, storage_type, storage_key, is_active").
+			WithArgs("resume-1", "user-123").
+			WillReturnError(errDB)
+
+		resume, err := repo.GetByID(context.Background(), "user-123", "resume-1")
+
+		assert.Nil(t, resume)
+		assert.ErrorIs(t, err, errDB)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestResumeRepository_List(t *testing.T) {
+	listCols := []string{
+		"id", "user_id", "title", "file_url", "storage_type", "storage_key", "is_active", "created_at", "updated_at", "applications_count",
+	}
+
+	t.Run("returns resumes with count", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		now := time.Now()
+
+		mock.ExpectQuery("SELECT COUNT").
+			WithArgs("user-123").
+			WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(2))
+
+		mock.ExpectQuery("FROM resumes r").
+			WithArgs("user-123", 20, 0).
+			WillReturnRows(pgxmock.NewRows(listCols).
+				AddRow("resume-1", "user-123", "Resume A", nil, "external", nil, true, now, now, 5).
+				AddRow("resume-2", "user-123", "Resume B", nil, "s3", nil, false, now, now, 3))
+
+		resumes, total, err := repo.List(context.Background(), "user-123", 20, 0, "created_at", "desc")
+
+		require.NoError(t, err)
+		require.Len(t, resumes, 2)
+		assert.Equal(t, 2, total)
+		assert.Equal(t, "Resume A", resumes[0].Resume.Title)
+		assert.Equal(t, 5, resumes[0].ApplicationsCount)
+		assert.Equal(t, model.StorageTypeS3, resumes[1].Resume.StorageType)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("applies title asc order", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		now := time.Now()
+
+		mock.ExpectQuery("SELECT COUNT").
+			WithArgs("user-123").
+			WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
+
+		mock.ExpectQuery("ORDER BY r.title ASC").
+			WithArgs("user-123", 10, 0).
+			WillReturnRows(pgxmock.NewRows(listCols).
+				AddRow("resume-1", "user-123", "A", nil, "external", nil, true, now, now, 0))
+
+		resumes, total, err := repo.List(context.Background(), "user-123", 10, 0, "title", "asc")
+
+		require.NoError(t, err)
+		assert.Len(t, resumes, 1)
+		assert.Equal(t, 1, total)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("propagates count query error", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+
+		mock.ExpectQuery("SELECT COUNT").
+			WithArgs("user-123").
+			WillReturnError(errDB)
+
+		resumes, total, err := repo.List(context.Background(), "user-123", 20, 0, "", "")
+
+		assert.Nil(t, resumes)
+		assert.Zero(t, total)
+		assert.ErrorIs(t, err, errDB)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("propagates list query error", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+
+		mock.ExpectQuery("SELECT COUNT").
+			WithArgs("user-123").
+			WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
+		mock.ExpectQuery("FROM resumes r").
+			WithArgs("user-123", 20, 0).
+			WillReturnError(errDB)
+
+		resumes, total, err := repo.List(context.Background(), "user-123", 20, 0, "", "")
+
+		assert.Nil(t, resumes)
+		assert.Zero(t, total)
+		assert.ErrorIs(t, err, errDB)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("propagates scan error", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		now := time.Now()
+
+		mock.ExpectQuery("SELECT COUNT").
+			WithArgs("user-123").
+			WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
+		mock.ExpectQuery("FROM resumes r").
+			WithArgs("user-123", 20, 0).
+			WillReturnRows(pgxmock.NewRows(listCols).
+				AddRow("resume-1", "user-123", "A", nil, "external", nil, true, now, now, "bad"))
+
+		resumes, total, err := repo.List(context.Background(), "user-123", 20, 0, "", "")
+
+		assert.Nil(t, resumes)
+		assert.Zero(t, total)
+		assert.Error(t, err)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
 func TestResumeRepository_Update(t *testing.T) {
 	t.Run("updates resume successfully", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
-
+		repo, mock := newResumeRepo(t)
 		resume := &model.Resume{
 			ID:          "resume-1",
 			UserID:      "user-123",
-			Title:       "Updated Resume",
+			Title:       "Updated",
 			StorageType: model.StorageTypeExternal,
-			IsActive:    false,
 		}
 
 		mock.ExpectExec("UPDATE resumes").
-			WithArgs(resume.ID, resume.UserID, resume.Title, resume.FileURL, resume.IsActive, pgxmock.AnyArg()).
+			WithArgs(resume.ID, resume.UserID, resume.Title, resume.FileURL, resume.StorageType, resume.StorageKey, resume.IsActive, pgxmock.AnyArg()).
 			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
-		repo := &testResumeRepo{mock: mock}
-		err = repo.Update(context.Background(), resume)
+		err := repo.Update(context.Background(), resume)
 
 		require.NoError(t, err)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("returns error when resume not found", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
-
-		resume := &model.Resume{
-			ID:     "nonexistent",
-			UserID: "user-123",
-			Title:  "Test",
-		}
+	t.Run("returns not found when zero rows affected", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		resume := &model.Resume{ID: "nonexistent", UserID: "user-123", Title: "T", StorageType: model.StorageTypeExternal}
 
 		mock.ExpectExec("UPDATE resumes").
-			WithArgs(resume.ID, resume.UserID, resume.Title, resume.FileURL, resume.IsActive, pgxmock.AnyArg()).
+			WithArgs(resume.ID, resume.UserID, resume.Title, resume.FileURL, resume.StorageType, resume.StorageKey, resume.IsActive, pgxmock.AnyArg()).
 			WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 
-		repo := &testResumeRepo{mock: mock}
-		err = repo.Update(context.Background(), resume)
+		err := repo.Update(context.Background(), resume)
 
-		assert.Equal(t, model.ErrResumeNotFound, err)
+		assert.ErrorIs(t, err, model.ErrResumeNotFound)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("propagates db error", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		resume := &model.Resume{ID: "resume-1", UserID: "user-123", Title: "T", StorageType: model.StorageTypeExternal}
+
+		mock.ExpectExec("UPDATE resumes").
+			WithArgs(resume.ID, resume.UserID, resume.Title, resume.FileURL, resume.StorageType, resume.StorageKey, resume.IsActive, pgxmock.AnyArg()).
+			WillReturnError(errDB)
+
+		err := repo.Update(context.Background(), resume)
+
+		assert.ErrorIs(t, err, errDB)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
 func TestResumeRepository_Delete(t *testing.T) {
 	t.Run("deletes resume successfully", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
+		repo, mock := newResumeRepo(t)
 
 		mock.ExpectExec("DELETE FROM resumes").
 			WithArgs("resume-1", "user-123").
 			WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
-		repo := &testResumeRepo{mock: mock}
-		err = repo.Delete(context.Background(), "user-123", "resume-1")
+		err := repo.Delete(context.Background(), "user-123", "resume-1")
 
 		require.NoError(t, err)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("returns error when resume not found", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
+	t.Run("returns not found when zero rows affected", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
 
 		mock.ExpectExec("DELETE FROM resumes").
 			WithArgs("nonexistent", "user-123").
 			WillReturnResult(pgxmock.NewResult("DELETE", 0))
 
-		repo := &testResumeRepo{mock: mock}
-		err = repo.Delete(context.Background(), "user-123", "nonexistent")
+		err := repo.Delete(context.Background(), "user-123", "nonexistent")
 
-		assert.Equal(t, model.ErrResumeNotFound, err)
+		assert.ErrorIs(t, err, model.ErrResumeNotFound)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
-}
 
-func TestResumeRepository_List(t *testing.T) {
-	t.Run("returns resumes list", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
+	t.Run("maps foreign key violation to ErrResumeInUse", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
 
-		userID := "user-123"
+		mock.ExpectExec("DELETE FROM resumes").
+			WithArgs("resume-1", "user-123").
+			WillReturnError(&pgconn.PgError{Code: "23503"})
 
-		// Count query
-		countRows := pgxmock.NewRows([]string{"count"}).AddRow(2)
-		mock.ExpectQuery("SELECT COUNT").
-			WithArgs(userID).
-			WillReturnRows(countRows)
+		err := repo.Delete(context.Background(), "user-123", "resume-1")
 
-		// List query
-		now := time.Now()
-		listRows := pgxmock.NewRows([]string{
-			"id", "user_id", "title", "file_url", "storage_type", "storage_key", "is_active", "created_at", "updated_at", "applications_count",
-		}).
-			AddRow("resume-1", userID, "Resume A", nil, "external", nil, true, now, now, 5).
-			AddRow("resume-2", userID, "Resume B", nil, "external", nil, false, now, now, 3)
-
-		mock.ExpectQuery("SELECT r.id, r.user_id").
-			WithArgs(userID, 20, 0).
-			WillReturnRows(listRows)
-
-		repo := &testResumeRepo{mock: mock}
-		resumes, total, err := repo.List(context.Background(), userID, 20, 0, "created_at", "desc")
-
-		require.NoError(t, err)
-		assert.Len(t, resumes, 2)
-		assert.Equal(t, 2, total)
+		assert.ErrorIs(t, err, model.ErrResumeInUse)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
-}
 
-// testResumeRepo is a test wrapper that uses pgxmock
-type testResumeRepo struct {
-	mock pgxmock.PgxPoolIface
-}
+	t.Run("propagates other db error", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
 
-func (r *testResumeRepo) Create(ctx context.Context, resume *model.Resume) error {
-	query := `
-		INSERT INTO resumes (id, user_id, title, file_url, storage_type, storage_key, is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`
-	resume.ID = "test-resume-id"
-	now := time.Now().UTC()
-	resume.CreatedAt = now
-	resume.UpdatedAt = now
+		mock.ExpectExec("DELETE FROM resumes").
+			WithArgs("resume-1", "user-123").
+			WillReturnError(errDB)
 
-	_, err := r.mock.Exec(ctx, query,
-		resume.ID, resume.UserID, resume.Title, resume.FileURL, string(resume.StorageType), resume.StorageKey, resume.IsActive, resume.CreatedAt, resume.UpdatedAt,
-	)
-	return err
-}
+		err := repo.Delete(context.Background(), "user-123", "resume-1")
 
-func (r *testResumeRepo) GetByID(ctx context.Context, userID, resumeID string) (*model.Resume, error) {
-	query := `
-		SELECT id, user_id, title, file_url, storage_type, storage_key, is_active, created_at, updated_at
-		FROM resumes
-		WHERE id = $1 AND user_id = $2
-	`
-	resume := &model.Resume{}
-	var storageType string
-	err := r.mock.QueryRow(ctx, query, resumeID, userID).Scan(
-		&resume.ID, &resume.UserID, &resume.Title, &resume.FileURL, &storageType, &resume.StorageKey, &resume.IsActive, &resume.CreatedAt, &resume.UpdatedAt,
-	)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, model.ErrResumeNotFound
-		}
-		return nil, err
-	}
-	resume.StorageType = model.StorageType(storageType)
-	return resume, nil
-}
-
-func (r *testResumeRepo) Update(ctx context.Context, resume *model.Resume) error {
-	query := `
-		UPDATE resumes
-		SET title = $3, file_url = $4, is_active = $5, updated_at = $6
-		WHERE id = $1 AND user_id = $2
-	`
-	resume.UpdatedAt = time.Now().UTC()
-	result, err := r.mock.Exec(ctx, query,
-		resume.ID, resume.UserID, resume.Title, resume.FileURL, resume.IsActive, resume.UpdatedAt,
-	)
-	if err != nil {
-		return err
-	}
-	if result.RowsAffected() == 0 {
-		return model.ErrResumeNotFound
-	}
-	return nil
-}
-
-func (r *testResumeRepo) Delete(ctx context.Context, userID, resumeID string) error {
-	query := `DELETE FROM resumes WHERE id = $1 AND user_id = $2`
-	result, err := r.mock.Exec(ctx, query, resumeID, userID)
-	if err != nil {
-		return err
-	}
-	if result.RowsAffected() == 0 {
-		return model.ErrResumeNotFound
-	}
-	return nil
-}
-
-func (r *testResumeRepo) List(ctx context.Context, userID string, limit, offset int, sortBy, sortDir string) ([]*ports.ResumeWithCount, int, error) {
-	countQuery := `SELECT COUNT(*) FROM resumes WHERE user_id = $1`
-	var total int
-	if err := r.mock.QueryRow(ctx, countQuery, userID).Scan(&total); err != nil {
-		return nil, 0, err
-	}
-
-	query := `SELECT r.id, r.user_id, ... LIMIT $2 OFFSET $3`
-	rows, err := r.mock.Query(ctx, query, userID, limit, offset)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer rows.Close()
-
-	var resumes []*ports.ResumeWithCount
-	for rows.Next() {
-		resume := &model.Resume{}
-		var storageType string
-		var applicationsCount int
-
-		if err := rows.Scan(
-			&resume.ID, &resume.UserID, &resume.Title, &resume.FileURL, &storageType, &resume.StorageKey, &resume.IsActive, &resume.CreatedAt, &resume.UpdatedAt, &applicationsCount,
-		); err != nil {
-			return nil, 0, err
-		}
-
-		resume.StorageType = model.StorageType(storageType)
-		resumes = append(resumes, &ports.ResumeWithCount{
-			Resume:            resume,
-			ApplicationsCount: applicationsCount,
-		})
-	}
-
-	return resumes, total, nil
+		assert.ErrorIs(t, err, errDB)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
 }

@@ -11,16 +11,15 @@ import (
 	"github.com/andreypavlenko/jobber/modules/companies/ports"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // CompanyRepository implements ports.CompanyRepository
 type CompanyRepository struct {
-	pool *pgxpool.Pool
+	pool PgxDB
 }
 
 // NewCompanyRepository creates a new company repository
-func NewCompanyRepository(pool *pgxpool.Pool) *CompanyRepository {
+func NewCompanyRepository(pool PgxDB) *CompanyRepository {
 	return &CompanyRepository{pool: pool}
 }
 

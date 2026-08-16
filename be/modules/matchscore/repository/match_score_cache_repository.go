@@ -6,16 +6,15 @@ import (
 
 	"github.com/andreypavlenko/jobber/modules/matchscore/model"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // MatchScoreCacheRepository implements ports.MatchScoreCacheRepository using PostgreSQL.
 type MatchScoreCacheRepository struct {
-	pool *pgxpool.Pool
+	pool PgxDB
 }
 
 // NewMatchScoreCacheRepository creates a new cache repository.
-func NewMatchScoreCacheRepository(pool *pgxpool.Pool) *MatchScoreCacheRepository {
+func NewMatchScoreCacheRepository(pool PgxDB) *MatchScoreCacheRepository {
 	return &MatchScoreCacheRepository{pool: pool}
 }
 

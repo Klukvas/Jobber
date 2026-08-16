@@ -8,14 +8,13 @@ import (
 	"github.com/andreypavlenko/jobber/modules/reminders/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ReminderRepository struct {
-	pool *pgxpool.Pool
+	pool PgxDB
 }
 
-func NewReminderRepository(pool *pgxpool.Pool) *ReminderRepository {
+func NewReminderRepository(pool PgxDB) *ReminderRepository {
 	return &ReminderRepository{pool: pool}
 }
 

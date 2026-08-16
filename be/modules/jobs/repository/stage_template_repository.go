@@ -10,14 +10,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type StageTemplateRepository struct {
-	pool *pgxpool.Pool
+	pool PgxDB
 }
 
-func NewStageTemplateRepository(pool *pgxpool.Pool) *StageTemplateRepository {
+func NewStageTemplateRepository(pool PgxDB) *StageTemplateRepository {
 	return &StageTemplateRepository{pool: pool}
 }
 

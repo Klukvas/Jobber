@@ -8,16 +8,15 @@ import (
 	"github.com/andreypavlenko/jobber/modules/resumes/model"
 	"github.com/andreypavlenko/jobber/modules/resumes/ports"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type ResumeRepository struct {
-	pool *pgxpool.Pool
+	pool PgxDB
 }
 
-func NewResumeRepository(pool *pgxpool.Pool) *ResumeRepository {
+func NewResumeRepository(pool PgxDB) *ResumeRepository {
 	return &ResumeRepository{pool: pool}
 }
 

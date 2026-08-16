@@ -9,16 +9,15 @@ import (
 	userModel "github.com/andreypavlenko/jobber/modules/users/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // PasswordResetRepository implements ports.PasswordResetRepository.
 type PasswordResetRepository struct {
-	pool *pgxpool.Pool
+	pool PgxDB
 }
 
 // NewPasswordResetRepository creates a new password reset repository.
-func NewPasswordResetRepository(pool *pgxpool.Pool) *PasswordResetRepository {
+func NewPasswordResetRepository(pool PgxDB) *PasswordResetRepository {
 	return &PasswordResetRepository{pool: pool}
 }
 

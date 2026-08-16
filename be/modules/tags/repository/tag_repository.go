@@ -8,16 +8,15 @@ import (
 	"github.com/andreypavlenko/jobber/modules/tags/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const uniqueViolationCode = "23505"
 
 type TagRepository struct {
-	pool *pgxpool.Pool
+	pool PgxDB
 }
 
-func NewTagRepository(pool *pgxpool.Pool) *TagRepository {
+func NewTagRepository(pool PgxDB) *TagRepository {
 	return &TagRepository{pool: pool}
 }
 

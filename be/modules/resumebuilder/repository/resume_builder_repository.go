@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// dbQuerier is satisfied by both *pgxpool.Pool and pgx.Tx.
+// dbQuerier is satisfied by *pgxpool.Pool, *pgxpool.Conn and pgx.Tx.
 type dbQuerier interface {
 	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
@@ -23,7 +23,7 @@ type dbQuerier interface {
 
 // ResumeBuilderRepository implements ports.ResumeBuilderRepository.
 type ResumeBuilderRepository struct {
-	pool *pgxpool.Pool
+	pool PgxPool
 	q    dbQuerier
 }
 

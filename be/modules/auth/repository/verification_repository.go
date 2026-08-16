@@ -9,16 +9,15 @@ import (
 	userModel "github.com/andreypavlenko/jobber/modules/users/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // EmailVerificationRepository implements ports.EmailVerificationRepository.
 type EmailVerificationRepository struct {
-	pool *pgxpool.Pool
+	pool PgxDB
 }
 
 // NewEmailVerificationRepository creates a new email verification repository.
-func NewEmailVerificationRepository(pool *pgxpool.Pool) *EmailVerificationRepository {
+func NewEmailVerificationRepository(pool PgxDB) *EmailVerificationRepository {
 	return &EmailVerificationRepository{pool: pool}
 }
 

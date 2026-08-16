@@ -6,14 +6,13 @@ import (
 
 	"github.com/andreypavlenko/jobber/modules/comments/model"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type CommentRepository struct {
-	pool *pgxpool.Pool
+	pool PgxDB
 }
 
-func NewCommentRepository(pool *pgxpool.Pool) *CommentRepository {
+func NewCommentRepository(pool PgxDB) *CommentRepository {
 	return &CommentRepository{pool: pool}
 }
 

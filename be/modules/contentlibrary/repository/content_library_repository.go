@@ -5,16 +5,15 @@ import (
 	"fmt"
 
 	"github.com/andreypavlenko/jobber/modules/contentlibrary/model"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // ContentLibraryRepository implements ports.ContentLibraryRepository.
 type ContentLibraryRepository struct {
-	pool *pgxpool.Pool
+	pool PgxDB
 }
 
 // NewContentLibraryRepository creates a new ContentLibraryRepository.
-func NewContentLibraryRepository(pool *pgxpool.Pool) *ContentLibraryRepository {
+func NewContentLibraryRepository(pool PgxDB) *ContentLibraryRepository {
 	return &ContentLibraryRepository{pool: pool}
 }
 

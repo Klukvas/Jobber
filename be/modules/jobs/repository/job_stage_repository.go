@@ -8,14 +8,13 @@ import (
 	"github.com/andreypavlenko/jobber/modules/jobs/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type JobStageRepository struct {
-	pool *pgxpool.Pool
+	pool PgxDB
 }
 
-func NewJobStageRepository(pool *pgxpool.Pool) *JobStageRepository {
+func NewJobStageRepository(pool PgxDB) *JobStageRepository {
 	return &JobStageRepository{pool: pool}
 }
 

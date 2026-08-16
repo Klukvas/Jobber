@@ -11,16 +11,15 @@ import (
 	"github.com/andreypavlenko/jobber/modules/jobs/ports"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // JobRepository implements ports.JobRepository
 type JobRepository struct {
-	pool *pgxpool.Pool
+	pool PgxDB
 }
 
 // NewJobRepository creates a new job repository
-func NewJobRepository(pool *pgxpool.Pool) *JobRepository {
+func NewJobRepository(pool PgxDB) *JobRepository {
 	return &JobRepository{pool: pool}
 }
 

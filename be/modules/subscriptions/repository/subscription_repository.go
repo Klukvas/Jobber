@@ -6,16 +6,15 @@ import (
 
 	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // SubscriptionRepository implements ports.SubscriptionRepository with PostgreSQL.
 type SubscriptionRepository struct {
-	pool *pgxpool.Pool
+	pool PgxDB
 }
 
 // NewSubscriptionRepository creates a new SubscriptionRepository.
-func NewSubscriptionRepository(pool *pgxpool.Pool) *SubscriptionRepository {
+func NewSubscriptionRepository(pool PgxDB) *SubscriptionRepository {
 	return &SubscriptionRepository{pool: pool}
 }
 

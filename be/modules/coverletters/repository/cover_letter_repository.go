@@ -6,16 +6,15 @@ import (
 
 	"github.com/andreypavlenko/jobber/modules/coverletters/model"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // CoverLetterRepository implements ports.CoverLetterRepository.
 type CoverLetterRepository struct {
-	pool *pgxpool.Pool
+	pool PgxDB
 }
 
 // NewCoverLetterRepository creates a new CoverLetterRepository.
-func NewCoverLetterRepository(pool *pgxpool.Pool) *CoverLetterRepository {
+func NewCoverLetterRepository(pool PgxDB) *CoverLetterRepository {
 	return &CoverLetterRepository{pool: pool}
 }
 
