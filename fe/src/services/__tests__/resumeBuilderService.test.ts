@@ -168,4 +168,137 @@ describe("resumeBuilderService", () => {
     expect(sentFormData.get("title")).toBe("Custom Title");
     expect(result).toEqual(mockResponse);
   });
+
+  it("update calls PATCH on resume-builder/{id}", async () => {
+    const data = { title: "Renamed" };
+    mockApiClient.patch.mockResolvedValue({ id: "r1", ...data });
+
+    const result = await resumeBuilderService.update("r1", data as never);
+
+    expect(mockApiClient.patch).toHaveBeenCalledWith("resume-builder/r1", data);
+    expect(result).toEqual({ id: "r1", title: "Renamed" });
+  });
+
+  it("delete calls DELETE on resume-builder/{id}", async () => {
+    mockApiClient.delete.mockResolvedValue(undefined);
+
+    await resumeBuilderService.delete("r1");
+
+    expect(mockApiClient.delete).toHaveBeenCalledWith("resume-builder/r1");
+  });
+
+  it("upsertContact calls PUT on resume-builder/{id}/contact", async () => {
+    const data = { email: "me@example.com" };
+    mockApiClient.put.mockResolvedValue({ id: "ct-1", ...data });
+
+    const result = await resumeBuilderService.upsertContact(
+      "r1",
+      data as never,
+    );
+
+    expect(mockApiClient.put).toHaveBeenCalledWith(
+      "resume-builder/r1/contact",
+      data,
+    );
+    expect(result).toEqual({ id: "ct-1", email: "me@example.com" });
+  });
+
+  it("upsertSummary calls PUT on resume-builder/{id}/summary", async () => {
+    const data = { text: "A summary" };
+    mockApiClient.put.mockResolvedValue({ id: "sm-1", ...data });
+
+    await resumeBuilderService.upsertSummary("r1", data as never);
+
+    expect(mockApiClient.put).toHaveBeenCalledWith(
+      "resume-builder/r1/summary",
+      data,
+    );
+  });
+
+  it("updateSectionOrder calls PUT on resume-builder/{id}/section-order", async () => {
+    const data = { order: [{ section: "experiences", position: 0 }] };
+    mockApiClient.put.mockResolvedValue([]);
+
+    await resumeBuilderService.updateSectionOrder("r1", data as never);
+
+    expect(mockApiClient.put).toHaveBeenCalledWith(
+      "resume-builder/r1/section-order",
+      data,
+    );
+  });
+
+  describe("typed section methods delegate to the right endpoints", () => {
+    beforeEach(() => {
+      mockApiClient.post.mockResolvedValue({ id: "x" });
+      mockApiClient.patch.mockResolvedValue({ id: "x" });
+      mockApiClient.delete.mockResolvedValue(undefined);
+    });
+
+    it.each([
+      ["createExperience", "experiences"],
+      ["createEducation", "educations"],
+      ["createSkill", "skills"],
+      ["createLanguage", "languages"],
+      ["createCertification", "certifications"],
+      ["createProject", "projects"],
+      ["createVolunteering", "volunteering"],
+      ["createCustomSection", "custom-sections"],
+    ])("%s POSTs to the %s collection", async (method, section) => {
+      const data = { foo: "bar" };
+      await (
+        resumeBuilderService as unknown as Record<
+          string,
+          (id: string, d: unknown) => Promise<unknown>
+        >
+      )[method]("r1", data);
+      expect(mockApiClient.post).toHaveBeenCalledWith(
+        `resume-builder/r1/${section}`,
+        data,
+      );
+    });
+
+    it.each([
+      ["updateExperience", "experiences"],
+      ["updateEducation", "educations"],
+      ["updateSkill", "skills"],
+      ["updateLanguage", "languages"],
+      ["updateCertification", "certifications"],
+      ["updateProject", "projects"],
+      ["updateVolunteering", "volunteering"],
+      ["updateCustomSection", "custom-sections"],
+    ])("%s PATCHes the %s entry", async (method, section) => {
+      const data = { foo: "baz" };
+      await (
+        resumeBuilderService as unknown as Record<
+          string,
+          (id: string, e: string, d: unknown) => Promise<unknown>
+        >
+      )[method]("r1", "e1", data);
+      expect(mockApiClient.patch).toHaveBeenCalledWith(
+        `resume-builder/r1/${section}/e1`,
+        data,
+      );
+    });
+
+    it.each([
+      ["deleteExperience", "experiences"],
+      ["deleteEducation", "educations"],
+      ["deleteSkill", "skills"],
+      ["deleteLanguage", "languages"],
+      ["deleteCertification", "certifications"],
+      ["deleteProject", "projects"],
+      ["deleteVolunteering", "volunteering"],
+      ["deleteCustomSection", "custom-sections"],
+    ])("%s DELETEs the %s entry", async (method, section) => {
+      await (
+        resumeBuilderService as unknown as Record<
+          string,
+          (id: string, e: string) => Promise<void>
+        >
+      )[method]("r1", "e1");
+      expect(mockApiClient.delete).toHaveBeenCalledWith(
+        `resume-builder/r1/${section}/e1`,
+      );
+    });
+  });
 });
