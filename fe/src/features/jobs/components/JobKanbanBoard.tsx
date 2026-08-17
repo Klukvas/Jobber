@@ -11,7 +11,12 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryKey,
+} from "@tanstack/react-query";
 import { jobsService } from "@/services/jobsService";
 import { stageTemplatesService } from "@/services/stageTemplatesService";
 import {
@@ -37,8 +42,9 @@ export const NO_STAGE_COLUMN_ID = "__no_stage__";
 
 interface JobKanbanBoardProps {
   jobs: JobDTO[];
-  showArchived: boolean;
-  onToggleArchived: (value: boolean) => void;
+  // Exact React Query key the board's data lives under, so optimistic move
+  // updates and invalidation target the currently-filtered board.
+  queryKey: QueryKey;
   onAddComment: (job: JobDTO) => void;
   onAddStage: (job: JobDTO) => void;
   onDelete: (job: JobDTO) => void;
@@ -52,8 +58,7 @@ function columnIdForJob(job: JobDTO): string {
 
 export function JobKanbanBoard({
   jobs,
-  showArchived,
-  onToggleArchived,
+  queryKey,
   onAddComment,
   onAddStage,
   onDelete,
@@ -85,12 +90,11 @@ export function JobKanbanBoard({
     mutationFn: ({ id, stageTemplateId }: MoveVars) =>
       jobsService.move(id, { stage_template_id: stageTemplateId }),
     onMutate: async ({ id, stageTemplateId, stageName }) => {
-      await queryClient.cancelQueries({ queryKey: JOBS_KANBAN_QUERY_KEY });
-      const previous = queryClient.getQueryData<PaginatedResponse<JobDTO>>(
-        JOBS_KANBAN_QUERY_KEY,
-      );
+      await queryClient.cancelQueries({ queryKey });
+      const previous =
+        queryClient.getQueryData<PaginatedResponse<JobDTO>>(queryKey);
       queryClient.setQueryData<PaginatedResponse<JobDTO>>(
-        JOBS_KANBAN_QUERY_KEY,
+        queryKey,
         (oldData) =>
           oldData
             ? {
@@ -113,7 +117,7 @@ export function JobKanbanBoard({
       // Fold in the authoritative card so the optimistic guess converges to
       // the server truth before the reconciling refetch lands.
       queryClient.setQueryData<PaginatedResponse<JobDTO>>(
-        JOBS_KANBAN_QUERY_KEY,
+        queryKey,
         (oldData) =>
           oldData
             ? {
@@ -126,12 +130,12 @@ export function JobKanbanBoard({
     },
     onError: (_err, _vars, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(JOBS_KANBAN_QUERY_KEY, context.previous);
+        queryClient.setQueryData(queryKey, context.previous);
       }
       showErrorNotification(t("jobs.board.moveError"));
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: JOBS_KANBAN_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey });
     },
   });
 
@@ -163,9 +167,8 @@ export function JobKanbanBoard({
       const template = stageTemplates.find((tpl) => tpl.id === targetColumn);
       if (!template) return;
 
-      const cachedData = queryClient.getQueryData<PaginatedResponse<JobDTO>>(
-        JOBS_KANBAN_QUERY_KEY,
-      );
+      const cachedData =
+        queryClient.getQueryData<PaginatedResponse<JobDTO>>(queryKey);
       const currentJob = cachedData?.items.find((j) => j.id === jobId);
       if (!currentJob) return;
       if (currentJob.current_stage_template_id === template.id) return;
@@ -186,19 +189,6 @@ export function JobKanbanBoard({
 
   return (
     <div className="space-y-4">
-      {/* Archived filter */}
-      <div className="flex items-center gap-2">
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={showArchived}
-            onChange={(e) => onToggleArchived(e.target.checked)}
-            className="h-4 w-4 rounded border-input accent-primary"
-          />
-          {t("jobs.board.showArchived")}
-        </label>
-      </div>
-
       {/* Mobile accordion — replaces horizontal board on small screens */}
       <div className="md:hidden">
         <JobMobileAccordion

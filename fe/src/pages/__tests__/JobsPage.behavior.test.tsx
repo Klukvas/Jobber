@@ -278,6 +278,31 @@ describe("Jobs page", () => {
     );
   });
 
+  it("keeps search and sorting on the board view and applies them", async () => {
+    const user = userEvent.setup();
+    mockList.mockResolvedValue(paginated([makeJob()]));
+    renderPage();
+    await screen.findByText("Frontend Engineer");
+
+    await user.click(screen.getByRole("button", { name: /jobs\.viewBoard/ }));
+    await screen.findByTestId("kanban-board");
+
+    // Filter/sort/search controls render for the board too.
+    expect(screen.getByLabelText("jobs.searchPlaceholder")).toBeInTheDocument();
+
+    mockList.mockClear();
+    await user.click(
+      screen.getByRole("button", { name: /jobs\.sortJobTitle/ }),
+    );
+
+    // The board re-queries with the sort param (loading the full board).
+    await waitFor(() =>
+      expect(mockList).toHaveBeenCalledWith(
+        expect.objectContaining({ sort: "title:desc", limit: 500 }),
+      ),
+    );
+  });
+
   it("dismisses the extension banner and remembers it", async () => {
     const user = userEvent.setup();
     localStorage.removeItem("jobber-ext-banner-dismissed");

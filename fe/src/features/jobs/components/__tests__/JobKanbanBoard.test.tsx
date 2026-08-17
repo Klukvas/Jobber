@@ -105,8 +105,7 @@ function renderBoard(jobs: JobDTO[]) {
   render(
     <JobKanbanBoard
       jobs={jobs}
-      showArchived={false}
-      onToggleArchived={vi.fn()}
+      queryKey={["jobs", "kanban"]}
       onAddComment={vi.fn()}
       onAddStage={vi.fn()}
       onDelete={vi.fn()}
@@ -152,7 +151,9 @@ describe("JobKanbanBoard — single-axis columns", () => {
       active: { id: "j1" },
       over: { id: "t-screen" },
     } as unknown as DragEndEvent);
-    expect(moveMock).toHaveBeenCalledWith("j1", { stage_template_id: "t-screen" });
+    expect(moveMock).toHaveBeenCalledWith("j1", {
+      stage_template_id: "t-screen",
+    });
   });
 
   it("does not move when dropped on its current column", () => {

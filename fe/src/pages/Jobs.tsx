@@ -100,7 +100,6 @@ export default function JobsPage() {
   const [sortBy, setSortBy] = useState<SortBy>("last_activity");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [archivedFilter, setArchivedFilter] = useState<ArchivedFilter>("");
-  const [boardShowArchived, setBoardShowArchived] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebounce(searchInput.trim(), 300);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -134,7 +133,13 @@ export default function JobsPage() {
   // list uses filter/sort-specific keys.
   const queryKey =
     viewMode === "kanban"
-      ? [...JOBS_KANBAN_QUERY_KEY, boardShowArchived]
+      ? [
+          ...JOBS_KANBAN_QUERY_KEY,
+          archivedFilter,
+          sortBy,
+          sortDir,
+          debouncedSearch,
+        ]
       : [
           "jobs",
           "list",
@@ -150,7 +155,9 @@ export default function JobsPage() {
       ? {
           limit: 500,
           offset: 0,
-          status: boardShowArchived ? "all" : "active",
+          status: archivedFilter || undefined,
+          sort: `${sortBy}:${sortDir}`,
+          search: debouncedSearch || undefined,
         }
       : {
           limit: PAGE_SIZE,
@@ -315,18 +322,9 @@ export default function JobsPage() {
             </Button>
           }
         />
-      ) : viewMode === "kanban" ? (
-        <JobKanbanBoard
-          jobs={jobs}
-          showArchived={boardShowArchived}
-          onToggleArchived={setBoardShowArchived}
-          onAddComment={(job) => handleQuickAction("comment", job)}
-          onAddStage={(job) => handleQuickAction("stage", job)}
-          onDelete={(job) => handleDelete(job)}
-        />
       ) : (
         <>
-          {/* Filter + Sorting Controls */}
+          {/* Filter + Sorting Controls — shared by list and board */}
           <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -397,7 +395,15 @@ export default function JobsPage() {
             </div>
           </div>
 
-          {jobs.length === 0 ? (
+          {viewMode === "kanban" ? (
+            <JobKanbanBoard
+              jobs={jobs}
+              queryKey={queryKey}
+              onAddComment={(job) => handleQuickAction("comment", job)}
+              onAddStage={(job) => handleQuickAction("stage", job)}
+              onDelete={(job) => handleDelete(job)}
+            />
+          ) : jobs.length === 0 ? (
             <EmptyState
               icon={
                 debouncedSearch ? (
@@ -582,31 +588,33 @@ export default function JobsPage() {
             </div>
           )}
 
-          {/* Pagination */}
-          {pagination && pagination.total > PAGE_SIZE && (
-            <div className="flex justify-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
-              >
-                {t("common.previous")}
-              </Button>
-              <span className="flex items-center px-4 text-sm text-muted-foreground">
-                {t("jobs.pageOf", {
-                  page: page + 1,
-                  total: Math.ceil(pagination.total / PAGE_SIZE),
-                })}
-              </span>
-              <Button
-                variant="outline"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={(page + 1) * PAGE_SIZE >= pagination.total}
-              >
-                {t("common.next")}
-              </Button>
-            </div>
-          )}
+          {/* Pagination — list view only */}
+          {viewMode === "list" &&
+            pagination &&
+            pagination.total > PAGE_SIZE && (
+              <div className="flex justify-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                >
+                  {t("common.previous")}
+                </Button>
+                <span className="flex items-center px-4 text-sm text-muted-foreground">
+                  {t("jobs.pageOf", {
+                    page: page + 1,
+                    total: Math.ceil(pagination.total / PAGE_SIZE),
+                  })}
+                </span>
+                <Button
+                  variant="outline"
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={(page + 1) * PAGE_SIZE >= pagination.total}
+                >
+                  {t("common.next")}
+                </Button>
+              </div>
+            )}
         </>
       )}
 
