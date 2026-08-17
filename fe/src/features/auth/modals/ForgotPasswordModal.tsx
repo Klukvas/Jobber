@@ -119,8 +119,9 @@ function ModalContent({
         </DialogHeader>
         <form onSubmit={handleResetSubmit} className="mt-4 space-y-4">
           <div className="space-y-2">
-            <Label>{t("auth.verificationCode")}</Label>
+            <Label htmlFor="forgot-code">{t("auth.verificationCode")}</Label>
             <Input
+              id="forgot-code"
               value={code}
               onChange={(e) => {
                 const val = e.target.value.replace(/\D/g, "").slice(0, 6);
@@ -129,6 +130,7 @@ function ModalContent({
               }}
               placeholder="000000"
               inputMode="numeric"
+              autoComplete="one-time-code"
               maxLength={6}
               autoFocus
               className="text-center text-2xl font-mono tracking-[0.3em]"
@@ -136,13 +138,19 @@ function ModalContent({
             />
           </div>
           <div className="space-y-2">
-            <Label>{t("auth.newPassword")}</Label>
+            <Label htmlFor="forgot-new-password">{t("auth.newPassword")}</Label>
             <PasswordInput
+              id="forgot-new-password"
+              autoComplete="new-password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
             />
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
           <Button
             type="submit"
             className="w-full"
@@ -219,11 +227,18 @@ function ModalContent({
               id="forgot-email"
               type="email"
               placeholder="you@example.com"
+              autoComplete="email"
+              spellCheck={false}
+              autoCapitalize="off"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               aria-invalid={!!error}
             />
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            )}
           </div>
         </div>
         <div className="mt-6 flex flex-col gap-4">
@@ -264,7 +279,7 @@ export function ForgotPasswordModal({
     >
       <DialogContent
         onClose={() => onOpenChange(false)}
-        className="max-sm:m-0 max-sm:h-full max-sm:max-h-none max-sm:max-w-none max-sm:rounded-none max-sm:border-0"
+        className="max-sm:m-0 max-sm:h-full max-sm:max-h-none max-sm:max-w-none max-sm:rounded-none max-sm:border-0 max-sm:pt-[calc(1.5rem_+_env(safe-area-inset-top))] max-sm:pb-[calc(1.5rem_+_env(safe-area-inset-bottom))]"
       >
         <ModalContent
           key={open ? "open" : "closed"}

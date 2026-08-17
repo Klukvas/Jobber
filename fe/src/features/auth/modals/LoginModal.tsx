@@ -133,13 +133,17 @@ function ModalContent({
                   }}
                   placeholder="000000"
                   inputMode="numeric"
+                  autoComplete="one-time-code"
+                  aria-label={t("auth.verificationCode")}
                   maxLength={6}
                   autoFocus
                   className="text-center text-lg font-mono tracking-[0.3em]"
                   aria-invalid={!!codeError}
                 />
                 {codeError && (
-                  <p className="text-sm text-destructive">{codeError}</p>
+                  <p role="alert" className="text-sm text-destructive">
+                    {codeError}
+                  </p>
                 )}
                 <Button
                   type="submit"
@@ -197,12 +201,19 @@ function ModalContent({
               id="login-email"
               type="email"
               placeholder="you@example.com"
+              autoComplete="email"
+              spellCheck={false}
+              autoCapitalize="off"
               {...register("email")}
               aria-invalid={!!errors.email}
               aria-describedby={errors.email ? "login-email-error" : undefined}
             />
             {errors.email && (
-              <p id="login-email-error" className="text-sm text-destructive">
+              <p
+                id="login-email-error"
+                role="alert"
+                className="text-sm text-destructive"
+              >
                 {t(errors.email.message ?? "")}
               </p>
             )}
@@ -222,6 +233,7 @@ function ModalContent({
             </div>
             <PasswordInput
               id="login-password"
+              autoComplete="current-password"
               {...register("password")}
               aria-invalid={!!errors.password}
               aria-describedby={
@@ -229,7 +241,11 @@ function ModalContent({
               }
             />
             {errors.password && (
-              <p id="login-password-error" className="text-sm text-destructive">
+              <p
+                id="login-password-error"
+                role="alert"
+                className="text-sm text-destructive"
+              >
                 {t(errors.password.message ?? "")}
               </p>
             )}
@@ -281,7 +297,7 @@ export function LoginModal({
     >
       <DialogContent
         onClose={() => onOpenChange(false)}
-        className="max-sm:m-0 max-sm:h-full max-sm:max-h-none max-sm:max-w-none max-sm:rounded-none max-sm:border-0"
+        className="max-sm:m-0 max-sm:h-full max-sm:max-h-none max-sm:max-w-none max-sm:rounded-none max-sm:border-0 max-sm:pt-[calc(1.5rem_+_env(safe-area-inset-top))] max-sm:pb-[calc(1.5rem_+_env(safe-area-inset-bottom))]"
       >
         <ModalContent
           key={open ? "open" : "closed"}

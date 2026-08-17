@@ -178,7 +178,7 @@ export function Dialog({
           <div
             aria-hidden
             onPointerDown={(e) => dragControls.start(e)}
-            className="absolute left-1/2 top-0 z-10 -translate-x-1/2 cursor-grab touch-none px-6 py-3 active:cursor-grabbing"
+            className="absolute left-1/2 top-[env(safe-area-inset-top)] z-10 -translate-x-1/2 cursor-grab touch-none px-6 py-3 active:cursor-grabbing"
           >
             <span className="block h-1.5 w-10 rounded-full bg-muted-foreground/30" />
           </div>
@@ -219,7 +219,7 @@ export function DialogContent({
     <div
       className={cn(
         "relative m-4 max-w-lg rounded-lg border bg-background p-6 shadow-lg",
-        "max-h-[90vh] overflow-y-auto",
+        "max-h-[90vh] overflow-y-auto overscroll-contain",
         className,
       )}
       {...props}
@@ -228,7 +228,7 @@ export function DialogContent({
         <button
           onClick={onClose}
           aria-label={t("common.close")}
-          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+          className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none"
         >
           <X className="h-4 w-4" />
         </button>
