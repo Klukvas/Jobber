@@ -72,7 +72,6 @@ cors-config.json
 cors-config-fixed.json
 
 *.sh
-client_secret_*.json
 ext.zip
 
 # Playwright
