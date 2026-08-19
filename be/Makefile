@@ -65,6 +65,9 @@ migrate-down: ## Rollback database migrations
 migrate-force: ## Force migration version (usage: make migrate-force version=1)
 	migrate -path $(MIGRATIONS_PATH) -database "$(DATABASE_URL)" force $(version)
 
+repair-dev-db: ## Repair a local dev DB stuck on migration 041 (see scripts/repair-dev-db-041.sql)
+	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -f scripts/repair-dev-db-041.sql
+
 docker-up: ## Start Docker services (PostgreSQL + Redis)
 	docker-compose up -d
 
