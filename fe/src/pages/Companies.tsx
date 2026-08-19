@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { companiesService } from "@/services/companiesService";
 import { Button } from "@/shared/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
+import { CompanyAvatar } from "@/shared/ui/CompanyAvatar";
 import { ListPageSkeleton } from "@/shared/ui/PageSkeleton";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { ErrorState } from "@/shared/ui/ErrorState";
@@ -256,12 +257,18 @@ export default function Companies() {
               );
               return (
                 <div key={company.id} className="relative">
-                  <Card className="transition-all hover:shadow-md h-full group">
+                  <Card className="transition-all hover:shadow-md motion-safe:hover:-translate-y-0.5 h-full group">
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between gap-2">
-                        <CardTitle className="text-xl font-bold leading-tight flex-1">
-                          {company.name}
-                        </CardTitle>
+                        <div className="flex items-start gap-2 flex-1 min-w-0">
+                          <CompanyAvatar
+                            name={company.name}
+                            className="mt-0.5"
+                          />
+                          <CardTitle className="text-xl font-bold leading-tight min-w-0">
+                            {company.name}
+                          </CardTitle>
+                        </div>
                         <div className="flex items-center gap-1">
                           <button
                             onClick={(e) => {

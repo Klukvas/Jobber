@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -66,6 +66,14 @@ export function JobKanbanBoard({
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [activeJob, setActiveJob] = useState<JobDTO | null>(null);
+  // Card to briefly flash right after it lands in a new column.
+  const [flashId, setFlashId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!flashId) return;
+    const tid = setTimeout(() => setFlashId(null), 700);
+    return () => clearTimeout(tid);
+  }, [flashId]);
 
   const { data: stageTemplatesData } = useQuery({
     queryKey: ["stage-templates"],
@@ -127,6 +135,7 @@ export function JobKanbanBoard({
             : oldData,
       );
       showSuccessNotification(t("jobs.board.moveSuccess"));
+      setFlashId(data.id);
     },
     onError: (_err, _vars, context) => {
       if (context?.previous) {
@@ -215,6 +224,7 @@ export function JobKanbanBoard({
                 columnId={col.id}
                 label={col.label}
                 jobs={col.jobs}
+                flashId={flashId}
                 onAddComment={onAddComment}
                 onAddStage={onAddStage}
                 onDelete={onDelete}

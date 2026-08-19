@@ -12,10 +12,12 @@ import {
   MoreVertical,
   MessageSquare,
   GitBranch,
-  Building2,
   Trash2,
+  Link2,
 } from "lucide-react";
 import type { JobDTO } from "@/shared/types/api";
+import { CompanyAvatar } from "@/shared/ui/CompanyAvatar";
+import { stageColor } from "../lib/stageColors";
 
 interface JobCardBaseProps {
   job: JobDTO;
@@ -31,6 +33,8 @@ interface JobCardBaseProps {
   dragProps?: HTMLAttributes<HTMLDivElement>;
   /** Current drag state — undefined means the card is not in a drag context */
   isDragging?: boolean;
+  /** Briefly flash the card (e.g. right after it lands in a new column) */
+  flash?: boolean;
 }
 
 export const JobCardBase = memo(function JobCardBase({
@@ -43,6 +47,7 @@ export const JobCardBase = memo(function JobCardBase({
   dragStyle,
   dragProps,
   isDragging,
+  flash,
 }: JobCardBaseProps) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -88,12 +93,15 @@ export const JobCardBase = memo(function JobCardBase({
     }
   }, [menuOpen]);
 
+  const stage = stageColor(job.current_stage_name, job.is_archived);
   const outerClassName = [
-    "rounded-lg border bg-card p-3 shadow-sm transition-all",
+    "rounded-lg border border-l-4 bg-card p-3 shadow-sm transition-all",
+    stage.border,
     isDraggable ? "cursor-grab active:cursor-grabbing group" : "",
     isDragging
       ? "opacity-50 shadow-lg ring-2 ring-primary/20"
-      : "hover:shadow-md",
+      : "hover:shadow-md motion-safe:hover:-translate-y-0.5",
+    flash ? "animate-flash" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -183,16 +191,16 @@ export const JobCardBase = memo(function JobCardBase({
       </div>
 
       {job.company_name && (
-        <div className="flex items-center gap-1.5 mt-1.5 text-xs text-muted-foreground">
-          <Building2 className="h-3 w-3 flex-shrink-0" />
+        <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground">
+          <CompanyAvatar name={job.company_name} size="sm" />
           <span className="truncate">{job.company_name}</span>
         </div>
       )}
 
-      {job.current_stage_name && (
+      {job.source && (
         <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
-          <GitBranch className="h-3 w-3 flex-shrink-0" />
-          <span className="truncate">{job.current_stage_name}</span>
+          <Link2 className="h-3 w-3 flex-shrink-0" />
+          <span className="truncate">{job.source}</span>
         </div>
       )}
     </div>

@@ -58,11 +58,21 @@ export default {
             boxShadow: "0 0 0 6px hsl(var(--primary) / 0)",
           },
         },
+        flash: {
+          "0%": { boxShadow: "0 0 0 0 hsl(var(--primary) / 0.5)" },
+          "100%": { boxShadow: "0 0 0 8px hsl(var(--primary) / 0)" },
+        },
+        growBar: {
+          from: { width: "0%" },
+          to: { width: "var(--bar-w, 100%)" },
+        },
       },
       animation: {
         "fade-in-up": "fadeInUp 0.6s ease-out forwards",
         "fade-in": "fadeIn 0.5s ease-out forwards",
         "onboarding-pulse": "onboardingPulse 2s ease-in-out infinite",
+        flash: "flash 0.7s ease-out",
+        "grow-bar": "growBar 0.7s ease-out",
       },
       borderRadius: {
         lg: "var(--radius)",

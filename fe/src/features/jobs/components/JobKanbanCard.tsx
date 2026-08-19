@@ -6,6 +6,7 @@ import type { JobDTO } from "@/shared/types/api";
 
 interface JobKanbanCardProps {
   job: JobDTO;
+  flash?: boolean;
   onAddComment: (job: JobDTO) => void;
   onAddStage: (job: JobDTO) => void;
   onDelete: (job: JobDTO) => void;
@@ -13,6 +14,7 @@ interface JobKanbanCardProps {
 
 export const JobKanbanCard = memo(function JobKanbanCard({
   job,
+  flash,
   onAddComment,
   onAddStage,
   onDelete,
@@ -41,6 +43,7 @@ export const JobKanbanCard = memo(function JobKanbanCard({
       dragStyle={dragStyle}
       dragProps={{ ...listeners, ...attributes }}
       isDragging={isDragging}
+      flash={flash}
     />
   );
 });

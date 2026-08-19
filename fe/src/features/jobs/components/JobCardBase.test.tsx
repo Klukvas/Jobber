@@ -16,6 +16,7 @@ const job: JobDTO = {
   is_archived: false,
   is_favorite: false,
   company_name: "Acme",
+  source: "LinkedIn",
   current_stage_template_id: "tpl-1",
   current_stage_name: "Screening",
   last_activity_at: "2026-08-01T00:00:00Z",
@@ -41,11 +42,13 @@ function renderCard(
 describe("JobCardBase — content", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("shows the title, company, and current stage (its column)", () => {
+  it("shows the title, company, and source (stage is conveyed by its column)", () => {
     renderCard();
     expect(screen.getByText("Backend Engineer")).toBeInTheDocument();
     expect(screen.getByText("Acme")).toBeInTheDocument();
-    expect(screen.getByText("Screening")).toBeInTheDocument();
+    expect(screen.getByText("LinkedIn")).toBeInTheDocument();
+    // The stage name lives in the column header, not on the card.
+    expect(screen.queryByText("Screening")).not.toBeInTheDocument();
   });
 });
 
