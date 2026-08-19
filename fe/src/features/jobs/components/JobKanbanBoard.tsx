@@ -179,7 +179,7 @@ export function JobKanbanBoard({
         stageName: template.name,
       });
     },
-    [stageTemplates, queryClient, moveJob],
+    [stageTemplates, queryClient, moveJob, queryKey],
   );
 
   const columns = useMemo(
