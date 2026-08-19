@@ -9,7 +9,8 @@
   // synchronously — not inside the async init — and over runtime messaging (not
   // a page-dispatchable window event) so a page script can't trigger autofill of
   // the user's PII.
-  chrome.runtime.onMessage.addListener((message) => {
+  chrome.runtime.onMessage.addListener((message, sender) => {
+    if (sender.id !== chrome.runtime.id) return;
     if (message?.action === "jobber-autofill") runAutofillFromTrigger();
   });
 
@@ -34,12 +35,14 @@
   // ── Field Detection Patterns ─────────────────────────
 
   const PATTERNS = {
-    firstName: /first[\s_-]*name|given[\s_-]*name|fname|prénom/i,
-    lastName: /last[\s_-]*name|family[\s_-]*name|surname|lname/i,
-    // The bare "name" alternative excludes "<word> name" (Company Name, User
-    // Name, …) via the lookbehind, so it only matches a standalone Name field.
+    // \bfname\b / \blname\b anchored so they don't match inside "fullName".
+    firstName: /first[\s_-]*name|given[\s_-]*name|\bfname\b|prénom/i,
+    lastName: /last[\s_-]*name|family[\s_-]*name|surname|\blname\b/i,
+    // Person-name fields, plus a bare "name" that excludes non-person
+    // "<x> name" labels (Company Name, User Name, …) via the blocklist
+    // lookbehind — while still matching "Candidate Name", "Employee Name", etc.
     fullName:
-      /full[\s_-]*name|your[\s_-]*name|applicant[\s_-]*name|legal[\s_-]*name|(?<![a-z][\s_-])\bname\b/i,
+      /full[\s_-]*name|your[\s_-]*name|applicant[\s_-]*name|legal[\s_-]*name|preferred[\s_-]*name|candidate[\s_-]*name|(?<!(?:company|business|organization|organisation|employer|user|account|file|screen|display|brand|product|project|event|team|nick|db|table|field)[\s_-])\bname\b/i,
     email: /email|e[\s_-]*mail/i,
     phone: /phone|tel(?:ephone)?|mobile|cell/i,
     location: /city|location|address(?!.*email)/i,
@@ -298,12 +301,12 @@
   // ── Form Detection ───────────────────────────────────
 
   function isVisible(el) {
-    return (
-      el.offsetParent !== null ||
-      el.closest(
-        '[role="dialog"], [style*="position: fixed"], [style*="position:fixed"]',
-      ) !== null
-    );
+    // getClientRects is empty for display:none / detached elements (incl. fields
+    // inside a closed modal) but non-empty for visible fixed-position elements —
+    // more reliable than offsetParent, which is null for position:fixed too.
+    if (el.getClientRects().length === 0) return false;
+    const style = getComputedStyle(el);
+    return style.visibility !== "hidden" && style.display !== "none";
   }
 
   function hasApplicationForm() {

@@ -107,12 +107,6 @@ function showSaveState(state) {
   document.getElementById(`save-${state}`).classList.remove("hidden");
 }
 
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
-}
-
 function handleSessionExpired() {
   JobberAPI.logout();
   viewMain.classList.add("hidden");
@@ -146,18 +140,18 @@ async function init() {
 
 let pendingParseListening = false;
 function listenForPendingParse() {
-  // Guard against stacking a listener on every panel reopen — two live handlers
-  // would both fire and double-invoke the parse, burning two parse credits.
+  // Register exactly one persistent listener for the panel's lifetime (the flag
+  // guards against stacking one on every reopen, which would double-parse). It
+  // stays armed rather than removing itself, so a pendingParse written after a
+  // stale/missed one is still handled; checkPendingParse guards freshness and
+  // clears the item.
   if (pendingParseListening) return;
   pendingParseListening = true;
-  const handler = async (changes, area) => {
+  chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "session" && changes.pendingParse?.newValue) {
-      chrome.storage.onChanged.removeListener(handler);
-      pendingParseListening = false;
-      await checkPendingParse();
+      checkPendingParse();
     }
-  };
-  chrome.storage.onChanged.addListener(handler);
+  });
 }
 
 function showMainView() {
@@ -603,16 +597,30 @@ async function loadJobs() {
     jobs.forEach((job) => {
       const el = document.createElement("a");
       el.className = "job-item";
-      el.href = `${baseUrl}/app/jobs/${job.id}`;
+      el.href = `${baseUrl}/app/jobs/${encodeURIComponent(job.id)}`;
       el.target = "_blank";
       el.rel = "noopener";
-      el.innerHTML = `
-        <div class="job-item-title">${escapeHtml(job.title)}</div>
-        <div class="job-item-meta">
-          ${job.company_name ? `<span>${escapeHtml(job.company_name)}</span>` : ""}
-          ${job.source ? `<span class="job-item-source">${escapeHtml(job.source)}</span>` : ""}
-        </div>
-      `;
+
+      const title = document.createElement("div");
+      title.className = "job-item-title";
+      title.textContent = job.title || "";
+      el.appendChild(title);
+
+      const meta = document.createElement("div");
+      meta.className = "job-item-meta";
+      if (job.company_name) {
+        const company = document.createElement("span");
+        company.textContent = job.company_name;
+        meta.appendChild(company);
+      }
+      if (job.source) {
+        const source = document.createElement("span");
+        source.className = "job-item-source";
+        source.textContent = job.source;
+        meta.appendChild(source);
+      }
+      el.appendChild(meta);
+
       jobsList.appendChild(el);
     });
   } catch (err) {

@@ -211,16 +211,23 @@
     });
   }
 
-  // Trailing debounce: reset the timer on each mutation so the FINAL DOM state
-  // is processed. A leading debounce (return-if-pending) drops the last burst,
-  // which is exactly the infinite-scroll cards we need to catch.
+  // Trailing debounce with a max-wait ceiling: reset the timer on each mutation
+  // so the FINAL DOM state is processed (a leading debounce drops the last burst
+  // of infinite-scroll cards), but force a run after 1.5s so a busy SPA whose
+  // mutations never pause for 500ms doesn't starve the scan indefinitely.
+  const DEBOUNCE_MS = 500;
+  const MAX_WAIT_MS = 1500;
   let processTimeout = null;
+  let firstScheduledAt = 0;
   function scheduleProcess() {
-    if (processTimeout) clearTimeout(processTimeout);
+    const now = Date.now();
+    if (!processTimeout) firstScheduledAt = now;
+    else clearTimeout(processTimeout);
+    const wait = now - firstScheduledAt >= MAX_WAIT_MS ? 0 : DEBOUNCE_MS;
     processTimeout = setTimeout(() => {
       processTimeout = null;
       processCards();
-    }, 500);
+    }, wait);
   }
 
   async function init() {

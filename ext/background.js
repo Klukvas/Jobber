@@ -119,8 +119,14 @@ async function openSidePanelWithPageData(tab) {
 // ── Message Handling ───────────────────────────────────
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Only our own content scripts / extension pages can reach us
+  // (externally_connectable is absent) — assert it as defence-in-depth.
+  if (sender.id !== chrome.runtime.id) return false;
+
   if (message.action === "updateBadge") {
-    updateBadge(message.count);
+    if (Number.isFinite(message.count) && message.count >= 0) {
+      updateBadge(message.count);
+    }
     sendResponse({ ok: true });
     return false;
   }
@@ -135,18 +141,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.action === "quickSave") {
     handleQuickSave(message).then(sendResponse);
-    return true;
-  }
-
-  if (message.action === "openSidePanel") {
-    (async () => {
-      const [tab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-      if (tab) await openSidePanelWithPageData(tab);
-      sendResponse({ ok: true });
-    })();
     return true;
   }
 
@@ -199,17 +193,20 @@ async function refreshTokens(apiBase) {
   }
 }
 
-// Fetch with the bearer token; on 401, refresh once and retry.
-async function swAuthedFetch(apiBase, path, options, accessToken) {
+// Fetch with the current bearer token; on 401, refresh once and retry. Reads the
+// token from storage on each call so a refresh triggered by an earlier request
+// is picked up — avoids sending a rotated-away token on the following call.
+async function swAuthedFetch(apiBase, path, options) {
   const send = (token) =>
     fetch(`${apiBase}${path}`, {
       ...options,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
         ...(options.headers || {}),
+        Authorization: `Bearer ${token}`,
       },
     });
+  const { accessToken } = await chrome.storage.local.get("accessToken");
   let res = await send(accessToken);
   if (res.status === 401) {
     const fresh = await refreshTokens(apiBase);
@@ -236,33 +233,34 @@ async function handleQuickSave({ title, company, url, source }) {
     // Create company if name provided (best-effort — a failure just omits it)
     let companyId;
     if (company) {
-      const compRes = await swAuthedFetch(
-        apiBase,
-        "/api/v1/companies",
-        { method: "POST", body: JSON.stringify({ name: company }) },
-        accessToken,
-      );
+      const compRes = await swAuthedFetch(apiBase, "/api/v1/companies", {
+        method: "POST",
+        body: JSON.stringify({ name: company }),
+      });
+      if (compRes.status === 401) {
+        return {
+          error: "Session expired. Open the Jobber extension to sign in again.",
+        };
+      }
       if (compRes.ok) {
         const c = await compRes.json();
         companyId = c.id;
       }
     }
 
+    // Only store a real http(s) job URL — never a javascript:/data: scheme.
+    const safeUrl = url && /^https?:\/\//i.test(url) ? url : undefined;
+
     // Create job
-    const jobRes = await swAuthedFetch(
-      apiBase,
-      "/api/v1/jobs",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          title,
-          company_id: companyId || undefined,
-          source: source || undefined,
-          url: url || undefined,
-        }),
-      },
-      accessToken,
-    );
+    const jobRes = await swAuthedFetch(apiBase, "/api/v1/jobs", {
+      method: "POST",
+      body: JSON.stringify({
+        title,
+        company_id: companyId || undefined,
+        source: source || undefined,
+        url: safeUrl,
+      }),
+    });
 
     if (jobRes.status === 401) {
       return {

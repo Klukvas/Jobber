@@ -130,8 +130,10 @@ const JobberAPI = (() => {
     if (response.status === 401) {
       const refreshed = await refreshAccessToken();
       if (refreshed) {
-        headers["Authorization"] = `Bearer ${_accessToken}`;
-        return fetch(`${_apiBase}${path}`, { ...options, headers });
+        return fetch(`${_apiBase}${path}`, {
+          ...options,
+          headers: { ...headers, Authorization: `Bearer ${_accessToken}` },
+        });
       }
     }
 
