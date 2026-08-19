@@ -5,13 +5,41 @@
 
   let profile = null;
 
+  // Autofill trigger from the background (right-click context menu). Registered
+  // synchronously — not inside the async init — and over runtime messaging (not
+  // a page-dispatchable window event) so a page script can't trigger autofill of
+  // the user's PII.
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message?.action === "jobber-autofill") runAutofillFromTrigger();
+  });
+
+  async function runAutofillFromTrigger() {
+    if (!profile) {
+      const data = await chrome.storage.local.get("autofillProfile");
+      profile = data.autofillProfile || null;
+    }
+    if (!profile?.contact) return;
+
+    const { filled } = autofillPage();
+    createButton();
+
+    const btn = document.getElementById("jobber-autofill-btn");
+    if (!btn) return;
+    btn.textContent =
+      filled > 0 ? `✓ Filled ${filled} fields` : "No matching fields";
+    if (filled > 0) btn.classList.add("jobber-autofill-success");
+    setTimeout(() => resetButton(btn), 3000);
+  }
+
   // ── Field Detection Patterns ─────────────────────────
 
   const PATTERNS = {
     firstName: /first[\s_-]*name|given[\s_-]*name|fname|prénom/i,
     lastName: /last[\s_-]*name|family[\s_-]*name|surname|lname/i,
+    // The bare "name" alternative excludes "<word> name" (Company Name, User
+    // Name, …) via the lookbehind, so it only matches a standalone Name field.
     fullName:
-      /full[\s_-]*name|your[\s_-]*name|\bname\b|applicant[\s_-]*name|legal[\s_-]*name/i,
+      /full[\s_-]*name|your[\s_-]*name|applicant[\s_-]*name|legal[\s_-]*name|(?<![a-z][\s_-])\bname\b/i,
     email: /email|e[\s_-]*mail/i,
     phone: /phone|tel(?:ephone)?|mobile|cell/i,
     location: /city|location|address(?!.*email)/i,
@@ -56,7 +84,8 @@
     // Direct <label>
     const directLabel =
       field.closest("label") ||
-      (field.id && document.querySelector(`label[for="${field.id}"]`));
+      (field.id &&
+        document.querySelector(`label[for="${CSS.escape(field.id)}"]`));
     if (directLabel) ids.push(directLabel.textContent.trim());
 
     // Parent container label (common in ATS form builders)
@@ -163,11 +192,23 @@
 
   function fillSelect(select, value) {
     const lower = value.toLowerCase();
-    const option = Array.from(select.options).find(
-      (opt) =>
-        opt.value.toLowerCase().includes(lower) ||
-        opt.textContent.trim().toLowerCase().includes(lower),
-    );
+    const opts = Array.from(select.options);
+    const optText = (o) => o.textContent.trim().toLowerCase();
+    // Prefer exact match, then prefix, then substring — so "US" doesn't land on
+    // "Australia".
+    const option =
+      opts.find(
+        (o) => o.value.toLowerCase() === lower || optText(o) === lower,
+      ) ||
+      opts.find(
+        (o) =>
+          o.value.toLowerCase().startsWith(lower) ||
+          optText(o).startsWith(lower),
+      ) ||
+      opts.find(
+        (o) =>
+          o.value.toLowerCase().includes(lower) || optText(o).includes(lower),
+      );
 
     if (option) {
       select.value = option.value;
@@ -305,31 +346,6 @@
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === "local" && changes.autofillProfile) {
         profile = changes.autofillProfile.newValue || null;
-      }
-    });
-
-    // Listen for immediate autofill trigger (right-click context menu)
-    window.addEventListener("jobber-autofill-trigger", async () => {
-      if (!profile) {
-        const data = await chrome.storage.local.get("autofillProfile");
-        profile = data.autofillProfile || null;
-      }
-
-      if (!profile?.contact) return;
-
-      const { filled } = autofillPage();
-      createButton();
-
-      const btn = document.getElementById("jobber-autofill-btn");
-      if (btn) {
-        if (filled > 0) {
-          btn.textContent = `\u2713 Filled ${filled} fields`;
-          btn.classList.add("jobber-autofill-success");
-          setTimeout(() => resetButton(btn), 3000);
-        } else {
-          btn.textContent = "No matching fields";
-          setTimeout(() => resetButton(btn), 3000);
-        }
       }
     });
   }

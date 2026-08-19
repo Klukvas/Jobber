@@ -1,5 +1,8 @@
 // Content script: adds "Save to Jobber" buttons on job board listing pages
 (() => {
+  if (window.__jobberJobboardsInit) return;
+  window.__jobberJobboardsInit = true;
+
   const BOARD_CONFIGS = {
     "linkedin.com": {
       domains: ["linkedin.com"],
@@ -61,12 +64,13 @@
     },
   };
 
-  // Detect current board
-  const hostname = location.hostname.replace("www.", "");
+  // Detect current board — exact host or a subdomain of it, not any substring
+  // ("notlinkedin.com" / "linkedin.com.evil" must NOT match).
+  const hostname = location.hostname.replace(/^www\./, "");
   let config = null;
   for (const [, cfg] of Object.entries(BOARD_CONFIGS)) {
     const domains = cfg.domains || [];
-    if (domains.some((d) => hostname.includes(d))) {
+    if (domains.some((d) => hostname === d || hostname.endsWith("." + d))) {
       config = cfg;
       break;
     }
@@ -189,6 +193,13 @@
             }, 3000);
           }
         });
+      } else {
+        // A "Saved" button is inert; stop the click from bubbling to the card
+        // link and navigating away.
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        });
       }
 
       // Position the button inside the card
@@ -200,10 +211,12 @@
     });
   }
 
-  // Debounce MutationObserver callbacks
+  // Trailing debounce: reset the timer on each mutation so the FINAL DOM state
+  // is processed. A leading debounce (return-if-pending) drops the last burst,
+  // which is exactly the infinite-scroll cards we need to catch.
   let processTimeout = null;
   function scheduleProcess() {
-    if (processTimeout) return;
+    if (processTimeout) clearTimeout(processTimeout);
     processTimeout = setTimeout(() => {
       processTimeout = null;
       processCards();

@@ -95,6 +95,10 @@ const JobberAPI = (() => {
       });
       if (!res.ok) {
         _accessToken = null;
+        // Drop the dead tokens from storage too, or other contexts (the
+        // background alarm, a reopened popup/panel) would keep reviving the
+        // stale access token and loop on 401.
+        await chrome.storage.local.remove(["accessToken", "refreshToken"]);
         return false;
       }
 
@@ -179,6 +183,9 @@ const JobberAPI = (() => {
       method: "POST",
       body: JSON.stringify({ name }),
     });
+    // Surface an expired session instead of silently saving the job with no
+    // company; other statuses stay best-effort (null => caller omits company).
+    if (response.status === 401) throw new Error("SESSION_EXPIRED");
     if (!response.ok) return null;
     return response.json();
   }

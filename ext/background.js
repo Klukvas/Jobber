@@ -14,6 +14,12 @@ function getSafeApiBase(storedBase) {
   return storedBase && isAllowedOrigin(storedBase) ? storedBase : API_BASE;
 }
 
+// Clicking the toolbar icon opens the side panel (the single primary UI).
+// Registered at the top level so it applies on every service-worker spin-up.
+chrome.sidePanel
+  .setPanelBehavior({ openPanelOnActionClick: true })
+  .catch(() => {});
+
 // ── Setup ──────────────────────────────────────────────
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -60,12 +66,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         target: { tabId: tab.id },
         files: ["content/autofill.js"],
       });
-      // Trigger autofill immediately (don't wait for button click)
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: () =>
-          window.dispatchEvent(new CustomEvent("jobber-autofill-trigger")),
-      });
+      // Trigger via runtime messaging (not a page-dispatchable window event) so
+      // a page script can't silently trigger autofill of the user's PII.
+      await chrome.tabs.sendMessage(tab.id, { action: "jobber-autofill" });
     } catch (err) {
       console.warn("[Jobber] Autofill injection failed:", err.message);
     }
@@ -123,7 +126,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === "extractPageText") {
-    extractPageText(message.tabId).then(sendResponse);
+    // A content-script sender may only read its own tab; the side panel (an
+    // extension page, so no sender.tab) passes the target tabId explicitly.
+    const tabId = sender.tab ? sender.tab.id : message.tabId;
+    extractPageText(tabId).then(sendResponse);
     return true;
   }
 
@@ -164,6 +170,54 @@ async function extractPageText(tabId) {
   }
 }
 
+// ── Auth (service-worker side) ─────────────────────────
+
+// Refresh the access token from the stored refresh token. Returns the new
+// access token, or null (and clears the dead tokens) on failure. Shared by the
+// refresh alarm and quick-save so the auth logic lives in one place.
+async function refreshTokens(apiBase) {
+  const { refreshToken } = await chrome.storage.local.get("refreshToken");
+  if (!refreshToken) return null;
+  try {
+    const res = await fetch(`${apiBase}/api/v1/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!res.ok) {
+      await chrome.storage.local.remove(["accessToken", "refreshToken"]);
+      return null;
+    }
+    const data = await res.json();
+    await chrome.storage.local.set({
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+    });
+    return data.access_token;
+  } catch {
+    return null;
+  }
+}
+
+// Fetch with the bearer token; on 401, refresh once and retry.
+async function swAuthedFetch(apiBase, path, options, accessToken) {
+  const send = (token) =>
+    fetch(`${apiBase}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        ...(options.headers || {}),
+      },
+    });
+  let res = await send(accessToken);
+  if (res.status === 401) {
+    const fresh = await refreshTokens(apiBase);
+    if (fresh) res = await send(fresh);
+  }
+  return res;
+}
+
 // ── Quick Save (from content scripts) ──────────────────
 
 async function handleQuickSave({ title, company, url, source }) {
@@ -177,20 +231,17 @@ async function handleQuickSave({ title, company, url, source }) {
   }
 
   const apiBase = getSafeApiBase(storedBase);
-  const headers = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${accessToken}`,
-  };
 
   try {
-    // Create company if name provided
+    // Create company if name provided (best-effort — a failure just omits it)
     let companyId;
     if (company) {
-      const compRes = await fetch(`${apiBase}/api/v1/companies`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ name: company }),
-      });
+      const compRes = await swAuthedFetch(
+        apiBase,
+        "/api/v1/companies",
+        { method: "POST", body: JSON.stringify({ name: company }) },
+        accessToken,
+      );
       if (compRes.ok) {
         const c = await compRes.json();
         companyId = c.id;
@@ -198,17 +249,26 @@ async function handleQuickSave({ title, company, url, source }) {
     }
 
     // Create job
-    const jobRes = await fetch(`${apiBase}/api/v1/jobs`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        title,
-        company_id: companyId || undefined,
-        source: source || undefined,
-        url: url || undefined,
-      }),
-    });
+    const jobRes = await swAuthedFetch(
+      apiBase,
+      "/api/v1/jobs",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          title,
+          company_id: companyId || undefined,
+          source: source || undefined,
+          url: url || undefined,
+        }),
+      },
+      accessToken,
+    );
 
+    if (jobRes.status === 401) {
+      return {
+        error: "Session expired. Open the Jobber extension to sign in again.",
+      };
+    }
     if (jobRes.status === 403) {
       return {
         error: "Jobs limit reached. Upgrade your plan at jobber-app.com.",
@@ -260,33 +320,6 @@ chrome.runtime.onStartup.addListener(async () => {
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== REFRESH_ALARM) return;
-
-  const { refreshToken, apiBase } = await chrome.storage.local.get([
-    "refreshToken",
-    "apiBase",
-  ]);
-  if (!refreshToken) return;
-
-  const base = getSafeApiBase(apiBase);
-
-  try {
-    const response = await fetch(`${base}/api/v1/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-
-    if (!response.ok) {
-      await chrome.storage.local.remove(["accessToken", "refreshToken"]);
-      return;
-    }
-
-    const data = await response.json();
-    await chrome.storage.local.set({
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token,
-    });
-  } catch {
-    // Network error — will retry on next alarm
-  }
+  const { apiBase } = await chrome.storage.local.get("apiBase");
+  await refreshTokens(getSafeApiBase(apiBase));
 });

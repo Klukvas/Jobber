@@ -76,6 +76,9 @@ const spMatchMissing = document.getElementById("sp-match-missing");
 const usageBar = document.getElementById("usage-bar");
 
 let lastSavedJob = null;
+// Full URL of the active tab, cached so the parse click can request host access
+// for it synchronously (permissions.request must run inside a user gesture).
+let currentTabUrl = null;
 
 // ── Helpers ────────────────────────────────────────────
 
@@ -86,6 +89,15 @@ function showError(el, msg) {
 
 function hideError(el) {
   el.classList.add("hidden");
+}
+
+// Unwrap a list endpoint response into an array, tolerant of the shapes the API
+// has returned over time (bare array, {items}, {resumes}, {jobs}, {data}) and of
+// a null body — Go serializes an empty slice as null, which used to crash the
+// callers with "Cannot read properties of null (reading 'items')".
+function unwrapList(data) {
+  if (Array.isArray(data)) return data;
+  return data?.items || data?.resumes || data?.jobs || data?.data || [];
 }
 
 function showSaveState(state) {
@@ -132,10 +144,16 @@ async function init() {
   }
 }
 
+let pendingParseListening = false;
 function listenForPendingParse() {
+  // Guard against stacking a listener on every panel reopen — two live handlers
+  // would both fire and double-invoke the parse, burning two parse credits.
+  if (pendingParseListening) return;
+  pendingParseListening = true;
   const handler = async (changes, area) => {
     if (area === "session" && changes.pendingParse?.newValue) {
       chrome.storage.onChanged.removeListener(handler);
+      pendingParseListening = false;
       await checkPendingParse();
     }
   };
@@ -152,6 +170,7 @@ function showMainView() {
 async function updateCurrentUrl() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (tab?.url) {
+    currentTabUrl = tab.url;
     try {
       currentUrlEl.textContent = new URL(tab.url).hostname;
     } catch {
@@ -322,7 +341,33 @@ async function parseWithData(pageData) {
   }
 }
 
-btnParse.addEventListener("click", parseCurrentPage);
+// The page can be any origin, but we only hold host access for jobber-app.com by
+// default — so extraction rode the gesture-scoped `activeTab` grant and broke on
+// the second parse (after "Save Another"). Request persistent host access to the
+// current tab's origin first, inside the click gesture, so re-parsing works.
+btnParse.addEventListener("click", () => {
+  requestHostAccess().then((granted) => {
+    if (granted) {
+      parseCurrentPage();
+    } else {
+      showError(idleError, "Grant access to this page to parse it.");
+    }
+  });
+});
+
+// Promise for host access to the active tab's origin. Must be the first async
+// call in the click handler to satisfy permissions.request()'s user-gesture
+// requirement; an already-granted origin resolves true without a prompt.
+function requestHostAccess() {
+  if (!currentTabUrl) return Promise.resolve(true);
+  let originPattern;
+  try {
+    originPattern = `${new URL(currentTabUrl).origin}/*`;
+  } catch {
+    return Promise.resolve(true);
+  }
+  return chrome.permissions.request({ origins: [originPattern] });
+}
 
 // ── Save ───────────────────────────────────────────────
 
@@ -425,9 +470,7 @@ async function loadSpMatchResumes() {
   const hint = document.getElementById("sp-match-hint");
   try {
     const data = await JobberAPI.listResumes(50);
-    const resumes = Array.isArray(data)
-      ? data
-      : data.items || data.resumes || data.data || [];
+    const resumes = unwrapList(data);
 
     spMatchResumeSelect.innerHTML =
       '<option value="">Select resume for match\u2026</option>';
@@ -547,9 +590,7 @@ async function loadJobs() {
 
   try {
     const data = await JobberAPI.listJobs(20);
-    const jobs = Array.isArray(data)
-      ? data
-      : data.items || data.jobs || data.data || [];
+    const jobs = unwrapList(data);
 
     jobsLoading.classList.add("hidden");
 
@@ -605,9 +646,7 @@ async function showAutofillSetup() {
 
   try {
     const data = await JobberAPI.listResumeBuilders();
-    const resumes = Array.isArray(data)
-      ? data
-      : data.items || data.resumes || data.data || [];
+    const resumes = unwrapList(data);
 
     autofillResumeSelect.innerHTML =
       '<option value="">Select a resume\u2026</option>';
