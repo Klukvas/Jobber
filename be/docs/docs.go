@@ -4222,9 +4222,6 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
-                "notes": {
-                    "type": "string"
-                },
                 "resume_builder_id": {
                     "type": "string"
                 },
@@ -4308,9 +4305,6 @@ const docTemplate = `{
                     }
                 },
                 "last_activity_at": {
-                    "type": "string"
-                },
-                "notes": {
                     "type": "string"
                 },
                 "resume": {
@@ -4438,9 +4432,6 @@ const docTemplate = `{
                 "is_archived": {
                     "description": "archive / unarchive",
                     "type": "boolean"
-                },
-                "notes": {
-                    "type": "string"
                 },
                 "resume_builder_id": {
                     "type": "string"

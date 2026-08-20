@@ -80,7 +80,6 @@ function makeJob(overrides: Partial<JobDTO> = {}): JobDTO {
     url: "https://example.com",
     source: "LinkedIn",
     description: "desc",
-    notes: "notes",
     is_archived: false,
     is_favorite: false,
     created_at: "2025-01-01T00:00:00Z",
@@ -138,7 +137,6 @@ describe("useJobDetailMutations helpers", () => {
       url: null as never,
       source: null as never,
       description: null as never,
-      notes: null as never,
     });
     expect(fieldsFromJob(job)).toEqual({
       title: "Engineer",
@@ -146,7 +144,6 @@ describe("useJobDetailMutations helpers", () => {
       url: "",
       source: "",
       description: "",
-      notes: "",
     });
   });
 
@@ -155,7 +152,7 @@ describe("useJobDetailMutations helpers", () => {
     const fields = fieldsFromJob(job);
     expect(hasChanges(fields, job)).toBe(false);
     expect(hasChanges({ ...fields, title: "Changed" }, job)).toBe(true);
-    expect(hasChanges({ ...fields, notes: "new" }, job)).toBe(true);
+    expect(hasChanges({ ...fields, description: "new" }, job)).toBe(true);
   });
 
   it("resumeSelectValue builds type:id string or empty", () => {
@@ -187,7 +184,6 @@ describe("useJobDetailMutations", () => {
           url: "https://x.com",
           source: "",
           description: "",
-          notes: "",
         } as Partial<EditableFields>);
       });
 
@@ -201,7 +197,6 @@ describe("useJobDetailMutations", () => {
         url: "https://x.com",
         source: undefined,
         description: undefined,
-        notes: undefined,
       });
       expect(invalidateSpy).toHaveBeenCalledWith({
         queryKey: ["job", "job-1"],

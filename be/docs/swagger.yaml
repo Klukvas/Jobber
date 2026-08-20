@@ -317,8 +317,6 @@ definitions:
         type: string
       description:
         type: string
-      notes:
-        type: string
       resume_builder_id:
         type: string
       resume_id:
@@ -378,8 +376,6 @@ definitions:
           $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_comments_model.CommentDTO'
         type: array
       last_activity_at:
-        type: string
-      notes:
         type: string
       resume:
         $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.ResumeNestedDTO'
@@ -464,8 +460,6 @@ definitions:
       is_archived:
         description: archive / unarchive
         type: boolean
-      notes:
-        type: string
       resume_builder_id:
         type: string
       resume_id:

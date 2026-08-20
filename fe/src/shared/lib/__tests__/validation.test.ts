@@ -222,7 +222,6 @@ describe("validation schemas", () => {
         companyId: "company-1",
         url: "https://example.com/job",
         source: "LinkedIn",
-        notes: "Great opportunity",
         description: "Full-stack role",
       });
       expect(result.success).toBe(true);

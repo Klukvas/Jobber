@@ -27,10 +27,10 @@ func NewJobRepository(pool PgxDB) *JobRepository {
 // written (it keeps its DB default until migration 041 drops it).
 func (r *JobRepository) Create(ctx context.Context, job *model.Job) error {
 	query := `
-		INSERT INTO jobs (id, user_id, company_id, title, source, url, notes, description,
+		INSERT INTO jobs (id, user_id, company_id, title, source, url, description,
 		                  is_archived, applied_at, resume_id, resume_builder_id,
 		                  current_stage_template_id, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	`
 
 	job.ID = uuid.New().String()
@@ -39,7 +39,7 @@ func (r *JobRepository) Create(ctx context.Context, job *model.Job) error {
 	job.UpdatedAt = now
 
 	_, err := r.pool.Exec(ctx, query,
-		job.ID, job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Notes, job.Description,
+		job.ID, job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Description,
 		job.IsArchived, job.AppliedAt, job.ResumeID, job.ResumeBuilderID,
 		job.CurrentStageTemplateID, job.CreatedAt, job.UpdatedAt,
 	)
@@ -50,7 +50,7 @@ func (r *JobRepository) Create(ctx context.Context, job *model.Job) error {
 // GetByID retrieves a job by ID
 func (r *JobRepository) GetByID(ctx context.Context, userID, jobID string) (*model.Job, error) {
 	query := `
-		SELECT id, user_id, company_id, title, source, url, notes, description,
+		SELECT id, user_id, company_id, title, source, url, description,
 		       is_favorite, is_archived, applied_at, resume_id, resume_builder_id,
 		       current_stage_template_id, current_stage_id, created_at, updated_at
 		FROM jobs
@@ -59,7 +59,7 @@ func (r *JobRepository) GetByID(ctx context.Context, userID, jobID string) (*mod
 
 	job := &model.Job{}
 	err := r.pool.QueryRow(ctx, query, jobID, userID).Scan(
-		&job.ID, &job.UserID, &job.CompanyID, &job.Title, &job.Source, &job.URL, &job.Notes, &job.Description,
+		&job.ID, &job.UserID, &job.CompanyID, &job.Title, &job.Source, &job.URL, &job.Description,
 		&job.IsFavorite, &job.IsArchived, &job.AppliedAt, &job.ResumeID, &job.ResumeBuilderID,
 		&job.CurrentStageTemplateID, &job.CurrentStageID, &job.CreatedAt, &job.UpdatedAt,
 	)
@@ -147,7 +147,7 @@ func (r *JobRepository) List(ctx context.Context, userID string, opts *ports.Lis
 			GROUP BY job_id
 		)
 		SELECT
-			j.id, j.company_id, j.title, j.source, j.url, j.notes, j.description,
+			j.id, j.company_id, j.title, j.source, j.url, j.description,
 			j.is_favorite, j.is_archived, j.applied_at,
 			j.current_stage_template_id, j.current_stage_id,
 			j.created_at, j.updated_at,
@@ -191,7 +191,7 @@ func (r *JobRepository) List(ctx context.Context, userID string, opts *ports.Lis
 		var currentStageName *string
 
 		if err := rows.Scan(
-			&dto.ID, &dto.CompanyID, &dto.Title, &dto.Source, &dto.URL, &dto.Notes, &dto.Description,
+			&dto.ID, &dto.CompanyID, &dto.Title, &dto.Source, &dto.URL, &dto.Description,
 			&dto.IsFavorite, &dto.IsArchived, &dto.AppliedAt,
 			&dto.CurrentStageTemplateID, &dto.CurrentStageID,
 			&dto.CreatedAt, &dto.UpdatedAt,
@@ -237,16 +237,16 @@ func safeString(s *string) string {
 func (r *JobRepository) Update(ctx context.Context, job *model.Job) error {
 	query := `
 		UPDATE jobs
-		SET company_id = $3, title = $4, source = $5, url = $6, notes = $7, description = $8,
-		    is_archived = $9, applied_at = $10, resume_id = $11, resume_builder_id = $12,
-		    current_stage_template_id = $13, updated_at = $14
+		SET company_id = $3, title = $4, source = $5, url = $6, description = $7,
+		    is_archived = $8, applied_at = $9, resume_id = $10, resume_builder_id = $11,
+		    current_stage_template_id = $12, updated_at = $13
 		WHERE id = $1 AND user_id = $2
 	`
 
 	job.UpdatedAt = time.Now().UTC()
 
 	result, err := r.pool.Exec(ctx, query,
-		job.ID, job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Notes, job.Description,
+		job.ID, job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Description,
 		job.IsArchived, job.AppliedAt, job.ResumeID, job.ResumeBuilderID,
 		job.CurrentStageTemplateID, job.UpdatedAt,
 	)

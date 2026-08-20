@@ -4216,9 +4216,6 @@
                 "description": {
                     "type": "string"
                 },
-                "notes": {
-                    "type": "string"
-                },
                 "resume_builder_id": {
                     "type": "string"
                 },
@@ -4302,9 +4299,6 @@
                     }
                 },
                 "last_activity_at": {
-                    "type": "string"
-                },
-                "notes": {
                     "type": "string"
                 },
                 "resume": {
@@ -4432,9 +4426,6 @@
                 "is_archived": {
                     "description": "archive / unarchive",
                     "type": "boolean"
-                },
-                "notes": {
-                    "type": "string"
                 },
                 "resume_builder_id": {
                     "type": "string"

@@ -192,20 +192,12 @@ const JobberAPI = (() => {
     return response.json();
   }
 
-  async function createJob({
-    title,
-    companyId,
-    source,
-    url,
-    notes,
-    description,
-  }) {
+  async function createJob({ title, companyId, source, url, description }) {
     const body = {
       title,
       company_id: companyId || undefined,
       source: source || undefined,
       url: url || undefined,
-      notes: notes || undefined,
       description: description || undefined,
     };
 

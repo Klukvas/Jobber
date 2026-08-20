@@ -32,7 +32,7 @@ func TestJobRepository_Create(t *testing.T) {
 
 		mock.ExpectExec("INSERT INTO jobs").
 			WithArgs(
-				pgxmock.AnyArg(), job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Notes, job.Description,
+				pgxmock.AnyArg(), job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Description,
 				job.IsArchived, job.AppliedAt, job.ResumeID, job.ResumeBuilderID,
 				job.CurrentStageTemplateID, pgxmock.AnyArg(), pgxmock.AnyArg(),
 			).
@@ -52,7 +52,7 @@ func TestJobRepository_Create(t *testing.T) {
 
 		mock.ExpectExec("INSERT INTO jobs").
 			WithArgs(
-				pgxmock.AnyArg(), job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Notes, job.Description,
+				pgxmock.AnyArg(), job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Description,
 				job.IsArchived, job.AppliedAt, job.ResumeID, job.ResumeBuilderID,
 				job.CurrentStageTemplateID, pgxmock.AnyArg(), pgxmock.AnyArg(),
 			).
@@ -67,7 +67,7 @@ func TestJobRepository_Create(t *testing.T) {
 
 func TestJobRepository_GetByID(t *testing.T) {
 	cols := []string{
-		"id", "user_id", "company_id", "title", "source", "url", "notes", "description",
+		"id", "user_id", "company_id", "title", "source", "url", "description",
 		"is_favorite", "is_archived", "applied_at", "resume_id", "resume_builder_id",
 		"current_stage_template_id", "current_stage_id", "created_at", "updated_at",
 	}
@@ -80,7 +80,7 @@ func TestJobRepository_GetByID(t *testing.T) {
 		mock.ExpectQuery("SELECT id, user_id, company_id, title").
 			WithArgs("job-1", "user-123").
 			WillReturnRows(pgxmock.NewRows(cols).AddRow(
-				"job-1", "user-123", nil, "Software Engineer", nil, nil, nil, nil,
+				"job-1", "user-123", nil, "Software Engineer", nil, nil, nil,
 				false, false, nil, nil, nil,
 				&stageID, nil, now, now,
 			))
@@ -131,7 +131,7 @@ func TestJobRepository_Update(t *testing.T) {
 
 		mock.ExpectExec("UPDATE jobs").
 			WithArgs(
-				job.ID, job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Notes, job.Description,
+				job.ID, job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Description,
 				job.IsArchived, job.AppliedAt, job.ResumeID, job.ResumeBuilderID,
 				job.CurrentStageTemplateID, pgxmock.AnyArg(),
 			).
@@ -149,7 +149,7 @@ func TestJobRepository_Update(t *testing.T) {
 
 		mock.ExpectExec("UPDATE jobs").
 			WithArgs(
-				job.ID, job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Notes, job.Description,
+				job.ID, job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Description,
 				job.IsArchived, job.AppliedAt, job.ResumeID, job.ResumeBuilderID,
 				job.CurrentStageTemplateID, pgxmock.AnyArg(),
 			).
@@ -167,7 +167,7 @@ func TestJobRepository_Update(t *testing.T) {
 
 		mock.ExpectExec("UPDATE jobs").
 			WithArgs(
-				job.ID, job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Notes, job.Description,
+				job.ID, job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Description,
 				job.IsArchived, job.AppliedAt, job.ResumeID, job.ResumeBuilderID,
 				job.CurrentStageTemplateID, pgxmock.AnyArg(),
 			).
@@ -265,9 +265,9 @@ func TestJobRepository_Delete(t *testing.T) {
 	})
 }
 
-// listColumns mirrors the enriched List projection Scan order (22 columns).
+// listColumns mirrors the enriched List projection Scan order (21 columns).
 var listColumns = []string{
-	"id", "company_id", "title", "source", "url", "notes", "description",
+	"id", "company_id", "title", "source", "url", "description",
 	"is_favorite", "is_archived", "applied_at",
 	"current_stage_template_id", "current_stage_id",
 	"created_at", "updated_at",
@@ -286,8 +286,8 @@ func TestJobRepository_List(t *testing.T) {
 		companyName := "Acme"
 
 		rows := pgxmock.NewRows(listColumns).
-			AddRow("job-1", nil, "Software Engineer", nil, nil, nil, nil, false, false, nil, nil, nil, now, now, now, &companyName, nil, nil, nil, nil, nil, 2).
-			AddRow("job-2", nil, "Product Manager", nil, nil, nil, nil, false, false, nil, nil, nil, now, now, now, nil, nil, nil, nil, nil, nil, 2)
+			AddRow("job-1", nil, "Software Engineer", nil, nil, nil, false, false, nil, nil, nil, now, now, now, &companyName, nil, nil, nil, nil, nil, 2).
+			AddRow("job-2", nil, "Product Manager", nil, nil, nil, false, false, nil, nil, nil, now, now, now, nil, nil, nil, nil, nil, nil, 2)
 
 		mock.ExpectQuery("AND j.is_archived = false").
 			WithArgs("user-123", 20, 0).
@@ -310,7 +310,7 @@ func TestJobRepository_List(t *testing.T) {
 		now := time.Now()
 
 		rows := pgxmock.NewRows(listColumns).
-			AddRow("job-3", nil, "Old Role", nil, nil, nil, nil, false, true, nil, nil, nil, now, now, now, nil, nil, nil, nil, nil, nil, 1)
+			AddRow("job-3", nil, "Old Role", nil, nil, nil, false, true, nil, nil, nil, now, now, now, nil, nil, nil, nil, nil, nil, 1)
 
 		mock.ExpectQuery("AND j.is_archived = true").
 			WithArgs("user-123", 20, 0).
@@ -331,7 +331,7 @@ func TestJobRepository_List(t *testing.T) {
 		resumeID, resumeTitle := "resume-1", "My CV"
 
 		rows := pgxmock.NewRows(listColumns).
-			AddRow("job-1", nil, "SWE", nil, nil, nil, nil, false, false, nil, nil, nil, now, now, now, nil, &resumeID, &resumeTitle, nil, nil, nil, 1)
+			AddRow("job-1", nil, "SWE", nil, nil, nil, false, false, nil, nil, nil, now, now, now, nil, &resumeID, &resumeTitle, nil, nil, nil, 1)
 
 		mock.ExpectQuery("FROM jobs j").
 			WithArgs("user-123", 20, 0).
@@ -354,7 +354,7 @@ func TestJobRepository_List(t *testing.T) {
 		builderID, builderTitle := "builder-1", "Generated"
 
 		rows := pgxmock.NewRows(listColumns).
-			AddRow("job-1", nil, "SWE", nil, nil, nil, nil, false, false, nil, nil, nil, now, now, now, nil, nil, nil, &builderID, &builderTitle, nil, 1)
+			AddRow("job-1", nil, "SWE", nil, nil, nil, false, false, nil, nil, nil, now, now, now, nil, nil, nil, &builderID, &builderTitle, nil, 1)
 
 		mock.ExpectQuery("FROM jobs j").
 			WithArgs("user-123", 20, 0).
@@ -374,7 +374,7 @@ func TestJobRepository_List(t *testing.T) {
 		now := time.Now()
 
 		rows := pgxmock.NewRows(listColumns).
-			AddRow("job-1", nil, "Stripe Engineer", nil, nil, nil, nil, false, false, nil, nil, nil, now, now, now, nil, nil, nil, nil, nil, nil, 1)
+			AddRow("job-1", nil, "Stripe Engineer", nil, nil, nil, false, false, nil, nil, nil, now, now, now, nil, nil, nil, nil, nil, nil, 1)
 
 		// search adds "%Stripe%" as $2, pushing limit/offset to $3/$4.
 		mock.ExpectQuery("ILIKE").
@@ -394,7 +394,7 @@ func TestJobRepository_List(t *testing.T) {
 		now := time.Now()
 
 		rows := pgxmock.NewRows(listColumns).
-			AddRow("job-1", nil, "A", nil, nil, nil, nil, false, false, nil, nil, nil, now, now, now, nil, nil, nil, nil, nil, nil, 1)
+			AddRow("job-1", nil, "A", nil, nil, nil, false, false, nil, nil, nil, now, now, now, nil, nil, nil, nil, nil, nil, 1)
 
 		mock.ExpectQuery("ORDER BY LOWER").
 			WithArgs("user-123", 20, 0).
@@ -427,7 +427,7 @@ func TestJobRepository_List(t *testing.T) {
 		now := time.Now()
 
 		rows := pgxmock.NewRows(listColumns).
-			AddRow("job-1", nil, "A", nil, nil, nil, nil, false, false, nil, nil, nil, now, now, "not-a-time", nil, nil, nil, nil, nil, nil, 1)
+			AddRow("job-1", nil, "A", nil, nil, nil, false, false, nil, nil, nil, now, now, "not-a-time", nil, nil, nil, nil, nil, nil, 1)
 
 		mock.ExpectQuery("FROM jobs j").
 			WithArgs("user-123", 20, 0).

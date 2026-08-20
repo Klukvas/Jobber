@@ -68,7 +68,6 @@ function makeJob(overrides: Partial<JobDTO> = {}): JobDTO {
     company_id: "c1",
     url: "https://x.com",
     source: "LinkedIn",
-    notes: "n",
     description: "d",
     is_archived: false,
     created_at: "2025-01-01T00:00:00Z",
@@ -91,11 +90,7 @@ describe("CreateJobModal submit behavior", () => {
     mockJobsService.create.mockResolvedValue({ id: "new-1" });
 
     render(
-      <CreateJobModal
-        open
-        onOpenChange={onOpenChange}
-        onCreated={onCreated}
-      />,
+      <CreateJobModal open onOpenChange={onOpenChange} onCreated={onCreated} />,
     );
 
     await user.type(screen.getByLabelText(/jobs.title_field/), "New Role");
@@ -108,7 +103,6 @@ describe("CreateJobModal submit behavior", () => {
         company_id: undefined,
         url: undefined,
         source: "Referral",
-        notes: undefined,
         description: undefined,
       }),
     );
@@ -140,9 +134,7 @@ describe("CreateJobModal submit behavior", () => {
     const onOpenChange = vi.fn();
     mockJobsService.update.mockResolvedValue(makeJob());
 
-    render(
-      <CreateJobModal open onOpenChange={onOpenChange} job={makeJob()} />,
-    );
+    render(<CreateJobModal open onOpenChange={onOpenChange} job={makeJob()} />);
 
     // Edit mode uses the "save" label and prefills the title.
     const title = screen.getByLabelText(/jobs.title_field/);
@@ -157,7 +149,6 @@ describe("CreateJobModal submit behavior", () => {
         company_id: "c1",
         url: "https://x.com",
         source: "LinkedIn",
-        notes: "n",
         description: "d",
       }),
     );

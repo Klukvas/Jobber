@@ -38,7 +38,6 @@ function makeFields(overrides: Partial<EditableFields> = {}): EditableFields {
     url: "",
     source: "",
     description: "",
-    notes: "",
     ...overrides,
   };
 }

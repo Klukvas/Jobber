@@ -10,7 +10,6 @@ type CreateJobRequest struct {
 	Title           string  `json:"title" binding:"required,min=1,max=255"`
 	Source          *string `json:"source,omitempty"`
 	URL             *string `json:"url,omitempty"`
-	Notes           *string `json:"notes,omitempty"`
 	Description     *string `json:"description,omitempty"`
 	StageTemplateID *string `json:"stage_template_id,omitempty"` // column to place into; default = first
 	ResumeID        *string `json:"resume_id,omitempty"`
@@ -23,7 +22,6 @@ type UpdateJobRequest struct {
 	Title           *string `json:"title,omitempty"`
 	Source          *string `json:"source,omitempty"`
 	URL             *string `json:"url,omitempty"`
-	Notes           *string `json:"notes,omitempty"`
 	Description     *string `json:"description,omitempty"`
 	IsArchived      *bool   `json:"is_archived,omitempty"` // archive / unarchive
 	ResumeID        *string `json:"resume_id,omitempty"`

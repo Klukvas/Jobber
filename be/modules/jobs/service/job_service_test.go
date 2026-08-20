@@ -192,7 +192,6 @@ func TestJobService_Create(t *testing.T) {
 		companyID := "company-1"
 		source := "LinkedIn"
 		url := "https://linkedin.com/jobs/123"
-		notes := "Interesting role"
 
 		mockRepo := &MockJobRepository{
 			CreateFunc: func(ctx context.Context, job *model.Job) error {
@@ -208,7 +207,6 @@ func TestJobService_Create(t *testing.T) {
 			CompanyID: &companyID,
 			Source:    &source,
 			URL:       &url,
-			Notes:     &notes,
 		}
 
 		_, err := svc.Create(context.Background(), userID, req)
@@ -217,7 +215,6 @@ func TestJobService_Create(t *testing.T) {
 		assert.Equal(t, &companyID, createdJob.CompanyID)
 		assert.Equal(t, &source, createdJob.Source)
 		assert.Equal(t, &url, createdJob.URL)
-		assert.Equal(t, &notes, createdJob.Notes)
 	})
 
 	t.Run("returns error from repository", func(t *testing.T) {
@@ -865,7 +862,6 @@ func TestJobService_Update_CompanyValidation(t *testing.T) {
 		existingJob := &model.Job{ID: jobID, UserID: userID, Title: "Job Title"}
 		source := "LinkedIn"
 		url := "https://linkedin.com/jobs/123"
-		notes := "Great opportunity"
 		desc := "Job description"
 
 		var updatedJob *model.Job
@@ -883,7 +879,6 @@ func TestJobService_Update_CompanyValidation(t *testing.T) {
 		result, err := svc.Update(context.Background(), userID, jobID, &model.UpdateJobRequest{
 			Source:      &source,
 			URL:         &url,
-			Notes:       &notes,
 			Description: &desc,
 		})
 
@@ -891,7 +886,6 @@ func TestJobService_Update_CompanyValidation(t *testing.T) {
 		assert.NotNil(t, result)
 		assert.Equal(t, &source, updatedJob.Source)
 		assert.Equal(t, &url, updatedJob.URL)
-		assert.Equal(t, &notes, updatedJob.Notes)
 		assert.Equal(t, &desc, updatedJob.Description)
 	})
 

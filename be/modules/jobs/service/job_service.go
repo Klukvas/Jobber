@@ -178,7 +178,6 @@ func (s *JobService) Create(ctx context.Context, userID string, req *model.Creat
 		Title:                  strings.TrimSpace(req.Title),
 		Source:                 req.Source,
 		URL:                    req.URL,
-		Notes:                  req.Notes,
 		Description:            req.Description,
 		CurrentStageTemplateID: &placement.ID,
 	}
@@ -316,9 +315,6 @@ func (s *JobService) Update(ctx context.Context, userID, jobID string, req *mode
 	}
 	if req.URL != nil {
 		job.URL = req.URL
-	}
-	if req.Notes != nil {
-		job.Notes = req.Notes
 	}
 	descriptionChanged := false
 	if req.Description != nil {

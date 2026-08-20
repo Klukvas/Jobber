@@ -385,45 +385,45 @@ func main() {
 	// job_stages path history. A card without current_stage_template_id would
 	// not appear on the board, so it's set here for all jobs.
 	type job struct {
-		id, companyID, title, source, url, notes string
-		daysAgo                                  int
+		id, companyID, title, source, url string
+		daysAgo                           int
 	}
 
 	jobs := []job{
-		{newID(), companies[0].id, "Senior Software Engineer", "LinkedIn", "https://linkedin.com/jobs/1001", "Exciting ML team", 85},
-		{newID(), companies[0].id, "Staff Engineer - Platform", "Company Website", "https://technova.io/careers/staff", "Platform team, high impact", 60},
-		{newID(), companies[1].id, "Backend Engineer (Go)", "Indeed", "https://indeed.com/jobs/2001", "Remote-first, Go + K8s", 80},
-		{newID(), companies[1].id, "Senior Backend Engineer", "Referral", "", "Referred by Sarah Chen", 45},
-		{newID(), companies[2].id, "Full-Stack Developer", "LinkedIn", "https://linkedin.com/jobs/3001", "React + Node stack", 75},
-		{newID(), companies[2].id, "Frontend Engineer", "AngelList", "https://angel.co/datapulse/frontend", "Design-focused role", 90},
-		{newID(), companies[3].id, "Software Engineer II", "Company Website", "https://greenbyte.dev/careers", "Green tech mission", 70},
-		{newID(), companies[3].id, "DevOps Engineer", "LinkedIn", "https://linkedin.com/jobs/4002", "Terraform + AWS focus", 88},
-		{newID(), companies[4].id, "ML Engineer", "Hacker News", "https://quantumlabs.ai/jobs/ml", "PyTorch, transformers research", 65},
-		{newID(), companies[4].id, "Senior Software Engineer - AI", "Company Website", "https://quantumlabs.ai/jobs/swe-ai", "LLM infra work", 50},
-		{newID(), companies[5].id, "Backend Engineer - Payments", "LinkedIn", "https://linkedin.com/jobs/6001", "Payments domain, Go + gRPC", 55},
-		{newID(), companies[5].id, "Senior Full-Stack Engineer", "Indeed", "https://indeed.com/jobs/6002", "React + Go, equity package", 40},
-		{newID(), companies[6].id, "Frontend Engineer - React", "AngelList", "https://angel.co/pixelcraft/react", "Creative tooling, WebGL", 72},
-		{newID(), companies[6].id, "UI Engineer", "LinkedIn", "https://linkedin.com/jobs/7002", "Design systems team", 85},
-		{newID(), companies[7].id, "Platform Engineer", "Referral", "", "Referred by Mike Torres", 35},
-		{newID(), companies[7].id, "SRE", "Indeed", "https://indeed.com/jobs/8002", "On-call rotation, good comp", 68},
-		{newID(), companies[0].id, "Engineering Manager", "LinkedIn", "https://linkedin.com/jobs/1003", "People management + IC hybrid", 25},
-		{newID(), companies[2].id, "Data Engineer", "Company Website", "https://datapulse.io/careers/data-eng", "Spark, Airflow, dbt", 30},
-		{newID(), companies[4].id, "Research Engineer", "Hacker News", "", "Published papers preferred", 95},
-		{newID(), companies[5].id, "VP of Engineering", "Referral", "", "Leadership role, pre-IPO equity", 20},
+		{newID(), companies[0].id, "Senior Software Engineer", "LinkedIn", "https://linkedin.com/jobs/1001", 85},
+		{newID(), companies[0].id, "Staff Engineer - Platform", "Company Website", "https://technova.io/careers/staff", 60},
+		{newID(), companies[1].id, "Backend Engineer (Go)", "Indeed", "https://indeed.com/jobs/2001", 80},
+		{newID(), companies[1].id, "Senior Backend Engineer", "Referral", "", 45},
+		{newID(), companies[2].id, "Full-Stack Developer", "LinkedIn", "https://linkedin.com/jobs/3001", 75},
+		{newID(), companies[2].id, "Frontend Engineer", "AngelList", "https://angel.co/datapulse/frontend", 90},
+		{newID(), companies[3].id, "Software Engineer II", "Company Website", "https://greenbyte.dev/careers", 70},
+		{newID(), companies[3].id, "DevOps Engineer", "LinkedIn", "https://linkedin.com/jobs/4002", 88},
+		{newID(), companies[4].id, "ML Engineer", "Hacker News", "https://quantumlabs.ai/jobs/ml", 65},
+		{newID(), companies[4].id, "Senior Software Engineer - AI", "Company Website", "https://quantumlabs.ai/jobs/swe-ai", 50},
+		{newID(), companies[5].id, "Backend Engineer - Payments", "LinkedIn", "https://linkedin.com/jobs/6001", 55},
+		{newID(), companies[5].id, "Senior Full-Stack Engineer", "Indeed", "https://indeed.com/jobs/6002", 40},
+		{newID(), companies[6].id, "Frontend Engineer - React", "AngelList", "https://angel.co/pixelcraft/react", 72},
+		{newID(), companies[6].id, "UI Engineer", "LinkedIn", "https://linkedin.com/jobs/7002", 85},
+		{newID(), companies[7].id, "Platform Engineer", "Referral", "", 35},
+		{newID(), companies[7].id, "SRE", "Indeed", "https://indeed.com/jobs/8002", 68},
+		{newID(), companies[0].id, "Engineering Manager", "LinkedIn", "https://linkedin.com/jobs/1003", 25},
+		{newID(), companies[2].id, "Data Engineer", "Company Website", "https://datapulse.io/careers/data-eng", 30},
+		{newID(), companies[4].id, "Research Engineer", "Hacker News", "", 95},
+		{newID(), companies[5].id, "VP of Engineering", "Referral", "", 20},
 		// wishlist-only cards (never applied — stay "saved")
-		{newID(), companies[1].id, "Cloud Architect", "LinkedIn", "https://linkedin.com/jobs/2003", "Interesting but senior scope", 12},
-		{newID(), companies[6].id, "Creative Tools Engineer", "Hacker News", "https://pixelcraft.io/jobs/tools", "WebGL heavy, cool demos", 9},
-		{newID(), companies[3].id, "Senior Backend Engineer", "Indeed", "https://indeed.com/jobs/4005", "Green tech, might apply later", 7},
-		{newID(), companies[4].id, "Applied Scientist", "Company Website", "https://quantumlabs.ai/jobs/science", "Research-y, needs PhD?", 5},
-		{newID(), companies[7].id, "Infrastructure Engineer", "LinkedIn", "https://linkedin.com/jobs/8004", "Saved from extension", 3},
+		{newID(), companies[1].id, "Cloud Architect", "LinkedIn", "https://linkedin.com/jobs/2003", 12},
+		{newID(), companies[6].id, "Creative Tools Engineer", "Hacker News", "https://pixelcraft.io/jobs/tools", 9},
+		{newID(), companies[3].id, "Senior Backend Engineer", "Indeed", "https://indeed.com/jobs/4005", 7},
+		{newID(), companies[4].id, "Applied Scientist", "Company Website", "https://quantumlabs.ai/jobs/science", 5},
+		{newID(), companies[7].id, "Infrastructure Engineer", "LinkedIn", "https://linkedin.com/jobs/8004", 3},
 	}
 
 	wishlistTemplateID := stages[0].id // "Wishlist" column
 	for _, j := range jobs {
 		_, err = tx.Exec(ctx,
-			`INSERT INTO jobs (id, user_id, company_id, title, source, url, notes, current_stage_template_id, created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)`,
-			j.id, userID, j.companyID, j.title, j.source, j.url, j.notes, wishlistTemplateID, daysAgo(j.daysAgo),
+			`INSERT INTO jobs (id, user_id, company_id, title, source, url, current_stage_template_id, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
+			j.id, userID, j.companyID, j.title, j.source, j.url, wishlistTemplateID, daysAgo(j.daysAgo),
 		)
 		must(err, "create job "+j.title)
 	}
@@ -789,9 +789,9 @@ func main() {
 		}
 
 		_, err = tx.Exec(ctx,
-			`INSERT INTO jobs (id, user_id, company_id, title, source, url, notes, current_stage_template_id, applied_at, created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)`,
-			reviewerJobID, reviewerID, reviewerCompanyID, rj.title, "Company Website", "", "",
+			`INSERT INTO jobs (id, user_id, company_id, title, source, url, current_stage_template_id, applied_at, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)`,
+			reviewerJobID, reviewerID, reviewerCompanyID, rj.title, "Company Website", "",
 			reviewerStages[rj.colIdx].id, appliedAt, createdAt,
 		)
 		must(err, "create reviewer job "+rj.title)

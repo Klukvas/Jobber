@@ -57,7 +57,6 @@ export const createJobSchema = z.object({
   companyId: z.string().optional(),
   url: z.string().url().optional().or(z.literal("")),
   source: z.string().max(100).optional(),
-  notes: z.string().max(5000).optional(),
   description: z.string().max(10000).optional(),
 });
 export type CreateJobFormData = z.infer<typeof createJobSchema>;

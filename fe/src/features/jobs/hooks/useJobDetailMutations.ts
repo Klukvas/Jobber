@@ -17,7 +17,6 @@ export interface EditableFields {
   url: string;
   source: string;
   description: string;
-  notes: string;
 }
 
 export function fieldsFromJob(job: JobDTO): EditableFields {
@@ -27,7 +26,6 @@ export function fieldsFromJob(job: JobDTO): EditableFields {
     url: job.url ?? "",
     source: job.source ?? "",
     description: job.description ?? "",
-    notes: job.notes ?? "",
   };
 }
 
@@ -37,8 +35,7 @@ export function hasChanges(fields: EditableFields, job: JobDTO): boolean {
     fields.company_id !== (job.company_id ?? "") ||
     fields.url !== (job.url ?? "") ||
     fields.source !== (job.source ?? "") ||
-    fields.description !== (job.description ?? "") ||
-    fields.notes !== (job.notes ?? "")
+    fields.description !== (job.description ?? "")
   );
 }
 
@@ -78,7 +75,6 @@ export function useJobDetailMutations({
         url: data.url || undefined,
         source: data.source || undefined,
         description: data.description || undefined,
-        notes: data.notes || undefined,
       }),
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ["job", id] });

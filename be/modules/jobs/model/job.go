@@ -17,7 +17,6 @@ type Job struct {
 	Title                  string
 	Source                 *string
 	URL                    *string
-	Notes                  *string
 	Description            *string
 	IsFavorite             bool
 	IsArchived             bool
@@ -45,7 +44,6 @@ type JobDTO struct {
 	Title                  string                     `json:"title"`
 	Source                 *string                    `json:"source,omitempty"`
 	URL                    *string                    `json:"url,omitempty"`
-	Notes                  *string                    `json:"notes,omitempty"`
 	Description            *string                    `json:"description,omitempty"`
 	IsFavorite             bool                       `json:"is_favorite"`
 	IsArchived             bool                       `json:"is_archived"`
@@ -71,7 +69,6 @@ func (j *Job) ToDTO() *JobDTO {
 		Title:                  j.Title,
 		Source:                 j.Source,
 		URL:                    j.URL,
-		Notes:                  j.Notes,
 		Description:            j.Description,
 		IsFavorite:             j.IsFavorite,
 		IsArchived:             j.IsArchived,

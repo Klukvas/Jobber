@@ -60,7 +60,6 @@ function ModalContent({
   const [companyId, setCompanyId] = useState(job?.company_id || "");
   const [url, setUrl] = useState(job?.url || "");
   const [source, setSource] = useState(job?.source || "");
-  const [notes, setNotes] = useState(job?.notes || "");
   const [description, setDescription] = useState(job?.description || "");
   const [alreadyApplied, setAlreadyApplied] = useState(false);
   const [selectedResume, setSelectedResume] = useState("");
@@ -122,7 +121,6 @@ function ModalContent({
           company_id: companyId || undefined,
           url: url || undefined,
           source: source || undefined,
-          notes: notes || undefined,
           description: description || undefined,
         },
       });
@@ -134,7 +132,6 @@ function ModalContent({
       company_id: companyId || undefined,
       url: url || undefined,
       source: source || undefined,
-      notes: notes || undefined,
       description: description || undefined,
     };
 
@@ -217,15 +214,6 @@ function ModalContent({
               onChange={(e) => setDescription(e.target.value)}
               placeholder={t("jobs.descriptionPlaceholder")}
               className="min-h-[100px]"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="notes">{t("jobs.notes")}</Label>
-            <Textarea
-              id="notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder={t("jobs.notesPlaceholder")}
             />
           </div>
 

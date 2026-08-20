@@ -379,21 +379,23 @@ saveForm.addEventListener("submit", async (e) => {
       if (company) companyId = company.id;
     }
 
-    // Build notes from salary + location
+    // Fold salary + location into the description. The job model no longer has a
+    // separate notes field — comments are the place for free-form annotations.
     const salary = previewSalary.value.trim();
     const loc = previewLocation.value.trim();
-    const noteParts = [];
-    if (salary) noteParts.push(`Salary: ${salary}`);
-    if (loc) noteParts.push(`Location: ${loc}`);
-    const notes = noteParts.length > 0 ? noteParts.join("\n") : undefined;
+    const meta = [];
+    if (salary) meta.push(`Salary: ${salary}`);
+    if (loc) meta.push(`Location: ${loc}`);
+    const body = previewNotes.value.trim();
+    const description =
+      [meta.join("\n"), body].filter(Boolean).join("\n\n") || undefined;
 
     const job = await JobberAPI.createJob({
       title: previewTitle.value.trim(),
       companyId,
       source: previewSource.value.trim(),
       url: previewUrl.value.trim(),
-      notes,
-      description: previewNotes.value.trim(),
+      description,
     });
 
     lastSavedJob = job;

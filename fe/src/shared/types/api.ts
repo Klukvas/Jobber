@@ -165,7 +165,6 @@ export interface JobDTO {
   title: string;
   source?: string;
   url?: string;
-  notes?: string;
   description?: string;
   is_archived: boolean;
   is_favorite: boolean;
@@ -187,7 +186,6 @@ export interface CreateJobRequest {
   company_id?: string;
   source?: string;
   url?: string;
-  notes?: string;
   description?: string;
   applied_at?: string;
   resume_id?: string;
@@ -199,7 +197,6 @@ export interface UpdateJobRequest {
   company_id?: string;
   source?: string;
   url?: string;
-  notes?: string;
   description?: string;
   is_archived?: boolean;
   applied_at?: string;
