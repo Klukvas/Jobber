@@ -20,7 +20,7 @@ type MockContentLibraryRepository struct {
 	GetByIDFunc func(ctx context.Context, id string) (*model.ContentLibraryEntry, error)
 	ListFunc    func(ctx context.Context, userID string) ([]*model.ContentLibraryEntry, error)
 	UpdateFunc  func(ctx context.Context, entry *model.ContentLibraryEntry) (*model.ContentLibraryEntry, error)
-	DeleteFunc  func(ctx context.Context, id string) error
+	DeleteFunc  func(ctx context.Context, id, userID string) error
 }
 
 func (m *MockContentLibraryRepository) Create(ctx context.Context, entry *model.ContentLibraryEntry) (*model.ContentLibraryEntry, error) {
@@ -51,9 +51,9 @@ func (m *MockContentLibraryRepository) Update(ctx context.Context, entry *model.
 	return entry, nil
 }
 
-func (m *MockContentLibraryRepository) Delete(ctx context.Context, id string) error {
+func (m *MockContentLibraryRepository) Delete(ctx context.Context, id, userID string) error {
 	if m.DeleteFunc != nil {
-		return m.DeleteFunc(ctx, id)
+		return m.DeleteFunc(ctx, id, userID)
 	}
 	return nil
 }
@@ -389,7 +389,7 @@ func TestContentLibraryService_Delete(t *testing.T) {
 						UserID: userID,
 					}, nil
 				}
-				repo.DeleteFunc = func(_ context.Context, id string) error {
+				repo.DeleteFunc = func(_ context.Context, id, _ string) error {
 					assert.Equal(t, entryID, id)
 					return nil
 				}
@@ -426,7 +426,7 @@ func TestContentLibraryService_Delete(t *testing.T) {
 						UserID: userID,
 					}, nil
 				}
-				repo.DeleteFunc = func(_ context.Context, id string) error {
+				repo.DeleteFunc = func(_ context.Context, id, _ string) error {
 					return errors.New("delete failed")
 				}
 			},

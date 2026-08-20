@@ -56,7 +56,9 @@ type PlanLimits struct {
 	MaxCoverLetters   int `json:"max_cover_letters"`
 }
 
-// FreePlanLimits defines limits for the free plan.
+// FreePlanLimits defines limits for the free plan. These are fallback defaults
+// for when config/plans.yaml is absent; plans.yaml is the source of truth and
+// overrides them at startup via ApplyPlansConfig (prod ships max_cover_letters: 0).
 var FreePlanLimits = PlanLimits{
 	MaxJobs:           25,
 	MaxResumes:        1,

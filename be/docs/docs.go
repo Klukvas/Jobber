@@ -4036,6 +4036,7 @@ const docTemplate = `{
                 },
                 "password": {
                     "type": "string",
+                    "maxLength": 72,
                     "minLength": 8
                 }
             }
@@ -4220,7 +4221,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "description": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 20000
                 },
                 "resume_builder_id": {
                     "type": "string"
@@ -4229,7 +4231,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "source": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100
                 },
                 "stage_template_id": {
                     "description": "column to place into; default = first",
@@ -4241,7 +4244,8 @@ const docTemplate = `{
                     "minLength": 1
                 },
                 "url": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 2048
                 }
             }
         },
@@ -4427,7 +4431,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "description": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 20000
                 },
                 "is_archived": {
                     "description": "archive / unarchive",
@@ -4440,13 +4445,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "source": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100
                 },
                 "title": {
                     "type": "string"
                 },
                 "url": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 2048
                 }
             }
         },
@@ -4553,6 +4560,7 @@ const docTemplate = `{
                 },
                 "message": {
                     "type": "string",
+                    "maxLength": 2000,
                     "minLength": 1
                 },
                 "remind_at": {

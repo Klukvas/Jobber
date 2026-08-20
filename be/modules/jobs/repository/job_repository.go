@@ -137,14 +137,18 @@ func (r *JobRepository) List(ctx context.Context, userID string, opts *ports.Lis
 	offsetIdx := len(args) + 2
 	query := fmt.Sprintf(`
 		WITH stage_activity AS (
-			SELECT job_id, MAX(created_at) as max_created
-			FROM job_stages
-			GROUP BY job_id
+			SELECT js.job_id, MAX(js.created_at) as max_created
+			FROM job_stages js
+			JOIN jobs j ON j.id = js.job_id
+			WHERE j.user_id = $1
+			GROUP BY js.job_id
 		),
 		comment_activity AS (
-			SELECT job_id, MAX(created_at) as max_created
-			FROM comments
-			GROUP BY job_id
+			SELECT cm.job_id, MAX(cm.created_at) as max_created
+			FROM comments cm
+			JOIN jobs j ON j.id = cm.job_id
+			WHERE j.user_id = $1
+			GROUP BY cm.job_id
 		)
 		SELECT
 			j.id, j.company_id, j.title, j.source, j.url, j.description,

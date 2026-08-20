@@ -261,7 +261,7 @@ func TestMain(m *testing.M) {
 	authHdl := authHandler.NewAuthHandler(authSvc, testCookieCfg, 15*time.Minute, 168*time.Hour)
 	companyHdl := companyHandler.NewCompanyHandler(companySvc)
 	jobHdl := jobHandler.NewJobHandler(jobSvc)
-	resumeHdl := resumeHandler.NewResumeHandler(resumeSvc)
+	resumeHdl := resumeHandler.NewResumeHandler(resumeSvc, zapLogger.Logger)
 	commentHdl := commentHandler.NewCommentHandler(commentSvc)
 	analyticsHdl := analyticsHandler.NewAnalyticsHandler(analyticsSvc)
 	resumeBuilderHdl := rbHandler.NewResumeBuilderHandler(resumeBuilderSvc)

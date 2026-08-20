@@ -43,7 +43,7 @@ type CreateReminderRequest struct {
 	JobID    string    `json:"job_id" binding:"required"`
 	StageID  *string   `json:"stage_id,omitempty"`
 	RemindAt time.Time `json:"remind_at" binding:"required"`
-	Message  string    `json:"message" binding:"required,min=1"`
+	Message  string    `json:"message" binding:"required,min=1,max=2000"`
 }
 
 // UpdateReminderRequest is a partial update — every field is optional; only the

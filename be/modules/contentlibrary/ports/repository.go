@@ -12,5 +12,5 @@ type ContentLibraryRepository interface {
 	GetByID(ctx context.Context, id string) (*model.ContentLibraryEntry, error)
 	List(ctx context.Context, userID string) ([]*model.ContentLibraryEntry, error)
 	Update(ctx context.Context, entry *model.ContentLibraryEntry) (*model.ContentLibraryEntry, error)
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id, userID string) error
 }

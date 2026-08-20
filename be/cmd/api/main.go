@@ -353,7 +353,7 @@ func main() {
 	authHdl := authHandler.NewAuthHandler(authSvc, cookieCfg, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
 	companyHdl := companyHandler.NewCompanyHandler(companySvc)
 	jobHdl := jobHandler.NewJobHandler(jobSvc)
-	resumeHdl := resumeHandler.NewResumeHandler(resumeSvc)
+	resumeHdl := resumeHandler.NewResumeHandler(resumeSvc, logger.Logger)
 	commentHdl := commentHandler.NewCommentHandler(commentSvc)
 	reminderHdl := reminderHandler.NewReminderHandler(reminderSvc)
 	tagHdl := tagHandler.NewTagHandler(tagSvc)

@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 // MockResumeRepository implements ports.ResumeRepository
@@ -91,7 +92,7 @@ func TestResumeHandler_Create(t *testing.T) {
 		}
 
 		svc := service.NewResumeService(mockRepo, nil, nil, nil)
-		handler := NewResumeHandler(svc)
+		handler := NewResumeHandler(svc, zap.NewNop())
 
 		router := setupTestRouter()
 		router.POST("/resumes", mockAuthMiddleware(userID), handler.Create)
@@ -113,7 +114,7 @@ func TestResumeHandler_Create(t *testing.T) {
 	t.Run("returns 401 when not authenticated", func(t *testing.T) {
 		mockRepo := &MockResumeRepository{}
 		svc := service.NewResumeService(mockRepo, nil, nil, nil)
-		handler := NewResumeHandler(svc)
+		handler := NewResumeHandler(svc, zap.NewNop())
 
 		router := setupTestRouter()
 		router.POST("/resumes", handler.Create) // No auth middleware
@@ -130,7 +131,7 @@ func TestResumeHandler_Create(t *testing.T) {
 	t.Run("returns 400 for invalid request", func(t *testing.T) {
 		mockRepo := &MockResumeRepository{}
 		svc := service.NewResumeService(mockRepo, nil, nil, nil)
-		handler := NewResumeHandler(svc)
+		handler := NewResumeHandler(svc, zap.NewNop())
 
 		router := setupTestRouter()
 		router.POST("/resumes", mockAuthMiddleware(userID), handler.Create)
@@ -167,7 +168,7 @@ func TestResumeHandler_Get(t *testing.T) {
 		}
 
 		svc := service.NewResumeService(mockRepo, nil, nil, nil)
-		handler := NewResumeHandler(svc)
+		handler := NewResumeHandler(svc, zap.NewNop())
 
 		router := setupTestRouter()
 		router.GET("/resumes/:id", mockAuthMiddleware(userID), handler.Get)
@@ -192,7 +193,7 @@ func TestResumeHandler_Get(t *testing.T) {
 		}
 
 		svc := service.NewResumeService(mockRepo, nil, nil, nil)
-		handler := NewResumeHandler(svc)
+		handler := NewResumeHandler(svc, zap.NewNop())
 
 		router := setupTestRouter()
 		router.GET("/resumes/:id", mockAuthMiddleware(userID), handler.Get)
@@ -221,7 +222,7 @@ func TestResumeHandler_List(t *testing.T) {
 		}
 
 		svc := service.NewResumeService(mockRepo, nil, nil, nil)
-		handler := NewResumeHandler(svc)
+		handler := NewResumeHandler(svc, zap.NewNop())
 
 		router := setupTestRouter()
 		router.GET("/resumes", mockAuthMiddleware(userID), handler.List)
@@ -259,7 +260,7 @@ func TestResumeHandler_Update(t *testing.T) {
 		}
 
 		svc := service.NewResumeService(mockRepo, nil, nil, nil)
-		handler := NewResumeHandler(svc)
+		handler := NewResumeHandler(svc, zap.NewNop())
 
 		router := setupTestRouter()
 		router.PATCH("/resumes/:id", mockAuthMiddleware(userID), handler.Update)
@@ -281,7 +282,7 @@ func TestResumeHandler_Update(t *testing.T) {
 		}
 
 		svc := service.NewResumeService(mockRepo, nil, nil, nil)
-		handler := NewResumeHandler(svc)
+		handler := NewResumeHandler(svc, zap.NewNop())
 
 		router := setupTestRouter()
 		router.PATCH("/resumes/:id", mockAuthMiddleware(userID), handler.Update)
@@ -318,7 +319,7 @@ func TestResumeHandler_Delete(t *testing.T) {
 		}
 
 		svc := service.NewResumeService(mockRepo, nil, nil, nil)
-		handler := NewResumeHandler(svc)
+		handler := NewResumeHandler(svc, zap.NewNop())
 
 		router := setupTestRouter()
 		router.DELETE("/resumes/:id", mockAuthMiddleware(userID), handler.Delete)
@@ -338,7 +339,7 @@ func TestResumeHandler_Delete(t *testing.T) {
 		}
 
 		svc := service.NewResumeService(mockRepo, nil, nil, nil)
-		handler := NewResumeHandler(svc)
+		handler := NewResumeHandler(svc, zap.NewNop())
 
 		router := setupTestRouter()
 		router.DELETE("/resumes/:id", mockAuthMiddleware(userID), handler.Delete)
@@ -368,7 +369,7 @@ func TestResumeHandler_Delete(t *testing.T) {
 		}
 
 		svc := service.NewResumeService(mockRepo, nil, nil, nil)
-		handler := NewResumeHandler(svc)
+		handler := NewResumeHandler(svc, zap.NewNop())
 
 		router := setupTestRouter()
 		router.DELETE("/resumes/:id", mockAuthMiddleware(userID), handler.Delete)
@@ -405,7 +406,7 @@ func TestResumeHandler_Create_PlanLimitReached(t *testing.T) {
 	}
 
 	svc := service.NewResumeService(&MockResumeRepository{}, nil, limiter, nil)
-	handler := NewResumeHandler(svc)
+	handler := NewResumeHandler(svc, zap.NewNop())
 
 	router := setupTestRouter()
 	router.POST("/resumes", mockAuthMiddleware(userID), handler.Create)
@@ -428,7 +429,7 @@ func TestResumeHandler_Create_ServiceError(t *testing.T) {
 	}
 
 	svc := service.NewResumeService(mockRepo, nil, nil, nil)
-	handler := NewResumeHandler(svc)
+	handler := NewResumeHandler(svc, zap.NewNop())
 
 	router := setupTestRouter()
 	router.POST("/resumes", mockAuthMiddleware(userID), handler.Create)
@@ -446,7 +447,7 @@ func TestResumeHandler_Create_ServiceError(t *testing.T) {
 
 func TestResumeHandler_Get_Unauthorized(t *testing.T) {
 	svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
-	handler := NewResumeHandler(svc)
+	handler := NewResumeHandler(svc, zap.NewNop())
 
 	router := setupTestRouter()
 	router.GET("/resumes/:id", handler.Get)
@@ -469,7 +470,7 @@ func TestResumeHandler_Get_InternalError(t *testing.T) {
 	}
 
 	svc := service.NewResumeService(mockRepo, nil, nil, nil)
-	handler := NewResumeHandler(svc)
+	handler := NewResumeHandler(svc, zap.NewNop())
 
 	router := setupTestRouter()
 	router.GET("/resumes/:id", mockAuthMiddleware(userID), handler.Get)
@@ -485,7 +486,7 @@ func TestResumeHandler_Get_InternalError(t *testing.T) {
 
 func TestResumeHandler_List_Unauthorized(t *testing.T) {
 	svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
-	handler := NewResumeHandler(svc)
+	handler := NewResumeHandler(svc, zap.NewNop())
 
 	router := setupTestRouter()
 	router.GET("/resumes", handler.List)
@@ -506,7 +507,7 @@ func TestResumeHandler_List_ServiceError(t *testing.T) {
 	}
 
 	svc := service.NewResumeService(mockRepo, nil, nil, nil)
-	handler := NewResumeHandler(svc)
+	handler := NewResumeHandler(svc, zap.NewNop())
 
 	router := setupTestRouter()
 	router.GET("/resumes", mockAuthMiddleware(userID), handler.List)
@@ -522,7 +523,7 @@ func TestResumeHandler_List_InvalidPagination(t *testing.T) {
 	userID := "user-123"
 
 	svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
-	handler := NewResumeHandler(svc)
+	handler := NewResumeHandler(svc, zap.NewNop())
 
 	router := setupTestRouter()
 	router.GET("/resumes", mockAuthMiddleware(userID), handler.List)
@@ -538,7 +539,7 @@ func TestResumeHandler_List_InvalidPagination(t *testing.T) {
 
 func TestResumeHandler_Update_Unauthorized(t *testing.T) {
 	svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
-	handler := NewResumeHandler(svc)
+	handler := NewResumeHandler(svc, zap.NewNop())
 
 	router := setupTestRouter()
 	router.PATCH("/resumes/:id", handler.Update)
@@ -556,7 +557,7 @@ func TestResumeHandler_Update_InvalidJSON(t *testing.T) {
 	userID := "user-123"
 
 	svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
-	handler := NewResumeHandler(svc)
+	handler := NewResumeHandler(svc, zap.NewNop())
 
 	router := setupTestRouter()
 	router.PATCH("/resumes/:id", mockAuthMiddleware(userID), handler.Update)
@@ -573,7 +574,7 @@ func TestResumeHandler_Update_InvalidJSON(t *testing.T) {
 
 func TestResumeHandler_Delete_Unauthorized(t *testing.T) {
 	svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
-	handler := NewResumeHandler(svc)
+	handler := NewResumeHandler(svc, zap.NewNop())
 
 	router := setupTestRouter()
 	router.DELETE("/resumes/:id", handler.Delete)
@@ -590,7 +591,7 @@ func TestResumeHandler_Delete_Unauthorized(t *testing.T) {
 func TestResumeHandler_GenerateUploadURL(t *testing.T) {
 	t.Run("returns 401 when not authenticated", func(t *testing.T) {
 		svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
-		handler := NewResumeHandler(svc)
+		handler := NewResumeHandler(svc, zap.NewNop())
 
 		router := setupTestRouter()
 		router.POST("/resumes/upload-url", handler.GenerateUploadURL)
@@ -607,7 +608,7 @@ func TestResumeHandler_GenerateUploadURL(t *testing.T) {
 	t.Run("returns 400 for invalid request", func(t *testing.T) {
 		userID := "user-123"
 		svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
-		handler := NewResumeHandler(svc)
+		handler := NewResumeHandler(svc, zap.NewNop())
 
 		router := setupTestRouter()
 		router.POST("/resumes/upload-url", mockAuthMiddleware(userID), handler.GenerateUploadURL)
@@ -629,7 +630,7 @@ func TestResumeHandler_GenerateUploadURL(t *testing.T) {
 		}
 
 		svc := service.NewResumeService(&MockResumeRepository{}, nil, limiter, nil)
-		handler := NewResumeHandler(svc)
+		handler := NewResumeHandler(svc, zap.NewNop())
 
 		router := setupTestRouter()
 		router.POST("/resumes/upload-url", mockAuthMiddleware(userID), handler.GenerateUploadURL)
@@ -646,7 +647,7 @@ func TestResumeHandler_GenerateUploadURL(t *testing.T) {
 	t.Run("returns 500 when S3 client is nil", func(t *testing.T) {
 		userID := "user-123"
 		svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
-		handler := NewResumeHandler(svc)
+		handler := NewResumeHandler(svc, zap.NewNop())
 
 		router := setupTestRouter()
 		router.POST("/resumes/upload-url", mockAuthMiddleware(userID), handler.GenerateUploadURL)
@@ -666,7 +667,7 @@ func TestResumeHandler_GenerateUploadURL(t *testing.T) {
 func TestResumeHandler_DownloadResume(t *testing.T) {
 	t.Run("returns 401 when not authenticated", func(t *testing.T) {
 		svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
-		handler := NewResumeHandler(svc)
+		handler := NewResumeHandler(svc, zap.NewNop())
 
 		router := setupTestRouter()
 		router.GET("/resumes/:id/download", handler.DownloadResume)
@@ -682,7 +683,7 @@ func TestResumeHandler_DownloadResume(t *testing.T) {
 		userID := "user-123"
 
 		svc := service.NewResumeService(&MockResumeRepository{}, nil, nil, nil)
-		handler := NewResumeHandler(svc)
+		handler := NewResumeHandler(svc, zap.NewNop())
 
 		router := setupTestRouter()
 		router.GET("/resumes/:id/download", mockAuthMiddleware(userID), handler.DownloadResume)
@@ -709,7 +710,7 @@ func TestResumeHandler_DownloadResume(t *testing.T) {
 		}
 
 		svc := service.NewResumeService(mockRepo, nil, nil, nil)
-		handler := NewResumeHandler(svc)
+		handler := NewResumeHandler(svc, zap.NewNop())
 
 		router := setupTestRouter()
 		router.GET("/resumes/:id/download", mockAuthMiddleware(userID), handler.DownloadResume)
@@ -743,7 +744,7 @@ func TestResumeHandler_RegisterRoutes(t *testing.T) {
 	}
 
 	svc := service.NewResumeService(mockRepo, nil, nil, nil)
-	handler := NewResumeHandler(svc)
+	handler := NewResumeHandler(svc, zap.NewNop())
 
 	router := setupTestRouter()
 	v1 := router.Group("/api/v1")

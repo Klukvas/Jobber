@@ -192,6 +192,7 @@ definitions:
       locale:
         type: string
       password:
+        maxLength: 72
         minLength: 8
         type: string
     required:
@@ -316,12 +317,14 @@ definitions:
       company_id:
         type: string
       description:
+        maxLength: 20000
         type: string
       resume_builder_id:
         type: string
       resume_id:
         type: string
       source:
+        maxLength: 100
         type: string
       stage_template_id:
         description: column to place into; default = first
@@ -331,6 +334,7 @@ definitions:
         minLength: 1
         type: string
       url:
+        maxLength: 2048
         type: string
     required:
     - title
@@ -456,6 +460,7 @@ definitions:
       company_id:
         type: string
       description:
+        maxLength: 20000
         type: string
       is_archived:
         description: archive / unarchive
@@ -465,10 +470,12 @@ definitions:
       resume_id:
         type: string
       source:
+        maxLength: 100
         type: string
       title:
         type: string
       url:
+        maxLength: 2048
         type: string
     type: object
   github_com_andreypavlenko_jobber_modules_jobs_model.UpdateStageRequest:
@@ -536,6 +543,7 @@ definitions:
       job_id:
         type: string
       message:
+        maxLength: 2000
         minLength: 1
         type: string
       remind_at:

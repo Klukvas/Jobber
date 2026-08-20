@@ -174,11 +174,11 @@ func TestContentLibraryRepository_Update(t *testing.T) {
 		now := time.Now()
 		rows := pgxmock.NewRows([]string{"updated_at"}).AddRow(now)
 		mock.ExpectQuery("UPDATE content_library SET title").
-			WithArgs("Title", "Body", "cover", "id-1").
+			WithArgs("Title", "Body", "cover", "id-1", "user-1").
 			WillReturnRows(rows)
 
 		repo := NewContentLibraryRepository(mock)
-		entry := &model.ContentLibraryEntry{ID: "id-1", Title: "Title", Content: "Body", Category: "cover"}
+		entry := &model.ContentLibraryEntry{ID: "id-1", UserID: "user-1", Title: "Title", Content: "Body", Category: "cover"}
 		got, err := repo.Update(context.Background(), entry)
 		require.NoError(t, err)
 		assert.Equal(t, now, got.UpdatedAt)
@@ -191,12 +191,12 @@ func TestContentLibraryRepository_Update(t *testing.T) {
 		defer mock.Close()
 
 		mock.ExpectQuery("UPDATE content_library SET title").
-			WithArgs("Title", "Body", "cover", "id-1").
+			WithArgs("Title", "Body", "cover", "id-1", "user-1").
 			WillReturnError(pgx.ErrNoRows)
 
 		repo := NewContentLibraryRepository(mock)
 		got, err := repo.Update(context.Background(), &model.ContentLibraryEntry{
-			ID: "id-1", Title: "Title", Content: "Body", Category: "cover",
+			ID: "id-1", UserID: "user-1", Title: "Title", Content: "Body", Category: "cover",
 		})
 		assert.Nil(t, got)
 		require.Error(t, err)
@@ -212,11 +212,11 @@ func TestContentLibraryRepository_Delete(t *testing.T) {
 		defer mock.Close()
 
 		mock.ExpectExec("DELETE FROM content_library").
-			WithArgs("id-1").
+			WithArgs("id-1", "user-1").
 			WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
 		repo := NewContentLibraryRepository(mock)
-		require.NoError(t, repo.Delete(context.Background(), "id-1"))
+		require.NoError(t, repo.Delete(context.Background(), "id-1", "user-1"))
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
@@ -226,11 +226,11 @@ func TestContentLibraryRepository_Delete(t *testing.T) {
 		defer mock.Close()
 
 		mock.ExpectExec("DELETE FROM content_library").
-			WithArgs("id-1").
+			WithArgs("id-1", "user-1").
 			WillReturnResult(pgxmock.NewResult("DELETE", 0))
 
 		repo := NewContentLibraryRepository(mock)
-		err = repo.Delete(context.Background(), "id-1")
+		err = repo.Delete(context.Background(), "id-1", "user-1")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "content library entry not found")
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -242,11 +242,11 @@ func TestContentLibraryRepository_Delete(t *testing.T) {
 		defer mock.Close()
 
 		mock.ExpectExec("DELETE FROM content_library").
-			WithArgs("id-1").
+			WithArgs("id-1", "user-1").
 			WillReturnError(errors.New("boom"))
 
 		repo := NewContentLibraryRepository(mock)
-		err = repo.Delete(context.Background(), "id-1")
+		err = repo.Delete(context.Background(), "id-1", "user-1")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to delete content library entry")
 		require.NoError(t, mock.ExpectationsWereMet())

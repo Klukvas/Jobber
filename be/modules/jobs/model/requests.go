@@ -8,9 +8,9 @@ import "time"
 type CreateJobRequest struct {
 	CompanyID       *string `json:"company_id,omitempty"`
 	Title           string  `json:"title" binding:"required,min=1,max=255"`
-	Source          *string `json:"source,omitempty"`
-	URL             *string `json:"url,omitempty"`
-	Description     *string `json:"description,omitempty"`
+	Source          *string `json:"source,omitempty" binding:"omitempty,max=100"`
+	URL             *string `json:"url,omitempty" binding:"omitempty,max=2048"`
+	Description     *string `json:"description,omitempty" binding:"omitempty,max=20000"`
 	StageTemplateID *string `json:"stage_template_id,omitempty"` // column to place into; default = first
 	ResumeID        *string `json:"resume_id,omitempty"`
 	ResumeBuilderID *string `json:"resume_builder_id,omitempty"`
@@ -20,9 +20,9 @@ type CreateJobRequest struct {
 type UpdateJobRequest struct {
 	CompanyID       *string `json:"company_id,omitempty"`
 	Title           *string `json:"title,omitempty"`
-	Source          *string `json:"source,omitempty"`
-	URL             *string `json:"url,omitempty"`
-	Description     *string `json:"description,omitempty"`
+	Source          *string `json:"source,omitempty" binding:"omitempty,max=100"`
+	URL             *string `json:"url,omitempty" binding:"omitempty,max=2048"`
+	Description     *string `json:"description,omitempty" binding:"omitempty,max=20000"`
 	IsArchived      *bool   `json:"is_archived,omitempty"` // archive / unarchive
 	ResumeID        *string `json:"resume_id,omitempty"`
 	ResumeBuilderID *string `json:"resume_builder_id,omitempty"`
