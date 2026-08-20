@@ -8,7 +8,6 @@ import {
   Activity,
   CheckCircle,
   Briefcase,
-  XCircle,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 
@@ -23,8 +22,8 @@ export function OverviewCards({
 
   if (isLoading) {
     return (
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-        {Array.from({ length: 6 }).map((_, i) => (
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
           <Card key={i}>
             <CardContent className="p-6">
               <Skeleton className="h-4 w-24 mb-2" />
@@ -58,12 +57,6 @@ export function OverviewCards({
       color: "text-gray-500 dark:text-gray-400",
     },
     {
-      title: t("analytics.overview.rejectedApplications"),
-      value: data.rejected_applications,
-      icon: XCircle,
-      color: "text-red-500 dark:text-red-400",
-    },
-    {
       title: t("analytics.overview.responseRate"),
       value: `${data.response_rate}%`,
       icon: TrendingUp,
@@ -81,7 +74,7 @@ export function OverviewCards({
   ];
 
   return (
-    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
       {cards.map((card) => {
         const Icon = card.icon;
         return (
