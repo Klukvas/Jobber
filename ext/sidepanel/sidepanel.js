@@ -33,7 +33,7 @@ const previewSalary = document.getElementById("preview-salary");
 const previewLocation = document.getElementById("preview-location");
 const previewSource = document.getElementById("preview-source");
 const previewUrl = document.getElementById("preview-url");
-const previewNotes = document.getElementById("preview-notes");
+const previewDescription = document.getElementById("preview-description");
 const btnSave = document.getElementById("btn-save");
 const btnBack = document.getElementById("btn-back");
 const saveError = document.getElementById("save-error");
@@ -311,7 +311,7 @@ async function parseWithData(pageData) {
     previewLocation.value = "";
     previewSource.value = parsed.source || "";
     previewUrl.value = parsed.url || pageData.url;
-    previewNotes.value = parsed.description || "";
+    previewDescription.value = parsed.description || "";
     hideError(saveError);
 
     const isDuplicate = await JobberAPI.isUrlImported(previewUrl.value);
@@ -386,7 +386,7 @@ saveForm.addEventListener("submit", async (e) => {
     const meta = [];
     if (salary) meta.push(`Salary: ${salary}`);
     if (loc) meta.push(`Location: ${loc}`);
-    const body = previewNotes.value.trim();
+    const body = previewDescription.value.trim();
     const description =
       [meta.join("\n"), body].filter(Boolean).join("\n\n") || undefined;
 

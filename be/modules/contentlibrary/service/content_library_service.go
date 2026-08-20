@@ -95,5 +95,5 @@ func (s *ContentLibraryService) Delete(ctx context.Context, userID, id string) e
 		return fmt.Errorf("not authorized")
 	}
 
-	return s.repo.Delete(ctx, id)
+	return s.repo.Delete(ctx, id, userID)
 }

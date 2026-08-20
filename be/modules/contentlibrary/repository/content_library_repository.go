@@ -79,10 +79,10 @@ func (r *ContentLibraryRepository) List(ctx context.Context, userID string) ([]*
 // Update updates a content library entry.
 func (r *ContentLibraryRepository) Update(ctx context.Context, entry *model.ContentLibraryEntry) (*model.ContentLibraryEntry, error) {
 	query := `UPDATE content_library SET title = $1, content = $2, category = $3
-		WHERE id = $4 RETURNING updated_at`
+		WHERE id = $4 AND user_id = $5 RETURNING updated_at`
 
 	err := r.pool.QueryRow(ctx, query,
-		entry.Title, entry.Content, entry.Category, entry.ID,
+		entry.Title, entry.Content, entry.Category, entry.ID, entry.UserID,
 	).Scan(&entry.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update content library entry: %w", err)
@@ -92,9 +92,9 @@ func (r *ContentLibraryRepository) Update(ctx context.Context, entry *model.Cont
 }
 
 // Delete deletes a content library entry.
-func (r *ContentLibraryRepository) Delete(ctx context.Context, id string) error {
-	query := `DELETE FROM content_library WHERE id = $1`
-	ct, err := r.pool.Exec(ctx, query, id)
+func (r *ContentLibraryRepository) Delete(ctx context.Context, id, userID string) error {
+	query := `DELETE FROM content_library WHERE id = $1 AND user_id = $2`
+	ct, err := r.pool.Exec(ctx, query, id, userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete content library entry: %w", err)
 	}

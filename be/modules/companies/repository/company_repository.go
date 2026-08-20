@@ -82,14 +82,18 @@ func (r *CompanyRepository) GetByID(ctx context.Context, userID, companyID strin
 func (r *CompanyRepository) GetByIDEnriched(ctx context.Context, userID, companyID string) (*model.CompanyDTO, error) {
 	query := `
 		WITH stage_agg AS (
-			SELECT job_id, MAX(created_at) as max_created, COUNT(*) as cnt
-			FROM job_stages
-			GROUP BY job_id
+			SELECT js.job_id, MAX(js.created_at) as max_created, COUNT(*) as cnt
+			FROM job_stages js
+			JOIN jobs j ON j.id = js.job_id
+			WHERE j.user_id = $2
+			GROUP BY js.job_id
 		),
 		comment_agg AS (
-			SELECT job_id, MAX(created_at) as max_created
-			FROM comments
-			GROUP BY job_id
+			SELECT cm.job_id, MAX(cm.created_at) as max_created
+			FROM comments cm
+			JOIN jobs j ON j.id = cm.job_id
+			WHERE j.user_id = $2
+			GROUP BY cm.job_id
 		)
 		SELECT
 			c.id,
@@ -170,14 +174,18 @@ func (r *CompanyRepository) List(ctx context.Context, userID string, opts *ports
 	// Single query with pre-aggregated CTEs and COUNT(*) OVER()
 	query := fmt.Sprintf(`
 		WITH stage_agg AS (
-			SELECT job_id, MAX(created_at) as max_created, COUNT(*) as cnt
-			FROM job_stages
-			GROUP BY job_id
+			SELECT js.job_id, MAX(js.created_at) as max_created, COUNT(*) as cnt
+			FROM job_stages js
+			JOIN jobs j ON j.id = js.job_id
+			WHERE j.user_id = $1
+			GROUP BY js.job_id
 		),
 		comment_agg AS (
-			SELECT job_id, MAX(created_at) as max_created
-			FROM comments
-			GROUP BY job_id
+			SELECT cm.job_id, MAX(cm.created_at) as max_created
+			FROM comments cm
+			JOIN jobs j ON j.id = cm.job_id
+			WHERE j.user_id = $1
+			GROUP BY cm.job_id
 		)
 		SELECT
 			c.id,

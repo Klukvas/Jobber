@@ -394,8 +394,12 @@ func (s *JobService) AddStage(ctx context.Context, userID, jobID string, req *mo
 
 	// Lock the job row so concurrent AddStage/DeleteStage on the same job
 	// serialize — otherwise two concurrent adds could compute the same order.
-	if _, err := tx.Exec(ctx, `SELECT id FROM jobs WHERE id = $1 FOR UPDATE`, jobID); err != nil {
+	lockTag, err := tx.Exec(ctx, `SELECT id FROM jobs WHERE id = $1 FOR UPDATE`, jobID)
+	if err != nil {
 		return nil, fmt.Errorf("failed to lock job: %w", err)
+	}
+	if lockTag.RowsAffected() == 0 {
+		return nil, model.ErrJobNotFound
 	}
 
 	// Next order = max existing + 1 (taken under the lock). Using MAX rather
@@ -548,8 +552,12 @@ func (s *JobService) UpdateStage(ctx context.Context, userID, jobID, stageID str
 
 	// Serialize with AddStage/DeleteStage/Move (which all lock the job row
 	// first) so a concurrent stage add can't clobber completed_at mid-write.
-	if _, err := tx.Exec(ctx, `SELECT id FROM jobs WHERE id = $1 FOR UPDATE`, jobID); err != nil {
+	lockTag, err := tx.Exec(ctx, `SELECT id FROM jobs WHERE id = $1 FOR UPDATE`, jobID)
+	if err != nil {
 		return nil, fmt.Errorf("failed to lock job: %w", err)
+	}
+	if lockTag.RowsAffected() == 0 {
+		return nil, model.ErrJobNotFound
 	}
 
 	// Get the stage (read is safe under the job lock — no concurrent stage

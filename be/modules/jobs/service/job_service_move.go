@@ -45,8 +45,12 @@ func (s *JobService) Move(ctx context.Context, userID, jobID string, req *model.
 	defer tx.Rollback(ctx) //nolint:errcheck // rollback is a no-op after commit
 
 	// Serialize with AddStage/UpdateStage/DeleteStage on this job.
-	if _, err := tx.Exec(ctx, `SELECT id FROM jobs WHERE id = $1 FOR UPDATE`, job.ID); err != nil {
+	lockTag, err := tx.Exec(ctx, `SELECT id FROM jobs WHERE id = $1 FOR UPDATE`, job.ID)
+	if err != nil {
 		return nil, fmt.Errorf("failed to lock job: %w", err)
+	}
+	if lockTag.RowsAffected() == 0 {
+		return nil, model.ErrJobNotFound
 	}
 
 	// Complete the current active stage — history stays intact.

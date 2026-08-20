@@ -10,14 +10,16 @@ import (
 	"github.com/andreypavlenko/jobber/modules/resumes/service"
 	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 type ResumeHandler struct {
 	service *service.ResumeService
+	logger  *zap.Logger
 }
 
-func NewResumeHandler(service *service.ResumeService) *ResumeHandler {
-	return &ResumeHandler{service: service}
+func NewResumeHandler(service *service.ResumeService, logger *zap.Logger) *ResumeHandler {
+	return &ResumeHandler{service: service, logger: logger}
 }
 
 // Create godoc
@@ -238,7 +240,8 @@ func (h *ResumeHandler) GenerateUploadURL(c *gin.Context) {
 			httpPlatform.RespondWithError(c, http.StatusForbidden, "PLAN_LIMIT_REACHED", "You have reached the limit for your current plan.")
 			return
 		}
-		httpPlatform.RespondWithError(c, http.StatusInternalServerError, "UPLOAD_URL_GENERATION_FAILED", err.Error())
+		h.logger.Error("resume upload URL generation failed", zap.String("user_id", userID), zap.Error(err))
+		httpPlatform.RespondWithError(c, http.StatusInternalServerError, "UPLOAD_URL_GENERATION_FAILED", "Failed to generate upload URL")
 		return
 	}
 	httpPlatform.RespondWithData(c, http.StatusOK, response)
@@ -270,7 +273,8 @@ func (h *ResumeHandler) DownloadResume(c *gin.Context) {
 		if model.GetErrorCode(err) == model.CodeResumeNotFound {
 			statusCode = http.StatusNotFound
 		}
-		httpPlatform.RespondWithError(c, statusCode, "DOWNLOAD_URL_GENERATION_FAILED", err.Error())
+		h.logger.Error("resume download URL generation failed", zap.String("user_id", userID), zap.String("resume_id", resumeID), zap.Error(err))
+		httpPlatform.RespondWithError(c, statusCode, "DOWNLOAD_URL_GENERATION_FAILED", "Failed to generate download URL")
 		return
 	}
 	httpPlatform.RespondWithData(c, http.StatusOK, response)
