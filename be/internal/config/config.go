@@ -149,10 +149,7 @@ func Load() (*Config, error) {
 			Env:            getEnv("SERVER_ENV", "development"),
 			AllowedOrigins: getEnv("ALLOWED_ORIGINS", "*"),
 			FrontendURL:    getEnv("FRONTEND_URL", ""),
-			// Public origin for share/OG links. FRONTEND_URL is the *internal*
-			// Docker host (http://frontend) so it can't be used here; default to
-			// the first real CORS origin (prod requires a concrete host).
-			PublicBaseURL: getEnv("PUBLIC_BASE_URL", firstOrigin(getEnv("ALLOWED_ORIGINS", "*"))),
+			PublicBaseURL:  resolvePublicBaseURL(),
 		},
 		Database: DatabaseConfig{
 			Host:            getEnv("DB_HOST", "localhost"),
@@ -295,6 +292,25 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// defaultPublicBaseURL is the app's canonical public origin, used to build
+// shareable/OG links that social crawlers fetch from the internet. It is only a
+// fallback: PUBLIC_BASE_URL (or a concrete ALLOWED_ORIGINS entry) wins.
+const defaultPublicBaseURL = "https://jobber-app.com"
+
+// resolvePublicBaseURL picks the public origin for share/OG links. FRONTEND_URL
+// is the *internal* Docker host (http://frontend) and must never be used here.
+// Order: explicit PUBLIC_BASE_URL → first concrete CORS origin → canonical default
+// (this env deploys with ALLOWED_ORIGINS="*", from which no origin can be derived).
+func resolvePublicBaseURL() string {
+	if v := strings.TrimRight(getEnv("PUBLIC_BASE_URL", ""), "/"); v != "" {
+		return v
+	}
+	if o := firstOrigin(getEnv("ALLOWED_ORIGINS", "*")); o != "" {
+		return o
+	}
+	return defaultPublicBaseURL
 }
 
 // firstOrigin returns the first concrete origin from a comma-separated CORS list

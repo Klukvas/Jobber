@@ -505,3 +505,21 @@ func TestFirstOrigin(t *testing.T) {
 		})
 	}
 }
+
+func TestResolvePublicBaseURL(t *testing.T) {
+	t.Run("explicit PUBLIC_BASE_URL wins", func(t *testing.T) {
+		t.Setenv("PUBLIC_BASE_URL", "https://custom.example/")
+		t.Setenv("ALLOWED_ORIGINS", "https://jobber-app.com")
+		assert.Equal(t, "https://custom.example", resolvePublicBaseURL())
+	})
+	t.Run("derives from concrete ALLOWED_ORIGINS", func(t *testing.T) {
+		t.Setenv("PUBLIC_BASE_URL", "")
+		t.Setenv("ALLOWED_ORIGINS", "https://jobber-app.com, https://www.jobber-app.com")
+		assert.Equal(t, "https://jobber-app.com", resolvePublicBaseURL())
+	})
+	t.Run("falls back to canonical when origins are wildcard", func(t *testing.T) {
+		t.Setenv("PUBLIC_BASE_URL", "")
+		t.Setenv("ALLOWED_ORIGINS", "*")
+		assert.Equal(t, defaultPublicBaseURL, resolvePublicBaseURL())
+	})
+}

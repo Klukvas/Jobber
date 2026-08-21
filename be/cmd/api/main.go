@@ -359,12 +359,8 @@ func main() {
 	tagHdl := tagHandler.NewTagHandler(tagSvc)
 	analyticsHdl := analyticsHandler.NewAnalyticsHandler(analyticsSvc)
 	// Share links must use the PUBLIC origin (crawlers fetch og:image from the
-	// internet); FrontendURL is the internal Docker host, so fall back only in dev.
-	publicBaseURL := cfg.Server.PublicBaseURL
-	if publicBaseURL == "" {
-		publicBaseURL = cfg.Server.FrontendURL
-	}
-	sharingHdl := sharingHandler.NewSharingHandler(sharingSvc, publicBaseURL)
+	// internet), not the internal FrontendURL Docker host — see resolvePublicBaseURL.
+	sharingHdl := sharingHandler.NewSharingHandler(sharingSvc, cfg.Server.PublicBaseURL)
 	subscriptionHdl := subHandler.NewSubscriptionHandler(subscriptionSvc, logger.Logger)
 	webhookHdl := subHandler.NewWebhookHandler(subscriptionSvc, logger.Logger)
 
