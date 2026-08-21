@@ -69,8 +69,10 @@ server { \
     gzip_comp_level 6; \
     gzip_types text/plain text/css text/xml text/javascript application/javascript application/xml application/xml+rss application/json application/ld+json image/svg+xml; \
     \
-    # Proxy API requests to backend \
-    location /api/ { \
+    # Proxy API requests to backend. ^~ so /api/ wins over the regex asset \
+    # locations below — otherwise /api/.../preview-image.png hits the ~*\.png$ \
+    # block and 404s as a missing static file instead of proxying. \
+    location ^~ /api/ { \
         proxy_pass http://backend:8080; \
         proxy_http_version 1.1; \
         proxy_set_header Host $host; \
