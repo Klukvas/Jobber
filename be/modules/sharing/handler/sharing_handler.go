@@ -17,13 +17,13 @@ import (
 
 type SharingHandler struct {
 	service     *service.SharingService
-	frontendURL string
+	publicBaseURL string
 }
 
-func NewSharingHandler(service *service.SharingService, frontendURL string) *SharingHandler {
+func NewSharingHandler(service *service.SharingService, publicBaseURL string) *SharingHandler {
 	return &SharingHandler{
 		service:     service,
-		frontendURL: strings.TrimRight(frontendURL, "/"),
+		publicBaseURL: strings.TrimRight(publicBaseURL, "/"),
 	}
 }
 
@@ -173,8 +173,8 @@ func (h *SharingHandler) PreviewHTML(c *gin.Context) {
 		"%d total applications, %d still in progress, %.0f%% response rate. Tracked with Jobber.",
 		overview.TotalApplications, overview.ActiveApplications, overview.ResponseRate,
 	)
-	shareURL := fmt.Sprintf("%s/s/%s", h.frontendURL, url.PathEscape(token))
-	imageURL := h.frontendURL + "/og-image.png"
+	shareURL := fmt.Sprintf("%s/s/%s", h.publicBaseURL, url.PathEscape(token))
+	imageURL := h.publicBaseURL + "/og-image.png"
 
 	page := fmt.Sprintf(previewHTMLTemplate,
 		html.EscapeString(title),

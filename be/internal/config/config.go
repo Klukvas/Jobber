@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -92,7 +93,8 @@ type ServerConfig struct {
 	Port           string
 	Env            string
 	AllowedOrigins string
-	FrontendURL    string
+	FrontendURL    string // internal SPA URL for server-to-server calls (e.g. PDF render)
+	PublicBaseURL  string // public origin used to build shareable/OG links
 }
 
 // DatabaseConfig holds database configuration
@@ -147,6 +149,10 @@ func Load() (*Config, error) {
 			Env:            getEnv("SERVER_ENV", "development"),
 			AllowedOrigins: getEnv("ALLOWED_ORIGINS", "*"),
 			FrontendURL:    getEnv("FRONTEND_URL", ""),
+			// Public origin for share/OG links. FRONTEND_URL is the *internal*
+			// Docker host (http://frontend) so it can't be used here; default to
+			// the first real CORS origin (prod requires a concrete host).
+			PublicBaseURL: getEnv("PUBLIC_BASE_URL", firstOrigin(getEnv("ALLOWED_ORIGINS", "*"))),
 		},
 		Database: DatabaseConfig{
 			Host:            getEnv("DB_HOST", "localhost"),
@@ -289,6 +295,17 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// firstOrigin returns the first concrete origin from a comma-separated CORS list
+// (skipping blanks and the "*" wildcard), trailing slash trimmed, or "" if none.
+func firstOrigin(origins string) string {
+	for _, o := range strings.Split(origins, ",") {
+		if o = strings.TrimSpace(o); o != "" && o != "*" {
+			return strings.TrimRight(o, "/")
+		}
+	}
+	return ""
 }
 
 func getEnvAsInt(key string, defaultValue int) int {

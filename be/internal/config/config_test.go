@@ -487,3 +487,21 @@ func TestGetEnvAsDuration(t *testing.T) {
 		})
 	}
 }
+
+func TestFirstOrigin(t *testing.T) {
+	cases := []struct {
+		name, in, want string
+	}{
+		{"single", "https://jobber-app.com", "https://jobber-app.com"},
+		{"trailing slash trimmed", "https://jobber-app.com/", "https://jobber-app.com"},
+		{"comma list picks first", "https://jobber-app.com, https://www.jobber-app.com", "https://jobber-app.com"},
+		{"wildcard skipped", "*", ""},
+		{"blank", "", ""},
+		{"wildcard then real", "*, https://jobber-app.com", "https://jobber-app.com"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.want, firstOrigin(c.in))
+		})
+	}
+}
