@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -278,7 +280,7 @@ func TestSharingHandler_PreviewHTML(t *testing.T) {
 		assert.Contains(t, body, "127 applications")
 		assert.Contains(t, body, "18% response rate") // %.0f rounds half-to-even: 18.5 → 18
 		assert.Contains(t, body, testFrontendURL+"/s/some-token")
-		assert.Contains(t, body, testFrontendURL+"/og-image.png")
+		assert.Contains(t, body, testFrontendURL+"/api/v1/public/shares/some-token/preview-image.png")
 	})
 
 	t.Run("returns noindex 404 page for unknown token", func(t *testing.T) {
@@ -294,5 +296,44 @@ func TestSharingHandler_PreviewHTML(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, w.Code)
 		assert.Equal(t, "noindex", w.Header().Get("X-Robots-Tag"))
 		assert.Contains(t, w.Body.String(), "does not exist")
+	})
+}
+
+func TestSharingHandler_PreviewImage(t *testing.T) {
+	t.Run("renders a PNG for a valid token", func(t *testing.T) {
+		handler := newHandler(&MockSharingRepository{
+			GetByTokenFunc: func(ctx context.Context, token string) (*model.SharedStats, error) {
+				return sharedStatsFixture(token), nil
+			},
+		})
+
+		router := setupTestRouter()
+		router.GET("/public/shares/:token/preview-image.png", handler.PreviewImage)
+
+		req, _ := http.NewRequest(http.MethodGet, "/public/shares/some-token/preview-image.png", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "image/png", w.Header().Get("Content-Type"))
+		assert.Contains(t, w.Header().Get("Cache-Control"), "immutable")
+
+		img, err := png.Decode(bytes.NewReader(w.Body.Bytes()))
+		require.NoError(t, err)
+		assert.Equal(t, 1200, img.Bounds().Dx())
+		assert.Equal(t, 630, img.Bounds().Dy())
+	})
+
+	t.Run("returns 404 for unknown token", func(t *testing.T) {
+		handler := newHandler(&MockSharingRepository{})
+
+		router := setupTestRouter()
+		router.GET("/public/shares/:token/preview-image.png", handler.PreviewImage)
+
+		req, _ := http.NewRequest(http.MethodGet, "/public/shares/missing/preview-image.png", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusNotFound, w.Code)
 	})
 }

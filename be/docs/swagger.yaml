@@ -2288,6 +2288,30 @@ paths:
       summary: OG preview page for a share (public)
       tags:
       - sharing
+  /public/shares/{token}/preview-image.png:
+    get:
+      description: Dynamically rendered 1200x630 PNG of the share's stats, used as
+        og:image.
+      parameters:
+      - description: Share token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - image/png
+      responses:
+        "200":
+          description: PNG image
+          schema:
+            type: string
+        "404":
+          description: Unknown share
+          schema:
+            type: string
+      summary: OG preview image for a share (public)
+      tags:
+      - sharing
   /reminders:
     get:
       description: Get all reminders for the authenticated user, ordered by remind_at

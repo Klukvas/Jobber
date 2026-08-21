@@ -2264,6 +2264,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/public/shares/{token}/preview-image.png": {
+            "get": {
+                "description": "Dynamically rendered 1200x630 PNG of the share's stats, used as og:image.",
+                "produces": [
+                    "image/png"
+                ],
+                "tags": [
+                    "sharing"
+                ],
+                "summary": "OG preview image for a share (public)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Share token",
+                        "name": "token",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "PNG image",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Unknown share",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/reminders": {
             "get": {
                 "security": [

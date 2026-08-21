@@ -11,6 +11,7 @@ import (
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
 	"github.com/andreypavlenko/jobber/modules/sharing/model"
+	"github.com/andreypavlenko/jobber/modules/sharing/ogimage"
 	"github.com/andreypavlenko/jobber/modules/sharing/service"
 	"github.com/gin-gonic/gin"
 )
@@ -174,17 +175,48 @@ func (h *SharingHandler) PreviewHTML(c *gin.Context) {
 		overview.TotalApplications, overview.ActiveApplications, overview.ResponseRate,
 	)
 	shareURL := fmt.Sprintf("%s/s/%s", h.publicBaseURL, url.PathEscape(token))
-	imageURL := h.publicBaseURL + "/og-image.png"
+	imageURL := fmt.Sprintf("%s/api/v1/public/shares/%s/preview-image.png", h.publicBaseURL, url.PathEscape(token))
 
 	page := fmt.Sprintf(previewHTMLTemplate,
-		html.EscapeString(title),
-		html.EscapeString(title),
-		html.EscapeString(description),
-		html.EscapeString(shareURL),
-		html.EscapeString(imageURL),
-		html.EscapeString(shareURL),
+		html.EscapeString(title),       // <title>
+		html.EscapeString(title),       // og:title
+		html.EscapeString(description), // og:description
+		html.EscapeString(shareURL),    // og:url
+		html.EscapeString(imageURL),    // og:image
+		html.EscapeString(imageURL),    // twitter:image
+		html.EscapeString(shareURL),    // meta refresh
 	)
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(page))
+}
+
+// PreviewImage godoc
+// @Summary OG preview image for a share (public)
+// @Description Dynamically rendered 1200x630 PNG of the share's stats, used as og:image.
+// @Tags sharing
+// @Produce png
+// @Param token path string true "Share token"
+// @Success 200 {string} binary "PNG image"
+// @Failure 404 {string} string "Unknown share"
+// @Router /public/shares/{token}/preview-image.png [get]
+func (h *SharingHandler) PreviewImage(c *gin.Context) {
+	token := c.Param("token")
+	c.Header("X-Robots-Tag", "noindex")
+
+	share, err := h.service.GetPublicByToken(c.Request.Context(), token)
+	if err != nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	png, err := ogimage.Render(share.Snapshot)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+
+	// Snapshots are immutable, so the image can be cached hard.
+	c.Header("Cache-Control", "public, max-age=604800, immutable")
+	c.Data(http.StatusOK, "image/png", png)
 }
 
 func (h *SharingHandler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.HandlerFunc, publicRateLimiter gin.HandlerFunc) {
@@ -203,6 +235,7 @@ func (h *SharingHandler) RegisterRoutes(router *gin.RouterGroup, authMiddleware 
 	{
 		public.GET("/:token", h.GetPublic)
 		public.GET("/:token/preview-html", h.PreviewHTML)
+		public.GET("/:token/preview-image.png", h.PreviewImage)
 	}
 }
 
@@ -221,7 +254,11 @@ const previewHTMLTemplate = `<!DOCTYPE html>
 <meta property="og:description" content="%s">
 <meta property="og:url" content="%s">
 <meta property="og:image" content="%s">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="%s">
 <meta http-equiv="refresh" content="0;url=%s">
 </head>
 <body></body>
