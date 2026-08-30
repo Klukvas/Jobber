@@ -93,32 +93,15 @@ export function JobKanbanBoard({
     useSensor(KeyboardSensor),
   );
 
-  // The single write path: move the card to a pipeline column.
+  // The single write path: move the card to a pipeline column. The optimistic
+  // cache write happens synchronously in handleDragEnd (the drop animation
+  // depends on its timing) — onMutate only stops in-flight refetches from
+  // overwriting it and stashes the rollback snapshot.
   const { mutate: moveJob } = useMutation({
     mutationFn: ({ id, stageTemplateId }: MoveVars) =>
       jobsService.move(id, { stage_template_id: stageTemplateId }),
-    onMutate: async ({ id, stageTemplateId, stageName }) => {
+    onMutate: async ({ previous }) => {
       await queryClient.cancelQueries({ queryKey });
-      const previous =
-        queryClient.getQueryData<PaginatedResponse<JobDTO>>(queryKey);
-      queryClient.setQueryData<PaginatedResponse<JobDTO>>(
-        queryKey,
-        (oldData) =>
-          oldData
-            ? {
-                ...oldData,
-                items: oldData.items.map((j) =>
-                  j.id === id
-                    ? {
-                        ...j,
-                        current_stage_template_id: stageTemplateId,
-                        current_stage_name: stageName,
-                      }
-                    : j,
-                ),
-              }
-            : oldData,
-      );
       return { previous };
     },
     onSuccess: (data) => {
@@ -176,16 +159,40 @@ export function JobKanbanBoard({
       const template = stageTemplates.find((tpl) => tpl.id === targetColumn);
       if (!template) return;
 
-      const cachedData =
+      const previous =
         queryClient.getQueryData<PaginatedResponse<JobDTO>>(queryKey);
-      const currentJob = cachedData?.items.find((j) => j.id === jobId);
+      const currentJob = previous?.items.find((j) => j.id === jobId);
       if (!currentJob) return;
       if (currentJob.current_stage_template_id === template.id) return;
+
+      // Write the move into the cache synchronously, before dnd-kit measures
+      // the drop-animation target: the overlay then glides into the card's
+      // slot in the new column instead of flying back to the old one. Doing
+      // this in onMutate is too late — its `await cancelQueries` defers the
+      // write past the measurement.
+      queryClient.setQueryData<PaginatedResponse<JobDTO>>(
+        queryKey,
+        (oldData) =>
+          oldData
+            ? {
+                ...oldData,
+                items: oldData.items.map((j) =>
+                  j.id === jobId
+                    ? {
+                        ...j,
+                        current_stage_template_id: template.id,
+                        current_stage_name: template.name,
+                      }
+                    : j,
+                ),
+              }
+            : oldData,
+      );
 
       moveJob({
         id: jobId,
         stageTemplateId: template.id,
-        stageName: template.name,
+        previous,
       });
     },
     [stageTemplates, queryClient, moveJob, queryKey],
@@ -253,7 +260,9 @@ export function JobKanbanBoard({
 interface MoveVars {
   id: string;
   stageTemplateId: string;
-  stageName: string;
+  // Cache snapshot taken before the optimistic write in handleDragEnd, kept
+  // for rollback when the server rejects the move.
+  previous?: PaginatedResponse<JobDTO>;
 }
 
 // ColumnData is the same shape as MobileColumnData — re-export for consumers

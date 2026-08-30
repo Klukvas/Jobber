@@ -72,6 +72,14 @@ vi.mock("@/services/stageTemplatesService", () => ({
   },
 }));
 
+// Shared across renders so tests can assert on cache interactions.
+const queryClientMock = {
+  invalidateQueries: vi.fn(),
+  cancelQueries: vi.fn(),
+  setQueryData: vi.fn(),
+  getQueryData: () => ({ items: cachedJobs }),
+};
+
 // A hand-rolled query mock: templates come from useQuery, and the move
 // mutation invokes jobsService.move and calls the provided mutationFn.
 vi.mock("@tanstack/react-query", () => ({
@@ -80,12 +88,7 @@ vi.mock("@tanstack/react-query", () => ({
     mutate: (vars: unknown) => opts.mutationFn(vars),
     isPending: false,
   }),
-  useQueryClient: () => ({
-    invalidateQueries: vi.fn(),
-    cancelQueries: vi.fn(),
-    setQueryData: vi.fn(),
-    getQueryData: () => ({ items: cachedJobs }),
-  }),
+  useQueryClient: () => queryClientMock,
 }));
 
 const job = (over: Partial<JobDTO>): JobDTO => ({
@@ -156,6 +159,29 @@ describe("JobKanbanBoard — single-axis columns", () => {
     });
   });
 
+  // Regression: the optimistic cache write must happen synchronously inside
+  // the drag-end handler — dnd-kit measures the drop-animation target right
+  // after it runs, and a deferred write (e.g. in onMutate after an awaited
+  // cancelQueries) makes the overlay animate back to the old column.
+  it("writes the move into the cache synchronously on drop", () => {
+    renderBoard([job({ id: "j1", current_stage_template_id: "t-wishlist" })]);
+    capturedOnDragEnd!({
+      active: { id: "j1" },
+      over: { id: "t-screen" },
+    } as unknown as DragEndEvent);
+
+    expect(queryClientMock.setQueryData).toHaveBeenCalledWith(
+      ["jobs", "kanban"],
+      expect.any(Function),
+    );
+    const updater = queryClientMock.setQueryData.mock.calls[0][1] as (
+      old: unknown,
+    ) => { items: JobDTO[] };
+    const updated = updater({ items: cachedJobs });
+    expect(updated.items[0].current_stage_template_id).toBe("t-screen");
+    expect(updated.items[0].current_stage_name).toBe("Screening");
+  });
+
   it("does not move when dropped on its current column", () => {
     renderBoard([job({ id: "j1", current_stage_template_id: "t-screen" })]);
     capturedOnDragEnd!({
@@ -163,6 +189,7 @@ describe("JobKanbanBoard — single-axis columns", () => {
       over: { id: "t-screen" },
     } as unknown as DragEndEvent);
     expect(moveMock).not.toHaveBeenCalled();
+    expect(queryClientMock.setQueryData).not.toHaveBeenCalled();
   });
 
   it("does not move when dropped on the No-stage column", () => {
@@ -172,5 +199,6 @@ describe("JobKanbanBoard — single-axis columns", () => {
       over: { id: "__no_stage__" },
     } as unknown as DragEndEvent);
     expect(moveMock).not.toHaveBeenCalled();
+    expect(queryClientMock.setQueryData).not.toHaveBeenCalled();
   });
 });
