@@ -1,6 +1,7 @@
 ---
 title: "How to Organize Your Job Search"
 slug: "how-to-organize-job-search"
+translationKey: "organize-job-search"
 date: "2026-02-28"
 description: "Learn effective strategies to organize your job search and stay on top of every application."
 tags: ["job search", "productivity", "career"]

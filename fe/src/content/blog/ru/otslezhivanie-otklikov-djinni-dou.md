@@ -1,6 +1,7 @@
 ---
 title: "Как отслеживать отклики с Djinni, DOU и LinkedIn в одном трекере"
 slug: "otslezhivanie-otklikov-djinni-dou"
+translationKey: "djinni-dou-tracking"
 date: "2026-08-11"
 description: "Отклики разбросаны по Djinni, DOU, LinkedIn и почте? Разбираем, как собрать весь поиск работы в один трекер: канбан, статусы, напоминания и аналитика конверсии."
 tags: ["поиск работы", "трекер откликов", "Djinni", "DOU", "IT"]

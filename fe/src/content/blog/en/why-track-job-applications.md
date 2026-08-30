@@ -1,6 +1,7 @@
 ---
 title: "Why You Should Track Every Job Application (And How to Do It)"
 slug: "why-track-job-applications"
+translationKey: "track-applications"
 date: "2026-03-12"
 description: "Tracking your job applications reduces chaos, surfaces patterns, and dramatically improves your job search results."
 tags: ["job search", "productivity", "tracking"]

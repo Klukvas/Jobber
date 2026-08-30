@@ -1,6 +1,7 @@
 ---
 title: "Networking Strategies for Job Seekers"
 slug: "networking-strategies-job-seekers"
+translationKey: "networking"
 date: "2026-02-28"
 description: "Build meaningful professional connections that open doors to new opportunities."
 tags: ["networking", "career advice", "job search"]

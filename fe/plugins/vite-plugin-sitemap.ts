@@ -5,17 +5,32 @@ import type { Plugin, ResolvedConfig } from "vite";
 const VALID_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const VALID_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+interface SitemapAlternate {
+  readonly hreflang: string;
+  readonly href: string;
+}
+
 interface SitemapEntry {
   readonly loc: string;
   readonly changefreq: string;
   readonly priority: string;
   readonly lastmod?: string;
+  readonly alternates?: readonly SitemapAlternate[];
 }
 
 interface BlogEntry {
   readonly slug: string;
   readonly lastmod: string;
+  readonly translationKey: string | null;
+  // hreflang code derived from the content directory (ua dir → "uk").
+  readonly hreflang: string;
 }
+
+const HREFLANG_BY_DIR: Record<string, string> = {
+  en: "en",
+  ua: "uk",
+  ru: "ru",
+};
 
 function escapeXml(str: string): string {
   return str
@@ -31,13 +46,16 @@ function extractFromFrontmatter(content: string): {
   slug: string | null;
   date: string | null;
   dateModified: string | null;
+  translationKey: string | null;
 } {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!match) return { slug: null, date: null, dateModified: null };
+  if (!match)
+    return { slug: null, date: null, dateModified: null, translationKey: null };
 
   let slug: string | null = null;
   let date: string | null = null;
   let dateModified: string | null = null;
+  let translationKey: string | null = null;
 
   for (const line of match[1].split("\n")) {
     const colonIndex = line.indexOf(":");
@@ -51,9 +69,11 @@ function extractFromFrontmatter(content: string): {
     if (key === "slug" && VALID_SLUG.test(raw)) slug = raw;
     else if (key === "date" && VALID_DATE.test(raw)) date = raw;
     else if (key === "dateModified" && VALID_DATE.test(raw)) dateModified = raw;
+    else if (key === "translationKey" && VALID_SLUG.test(raw))
+      translationKey = raw;
   }
 
-  return { slug, date, dateModified };
+  return { slug, date, dateModified, translationKey };
 }
 
 // Localized posts have unique per-language slugs, so every language directory
@@ -69,14 +89,43 @@ function collectBlogEntries(blogDir: string): BlogEntry[] {
     for (const file of fs.readdirSync(dir)) {
       if (!file.endsWith(".md")) continue;
       const content = fs.readFileSync(path.join(dir, file), "utf-8");
-      const { slug, date, dateModified } = extractFromFrontmatter(content);
+      const { slug, date, dateModified, translationKey } =
+        extractFromFrontmatter(content);
       if (slug && !seen.has(slug)) {
         seen.add(slug);
-        entries.push({ slug, lastmod: dateModified ?? date ?? "" });
+        entries.push({
+          slug,
+          lastmod: dateModified ?? date ?? "",
+          translationKey,
+          hreflang: HREFLANG_BY_DIR[lang] ?? lang,
+        });
       }
     }
   }
   return entries.sort((a, b) => a.slug.localeCompare(b.slug));
+}
+
+// hreflang alternates per post: all members of the post's translation
+// cluster (including itself) plus x-default on the English version.
+// Single-member clusters get no alternates.
+function blogAlternates(
+  post: BlogEntry,
+  all: readonly BlogEntry[],
+  siteUrl: string,
+): SitemapAlternate[] | undefined {
+  if (!post.translationKey) return undefined;
+  const cluster = all.filter((p) => p.translationKey === post.translationKey);
+  if (cluster.length < 2) return undefined;
+
+  const alternates = cluster.map((p) => ({
+    hreflang: p.hreflang,
+    href: `${siteUrl}/blog/${p.slug}`,
+  }));
+  const english = alternates.find((a) => a.hreflang === "en");
+  if (english) {
+    alternates.push({ hreflang: "x-default", href: english.href });
+  }
+  return alternates;
 }
 
 function buildSitemapXml(entries: readonly SitemapEntry[]): string {
@@ -85,11 +134,17 @@ function buildSitemapXml(entries: readonly SitemapEntry[]): string {
       const lastmodTag = e.lastmod
         ? `\n    <lastmod>${escapeXml(e.lastmod)}</lastmod>`
         : "";
-      return `  <url>\n    <loc>${escapeXml(e.loc)}</loc>${lastmodTag}\n    <changefreq>${escapeXml(e.changefreq)}</changefreq>\n    <priority>${escapeXml(e.priority)}</priority>\n  </url>`;
+      const alternateTags = (e.alternates ?? [])
+        .map(
+          (a) =>
+            `\n    <xhtml:link rel="alternate" hreflang="${escapeXml(a.hreflang)}" href="${escapeXml(a.href)}"/>`,
+        )
+        .join("");
+      return `  <url>\n    <loc>${escapeXml(e.loc)}</loc>${lastmodTag}\n    <changefreq>${escapeXml(e.changefreq)}</changefreq>\n    <priority>${escapeXml(e.priority)}</priority>${alternateTags}\n  </url>`;
     })
     .join("\n");
 
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${urls}\n</urlset>\n`;
 }
 
 export default function sitemapPlugin(): Plugin {
@@ -149,6 +204,7 @@ export default function sitemapPlugin(): Plugin {
           changefreq: "monthly" as const,
           priority: "0.7",
           lastmod: p.lastmod || buildDate,
+          alternates: blogAlternates(p, posts, siteUrl),
         })),
         {
           loc: `${siteUrl}/privacy`,

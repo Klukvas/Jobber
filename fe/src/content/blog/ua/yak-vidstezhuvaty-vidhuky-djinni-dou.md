@@ -1,6 +1,7 @@
 ---
 title: "Як відстежувати відгуки з Djinni, DOU та LinkedIn в одному місці"
 slug: "yak-vidstezhuvaty-vidhuky-djinni-dou"
+translationKey: "djinni-dou-tracking"
 date: "2026-08-11"
 description: "Відгуки розкидані по Djinni, DOU, LinkedIn і пошті? Ось як звести весь пошук роботи в один трекер: канбан, статуси, нагадування та аналітика конверсії."
 tags: ["пошук роботи", "трекер відгуків", "Djinni", "DOU", "IT"]

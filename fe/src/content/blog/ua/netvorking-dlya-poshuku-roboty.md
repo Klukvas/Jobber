@@ -1,6 +1,7 @@
 ---
 title: "Нетворкінг для пошуку роботи"
 slug: "netvorking-dlya-poshuku-roboty"
+translationKey: "networking"
 date: "2026-02-28"
 description: "Побудуйте професійні зв'язки, які відкриють двері до нових можливостей."
 tags: ["нетворкінг", "поради для кар'єри", "пошук роботи"]

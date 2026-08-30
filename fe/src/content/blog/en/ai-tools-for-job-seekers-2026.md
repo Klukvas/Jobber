@@ -1,6 +1,7 @@
 ---
 title: "The Best AI Tools for Job Seekers in 2026"
 slug: "ai-tools-for-job-seekers-2026"
+translationKey: "ai-tools-2026"
 date: "2026-03-15"
 description: "A practical guide to using AI for resumes, cover letters, interview prep, and job tracking in 2026."
 tags: ["AI", "tools", "job search", "2026"]

@@ -1,6 +1,7 @@
 ---
 title: "Top 5 Resume Tips for 2026"
 slug: "top-5-resume-tips"
+translationKey: "resume-tips-2026"
 date: "2026-02-28"
 description: "Make your resume stand out with these proven tips that recruiters actually look for."
 tags: ["resume", "career advice", "tips"]

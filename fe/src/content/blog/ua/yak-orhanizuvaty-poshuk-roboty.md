@@ -1,6 +1,7 @@
 ---
 title: "Як організувати пошук роботи"
-slug: "how-to-organize-job-search"
+slug: "yak-orhanizuvaty-poshuk-roboty"
+translationKey: "organize-job-search"
 date: "2026-02-28"
 description: "Дізнайтесь ефективні стратегії організації пошуку роботи та контролю кожної заявки."
 tags: ["пошук роботи", "продуктивність", "кар'єра"]

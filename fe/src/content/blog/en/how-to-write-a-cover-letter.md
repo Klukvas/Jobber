@@ -1,6 +1,7 @@
 ---
 title: "How to Write a Cover Letter That Gets You Hired"
 slug: "how-to-write-a-cover-letter"
+translationKey: "cover-letter"
 date: "2026-03-10"
 description: "A step-by-step guide to writing cover letters that stand out, from structure to tone to using AI tools."
 tags: ["cover letter", "job search", "career advice"]

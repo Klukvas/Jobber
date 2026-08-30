@@ -1,6 +1,7 @@
 ---
 title: "Building a Portfolio That Stands Out"
 slug: "building-portfolio-that-stands-out"
+translationKey: "portfolio"
 date: "2026-02-28"
 description: "Create a compelling portfolio that showcases your skills and lands you interviews."
 tags: ["portfolio", "career advice", "personal branding"]

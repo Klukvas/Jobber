@@ -4,7 +4,11 @@ import { ArrowLeft, Calendar, Tag } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { uk, ru, enUS } from "date-fns/locale";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
-import { getPostBySlug } from "@/features/blog/lib/blogLoader";
+import { useHreflangLinks } from "@/shared/lib/useHreflangLinks";
+import {
+  getPostBySlug,
+  getHreflangAlternates,
+} from "@/features/blog/lib/blogLoader";
 import { BlogArticle } from "@/features/blog/components/BlogArticle";
 import { BlogPostJsonLd } from "@/features/blog/components/BlogPostJsonLd";
 import { HomeNavbar } from "@/features/home/components/HomeNavbar";
@@ -27,6 +31,15 @@ export default function BlogPost() {
           ogType: "article" as const,
         }
       : { titleKey: "blog.notFound", noindex: true },
+  );
+
+  // Link translated versions of this article for search engines. Empty for
+  // posts without a translation cluster — the hook then renders nothing.
+  useHreflangLinks(
+    (post ? getHreflangAlternates(post) : []).map((a) => ({
+      hreflang: a.hreflang,
+      path: `/blog/${a.slug}`,
+    })),
   );
 
   const dateLocale =

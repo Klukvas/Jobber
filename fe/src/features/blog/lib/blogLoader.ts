@@ -10,6 +10,9 @@ export interface BlogPost {
   readonly lang: string;
   readonly image?: string;
   readonly content: string;
+  // Shared id linking translations of the same article across languages.
+  // Posts with the same translationKey form one hreflang cluster.
+  readonly translationKey?: string;
 }
 
 interface FrontmatterData {
@@ -21,6 +24,7 @@ interface FrontmatterData {
   readonly tags?: string[];
   readonly lang?: string;
   readonly image?: string;
+  readonly translationKey?: string;
 }
 
 // Parses single-line YAML frontmatter only.
@@ -99,6 +103,7 @@ function loadPosts(modules: Record<string, string>): readonly BlogPost[] {
         tags: data.tags ?? [],
         lang: data.lang ?? "en",
         content,
+        translationKey: data.translationKey,
       } satisfies BlogPost;
     })
     .sort((a, b) => {
@@ -121,6 +126,34 @@ export function getAllPosts(lang: string): readonly BlogPost[] {
 }
 
 const ALL_LANGS = ["en", "ua", "ru"] as const;
+
+export interface HreflangAlternate {
+  // BCP 47 code for the hreflang attribute. The "ua" content directory holds
+  // Ukrainian, whose language code is "uk" — never emit "ua".
+  readonly hreflang: string;
+  readonly slug: string;
+}
+
+const HREFLANG_BY_DIR = { en: "en", ua: "uk", ru: "ru" } as const;
+
+// Translations of `post` across languages (including the post itself),
+// ordered en → uk → ru. Returns [] when the post has no translationKey or
+// no counterpart in another language — a single-entry cluster is meaningless.
+export function getHreflangAlternates(
+  post: BlogPost,
+): readonly HreflangAlternate[] {
+  if (!post.translationKey) return [];
+  const alternates: HreflangAlternate[] = [];
+  for (const dir of ALL_LANGS) {
+    const match = getAllPosts(dir).find(
+      (p) => p.translationKey === post.translationKey,
+    );
+    if (match) {
+      alternates.push({ hreflang: HREFLANG_BY_DIR[dir], slug: match.slug });
+    }
+  }
+  return alternates.length > 1 ? alternates : [];
+}
 
 export function getPostBySlug(
   slug: string,
