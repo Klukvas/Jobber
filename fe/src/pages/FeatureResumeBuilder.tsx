@@ -6,6 +6,7 @@ import { HomeNavbar } from "@/features/home/components/HomeNavbar";
 import { FooterSection } from "@/features/home/components/FooterSection";
 import { BrowserMockup } from "@/shared/ui/BrowserMockup";
 import { useAuthStore } from "@/stores/authStore";
+import { FeatureFaq } from "@/features/home/components/FeatureFaq";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 
 const NS = "featurePages.resumeBuilder";
@@ -223,6 +224,8 @@ export default function FeatureResumeBuilder() {
             </div>
           </div>
         </section>
+
+        <FeatureFaq ns={NS} path="/features/resume-builder" />
 
         {/* CTA */}
         <section className="py-24 text-center">

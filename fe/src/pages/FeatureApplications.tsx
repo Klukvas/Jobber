@@ -5,6 +5,7 @@ import { Button } from "@/shared/ui/Button";
 import { HomeNavbar } from "@/features/home/components/HomeNavbar";
 import { FooterSection } from "@/features/home/components/FooterSection";
 import { BrowserMockup } from "@/shared/ui/BrowserMockup";
+import { FeatureFaq } from "@/features/home/components/FeatureFaq";
 import { useAuthStore } from "@/stores/authStore";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 
@@ -173,6 +174,8 @@ export default function FeatureApplications() {
             </div>
           </div>
         </section>
+
+        <FeatureFaq ns={NS} path="/features/applications" />
 
         {/* CTA banner */}
         <section className="py-24 text-center">

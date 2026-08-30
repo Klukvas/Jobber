@@ -1467,6 +1467,19 @@
         "title": "Ready to organize your job search?",
         "subtitle": "Join thousands of job seekers who use Jobber to stay focused and land offers faster.",
         "button": "Get started for free"
+      },
+      "faq": {
+        "title": "Frequently asked questions",
+        "q1": "Is Jobber's job application tracker free?",
+        "a1": "Yes. The free plan tracks up to 25 active applications with the full Kanban board, custom stages, comments, and reminders. Pro ($7/mo) raises the limit to 100 applications and unlocks unlimited AI features, Enterprise ($19/mo) removes limits entirely.",
+        "q2": "Why is a Kanban board better than a spreadsheet for tracking job applications?",
+        "a2": "A spreadsheet shows rows — a board shows status. You drag a card from Applied to Interview in one motion, instantly see where every application stands, and never lose a follow-up. Analytics like response rate are computed automatically instead of living in formulas you maintain by hand.",
+        "q3": "Can I save jobs from LinkedIn, Djinni or DOU automatically?",
+        "a3": "Yes. The Jobber Chrome extension saves a job from almost any job board in one click — it parses the title, company, and description for you, so a new card lands on your board in seconds.",
+        "q4": "Can I customize the pipeline stages?",
+        "a4": "Yes. Create your own stage templates — for example Screening, Tech Interview, Offer — and the board adapts. Every move is kept on the application's timeline, so you always see the full history.",
+        "q5": "What analytics does Jobber show about my job search?",
+        "a5": "Response rate, weekly application volume, a stage-by-stage funnel, and per-source breakdowns — so you can see which job boards actually convert into interviews and double down on what works."
       }
     },
     "resumeBuilder": {
@@ -1505,6 +1518,19 @@
         "title": "Your best resume is one click away",
         "subtitle": "Build a polished, ATS-friendly resume in minutes — no design skills needed.",
         "button": "Start building for free"
+      },
+      "faq": {
+        "title": "Frequently asked questions",
+        "q1": "Are the resume templates really ATS-friendly?",
+        "a1": "Yes. Templates use clean layouts, standard fonts, and real selectable text — no graphics that confuse applicant tracking systems. The built-in ATS check scores your resume from 0 to 100 and lists concrete issues to fix before you apply.",
+        "q2": "Can AI help me write my resume?",
+        "a2": "Yes. AI suggests achievement-style bullet points for your experience, drafts a professional summary from your background, rewrites any text to be more concise or metric-driven, and checks your resume against a job description for missing keywords.",
+        "q3": "Can I export my resume to PDF?",
+        "a3": "Yes — every resume exports to a pixel-perfect PDF with selectable text, which both recruiters and ATS systems can read properly.",
+        "q4": "How many resumes can I create?",
+        "a4": "The free plan includes one builder resume. Pro gives you 10 so you can tailor a version per role, and Enterprise removes the limit. You can duplicate any resume and adjust it for a specific application in minutes.",
+        "q5": "Can I import my existing resume?",
+        "a5": "Yes. Upload a PDF or paste plain text, and Jobber converts it into a fully editable resume — sections, dates, and bullet points included — so you never start from a blank page."
       }
     },
     "coverLetters": {
@@ -1549,6 +1575,19 @@
         "title": "Stop dreading cover letters",
         "subtitle": "Let AI write the first draft. You make it yours in minutes.",
         "button": "Try it for free"
+      },
+      "faq": {
+        "title": "Frequently asked questions",
+        "q1": "How does the AI cover letter generator work?",
+        "a1": "It combines your resume, the job description, and any notes you add into a tailored letter — greeting, three focused paragraphs, and a closing. You get a solid draft in seconds instead of staring at a blank page.",
+        "q2": "Will my cover letters sound generic?",
+        "a2": "No — the AI writes from your actual resume and the specific job description, referencing your real experience. You can regenerate or refine the tone until it sounds like you.",
+        "q3": "Can I edit the generated letter?",
+        "a3": "Of course. The generator produces a draft in a full editor — change any paragraph, adjust the greeting, and save the result. The letter stays linked to the job application it was written for.",
+        "q4": "How do cover letters connect to my applications?",
+        "a4": "Each letter links to a specific job application and resume, so everything for one application — the job description, your tailored resume, and the letter — lives in one place on your board.",
+        "q5": "Do recruiters still read cover letters?",
+        "a5": "For many roles, yes — especially at smaller companies and for career changers. A short, specific letter that mirrors the job posting is a cheap way to stand out when dozens of similar resumes land in the same inbox."
       }
     }
   },

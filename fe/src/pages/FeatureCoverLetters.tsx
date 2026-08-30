@@ -6,6 +6,7 @@ import { HomeNavbar } from "@/features/home/components/HomeNavbar";
 import { FooterSection } from "@/features/home/components/FooterSection";
 import { BrowserMockup } from "@/shared/ui/BrowserMockup";
 import { useAuthStore } from "@/stores/authStore";
+import { FeatureFaq } from "@/features/home/components/FeatureFaq";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 
 const NS = "featurePages.coverLetters";
@@ -211,6 +212,8 @@ export default function FeatureCoverLetters() {
             </div>
           </div>
         </section>
+
+        <FeatureFaq ns={NS} path="/features/cover-letters" />
 
         {/* CTA */}
         <section className="py-24 text-center">
