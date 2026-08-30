@@ -9,8 +9,11 @@ jobber-app.com {
 		# Block MIME-type sniffing
 		X-Content-Type-Options "nosniff"
 
-		# CSP — allow self, Google Fonts, Sentry, inline styles (Tailwind), Paddle
-		Content-Security-Policy "default-src 'self'; script-src 'self' https://cdn.paddle.com https://sandbox-cdn.paddle.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://nbg1.your-objectstorage.com https://*.ingest.sentry.io https://cdn.paddle.com https://sandbox-cdn.paddle.com https://checkout.paddle.com https://sandbox-checkout.paddle.com; frame-src https://checkout.paddle.com https://sandbox-checkout.paddle.com; object-src 'none'; base-uri 'self'"
+		# CSP — allow self, Google Fonts, Sentry, inline styles (Tailwind), Paddle.
+		# Paddle Billing overlay checkout iframes from buy.paddle.com and its JS
+		# calls checkout-service.paddle.com (checkout.paddle.com is the legacy
+		# Classic domain, kept for safety).
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://cdn.paddle.com https://sandbox-cdn.paddle.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://paddle-static.s3.amazonaws.com; connect-src 'self' https://nbg1.your-objectstorage.com https://*.ingest.sentry.io https://cdn.paddle.com https://sandbox-cdn.paddle.com https://checkout.paddle.com https://sandbox-checkout.paddle.com https://checkout-service.paddle.com https://sandbox-checkout-service.paddle.com; frame-src https://buy.paddle.com https://sandbox-buy.paddle.com https://checkout.paddle.com https://sandbox-checkout.paddle.com; object-src 'none'; base-uri 'self'"
 
 		# Referrer policy
 		Referrer-Policy "strict-origin-when-cross-origin"
