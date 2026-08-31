@@ -90,6 +90,15 @@ describe("HeroSection", () => {
     render(<HeroSection {...defaultProps} />);
     expect(screen.getByText("Stripe")).toBeInTheDocument();
     expect(screen.getByText("Senior Frontend Engineer")).toBeInTheDocument();
-    expect(screen.getByText("87% match")).toBeInTheDocument();
+    // The moving card is intentionally rendered in both columns —
+    // the arrival twin makes the kanban drop animation loop seamless.
+    expect(screen.getAllByText("87% match")).toHaveLength(2);
+  });
+
+  it("renders match score and pipeline widgets", () => {
+    render(<HeroSection {...defaultProps} />);
+    expect(screen.getByText("AI Match Score")).toBeInTheDocument();
+    expect(screen.getByText("Pipeline · 30 days")).toBeInTheDocument();
+    expect(screen.getByText("Response rate")).toBeInTheDocument();
   });
 });

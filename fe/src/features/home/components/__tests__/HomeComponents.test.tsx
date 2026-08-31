@@ -170,13 +170,11 @@ describe("SocialProofBar", () => {
     expect(screen.getByText(/home.socialProof.label/)).toBeInTheDocument();
   });
 
-  it("renders company names", () => {
+  it("renders company names twice for the seamless marquee loop", () => {
     render(<SocialProofBar />);
-    expect(screen.getByText("Google")).toBeInTheDocument();
-    expect(screen.getByText("Meta")).toBeInTheDocument();
-    expect(screen.getByText("Stripe")).toBeInTheDocument();
-    expect(screen.getByText("Vercel")).toBeInTheDocument();
-    expect(screen.getByText("Notion")).toBeInTheDocument();
+    for (const name of ["Google", "Meta", "Stripe", "Vercel", "Notion"]) {
+      expect(screen.getAllByText(name)).toHaveLength(2);
+    }
   });
 });
 
