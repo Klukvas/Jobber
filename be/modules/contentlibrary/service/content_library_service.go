@@ -57,7 +57,7 @@ func (s *ContentLibraryService) List(ctx context.Context, userID string) ([]*mod
 
 // Update updates a content library entry.
 func (s *ContentLibraryService) Update(ctx context.Context, userID, id string, req *model.UpdateContentLibraryRequest) (*model.ContentLibraryEntryDTO, error) {
-	entry, err := s.repo.GetByID(ctx, id)
+	entry, err := s.repo.GetByID(ctx, userID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func (s *ContentLibraryService) Update(ctx context.Context, userID, id string, r
 
 // Delete deletes a content library entry.
 func (s *ContentLibraryService) Delete(ctx context.Context, userID, id string) error {
-	entry, err := s.repo.GetByID(ctx, id)
+	entry, err := s.repo.GetByID(ctx, userID, id)
 	if err != nil {
 		return err
 	}

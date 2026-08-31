@@ -9,11 +9,11 @@ import (
 // ResumeBuilderRepository defines the data access interface for resume builders.
 type ResumeBuilderRepository interface {
 	Create(ctx context.Context, rb *model.ResumeBuilder) error
-	GetByID(ctx context.Context, id string) (*model.ResumeBuilder, error)
+	GetByID(ctx context.Context, userID, id string) (*model.ResumeBuilder, error)
 	List(ctx context.Context, userID string) ([]*model.ResumeBuilderDTO, error)
 	Update(ctx context.Context, rb *model.ResumeBuilder) error
-	Delete(ctx context.Context, id string) error
-	GetFullResume(ctx context.Context, id string) (*model.FullResumeDTO, error)
+	Delete(ctx context.Context, userID, id string) error
+	GetFullResume(ctx context.Context, userID, id string) (*model.FullResumeDTO, error)
 	VerifyOwnership(ctx context.Context, userID, resumeBuilderID string) error
 
 	// Transaction support

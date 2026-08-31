@@ -77,12 +77,14 @@ func (r *JobStageRepository) ListByJob(ctx context.Context, jobID string) ([]*mo
 }
 
 func (r *JobStageRepository) Update(ctx context.Context, stage *model.JobStage) error {
+	// Scope by job_id (the ownership FK) so a stage can never be updated
+	// outside the job it belongs to, even if a caller's guard is dropped.
 	query := `
 		UPDATE job_stages SET status = $2, completed_at = $3
-		WHERE id = $1
+		WHERE id = $1 AND job_id = $4
 	`
 
-	result, err := r.pool.Exec(ctx, query, stage.ID, stage.Status, stage.CompletedAt)
+	result, err := r.pool.Exec(ctx, query, stage.ID, stage.Status, stage.CompletedAt, stage.JobID)
 	if err != nil {
 		return err
 	}
@@ -92,9 +94,9 @@ func (r *JobStageRepository) Update(ctx context.Context, stage *model.JobStage) 
 	return nil
 }
 
-func (r *JobStageRepository) Delete(ctx context.Context, stageID string) error {
-	query := `DELETE FROM job_stages WHERE id = $1`
-	result, err := r.pool.Exec(ctx, query, stageID)
+func (r *JobStageRepository) Delete(ctx context.Context, stageID, jobID string) error {
+	query := `DELETE FROM job_stages WHERE id = $1 AND job_id = $2`
+	result, err := r.pool.Exec(ctx, query, stageID, jobID)
 	if err != nil {
 		return err
 	}

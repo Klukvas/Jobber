@@ -3,7 +3,6 @@ package handler
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
@@ -157,12 +156,12 @@ func (h *CoverLetterHandler) handleError(c *gin.Context, err error) {
 		httpPlatform.RespondWithError(c, http.StatusForbidden, "NOT_AUTHORIZED", "You don't have access to this cover letter")
 	case errors.Is(err, model.ErrCoverLetterNotFound):
 		httpPlatform.RespondWithError(c, http.StatusNotFound, "COVER_LETTER_NOT_FOUND", "Cover letter not found")
-	case errors.Is(err, model.ErrInvalidFont),
-		errors.Is(err, model.ErrInvalidColor),
-		errors.Is(err, model.ErrInvalidFontSize),
-		strings.Contains(err.Error(), "invalid font family"),
-		strings.Contains(err.Error(), "invalid color format"):
-		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
+	case errors.Is(err, model.ErrInvalidFont):
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid font family")
+	case errors.Is(err, model.ErrInvalidColor):
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid color format")
+	case errors.Is(err, model.ErrInvalidFontSize):
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", "Font size must be between 8 and 18")
 	default:
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error")
 	}

@@ -67,13 +67,13 @@ func (r *ResumeBuilderRepository) Create(ctx context.Context, rb *model.ResumeBu
 	return err
 }
 
-func (r *ResumeBuilderRepository) GetByID(ctx context.Context, id string) (*model.ResumeBuilder, error) {
+func (r *ResumeBuilderRepository) GetByID(ctx context.Context, userID, id string) (*model.ResumeBuilder, error) {
 	query := `
 		SELECT id, user_id, title, template_id, font_family, primary_color, text_color, spacing, margin_top, margin_bottom, margin_left, margin_right, layout_mode, sidebar_width, font_size, skill_display, created_at, updated_at
-		FROM resume_builders WHERE id = $1
+		FROM resume_builders WHERE id = $1 AND user_id = $2
 	`
 	rb := &model.ResumeBuilder{}
-	err := r.q.QueryRow(ctx, query, id).Scan(
+	err := r.q.QueryRow(ctx, query, id, userID).Scan(
 		&rb.ID, &rb.UserID, &rb.Title, &rb.TemplateID, &rb.FontFamily, &rb.PrimaryColor, &rb.TextColor,
 		&rb.Spacing, &rb.MarginTop, &rb.MarginBottom, &rb.MarginLeft, &rb.MarginRight,
 		&rb.LayoutMode, &rb.SidebarWidth, &rb.FontSize, &rb.SkillDisplay,
@@ -121,14 +121,14 @@ func (r *ResumeBuilderRepository) Update(ctx context.Context, rb *model.ResumeBu
 		SET title = $1, template_id = $2, font_family = $3, primary_color = $4, text_color = $5,
 		    spacing = $6, margin_top = $7, margin_bottom = $8, margin_left = $9, margin_right = $10,
 		    layout_mode = $11, sidebar_width = $12, font_size = $13, skill_display = $14, updated_at = CURRENT_TIMESTAMP
-		WHERE id = $15
+		WHERE id = $15 AND user_id = $16
 		RETURNING updated_at
 	`
 	err := r.q.QueryRow(ctx, query,
 		rb.Title, rb.TemplateID, rb.FontFamily, rb.PrimaryColor, rb.TextColor,
 		rb.Spacing, rb.MarginTop, rb.MarginBottom, rb.MarginLeft, rb.MarginRight,
 		rb.LayoutMode, rb.SidebarWidth, rb.FontSize, rb.SkillDisplay,
-		rb.ID,
+		rb.ID, rb.UserID,
 	).Scan(&rb.UpdatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -139,8 +139,8 @@ func (r *ResumeBuilderRepository) Update(ctx context.Context, rb *model.ResumeBu
 	return nil
 }
 
-func (r *ResumeBuilderRepository) Delete(ctx context.Context, id string) error {
-	tag, err := r.q.Exec(ctx, `DELETE FROM resume_builders WHERE id = $1`, id)
+func (r *ResumeBuilderRepository) Delete(ctx context.Context, userID, id string) error {
+	tag, err := r.q.Exec(ctx, `DELETE FROM resume_builders WHERE id = $1 AND user_id = $2`, id, userID)
 	if err != nil {
 		return err
 	}
@@ -165,7 +165,7 @@ func (r *ResumeBuilderRepository) VerifyOwnership(ctx context.Context, userID, r
 	return nil
 }
 
-func (r *ResumeBuilderRepository) GetFullResume(ctx context.Context, id string) (*model.FullResumeDTO, error) {
+func (r *ResumeBuilderRepository) GetFullResume(ctx context.Context, userID, id string) (*model.FullResumeDTO, error) {
 	// Acquire a single connection for the duration of this call.
 	// The previous implementation launched ~11 concurrent goroutines via errgroup,
 	// each acquiring its own pool connection. On the resume editor (re-renders per
@@ -181,7 +181,7 @@ func (r *ResumeBuilderRepository) GetFullResume(ctx context.Context, id string) 
 	// connRepo routes all queries through the single acquired connection.
 	connRepo := &ResumeBuilderRepository{pool: r.pool, q: conn}
 
-	rb, err := connRepo.GetByID(ctx, id)
+	rb, err := connRepo.GetByID(ctx, userID, id)
 	if err != nil {
 		return nil, err
 	}

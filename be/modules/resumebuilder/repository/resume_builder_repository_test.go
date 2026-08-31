@@ -93,11 +93,11 @@ func TestResumeBuilderRepository_GetByID(t *testing.T) {
 			1, 10, 10, 10, 10, "single", 30, 12, "bar", now, now,
 		)
 		mock.ExpectQuery("FROM resume_builders WHERE id").
-			WithArgs("rb-1").
+			WithArgs("rb-1", "user-1").
 			WillReturnRows(rows)
 
 		repo := newMockRepo(mock)
-		rb, err := repo.GetByID(context.Background(), "rb-1")
+		rb, err := repo.GetByID(context.Background(), "user-1", "rb-1")
 		require.NoError(t, err)
 		assert.Equal(t, "rb-1", rb.ID)
 		assert.Equal(t, "My Resume", rb.Title)
@@ -110,11 +110,11 @@ func TestResumeBuilderRepository_GetByID(t *testing.T) {
 		defer mock.Close()
 
 		mock.ExpectQuery("FROM resume_builders WHERE id").
-			WithArgs("rb-1").
+			WithArgs("rb-1", "user-1").
 			WillReturnError(pgxNoRows())
 
 		repo := newMockRepo(mock)
-		rb, err := repo.GetByID(context.Background(), "rb-1")
+		rb, err := repo.GetByID(context.Background(), "user-1", "rb-1")
 		assert.Nil(t, rb)
 		assert.ErrorIs(t, err, model.ErrResumeBuilderNotFound)
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -126,11 +126,11 @@ func TestResumeBuilderRepository_GetByID(t *testing.T) {
 		defer mock.Close()
 
 		mock.ExpectQuery("FROM resume_builders WHERE id").
-			WithArgs("rb-1").
+			WithArgs("rb-1", "user-1").
 			WillReturnError(errors.New("boom"))
 
 		repo := newMockRepo(mock)
-		rb, err := repo.GetByID(context.Background(), "rb-1")
+		rb, err := repo.GetByID(context.Background(), "user-1", "rb-1")
 		assert.Nil(t, rb)
 		require.Error(t, err)
 		assert.NotErrorIs(t, err, model.ErrResumeBuilderNotFound)
@@ -194,7 +194,7 @@ func TestResumeBuilderRepository_Update(t *testing.T) {
 		mock.ExpectQuery("UPDATE resume_builders").
 			WithArgs(
 				"My Resume", "modern", "Arial", "#000", "#111",
-				1, 10, 10, 10, 10, "single", 30, 12, "bar", "rb-1",
+				1, 10, 10, 10, 10, "single", 30, 12, "bar", "rb-1", "user-1",
 			).
 			WillReturnRows(rows)
 
@@ -214,7 +214,7 @@ func TestResumeBuilderRepository_Update(t *testing.T) {
 		mock.ExpectQuery("UPDATE resume_builders").
 			WithArgs(
 				"My Resume", "modern", "Arial", "#000", "#111",
-				1, 10, 10, 10, 10, "single", 30, 12, "bar", "rb-1",
+				1, 10, 10, 10, 10, "single", 30, 12, "bar", "rb-1", "user-1",
 			).
 			WillReturnError(pgxNoRows())
 
@@ -233,7 +233,7 @@ func TestResumeBuilderRepository_Update(t *testing.T) {
 		mock.ExpectQuery("UPDATE resume_builders").
 			WithArgs(
 				"My Resume", "modern", "Arial", "#000", "#111",
-				1, 10, 10, 10, 10, "single", 30, 12, "bar", "rb-1",
+				1, 10, 10, 10, 10, "single", 30, 12, "bar", "rb-1", "user-1",
 			).
 			WillReturnError(errors.New("boom"))
 
@@ -253,11 +253,11 @@ func TestResumeBuilderRepository_Delete(t *testing.T) {
 		defer mock.Close()
 
 		mock.ExpectExec("DELETE FROM resume_builders").
-			WithArgs("rb-1").
+			WithArgs("rb-1", "user-1").
 			WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
 		repo := newMockRepo(mock)
-		require.NoError(t, repo.Delete(context.Background(), "rb-1"))
+		require.NoError(t, repo.Delete(context.Background(), "user-1", "rb-1"))
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
@@ -267,11 +267,11 @@ func TestResumeBuilderRepository_Delete(t *testing.T) {
 		defer mock.Close()
 
 		mock.ExpectExec("DELETE FROM resume_builders").
-			WithArgs("rb-1").
+			WithArgs("rb-1", "user-1").
 			WillReturnResult(pgxmock.NewResult("DELETE", 0))
 
 		repo := newMockRepo(mock)
-		assert.ErrorIs(t, repo.Delete(context.Background(), "rb-1"), model.ErrResumeBuilderNotFound)
+		assert.ErrorIs(t, repo.Delete(context.Background(), "user-1", "rb-1"), model.ErrResumeBuilderNotFound)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
@@ -281,11 +281,11 @@ func TestResumeBuilderRepository_Delete(t *testing.T) {
 		defer mock.Close()
 
 		mock.ExpectExec("DELETE FROM resume_builders").
-			WithArgs("rb-1").
+			WithArgs("rb-1", "user-1").
 			WillReturnError(errors.New("boom"))
 
 		repo := newMockRepo(mock)
-		err = repo.Delete(context.Background(), "rb-1")
+		err = repo.Delete(context.Background(), "user-1", "rb-1")
 		require.Error(t, err)
 		assert.NotErrorIs(t, err, model.ErrResumeBuilderNotFound)
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -363,13 +363,13 @@ func TestResumeBuilderRepository_RunInTransaction(t *testing.T) {
 
 		mock.ExpectBegin()
 		mock.ExpectExec("DELETE FROM resume_builders").
-			WithArgs("rb-1").
+			WithArgs("rb-1", "user-1").
 			WillReturnResult(pgxmock.NewResult("DELETE", 1))
 		mock.ExpectCommit()
 
 		repo := newMockRepo(mock)
 		err = repo.RunInTransaction(context.Background(), func(txRepo ports.ResumeBuilderRepository) error {
-			return txRepo.Delete(context.Background(), "rb-1")
+			return txRepo.Delete(context.Background(), "user-1", "rb-1")
 		})
 		require.NoError(t, err)
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -418,7 +418,7 @@ func TestResumeBuilderRepository_GetFullResume_AcquireError(t *testing.T) {
 	defer mock.Close()
 
 	repo := newMockRepo(mock)
-	dto, err := repo.GetFullResume(context.Background(), "rb-1")
+	dto, err := repo.GetFullResume(context.Background(), "user-1", "rb-1")
 	assert.Nil(t, dto)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "acquire connection")

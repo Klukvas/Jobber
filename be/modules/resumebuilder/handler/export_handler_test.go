@@ -103,7 +103,7 @@ func (m *mockResumeBuilderRepo) Create(ctx context.Context, rb *model.ResumeBuil
 	return nil
 }
 
-func (m *mockResumeBuilderRepo) GetByID(ctx context.Context, id string) (*model.ResumeBuilder, error) {
+func (m *mockResumeBuilderRepo) GetByID(ctx context.Context, userID, id string) (*model.ResumeBuilder, error) {
 	if m.GetByIDFunc != nil {
 		return m.GetByIDFunc(ctx, id)
 	}
@@ -124,14 +124,14 @@ func (m *mockResumeBuilderRepo) Update(ctx context.Context, rb *model.ResumeBuil
 	return nil
 }
 
-func (m *mockResumeBuilderRepo) Delete(ctx context.Context, id string) error {
+func (m *mockResumeBuilderRepo) Delete(ctx context.Context, userID, id string) error {
 	if m.DeleteFunc != nil {
 		return m.DeleteFunc(ctx, id)
 	}
 	return nil
 }
 
-func (m *mockResumeBuilderRepo) GetFullResume(ctx context.Context, id string) (*model.FullResumeDTO, error) {
+func (m *mockResumeBuilderRepo) GetFullResume(ctx context.Context, userID, id string) (*model.FullResumeDTO, error) {
 	if m.GetFullResumeFunc != nil {
 		return m.GetFullResumeFunc(ctx, id)
 	}

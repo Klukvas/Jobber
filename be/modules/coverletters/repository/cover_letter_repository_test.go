@@ -109,11 +109,11 @@ func TestCoverLetterRepository_GetByID(t *testing.T) {
 		)
 
 		mock.ExpectQuery("SELECT id, user_id, resume_builder_id, job_id, title, template").
-			WithArgs("cl-1").
+			WithArgs("cl-1", "user-1").
 			WillReturnRows(rows)
 
 		repo := NewCoverLetterRepository(mock)
-		got, err := repo.GetByID(context.Background(), "cl-1")
+		got, err := repo.GetByID(context.Background(), "user-1", "cl-1")
 		require.NoError(t, err)
 		assert.Equal(t, "cl-1", got.ID)
 		assert.Equal(t, []string{"p1"}, got.Paragraphs)
@@ -126,11 +126,11 @@ func TestCoverLetterRepository_GetByID(t *testing.T) {
 		defer mock.Close()
 
 		mock.ExpectQuery("SELECT id, user_id, resume_builder_id, job_id, title, template").
-			WithArgs("cl-1").
+			WithArgs("cl-1", "user-1").
 			WillReturnError(pgx.ErrNoRows)
 
 		repo := NewCoverLetterRepository(mock)
-		got, err := repo.GetByID(context.Background(), "cl-1")
+		got, err := repo.GetByID(context.Background(), "user-1", "cl-1")
 		assert.Nil(t, got)
 		assert.ErrorIs(t, err, model.ErrCoverLetterNotFound)
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -142,11 +142,11 @@ func TestCoverLetterRepository_GetByID(t *testing.T) {
 		defer mock.Close()
 
 		mock.ExpectQuery("SELECT id, user_id, resume_builder_id, job_id, title, template").
-			WithArgs("cl-1").
+			WithArgs("cl-1", "user-1").
 			WillReturnError(errors.New("boom"))
 
 		repo := NewCoverLetterRepository(mock)
-		got, err := repo.GetByID(context.Background(), "cl-1")
+		got, err := repo.GetByID(context.Background(), "user-1", "cl-1")
 		assert.Nil(t, got)
 		require.Error(t, err)
 		assert.NotErrorIs(t, err, model.ErrCoverLetterNotFound)

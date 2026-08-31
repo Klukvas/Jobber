@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/andreypavlenko/jobber/internal/platform/ai"
-	"github.com/andreypavlenko/jobber/modules/coverletters/model"
 	"github.com/andreypavlenko/jobber/modules/coverletters/ports"
 	rbModel "github.com/andreypavlenko/jobber/modules/resumebuilder/model"
 	rbPorts "github.com/andreypavlenko/jobber/modules/resumebuilder/ports"
@@ -42,20 +41,20 @@ func (s *AIService) Generate(ctx context.Context, userID, coverLetterID, jobDesc
 		return nil, err
 	}
 
-	cl, err := s.repo.GetByID(ctx, coverLetterID)
-	if err != nil {
+	if err := s.repo.VerifyOwnership(ctx, userID, coverLetterID); err != nil {
 		return nil, err
 	}
 
-	if cl.UserID != userID {
-		return nil, model.ErrNotAuthorized
+	cl, err := s.repo.GetByID(ctx, userID, coverLetterID)
+	if err != nil {
+		return nil, err
 	}
 
 	resumeContext := ""
 	if cl.ResumeBuilderID != nil && *cl.ResumeBuilderID != "" {
 		// VerifyOwnership failure is intentional — user may not own the linked resume.
 		if err := s.resumeRepo.VerifyOwnership(ctx, userID, *cl.ResumeBuilderID); err == nil {
-			resume, err := s.resumeRepo.GetFullResume(ctx, *cl.ResumeBuilderID)
+			resume, err := s.resumeRepo.GetFullResume(ctx, userID, *cl.ResumeBuilderID)
 			if err != nil {
 				slog.Warn("failed to load linked resume for cover letter AI context",
 					"cover_letter_id", coverLetterID,

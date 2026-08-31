@@ -38,14 +38,33 @@ func (r *CoverLetterRepository) Create(ctx context.Context, cl *model.CoverLette
 	return cl, nil
 }
 
+// VerifyOwnership reports whether the cover letter exists and belongs to the
+// user. It returns ErrCoverLetterNotFound when the row is missing and
+// ErrNotAuthorized when it is owned by someone else — letting callers keep a
+// 403-vs-404 distinction while GetByID stays owner-scoped as a backstop.
+func (r *CoverLetterRepository) VerifyOwnership(ctx context.Context, userID, id string) error {
+	var ownerID string
+	err := r.pool.QueryRow(ctx, `SELECT user_id FROM cover_letters WHERE id = $1`, id).Scan(&ownerID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return model.ErrCoverLetterNotFound
+		}
+		return err
+	}
+	if ownerID != userID {
+		return model.ErrNotAuthorized
+	}
+	return nil
+}
+
 // GetByID retrieves a cover letter by ID.
-func (r *CoverLetterRepository) GetByID(ctx context.Context, id string) (*model.CoverLetter, error) {
+func (r *CoverLetterRepository) GetByID(ctx context.Context, userID, id string) (*model.CoverLetter, error) {
 	query := `SELECT id, user_id, resume_builder_id, job_id, title, template, recipient_name, recipient_title,
 		company_name, company_address, greeting, paragraphs, closing, font_family, font_size, primary_color, created_at, updated_at
-		FROM cover_letters WHERE id = $1`
+		FROM cover_letters WHERE id = $1 AND user_id = $2`
 
 	cl := &model.CoverLetter{}
-	err := r.pool.QueryRow(ctx, query, id).Scan(
+	err := r.pool.QueryRow(ctx, query, id, userID).Scan(
 		&cl.ID, &cl.UserID, &cl.ResumeBuilderID, &cl.JobID, &cl.Title, &cl.Template,
 		&cl.RecipientName, &cl.RecipientTitle, &cl.CompanyName, &cl.CompanyAddress,
 		&cl.Greeting, &cl.Paragraphs, &cl.Closing, &cl.FontFamily, &cl.FontSize, &cl.PrimaryColor,

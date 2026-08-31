@@ -56,8 +56,8 @@ func (s *JobService) Move(ctx context.Context, userID, jobID string, req *model.
 	// Complete the current active stage — history stays intact.
 	if job.CurrentStageID != nil && *job.CurrentStageID != "" {
 		if _, err := tx.Exec(ctx,
-			`UPDATE job_stages SET status = 'completed', completed_at = $2 WHERE id = $1 AND status != 'completed'`,
-			*job.CurrentStageID, now,
+			`UPDATE job_stages SET status = 'completed', completed_at = $2 WHERE id = $1 AND status != 'completed' AND job_id = $3`,
+			*job.CurrentStageID, now, job.ID,
 		); err != nil {
 			return nil, fmt.Errorf("failed to complete current stage: %w", err)
 		}

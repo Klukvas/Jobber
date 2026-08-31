@@ -83,13 +83,13 @@ func (s *CoverLetterService) List(ctx context.Context, userID string) ([]*model.
 
 // Get returns a single cover letter.
 func (s *CoverLetterService) Get(ctx context.Context, userID, id string) (*model.CoverLetterDTO, error) {
-	cl, err := s.repo.GetByID(ctx, id)
-	if err != nil {
+	if err := s.repo.VerifyOwnership(ctx, userID, id); err != nil {
 		return nil, err
 	}
 
-	if cl.UserID != userID {
-		return nil, model.ErrNotAuthorized
+	cl, err := s.repo.GetByID(ctx, userID, id)
+	if err != nil {
+		return nil, err
 	}
 
 	return cl.ToDTO(), nil
@@ -97,13 +97,13 @@ func (s *CoverLetterService) Get(ctx context.Context, userID, id string) (*model
 
 // Update updates a cover letter.
 func (s *CoverLetterService) Update(ctx context.Context, userID, id string, req *model.UpdateCoverLetterRequest) (*model.CoverLetterDTO, error) {
-	cl, err := s.repo.GetByID(ctx, id)
-	if err != nil {
+	if err := s.repo.VerifyOwnership(ctx, userID, id); err != nil {
 		return nil, err
 	}
 
-	if cl.UserID != userID {
-		return nil, model.ErrNotAuthorized
+	cl, err := s.repo.GetByID(ctx, userID, id)
+	if err != nil {
+		return nil, err
 	}
 
 	if req.Title != nil {
@@ -172,13 +172,13 @@ func (s *CoverLetterService) Duplicate(ctx context.Context, userID, id string) (
 		return nil, err
 	}
 
-	original, err := s.repo.GetByID(ctx, id)
-	if err != nil {
+	if err := s.repo.VerifyOwnership(ctx, userID, id); err != nil {
 		return nil, err
 	}
 
-	if original.UserID != userID {
-		return nil, model.ErrNotAuthorized
+	original, err := s.repo.GetByID(ctx, userID, id)
+	if err != nil {
+		return nil, err
 	}
 
 	paragraphs := make([]string, len(original.Paragraphs))
@@ -212,13 +212,8 @@ func (s *CoverLetterService) Duplicate(ctx context.Context, userID, id string) (
 
 // Delete deletes a cover letter.
 func (s *CoverLetterService) Delete(ctx context.Context, userID, id string) error {
-	cl, err := s.repo.GetByID(ctx, id)
-	if err != nil {
+	if err := s.repo.VerifyOwnership(ctx, userID, id); err != nil {
 		return err
-	}
-
-	if cl.UserID != userID {
-		return model.ErrNotAuthorized
 	}
 
 	return s.repo.Delete(ctx, userID, id)

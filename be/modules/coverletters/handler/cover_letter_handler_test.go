@@ -58,7 +58,20 @@ func (m *mockCoverLetterRepo) Create(ctx context.Context, cl *model.CoverLetter)
 	return cl, nil
 }
 
-func (m *mockCoverLetterRepo) GetByID(ctx context.Context, id string) (*model.CoverLetter, error) {
+func (m *mockCoverLetterRepo) VerifyOwnership(ctx context.Context, userID, id string) error {
+	if m.GetByIDFunc != nil {
+		cl, err := m.GetByIDFunc(ctx, id)
+		if err != nil {
+			return err
+		}
+		if cl != nil && cl.UserID != userID {
+			return model.ErrNotAuthorized
+		}
+	}
+	return nil
+}
+
+func (m *mockCoverLetterRepo) GetByID(ctx context.Context, userID, id string) (*model.CoverLetter, error) {
 	if m.GetByIDFunc != nil {
 		return m.GetByIDFunc(ctx, id)
 	}
@@ -756,13 +769,13 @@ func TestHandleError_MapsErrorCodesToStatusCodes(t *testing.T) {
 		},
 		{
 			name:           "invalid font family",
-			err:            errors.New("invalid font family"),
+			err:            model.ErrInvalidFont,
 			expectedStatus: http.StatusBadRequest,
 			expectedCode:   "VALIDATION_ERROR",
 		},
 		{
 			name:           "invalid color format",
-			err:            errors.New("invalid color format"),
+			err:            model.ErrInvalidColor,
 			expectedStatus: http.StatusBadRequest,
 			expectedCode:   "VALIDATION_ERROR",
 		},

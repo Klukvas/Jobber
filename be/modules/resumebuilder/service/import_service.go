@@ -235,5 +235,5 @@ func (s *ImportService) createFromParsed(ctx context.Context, userID string, par
 	}
 
 	// Return full resume (outside transaction — read from committed data)
-	return s.repo.GetFullResume(ctx, resumeID)
+	return s.repo.GetFullResume(ctx, userID, resumeID)
 }

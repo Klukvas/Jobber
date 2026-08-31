@@ -34,12 +34,12 @@ func (r *ContentLibraryRepository) Create(ctx context.Context, entry *model.Cont
 }
 
 // GetByID retrieves a content library entry by ID.
-func (r *ContentLibraryRepository) GetByID(ctx context.Context, id string) (*model.ContentLibraryEntry, error) {
+func (r *ContentLibraryRepository) GetByID(ctx context.Context, userID, id string) (*model.ContentLibraryEntry, error) {
 	query := `SELECT id, user_id, title, content, category, created_at, updated_at
-		FROM content_library WHERE id = $1`
+		FROM content_library WHERE id = $1 AND user_id = $2`
 
 	entry := &model.ContentLibraryEntry{}
-	err := r.pool.QueryRow(ctx, query, id).Scan(
+	err := r.pool.QueryRow(ctx, query, id, userID).Scan(
 		&entry.ID, &entry.UserID, &entry.Title, &entry.Content,
 		&entry.Category, &entry.CreatedAt, &entry.UpdatedAt,
 	)

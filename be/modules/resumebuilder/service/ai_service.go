@@ -67,7 +67,7 @@ func (s *AIService) SuggestSummary(ctx context.Context, userID, resumeID string)
 	}
 
 	// Get full resume to build context
-	resume, err := s.repo.GetFullResume(ctx, resumeID)
+	resume, err := s.repo.GetFullResume(ctx, userID, resumeID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get resume: %w", err)
 	}
@@ -124,7 +124,7 @@ func (s *AIService) ATSCheck(ctx context.Context, userID, resumeID, locale strin
 		return nil, err
 	}
 
-	resume, err := s.repo.GetFullResume(ctx, resumeID)
+	resume, err := s.repo.GetFullResume(ctx, userID, resumeID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get resume: %w", err)
 	}

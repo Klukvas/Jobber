@@ -44,7 +44,7 @@ func expMaxOrder(m pgxmock.PgxPoolIface, order int) *pgxmock.ExpectedQuery {
 
 func expCompleteCurrent(m pgxmock.PgxPoolIface, currentStageID string) *pgxmock.ExpectedExec {
 	return m.ExpectExec(`UPDATE job_stages SET status = \$2, completed_at = \$3 WHERE id = \$1`).
-		WithArgs(currentStageID, "completed", pgxmock.AnyArg()).
+		WithArgs(currentStageID, "completed", pgxmock.AnyArg(), stagesJobID).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 }
 
@@ -63,7 +63,7 @@ func expUpdateJobCurrentStage(m pgxmock.PgxPoolIface) *pgxmock.ExpectedExec {
 
 func expUpdateStageRow(m pgxmock.PgxPoolIface) *pgxmock.ExpectedExec {
 	return m.ExpectExec(`UPDATE job_stages SET status = \$2, completed_at = \$3 WHERE id = \$1`).
-		WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
+		WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 }
 
@@ -516,7 +516,7 @@ func TestJobService_UpdateStage(t *testing.T) {
 		mock.ExpectBegin()
 		expLock(mock)
 		mock.ExpectExec(`UPDATE job_stages SET status = \$2, completed_at = \$3 WHERE id = \$1`).WithArgs(
-			stageID, "completed", pgxmock.AnyArg(),
+			stageID, "completed", pgxmock.AnyArg(), stagesJobID,
 		).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 		mock.ExpectCommit()
 
@@ -538,7 +538,7 @@ func TestJobService_UpdateStage(t *testing.T) {
 		expLock(mock)
 		// completed_at is passed as a (nil) *time.Time, so match it structurally.
 		mock.ExpectExec(`UPDATE job_stages SET status = \$2, completed_at = \$3 WHERE id = \$1`).WithArgs(
-			stageID, "active", pgxmock.AnyArg(),
+			stageID, "active", pgxmock.AnyArg(), stagesJobID,
 		).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 		mock.ExpectCommit()
 
@@ -640,7 +640,7 @@ func TestJobService_UpdateStage(t *testing.T) {
 		mock.ExpectBegin()
 		expLock(mock)
 		mock.ExpectExec(`UPDATE job_stages SET status = \$2, completed_at = \$3 WHERE id = \$1`).WithArgs(
-			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
+			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 		).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 
 		svc := svcWith(mock, jobRepoReturning(&model.Job{ID: stagesJobID, UserID: stagesUserID}), baseStageRepo(), appliedTemplateRepo(), nil)
@@ -667,7 +667,7 @@ func TestJobService_UpdateStage(t *testing.T) {
 		mock.ExpectBegin()
 		expLock(mock)
 		mock.ExpectExec(`UPDATE job_stages SET status = \$2, completed_at = \$3 WHERE id = \$1`).WithArgs(
-			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
+			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 		).WillReturnError(errors.New("update boom"))
 
 		svc := svcWith(mock, jobRepoReturning(&model.Job{ID: stagesJobID, UserID: stagesUserID}), baseStageRepo(), appliedTemplateRepo(), nil)
@@ -729,7 +729,7 @@ func TestJobService_DeleteStage(t *testing.T) {
 		mock := newPool(t)
 		mock.ExpectBegin()
 		expLock(mock)
-		mock.ExpectExec(`DELETE FROM job_stages WHERE id = \$1`).WithArgs(stageID).WillReturnResult(pgxmock.NewResult("DELETE", 1))
+		mock.ExpectExec(`DELETE FROM job_stages WHERE id = \$1`).WithArgs(stageID, stagesJobID).WillReturnResult(pgxmock.NewResult("DELETE", 1))
 		mock.ExpectCommit()
 
 		// current_stage_id points elsewhere, so no recalculation UPDATE runs.
@@ -751,7 +751,7 @@ func TestJobService_DeleteStage(t *testing.T) {
 		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, updated_at = \$3 WHERE id = \$1`).WithArgs(
 			stagesJobID, strPtrArg("s-prev"), pgxmock.AnyArg(),
 		).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
-		mock.ExpectExec(`DELETE FROM job_stages WHERE id = \$1`).WithArgs(stageID).WillReturnResult(pgxmock.NewResult("DELETE", 1))
+		mock.ExpectExec(`DELETE FROM job_stages WHERE id = \$1`).WithArgs(stageID, stagesJobID).WillReturnResult(pgxmock.NewResult("DELETE", 1))
 		mock.ExpectCommit()
 
 		currentID := stageID
@@ -782,7 +782,7 @@ func TestJobService_DeleteStage(t *testing.T) {
 		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, updated_at = \$3 WHERE id = \$1`).WithArgs(
 			stagesJobID, nilStrPtrArg(), pgxmock.AnyArg(),
 		).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
-		mock.ExpectExec(`DELETE FROM job_stages WHERE id = \$1`).WithArgs(stageID).WillReturnResult(pgxmock.NewResult("DELETE", 1))
+		mock.ExpectExec(`DELETE FROM job_stages WHERE id = \$1`).WithArgs(stageID, stagesJobID).WillReturnResult(pgxmock.NewResult("DELETE", 1))
 		mock.ExpectCommit()
 
 		currentID := stageID
@@ -919,7 +919,7 @@ func TestJobService_DeleteStage(t *testing.T) {
 		mock := newPool(t)
 		mock.ExpectBegin()
 		expLock(mock)
-		mock.ExpectExec(`DELETE FROM job_stages WHERE id = \$1`).WithArgs(stageID).WillReturnError(errors.New("delete boom"))
+		mock.ExpectExec(`DELETE FROM job_stages WHERE id = \$1`).WithArgs(stageID, stagesJobID).WillReturnError(errors.New("delete boom"))
 
 		other := "stage-other"
 		svc := svcWith(mock, jobRepoReturning(&model.Job{ID: stagesJobID, UserID: stagesUserID, CurrentStageID: &other}),
@@ -934,7 +934,7 @@ func TestJobService_DeleteStage(t *testing.T) {
 		mock := newPool(t)
 		mock.ExpectBegin()
 		expLock(mock)
-		mock.ExpectExec(`DELETE FROM job_stages WHERE id = \$1`).WithArgs(stageID).WillReturnResult(pgxmock.NewResult("DELETE", 1))
+		mock.ExpectExec(`DELETE FROM job_stages WHERE id = \$1`).WithArgs(stageID, stagesJobID).WillReturnResult(pgxmock.NewResult("DELETE", 1))
 		mock.ExpectCommit().WillReturnError(errors.New("commit boom"))
 
 		other := "stage-other"

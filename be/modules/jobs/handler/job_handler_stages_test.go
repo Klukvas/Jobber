@@ -104,7 +104,7 @@ func (m *MockJobStageRepository) Update(ctx context.Context, stage *model.JobSta
 	}
 	return nil
 }
-func (m *MockJobStageRepository) Delete(ctx context.Context, stageID string) error {
+func (m *MockJobStageRepository) Delete(ctx context.Context, stageID, jobID string) error {
 	if m.DeleteFunc != nil {
 		return m.DeleteFunc(ctx, stageID)
 	}

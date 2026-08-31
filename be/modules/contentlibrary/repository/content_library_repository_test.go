@@ -73,11 +73,11 @@ func TestContentLibraryRepository_GetByID(t *testing.T) {
 		}).AddRow("id-1", "user-1", "Title", "Body", "cover", now, now)
 
 		mock.ExpectQuery("SELECT id, user_id, title, content, category, created_at, updated_at").
-			WithArgs("id-1").
+			WithArgs("id-1", "user-1").
 			WillReturnRows(rows)
 
 		repo := NewContentLibraryRepository(mock)
-		got, err := repo.GetByID(context.Background(), "id-1")
+		got, err := repo.GetByID(context.Background(), "user-1", "id-1")
 		require.NoError(t, err)
 		assert.Equal(t, "id-1", got.ID)
 		assert.Equal(t, "Title", got.Title)
@@ -90,11 +90,11 @@ func TestContentLibraryRepository_GetByID(t *testing.T) {
 		defer mock.Close()
 
 		mock.ExpectQuery("SELECT id, user_id, title, content, category, created_at, updated_at").
-			WithArgs("id-1").
+			WithArgs("id-1", "user-1").
 			WillReturnError(pgx.ErrNoRows)
 
 		repo := NewContentLibraryRepository(mock)
-		got, err := repo.GetByID(context.Background(), "id-1")
+		got, err := repo.GetByID(context.Background(), "user-1", "id-1")
 		assert.Nil(t, got)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "content library entry not found")

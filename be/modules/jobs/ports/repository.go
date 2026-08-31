@@ -49,5 +49,5 @@ type JobStageRepository interface {
 	GetByID(ctx context.Context, stageID, jobID string) (*model.JobStage, error)
 	ListByJob(ctx context.Context, jobID string) ([]*model.JobStage, error)
 	Update(ctx context.Context, stage *model.JobStage) error
-	Delete(ctx context.Context, stageID string) error
+	Delete(ctx context.Context, stageID, jobID string) error
 }

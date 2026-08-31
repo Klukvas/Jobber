@@ -33,7 +33,7 @@ func (m *MockContentLibraryRepository) Create(ctx context.Context, entry *model.
 	return entry, nil
 }
 
-func (m *MockContentLibraryRepository) GetByID(ctx context.Context, id string) (*model.ContentLibraryEntry, error) {
+func (m *MockContentLibraryRepository) GetByID(ctx context.Context, userID, id string) (*model.ContentLibraryEntry, error) {
 	if m.GetByIDFunc != nil {
 		return m.GetByIDFunc(ctx, id)
 	}

@@ -191,7 +191,7 @@ func (s *ResumeBuilderService) Get(ctx context.Context, userID, id string) (*mod
 	if err := s.repo.VerifyOwnership(ctx, userID, id); err != nil {
 		return nil, err
 	}
-	return s.repo.GetFullResume(ctx, id)
+	return s.repo.GetFullResume(ctx, userID, id)
 }
 
 // Update updates resume builder metadata and design settings.
@@ -200,7 +200,7 @@ func (s *ResumeBuilderService) Update(ctx context.Context, userID, id string, re
 		return nil, err
 	}
 
-	rb, err := s.repo.GetByID(ctx, id)
+	rb, err := s.repo.GetByID(ctx, userID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +300,7 @@ func (s *ResumeBuilderService) Delete(ctx context.Context, userID, id string) er
 	if err := s.repo.VerifyOwnership(ctx, userID, id); err != nil {
 		return err
 	}
-	return s.repo.Delete(ctx, id)
+	return s.repo.Delete(ctx, userID, id)
 }
 
 // Duplicate deep-copies a resume builder with all sections inside a transaction.
@@ -315,7 +315,7 @@ func (s *ResumeBuilderService) Duplicate(ctx context.Context, userID, id string)
 		return nil, err
 	}
 
-	full, err := s.repo.GetFullResume(ctx, id)
+	full, err := s.repo.GetFullResume(ctx, userID, id)
 	if err != nil {
 		return nil, err
 	}

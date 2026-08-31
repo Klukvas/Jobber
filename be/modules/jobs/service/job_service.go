@@ -229,7 +229,7 @@ func (s *JobService) buildJobDTO(ctx context.Context, userID string, job *model.
 			dto.Resume = &model.ResumeNestedDTO{ID: r.ID, Name: r.Title, Type: "uploaded"}
 		}
 	} else if job.ResumeBuilderID != nil {
-		if rb, err := s.resumeBuilderRepo.GetByID(ctx, *job.ResumeBuilderID); err != nil {
+		if rb, err := s.resumeBuilderRepo.GetByID(ctx, userID, *job.ResumeBuilderID); err != nil {
 			s.log.Warn("failed to fetch resume builder", zap.String("resume_builder_id", *job.ResumeBuilderID), zap.Error(err))
 		} else {
 			dto.Resume = &model.ResumeNestedDTO{ID: rb.ID, Name: rb.Title, Type: "builder"}
@@ -422,8 +422,8 @@ func (s *JobService) AddStage(ctx context.Context, userID, jobID string, req *mo
 				previousStageName = prevTemplate.Name
 			}
 			_, err = tx.Exec(ctx,
-				`UPDATE job_stages SET status = $2, completed_at = $3 WHERE id = $1`,
-				currentStage.ID, "completed", now,
+				`UPDATE job_stages SET status = $2, completed_at = $3 WHERE id = $1 AND job_id = $4`,
+				currentStage.ID, "completed", now, job.ID,
 			)
 			if err != nil {
 				return nil, fmt.Errorf("failed to complete current stage: %w", err)
@@ -602,8 +602,8 @@ func (s *JobService) UpdateStage(ctx context.Context, userID, jobID, stageID str
 
 	// Update within the transaction (under the job lock taken above)
 	res, err := tx.Exec(ctx,
-		`UPDATE job_stages SET status = $2, completed_at = $3 WHERE id = $1`,
-		stage.ID, stage.Status, stage.CompletedAt,
+		`UPDATE job_stages SET status = $2, completed_at = $3 WHERE id = $1 AND job_id = $4`,
+		stage.ID, stage.Status, stage.CompletedAt, jobID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update stage: %w", err)
@@ -701,8 +701,8 @@ func (s *JobService) DeleteStage(ctx context.Context, userID, jobID, stageID str
 
 	// Delete the stage within the transaction
 	_, err = tx.Exec(ctx,
-		`DELETE FROM job_stages WHERE id = $1`,
-		stageID,
+		`DELETE FROM job_stages WHERE id = $1 AND job_id = $2`,
+		stageID, jobID,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to delete stage: %w", err)

@@ -28,7 +28,23 @@ func (m *MockCoverLetterRepository) Create(ctx context.Context, cl *model.CoverL
 	return cl, nil
 }
 
-func (m *MockCoverLetterRepository) GetByID(ctx context.Context, id string) (*model.CoverLetter, error) {
+func (m *MockCoverLetterRepository) VerifyOwnership(ctx context.Context, userID, id string) error {
+	// Default derives ownership from GetByIDFunc so existing test setups
+	// (which configure GetByID to return a mismatched-owner or not-found row)
+	// keep exercising the 403/404 paths without extra wiring.
+	if m.GetByIDFunc != nil {
+		cl, err := m.GetByIDFunc(ctx, id)
+		if err != nil {
+			return err
+		}
+		if cl != nil && cl.UserID != userID {
+			return model.ErrNotAuthorized
+		}
+	}
+	return nil
+}
+
+func (m *MockCoverLetterRepository) GetByID(ctx context.Context, userID, id string) (*model.CoverLetter, error) {
 	if m.GetByIDFunc != nil {
 		return m.GetByIDFunc(ctx, id)
 	}

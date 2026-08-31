@@ -158,7 +158,7 @@ func TestJobStageRepository_Update(t *testing.T) {
 		stage := &model.JobStage{ID: "stage-1", Status: "completed", CompletedAt: &now}
 
 		mock.ExpectExec("UPDATE job_stages").
-			WithArgs(stage.ID, stage.Status, stage.CompletedAt).
+			WithArgs(stage.ID, stage.Status, stage.CompletedAt, stage.JobID).
 			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
 		err := repo.Update(context.Background(), stage)
@@ -172,7 +172,7 @@ func TestJobStageRepository_Update(t *testing.T) {
 		stage := &model.JobStage{ID: "nope", Status: "completed"}
 
 		mock.ExpectExec("UPDATE job_stages").
-			WithArgs(stage.ID, stage.Status, stage.CompletedAt).
+			WithArgs(stage.ID, stage.Status, stage.CompletedAt, stage.JobID).
 			WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 
 		err := repo.Update(context.Background(), stage)
@@ -186,7 +186,7 @@ func TestJobStageRepository_Update(t *testing.T) {
 		stage := &model.JobStage{ID: "stage-1", Status: "completed"}
 
 		mock.ExpectExec("UPDATE job_stages").
-			WithArgs(stage.ID, stage.Status, stage.CompletedAt).
+			WithArgs(stage.ID, stage.Status, stage.CompletedAt, stage.JobID).
 			WillReturnError(errDB)
 
 		err := repo.Update(context.Background(), stage)
@@ -201,10 +201,10 @@ func TestJobStageRepository_Delete(t *testing.T) {
 		repo, mock := newJobStageRepo(t)
 
 		mock.ExpectExec("DELETE FROM job_stages").
-			WithArgs("stage-1").
+			WithArgs("stage-1", "job-1").
 			WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
-		err := repo.Delete(context.Background(), "stage-1")
+		err := repo.Delete(context.Background(), "stage-1", "job-1")
 
 		require.NoError(t, err)
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -214,10 +214,10 @@ func TestJobStageRepository_Delete(t *testing.T) {
 		repo, mock := newJobStageRepo(t)
 
 		mock.ExpectExec("DELETE FROM job_stages").
-			WithArgs("nope").
+			WithArgs("nope", "job-1").
 			WillReturnResult(pgxmock.NewResult("DELETE", 0))
 
-		err := repo.Delete(context.Background(), "nope")
+		err := repo.Delete(context.Background(), "nope", "job-1")
 
 		assert.ErrorIs(t, err, model.ErrJobStageNotFound)
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -227,10 +227,10 @@ func TestJobStageRepository_Delete(t *testing.T) {
 		repo, mock := newJobStageRepo(t)
 
 		mock.ExpectExec("DELETE FROM job_stages").
-			WithArgs("stage-1").
+			WithArgs("stage-1", "job-1").
 			WillReturnError(errDB)
 
-		err := repo.Delete(context.Background(), "stage-1")
+		err := repo.Delete(context.Background(), "stage-1", "job-1")
 
 		assert.ErrorIs(t, err, errDB)
 		require.NoError(t, mock.ExpectationsWereMet())

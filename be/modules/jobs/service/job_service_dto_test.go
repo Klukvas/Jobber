@@ -45,7 +45,7 @@ type enrichRBRepo struct {
 	err error
 }
 
-func (r *enrichRBRepo) GetByID(ctx context.Context, id string) (*rbModel.ResumeBuilder, error) {
+func (r *enrichRBRepo) GetByID(ctx context.Context, userID, id string) (*rbModel.ResumeBuilder, error) {
 	if r.err != nil {
 		return nil, r.err
 	}

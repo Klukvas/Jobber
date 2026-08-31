@@ -44,7 +44,7 @@ func TestMove_Transaction(t *testing.T) {
 		mock.ExpectExec(`SELECT id FROM jobs WHERE id = \$1 FOR UPDATE`).WithArgs(jobID).WillReturnResult(pgxmock.NewResult("SELECT", 1))
 		// Complete the current active stage.
 		mock.ExpectExec(`UPDATE job_stages SET status = 'completed', completed_at = \$2 WHERE id = \$1 AND status != 'completed'`).WithArgs(
-			currentStageID, pgxmock.AnyArg(),
+			currentStageID, pgxmock.AnyArg(), jobID,
 		).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 		mock.ExpectQuery(`SELECT COALESCE\(MAX`).WithArgs(jobID).WillReturnRows(pgxmock.NewRows([]string{"order"}).AddRow(1))
 		mock.ExpectExec(`INSERT INTO job_stages`).WithArgs(
@@ -158,7 +158,7 @@ func TestMove_Transaction(t *testing.T) {
 
 		mock.ExpectBegin()
 		mock.ExpectExec(`SELECT id FROM jobs WHERE id = \$1 FOR UPDATE`).WithArgs(jobID).WillReturnResult(pgxmock.NewResult("SELECT", 1))
-		mock.ExpectExec(`UPDATE job_stages SET status = 'completed'`).WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnError(errors.New("complete boom"))
+		mock.ExpectExec(`UPDATE job_stages SET status = 'completed'`).WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnError(errors.New("complete boom"))
 
 		svc := svcWith(mock, jobRepoReturning(job), nil, targetTemplateRepo(), nil)
 		_, err := svc.Move(context.Background(), userID, jobID, &model.MoveJobRequest{StageTemplateID: targetTmpl})
