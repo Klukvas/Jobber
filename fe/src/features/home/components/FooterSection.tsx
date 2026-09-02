@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { resetConsent } from "@/shared/lib/consent";
 
 export function FooterSection() {
   const { t } = useTranslation();
@@ -35,6 +36,13 @@ export function FooterSection() {
           >
             {t("home.footer.refund")}
           </Link>
+          <button
+            type="button"
+            onClick={resetConsent}
+            className="text-[13px] text-slate-600 transition-colors hover:text-slate-400"
+          >
+            {t("cookieConsent.settings")}
+          </button>
         </div>
       </div>
     </footer>

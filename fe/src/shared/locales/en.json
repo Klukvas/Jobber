@@ -1610,9 +1610,11 @@
     "error": "Failed to send message. Please try again later."
   },
   "cookieConsent": {
-    "message": "We use essential cookies to sign you in and to process secure payments via Paddle. With your consent we also use analytics cookies (Google Analytics, PostHog) to improve the product.",
+    "message": "We use essential cookies to sign you in and to process secure payments via Paddle. With your consent, we also use analytics cookies (Google Analytics, PostHog) to improve the product.",
     "privacyLink": "Privacy Policy",
     "acceptAll": "Accept all",
-    "essentialOnly": "Essential only"
+    "essentialOnly": "Essential only",
+    "settings": "Cookie settings",
+    "ariaLabel": "Cookie consent"
   }
 }

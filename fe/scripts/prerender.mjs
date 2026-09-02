@@ -122,6 +122,19 @@ async function main() {
       "Mozilla/5.0 (compatible; JobberPrerender/1.0; +https://jobber-app.com)",
   });
 
+  // Pre-seed cookie consent so the banner is not baked into every prerendered
+  // snapshot (and nothing analytics-shaped runs during builds).
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem(
+        "cookie-consent",
+        JSON.stringify({ choice: "essential", at: "prerender" }),
+      );
+    } catch {
+      // localStorage unavailable — the banner in snapshots is cosmetic only.
+    }
+  });
+
   // Render every route against the pristine SPA shell first, only then
   // write to disk. Otherwise vite preview would serve a freshly written
   // /index.html (with home-specific JSON-LD) to subsequent route renders.

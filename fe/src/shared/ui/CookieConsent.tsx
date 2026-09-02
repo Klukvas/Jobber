@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   applyConsent,
   getStoredConsent,
+  CONSENT_RESET_EVENT,
   type CookieConsent as Consent,
 } from "@/shared/lib/consent";
 
@@ -12,6 +13,13 @@ export function CookieConsent() {
   const { t } = useTranslation();
   const [visible, setVisible] = useState(() => getStoredConsent() === null);
 
+  useEffect(() => {
+    // Footer "Cookie settings" (resetConsent) re-opens the banner.
+    const reopen = () => setVisible(true);
+    window.addEventListener(CONSENT_RESET_EVENT, reopen);
+    return () => window.removeEventListener(CONSENT_RESET_EVENT, reopen);
+  }, []);
+
   if (!visible) return null;
 
   const choose = (consent: Consent) => {
@@ -20,15 +28,22 @@ export function CookieConsent() {
   };
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 p-4">
-      <div className="mx-auto flex max-w-3xl flex-col gap-3 rounded-lg border bg-card p-4 text-card-foreground shadow-lg sm:flex-row sm:items-center">
+    // pointer-events-none on the full-width strip: only the card itself may
+    // swallow clicks, or the transparent gutters block the support button
+    // and footer links underneath.
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 p-4">
+      <div
+        role="region"
+        aria-label={t("cookieConsent.ariaLabel")}
+        className="pointer-events-auto mx-auto flex max-w-3xl flex-col gap-3 rounded-lg border bg-card p-4 text-card-foreground shadow-lg sm:flex-row sm:items-center"
+      >
         <p className="flex-1 text-sm text-muted-foreground">
           {t("cookieConsent.message")}{" "}
           <a href="/privacy" className="text-primary underline">
             {t("cookieConsent.privacyLink")}
           </a>
         </p>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => choose("essential")}

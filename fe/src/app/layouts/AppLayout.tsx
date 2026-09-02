@@ -11,6 +11,7 @@ import { useSubscription } from "@/shared/hooks/useSubscription";
 import { SubscriptionSuccessModal } from "@/features/subscription/components/SubscriptionSuccessModal";
 import { SupportButton } from "@/features/support/SupportButton";
 import { PRE_CHECKOUT_PLAN_KEY } from "@/features/subscription/usePaddleCheckout";
+import { resetConsent } from "@/shared/lib/consent";
 import type { SubscriptionPlan } from "@/shared/types/api";
 
 const PLAN_RANK: Record<SubscriptionPlan, number> = {
@@ -123,6 +124,13 @@ export function AppLayout() {
             >
               {t("home.footer.refund")}
             </Link>
+            <button
+              type="button"
+              onClick={resetConsent}
+              className="cursor-pointer transition-colors hover:text-foreground"
+            >
+              {t("cookieConsent.settings")}
+            </button>
             <span>
               &copy; {new Date().getFullYear()} {t("home.footer.copyright")}
             </span>

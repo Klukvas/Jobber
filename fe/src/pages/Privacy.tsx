@@ -76,33 +76,50 @@ export default function Privacy() {
       <section className="mb-8">
         <h2 className="mb-3 text-xl font-semibold">4. Data Sharing</h2>
         <p className="mb-3">
-          We do not sell, trade, or transfer your personal data to third
-          parties. Page text is sent to Anthropic&apos;s API solely for job
-          parsing and is subject to{" "}
-          <a
-            href="https://www.anthropic.com/privacy"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary underline"
-          >
-            Anthropic&apos;s Privacy Policy
-          </a>
-          .
+          We do not sell your personal data. We share limited data only with the
+          service providers below, and only to operate the product:
         </p>
-        <p>
-          Payments for paid plans are processed by Paddle, our Merchant of
-          Record. When you subscribe, Paddle collects and processes your billing
-          information under{" "}
-          <a
-            href="https://www.paddle.com/legal/privacy"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary underline"
-          >
-            Paddle&apos;s Privacy Policy
-          </a>
-          . We never see or store your full payment card details.
-        </p>
+        <ul className="ml-6 list-disc space-y-2">
+          <li>
+            <strong>Anthropic</strong> — page text you import and resume content
+            you extract are sent to Anthropic&apos;s API solely for AI parsing,
+            subject to{" "}
+            <a
+              href="https://www.anthropic.com/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline"
+            >
+              Anthropic&apos;s Privacy Policy
+            </a>
+            .
+          </li>
+          <li>
+            <strong>Paddle</strong> — payments for paid plans are processed by
+            Paddle, our Merchant of Record. When you subscribe, Paddle collects
+            and processes your billing information under{" "}
+            <a
+              href="https://www.paddle.com/legal/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline"
+            >
+              Paddle&apos;s Privacy Policy
+            </a>
+            . We never see or store your full payment card details.
+          </li>
+          <li>
+            <strong>Google Analytics and PostHog</strong> — optional usage
+            analytics, enabled only if you accept analytics cookies (see Cookies
+            below).
+          </li>
+          <li>
+            <strong>Sentry</strong> — error monitoring. When something breaks,
+            an error report is sent to Sentry so we can fix it; reports may
+            include your account identifier and, for errors in the web app, a
+            screen recording of the failing session with text content masked.
+          </li>
+        </ul>
       </section>
 
       <section className="mb-8">
@@ -121,8 +138,8 @@ export default function Privacy() {
           <li>
             <strong>Essential cookies</strong> — required for the service to
             work: secure, httpOnly authentication cookies that keep you signed
-            in, and cookies set by Paddle during checkout for payment processing
-            and fraud prevention. These cannot be switched off.
+            in, and cookies set by Paddle to enable secure checkout and fraud
+            prevention. These cannot be switched off.
           </li>
           <li>
             <strong>Analytics cookies (optional)</strong> — set only after you
@@ -132,8 +149,10 @@ export default function Privacy() {
           </li>
         </ul>
         <p className="mt-3">
-          To change your choice, clear this site&apos;s data in your browser —
-          the cookie banner will appear again on your next visit.
+          You can change your choice at any time via the &quot;Cookie
+          settings&quot; link in the footer — the banner will reappear and your
+          new choice takes effect immediately. (Clearing this site&apos;s data
+          in your browser also resets the choice, but signs you out too.)
         </p>
       </section>
 

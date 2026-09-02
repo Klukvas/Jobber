@@ -11,6 +11,19 @@ const EMAIL = process.env.PLAYWRIGHT_EMAIL ?? "seed@jobber.dev";
 const PASSWORD = process.env.PLAYWRIGHT_PASSWORD ?? "password123";
 
 setup("authenticate", async ({ page }) => {
+  // Dismiss the cookie banner for the whole suite: the choice lands in
+  // localStorage and is captured into the shared storage state.
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem(
+        "cookie-consent",
+        JSON.stringify({ choice: "essential", at: "e2e" }),
+      );
+    } catch {
+      // Ignore — tests will see the banner, but still run.
+    }
+  });
+
   await page.goto("/login");
 
   await page.locator("#login-email").fill(EMAIL);
