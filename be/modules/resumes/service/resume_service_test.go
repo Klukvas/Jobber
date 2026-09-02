@@ -652,6 +652,24 @@ func TestResumeService_Delete_CacheInvalidation(t *testing.T) {
 		assert.Equal(t, resumeID, cache.CalledWith)
 	})
 
+	t.Run("foreign resume never reaches the invalidator", func(t *testing.T) {
+		// Invalidators delete derived caches by resume_id alone; running them
+		// before the ownership check would let any user void another user's
+		// caches (autofill profiles are paid-for — see ADR-0001).
+		cache := &MockCacheInvalidator{}
+		mockRepo := &MockResumeRepository{
+			GetByIDFunc: func(ctx context.Context, uid, rid string) (*model.Resume, error) {
+				return nil, model.ErrResumeNotFound
+			},
+		}
+
+		svc := NewResumeService(mockRepo, nil, nil, cache)
+		err := svc.Delete(context.Background(), userID, "someone-elses-resume")
+
+		assert.ErrorIs(t, err, model.ErrResumeNotFound)
+		assert.Equal(t, 0, cache.CallCount)
+	})
+
 	t.Run("invalidation error does not break delete", func(t *testing.T) {
 		cache := &MockCacheInvalidator{
 			InvalidateByResumeFunc: func(ctx context.Context, resumeID string) error {

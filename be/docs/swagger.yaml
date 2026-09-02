@@ -581,6 +581,84 @@ definitions:
       remind_at:
         type: string
     type: object
+  github_com_andreypavlenko_jobber_modules_resumes_model.AutofillContactDTO:
+    properties:
+      email:
+        type: string
+      full_name:
+        type: string
+      github:
+        type: string
+      linkedin:
+        type: string
+      location:
+        type: string
+      phone:
+        type: string
+      website:
+        type: string
+    type: object
+  github_com_andreypavlenko_jobber_modules_resumes_model.AutofillEducationDTO:
+    properties:
+      degree:
+        type: string
+      end_date:
+        type: string
+      field_of_study:
+        type: string
+      institution:
+        type: string
+      start_date:
+        type: string
+    type: object
+  github_com_andreypavlenko_jobber_modules_resumes_model.AutofillExperienceDTO:
+    properties:
+      company:
+        type: string
+      description:
+        type: string
+      end_date:
+        type: string
+      is_current:
+        type: boolean
+      location:
+        type: string
+      position:
+        type: string
+      start_date:
+        type: string
+    type: object
+  github_com_andreypavlenko_jobber_modules_resumes_model.AutofillProfileDTO:
+    properties:
+      contact:
+        $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.AutofillContactDTO'
+      educations:
+        items:
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.AutofillEducationDTO'
+        type: array
+      experiences:
+        items:
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.AutofillExperienceDTO'
+        type: array
+      skills:
+        items:
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.AutofillSkillDTO'
+        type: array
+      summary:
+        $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.AutofillSummaryDTO'
+    type: object
+  github_com_andreypavlenko_jobber_modules_resumes_model.AutofillSkillDTO:
+    properties:
+      level:
+        type: string
+      name:
+        type: string
+    type: object
+  github_com_andreypavlenko_jobber_modules_resumes_model.AutofillSummaryDTO:
+    properties:
+      content:
+        type: string
+    type: object
   github_com_andreypavlenko_jobber_modules_resumes_model.CreateResumeRequest:
     properties:
       file_url:
@@ -2642,6 +2720,49 @@ paths:
       security:
       - BearerAuth: []
       summary: Update a resume
+      tags:
+      - resumes
+  /resumes/{id}/autofill-profile:
+    get:
+      description: Returns structured form-filling data AI-extracted from the resume
+        PDF. First request on a paid plan extracts and caches; later requests are
+        free cache hits.
+      parameters:
+      - description: Resume ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.AutofillProfileDTO'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "403":
+          description: PAID_FEATURE or PLAN_LIMIT_REACHED
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "404":
+          description: Resume not found
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "422":
+          description: Resume file unreadable or missing
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get the autofill profile of an uploaded resume
       tags:
       - resumes
   /resumes/{id}/download:

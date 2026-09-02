@@ -150,10 +150,11 @@ func (s *ResumeService) Update(ctx context.Context, userID, resumeID string, req
 		return nil, err
 	}
 
-	// Invalidate match-score cache when resume file changes
+	// A changed file voids everything derived from it (match-score results,
+	// autofill profile) — the composite invalidator fans out to all of them.
 	if fileChanged && s.cacheInvalidator != nil {
 		if err := s.cacheInvalidator.InvalidateByResume(ctx, resumeID); err != nil {
-			log.Printf("[WARN] match score cache invalidation failed for resume=%s: %v", resumeID, err)
+			log.Printf("[WARN] resume cache invalidation failed for resume=%s: %v", resumeID, err)
 		}
 	}
 
@@ -161,17 +162,21 @@ func (s *ResumeService) Update(ctx context.Context, userID, resumeID string, req
 }
 
 func (s *ResumeService) Delete(ctx context.Context, userID, resumeID string) error {
-	// Invalidate match-score cache before deleting (FK CASCADE is a safety net)
-	if s.cacheInvalidator != nil {
-		if err := s.cacheInvalidator.InvalidateByResume(ctx, resumeID); err != nil {
-			log.Printf("[WARN] match score cache invalidation failed for resume=%s: %v", resumeID, err)
-		}
-	}
-
-	// Get resume to check storage type
+	// Get resume to check storage type. Also the ownership gate: derived-cache
+	// invalidation below must never run for a foreign resume id — the
+	// invalidators delete by resume_id alone, so calling them pre-check would
+	// let any authenticated user void another user's caches (and, for autofill
+	// profiles, force a re-charged extraction).
 	resume, err := s.repo.GetByID(ctx, userID, resumeID)
 	if err != nil {
 		return err
+	}
+
+	// Invalidate resume-derived caches before deleting (FK CASCADE is a safety net)
+	if s.cacheInvalidator != nil {
+		if err := s.cacheInvalidator.InvalidateByResume(ctx, resumeID); err != nil {
+			log.Printf("[WARN] resume cache invalidation failed for resume=%s: %v", resumeID, err)
+		}
 	}
 
 	// If resume uses S3 storage, delete the file from S3 first

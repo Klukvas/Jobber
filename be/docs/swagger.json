@@ -2874,6 +2874,70 @@
                 }
             }
         },
+        "/resumes/{id}/autofill-profile": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns structured form-filling data AI-extracted from the resume PDF. First request on a paid plan extracts and caches; later requests are free cache hits.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "resumes"
+                ],
+                "summary": "Get the autofill profile of an uploaded resume",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Resume ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.AutofillProfileDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "PAID_FEATURE or PLAN_LIMIT_REACHED",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Resume not found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Resume file unreadable or missing",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/resumes/{id}/download": {
             "get": {
                 "security": [
@@ -4636,6 +4700,126 @@
                     "type": "string"
                 },
                 "remind_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_resumes_model.AutofillContactDTO": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "full_name": {
+                    "type": "string"
+                },
+                "github": {
+                    "type": "string"
+                },
+                "linkedin": {
+                    "type": "string"
+                },
+                "location": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "website": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_resumes_model.AutofillEducationDTO": {
+            "type": "object",
+            "properties": {
+                "degree": {
+                    "type": "string"
+                },
+                "end_date": {
+                    "type": "string"
+                },
+                "field_of_study": {
+                    "type": "string"
+                },
+                "institution": {
+                    "type": "string"
+                },
+                "start_date": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_resumes_model.AutofillExperienceDTO": {
+            "type": "object",
+            "properties": {
+                "company": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "end_date": {
+                    "type": "string"
+                },
+                "is_current": {
+                    "type": "boolean"
+                },
+                "location": {
+                    "type": "string"
+                },
+                "position": {
+                    "type": "string"
+                },
+                "start_date": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_resumes_model.AutofillProfileDTO": {
+            "type": "object",
+            "properties": {
+                "contact": {
+                    "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.AutofillContactDTO"
+                },
+                "educations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.AutofillEducationDTO"
+                    }
+                },
+                "experiences": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.AutofillExperienceDTO"
+                    }
+                },
+                "skills": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.AutofillSkillDTO"
+                    }
+                },
+                "summary": {
+                    "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.AutofillSummaryDTO"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_resumes_model.AutofillSkillDTO": {
+            "type": "object",
+            "properties": {
+                "level": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_resumes_model.AutofillSummaryDTO": {
+            "type": "object",
+            "properties": {
+                "content": {
                     "type": "string"
                 }
             }

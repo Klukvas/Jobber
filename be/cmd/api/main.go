@@ -302,6 +302,9 @@ func main() {
 	// Initialize match score cache repository
 	matchScoreCacheRepo := matchScoreRepo.NewMatchScoreCacheRepository(pgClient.Pool)
 
+	// Initialize autofill profile repository (extracted profiles of uploaded resumes)
+	autofillProfileRepository := resumeRepo.NewAutofillProfileRepository(pgClient.Pool)
+
 	// Initialize verification and password reset repositories
 	verificationRepository := authRepo.NewEmailVerificationRepository(pgClient.Pool)
 	passwordResetRepository := authRepo.NewPasswordResetRepository(pgClient.Pool)
@@ -340,7 +343,10 @@ func main() {
 		Logger:              logger.Logger,
 	})
 	companySvc := companyService.NewCompanyService(companyRepository)
-	resumeSvc := resumeService.NewResumeService(resumeRepository, s3Client, subscriptionSvc, matchScoreCacheRepo)
+	// A resume-file change must invalidate every cache derived from the file:
+	// match-score results and the autofill profile.
+	resumeCacheInvalidator := resumeService.NewCompositeInvalidator(matchScoreCacheRepo, autofillProfileRepository)
+	resumeSvc := resumeService.NewResumeService(resumeRepository, s3Client, subscriptionSvc, resumeCacheInvalidator)
 
 	commentSvc := commentService.NewCommentService(commentRepository)
 	reminderSvc := reminderService.NewReminderService(reminderRepository)
@@ -458,6 +464,7 @@ func main() {
 	var resumeAIHdl *rbHandler.AIHandler
 	var resumeImportHdl *rbHandler.ImportHandler
 	var coverLetterAIHdl *cvHandler.AIHandler
+	var autofillProfileHdl *resumeHandler.AutofillProfileHandler
 	if cfg.Anthropic.APIKey != "" {
 		aiClient := ai.NewAnthropicClient(cfg.Anthropic.APIKey)
 		importSvc := importService.NewImportService(aiClient, subscriptionSvc)
@@ -465,6 +472,9 @@ func main() {
 
 		matchScoreSvc := matchScoreService.NewMatchScoreService(aiClient, s3Client, jobRepository, resumeRepository, subscriptionSvc, matchScoreCacheRepo)
 		matchScoreHdl = matchScoreHandler.NewMatchScoreHandler(matchScoreSvc)
+
+		autofillProfileSvc := resumeService.NewAutofillProfileService(resumeRepository, autofillProfileRepository, s3Client, aiClient, subscriptionSvc)
+		autofillProfileHdl = resumeHandler.NewAutofillProfileHandler(autofillProfileSvc, logger.Logger)
 
 		resumeAISvc := rbService.NewAIService(resumeBuilderRepository, aiClient, subscriptionSvc)
 		resumeAIHdl = rbHandler.NewAIHandler(resumeAISvc)
@@ -498,6 +508,12 @@ func main() {
 		MaxRequests: 10,
 		Window:      1 * time.Minute,
 		KeyPrefix:   "match_score",
+	}, logger.Logger)
+
+	autofillProfileRateLimiter := httpPlatform.UserRateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
+		MaxRequests: 10,
+		Window:      1 * time.Minute,
+		KeyPrefix:   "resume_autofill",
 	}, logger.Logger)
 
 	exportRateLimiter := httpPlatform.UserRateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
@@ -596,6 +612,9 @@ func main() {
 		}
 		if matchScoreHdl != nil {
 			matchScoreHdl.RegisterRoutes(v1, authMiddleware, matchScoreRateLimiter)
+		}
+		if autofillProfileHdl != nil {
+			autofillProfileHdl.RegisterRoutes(v1, authMiddleware, autofillProfileRateLimiter)
 		}
 		if exportHdl != nil {
 			exportHdl.RegisterRoutes(v1, authMiddleware, exportRateLimiter)
