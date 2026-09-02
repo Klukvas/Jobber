@@ -246,7 +246,7 @@ func TestSubscriptionRepository_Counts(t *testing.T) {
 		})
 	})
 	t.Run("CountUserAIRequestsThisMonth", func(t *testing.T) {
-		countTest(t, "usage_type = 'match_score'", func(r *SubscriptionRepository) (int, error) {
+		countTest(t, `usage_type IN \('match_score', 'resume_autofill_parse'\)`, func(r *SubscriptionRepository) (int, error) {
 			return r.CountUserAIRequestsThisMonth(ctx, "user-1")
 		})
 	})
@@ -295,6 +295,23 @@ func TestSubscriptionRepository_RecordJobParseUsage(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestSubscriptionRepository_RecordResumeAutofillUsage(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	// The literal is load-bearing: CountUserAIRequestsThisMonth only counts
+	// types in its IN-list, so recording a wrong one would silently bypass
+	// the quota.
+	mock.ExpectExec(`INSERT INTO ai_usage \(user_id, usage_type\) VALUES \(\$1, 'resume_autofill_parse'\)`).
+		WithArgs("user-1").
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+
+	repo := NewSubscriptionRepository(mock)
+	require.NoError(t, repo.RecordResumeAutofillUsage(context.Background(), "user-1"))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestSubscriptionRepository_GetAllCounts(t *testing.T) {
 	t.Run("returns all six counts in order", func(t *testing.T) {
 		mock, err := pgxmock.NewPool()
@@ -303,7 +320,9 @@ func TestSubscriptionRepository_GetAllCounts(t *testing.T) {
 
 		rows := pgxmock.NewRows([]string{"jobs", "resumes", "ai", "parses", "builders", "letters"}).
 			AddRow(1, 2, 3, 4, 5, 6)
-		mock.ExpectQuery("SELECT").
+		// Pin the AI-count subquery: it must count the same usage types as
+		// CountUserAIRequestsThisMonth or the usage bar drifts from the limit.
+		mock.ExpectQuery(`usage_type IN \('match_score', 'resume_autofill_parse'\)`).
 			WithArgs("user-1").
 			WillReturnRows(rows)
 

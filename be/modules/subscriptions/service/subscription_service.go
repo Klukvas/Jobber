@@ -86,26 +86,46 @@ func (s *SubscriptionService) GetCheckoutConfig() *model.CheckoutConfigDTO {
 	}
 }
 
-// CheckLimit checks if a user can create another resource of the given type.
-func (s *SubscriptionService) CheckLimit(ctx context.Context, userID, resource string) error {
+// effectivePlan resolves the plan whose limits actually apply right now for a
+// user. Paid quotas only apply while the subscription is actually paying: a
+// paused/cancelled paid plan falls back to free (past_due keeps a grace
+// window, matching Subscription.IsActive semantics). A missing subscription
+// row is treated as the free plan.
+func (s *SubscriptionService) effectivePlan(ctx context.Context, userID string) (string, error) {
 	sub, err := s.repo.GetByUserID(ctx, userID)
 	if err != nil {
-		// If no subscription found, treat as free plan
 		if errors.Is(err, model.ErrSubscriptionNotFound) {
-			sub = &model.Subscription{Plan: "free", Status: "free"}
-		} else {
-			return fmt.Errorf("failed to get subscription: %w", err)
+			return "free", nil
 		}
+		return "", fmt.Errorf("failed to get subscription: %w", err)
 	}
+	if sub.Plan != "free" && sub.Status != "active" && sub.Status != "past_due" {
+		return "free", nil
+	}
+	return sub.Plan, nil
+}
 
-	// Paid quotas only apply while the subscription is actually paying. A
-	// paused/cancelled paid plan falls back to free limits (past_due keeps a
-	// grace window, matching Subscription.IsActive semantics).
-	effectivePlan := sub.Plan
-	if effectivePlan != "free" && sub.Status != "active" && sub.Status != "past_due" {
-		effectivePlan = "free"
+// RequirePaidPlan returns ErrPaidFeature unless the user is on an effective
+// paid plan. Gates paid-only features (e.g. AI extraction of an Autofill
+// Profile from an Uploaded Resume — see docs/adr/0001-autofill-profile-economics.md).
+func (s *SubscriptionService) RequirePaidPlan(ctx context.Context, userID string) error {
+	plan, err := s.effectivePlan(ctx, userID)
+	if err != nil {
+		return err
 	}
-	limits := model.GetLimitsForPlan(effectivePlan)
+	if plan == "free" {
+		return model.ErrPaidFeature
+	}
+	return nil
+}
+
+// CheckLimit checks if a user can create another resource of the given type.
+func (s *SubscriptionService) CheckLimit(ctx context.Context, userID, resource string) error {
+	plan, err := s.effectivePlan(ctx, userID)
+	if err != nil {
+		return err
+	}
+	limits := model.GetLimitsForPlan(plan)
 
 	var current int
 	var max int
@@ -182,6 +202,11 @@ func (s *SubscriptionService) RecordAIUsage(ctx context.Context, userID string) 
 // RecordJobParseUsage records a job parse usage event for the user.
 func (s *SubscriptionService) RecordJobParseUsage(ctx context.Context, userID string) error {
 	return s.repo.RecordJobParseUsage(ctx, userID)
+}
+
+// RecordResumeAutofillUsage records a resume autofill extraction usage event.
+func (s *SubscriptionService) RecordResumeAutofillUsage(ctx context.Context, userID string) error {
+	return s.repo.RecordResumeAutofillUsage(ctx, userID)
 }
 
 // EnsureFreeSubscription creates a free subscription for a user if one doesn't exist.

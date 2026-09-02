@@ -27,6 +27,7 @@ type MockSubscriptionRepository struct {
 	CountUserJobParsesFunc        func(ctx context.Context, userID string) (int, error)
 	RecordAIUsageFunc             func(ctx context.Context, userID string) error
 	RecordJobParseUsageFunc       func(ctx context.Context, userID string) error
+	RecordResumeAutofillUsageFunc func(ctx context.Context, userID string) error
 	CountUserResumeBuildersFunc   func(ctx context.Context, userID string) (int, error)
 	CountUserCoverLettersFunc     func(ctx context.Context, userID string) (int, error)
 	GetAllCountsFunc              func(ctx context.Context, userID string) (int, int, int, int, int, int, error)
@@ -94,6 +95,13 @@ func (m *MockSubscriptionRepository) RecordAIUsage(ctx context.Context, userID s
 func (m *MockSubscriptionRepository) RecordJobParseUsage(ctx context.Context, userID string) error {
 	if m.RecordJobParseUsageFunc != nil {
 		return m.RecordJobParseUsageFunc(ctx, userID)
+	}
+	return nil
+}
+
+func (m *MockSubscriptionRepository) RecordResumeAutofillUsage(ctx context.Context, userID string) error {
+	if m.RecordResumeAutofillUsageFunc != nil {
+		return m.RecordResumeAutofillUsageFunc(ctx, userID)
 	}
 	return nil
 }

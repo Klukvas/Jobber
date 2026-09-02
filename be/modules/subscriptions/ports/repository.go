@@ -17,6 +17,7 @@ type SubscriptionRepository interface {
 	CountUserJobParsesThisMonth(ctx context.Context, userID string) (int, error)
 	RecordAIUsage(ctx context.Context, userID string) error
 	RecordJobParseUsage(ctx context.Context, userID string) error
+	RecordResumeAutofillUsage(ctx context.Context, userID string) error
 	CountUserResumeBuilders(ctx context.Context, userID string) (int, error)
 	CountUserCoverLetters(ctx context.Context, userID string) (int, error)
 	GetAllCounts(ctx context.Context, userID string) (jobs, resumes, aiReqs, jobParses, resumeBuilders, coverLetters int, err error)

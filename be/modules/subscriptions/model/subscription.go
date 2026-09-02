@@ -9,6 +9,7 @@ import (
 var (
 	ErrSubscriptionNotFound = errors.New("subscription not found")
 	ErrLimitReached         = errors.New("plan limit reached")
+	ErrPaidFeature          = errors.New("paid plan required")
 )
 
 // Subscription represents a user's subscription record.

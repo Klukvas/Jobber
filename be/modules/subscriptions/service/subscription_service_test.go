@@ -33,6 +33,7 @@ type MockSubscriptionRepository struct {
 	CountUserJobParsesFunc        func(ctx context.Context, userID string) (int, error)
 	RecordAIUsageFunc             func(ctx context.Context, userID string) error
 	RecordJobParseUsageFunc       func(ctx context.Context, userID string) error
+	RecordResumeAutofillUsageFunc func(ctx context.Context, userID string) error
 	CountUserResumeBuildersFunc   func(ctx context.Context, userID string) (int, error)
 	CountUserCoverLettersFunc     func(ctx context.Context, userID string) (int, error)
 	GetAllCountsFunc              func(ctx context.Context, userID string) (int, int, int, int, int, int, error)
@@ -100,6 +101,13 @@ func (m *MockSubscriptionRepository) RecordAIUsage(ctx context.Context, userID s
 func (m *MockSubscriptionRepository) RecordJobParseUsage(ctx context.Context, userID string) error {
 	if m.RecordJobParseUsageFunc != nil {
 		return m.RecordJobParseUsageFunc(ctx, userID)
+	}
+	return nil
+}
+
+func (m *MockSubscriptionRepository) RecordResumeAutofillUsage(ctx context.Context, userID string) error {
+	if m.RecordResumeAutofillUsageFunc != nil {
+		return m.RecordResumeAutofillUsageFunc(ctx, userID)
 	}
 	return nil
 }
@@ -501,6 +509,88 @@ func TestVerifyWebhookSignature(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// RequirePaidPlan tests
+// ---------------------------------------------------------------------------
+
+func TestRequirePaidPlan(t *testing.T) {
+	tests := []struct {
+		name    string
+		sub     *model.Subscription
+		subErr  error
+		wantErr error
+	}{
+		{
+			name:    "free plan is rejected",
+			sub:     &model.Subscription{Plan: "free", Status: "free"},
+			wantErr: model.ErrPaidFeature,
+		},
+		{
+			name: "active pro passes",
+			sub:  &model.Subscription{Plan: "pro", Status: "active"},
+		},
+		{
+			name: "past_due pro keeps the grace window",
+			sub:  &model.Subscription{Plan: "pro", Status: "past_due"},
+		},
+		{
+			name:    "paused pro falls back to free",
+			sub:     &model.Subscription{Plan: "pro", Status: "paused"},
+			wantErr: model.ErrPaidFeature,
+		},
+		{
+			name:    "cancelled enterprise falls back to free",
+			sub:     &model.Subscription{Plan: "enterprise", Status: "cancelled"},
+			wantErr: model.ErrPaidFeature,
+		},
+		{
+			name: "active enterprise passes",
+			sub:  &model.Subscription{Plan: "enterprise", Status: "active"},
+		},
+		{
+			name:    "missing subscription is treated as free",
+			subErr:  model.ErrSubscriptionNotFound,
+			wantErr: model.ErrPaidFeature,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &MockSubscriptionRepository{
+				GetByUserIDFunc: func(ctx context.Context, userID string) (*model.Subscription, error) {
+					if tt.subErr != nil {
+						return nil, tt.subErr
+					}
+					return tt.sub, nil
+				},
+			}
+			svc := newTestService(repo)
+
+			err := svc.RequirePaidPlan(context.Background(), "user-1")
+
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+
+	t.Run("repo failure propagates as error, not as free", func(t *testing.T) {
+		repo := &MockSubscriptionRepository{
+			GetByUserIDFunc: func(ctx context.Context, userID string) (*model.Subscription, error) {
+				return nil, errors.New("db down")
+			},
+		}
+		svc := newTestService(repo)
+
+		err := svc.RequirePaidPlan(context.Background(), "user-1")
+
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, model.ErrPaidFeature)
+	})
 }
 
 // ---------------------------------------------------------------------------

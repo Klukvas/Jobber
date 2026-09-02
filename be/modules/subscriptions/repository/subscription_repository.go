@@ -113,13 +113,15 @@ func (r *SubscriptionRepository) CountUserResumes(ctx context.Context, userID st
 	return count, err
 }
 
-// CountUserAIRequestsThisMonth counts AI match score requests for a user in the current calendar month.
+// CountUserAIRequestsThisMonth counts general AI requests (match score, resume
+// autofill extraction) for a user in the current calendar month. Job parses
+// have their own limit and are counted separately.
 func (r *SubscriptionRepository) CountUserAIRequestsThisMonth(ctx context.Context, userID string) (int, error) {
 	var count int
 	err := r.pool.QueryRow(ctx,
 		`SELECT COUNT(*) FROM ai_usage
 		 WHERE user_id = $1
-		   AND usage_type = 'match_score'
+		   AND usage_type IN ('match_score', 'resume_autofill_parse')
 		   AND created_at >= date_trunc('month', NOW())`, userID,
 	).Scan(&count)
 	return count, err
@@ -153,6 +155,14 @@ func (r *SubscriptionRepository) RecordJobParseUsage(ctx context.Context, userID
 	return err
 }
 
+// RecordResumeAutofillUsage inserts a resume autofill extraction usage record.
+func (r *SubscriptionRepository) RecordResumeAutofillUsage(ctx context.Context, userID string) error {
+	_, err := r.pool.Exec(ctx,
+		`INSERT INTO ai_usage (user_id, usage_type) VALUES ($1, 'resume_autofill_parse')`, userID,
+	)
+	return err
+}
+
 // CountUserResumeBuilders counts resume builders for a user.
 func (r *SubscriptionRepository) CountUserResumeBuilders(ctx context.Context, userID string) (int, error) {
 	var count int
@@ -177,7 +187,7 @@ func (r *SubscriptionRepository) GetAllCounts(ctx context.Context, userID string
 		SELECT
 			(SELECT COUNT(*) FROM jobs WHERE user_id = $1 AND is_archived = false),
 			(SELECT COUNT(*) FROM resumes WHERE user_id = $1),
-			(SELECT COUNT(*) FROM ai_usage WHERE user_id = $1 AND usage_type = 'match_score' AND created_at >= date_trunc('month', NOW())),
+			(SELECT COUNT(*) FROM ai_usage WHERE user_id = $1 AND usage_type IN ('match_score', 'resume_autofill_parse') AND created_at >= date_trunc('month', NOW())),
 			(SELECT COUNT(*) FROM ai_usage WHERE user_id = $1 AND usage_type = 'job_parse' AND created_at >= date_trunc('month', NOW())),
 			(SELECT COUNT(*) FROM resume_builders WHERE user_id = $1),
 			(SELECT COUNT(*) FROM cover_letters WHERE user_id = $1)
