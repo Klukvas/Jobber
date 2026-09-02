@@ -23,7 +23,9 @@ export function initSentry() {
         createRoutesFromChildren,
         matchRoutes,
       }),
-      Sentry.replayIntegration(),
+      // Masking is pinned explicitly (not left to SDK defaults) because the
+      // privacy policy promises "text content masked" for replays.
+      Sentry.replayIntegration({ maskAllText: true, blockAllMedia: true }),
     ],
     tracesSampleRate: 0.2,
     replaysSessionSampleRate: 0,

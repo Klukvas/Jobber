@@ -1,5 +1,5 @@
 import posthog from "posthog-js";
-import { initGA4, trackGA4PageView } from "./gtag";
+import { initGA4, setGA4Disabled, trackGA4PageView } from "./gtag";
 import { initPostHog, trackPageView } from "./posthog";
 
 const STORAGE_KEY = "cookie-consent";
@@ -9,6 +9,7 @@ export const CONSENT_RESET_EVENT = "jobber:cookie-consent-reset";
 export type CookieConsent = "accepted" | "essential";
 
 let analyticsStarted = false;
+let entryPageviewTracked = false;
 
 export function getStoredConsent(): CookieConsent | null {
   try {
@@ -42,9 +43,14 @@ export function applyConsent(consent: CookieConsent): void {
   if (consent === "accepted") {
     startAnalytics();
     // The router already skipped tracking this page while consent was
-    // undecided — record the current page or the entry pageview is lost.
-    trackGA4PageView(window.location.pathname + window.location.search);
-    trackPageView(window.location.href);
+    // undecided — record the current page once or the entry pageview is
+    // lost. Same relative format as usePageTracking.
+    if (!entryPageviewTracked) {
+      entryPageviewTracked = true;
+      const url = window.location.pathname + window.location.search;
+      trackGA4PageView(url);
+      trackPageView(url);
+    }
   } else {
     stopAnalytics();
   }
@@ -70,23 +76,32 @@ export function resetConsent(): void {
 }
 
 function startAnalytics(): void {
-  if (analyticsStarted) {
-    // Re-accept after an in-session opt-out: the scripts are already loaded,
-    // only PostHog's opt-out flag needs lifting.
-    if (posthog.__loaded) {
-      posthog.opt_in_capturing();
-    }
-    return;
+  // Lift the GA kill switch from a possible earlier in-session withdrawal.
+  setGA4Disabled(false);
+
+  if (!analyticsStarted) {
+    analyticsStarted = true;
+    initGA4();
+    initPostHog();
   }
-  analyticsStarted = true;
-  initGA4();
-  initPostHog();
+
+  // PostHog PERSISTS its opt-out in its own storage across sessions — without
+  // this, a user who once opted out and later accepts would have their
+  // explicit consent silently ignored forever. captureEventName: null skips
+  // the synthetic $opt_in event.
+  if (posthog.__loaded && posthog.has_opted_out_capturing()) {
+    posthog.opt_in_capturing({ captureEventName: null });
+  }
 }
 
 // Best-effort cleanup for cookies set while consent was granted: GA cookies
 // are first-party (_ga, _ga_*) so we can expire them ourselves; PostHog
 // honors its own opt-out flag.
 function stopAnalytics(): void {
+  // An already-loaded gtag.js keeps sending router pageviews (and re-setting
+  // the _ga cookies we just expired) unless Google's kill switch is set.
+  setGA4Disabled(true);
+
   if (posthog.__loaded) {
     posthog.opt_out_capturing();
   }

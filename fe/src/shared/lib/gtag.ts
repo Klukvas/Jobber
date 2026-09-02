@@ -37,3 +37,14 @@ export function trackGA4PageView(path: string, title?: string) {
     });
   }
 }
+
+// Google's official kill switch: with ga-disable-<id> set, an already-loaded
+// gtag.js drops every hit and stops re-setting _ga cookies. Needed for
+// in-session consent withdrawal — we can't unload the script.
+export function setGA4Disabled(disabled: boolean) {
+  const measurementId = import.meta.env.VITE_GA4_MEASUREMENT_ID;
+  if (!measurementId) return;
+  (window as unknown as Record<string, unknown>)[
+    `ga-disable-${measurementId}`
+  ] = disabled;
+}

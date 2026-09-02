@@ -116,8 +116,9 @@ export default function Privacy() {
           <li>
             <strong>Sentry</strong> — error monitoring. When something breaks,
             an error report is sent to Sentry so we can fix it; reports may
-            include your account identifier and, for errors in the web app, a
-            screen recording of the failing session with text content masked.
+            include your account ID and email address and, for errors in the web
+            app, a screen recording of the failing session with text content
+            masked.
           </li>
         </ul>
       </section>
