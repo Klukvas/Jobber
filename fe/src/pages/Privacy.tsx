@@ -24,7 +24,7 @@ export default function Privacy() {
       </nav>
       <h1 className="mb-8 text-3xl font-bold">Privacy Policy</h1>
       <p className="mb-4 text-sm text-muted-foreground">
-        Last updated: February 28, 2026
+        Last updated: September 3, 2026
       </p>
 
       <section className="mb-8">
@@ -75,7 +75,7 @@ export default function Privacy() {
 
       <section className="mb-8">
         <h2 className="mb-3 text-xl font-semibold">4. Data Sharing</h2>
-        <p>
+        <p className="mb-3">
           We do not sell, trade, or transfer your personal data to third
           parties. Page text is sent to Anthropic&apos;s API solely for job
           parsing and is subject to{" "}
@@ -89,6 +89,20 @@ export default function Privacy() {
           </a>
           .
         </p>
+        <p>
+          Payments for paid plans are processed by Paddle, our Merchant of
+          Record. When you subscribe, Paddle collects and processes your billing
+          information under{" "}
+          <a
+            href="https://www.paddle.com/legal/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary underline"
+          >
+            Paddle&apos;s Privacy Policy
+          </a>
+          . We never see or store your full payment card details.
+        </p>
       </section>
 
       <section className="mb-8">
@@ -101,8 +115,31 @@ export default function Privacy() {
       </section>
 
       <section className="mb-8">
+        <h2 className="mb-3 text-xl font-semibold">6. Cookies</h2>
+        <p className="mb-3">We use two kinds of cookies:</p>
+        <ul className="ml-6 list-disc space-y-2">
+          <li>
+            <strong>Essential cookies</strong> — required for the service to
+            work: secure, httpOnly authentication cookies that keep you signed
+            in, and cookies set by Paddle during checkout for payment processing
+            and fraud prevention. These cannot be switched off.
+          </li>
+          <li>
+            <strong>Analytics cookies (optional)</strong> — set only after you
+            accept them in the cookie banner: Google Analytics and PostHog help
+            us understand how the product is used so we can improve it. If you
+            choose &quot;Essential only&quot;, no analytics cookies are set.
+          </li>
+        </ul>
+        <p className="mt-3">
+          To change your choice, clear this site&apos;s data in your browser —
+          the cookie banner will appear again on your next visit.
+        </p>
+      </section>
+
+      <section className="mb-8">
         <h2 className="mb-3 text-xl font-semibold">
-          6. Browser Extension Permissions
+          7. Browser Extension Permissions
         </h2>
         <ul className="ml-6 list-disc space-y-2">
           <li>
@@ -122,7 +159,7 @@ export default function Privacy() {
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-xl font-semibold">7. Your Rights</h2>
+        <h2 className="mb-3 text-xl font-semibold">8. Your Rights</h2>
         <p>
           You can delete your account and all associated data at any time from
           the Settings page. To request data export or have questions, contact
@@ -138,7 +175,7 @@ export default function Privacy() {
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-xl font-semibold">8. Changes</h2>
+        <h2 className="mb-3 text-xl font-semibold">9. Changes</h2>
         <p>
           We may update this policy from time to time. Changes will be posted on
           this page with an updated date.

@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { useThemeStore } from "@/stores/themeStore";
 import { AuthProvider } from "./providers/AuthProvider";
 import { GlobalErrorBoundary } from "@/shared/ui/GlobalErrorBoundary";
+import { CookieConsent } from "@/shared/ui/CookieConsent";
 import { Toaster } from "sonner";
 
 const queryClient = new QueryClient({
@@ -35,6 +36,7 @@ export function Providers() {
           <AuthProvider>
             <RouterProvider router={router} />
             <Toaster position="top-right" richColors closeButton />
+            <CookieConsent />
           </AuthProvider>
         </QueryClientProvider>
       </I18nextProvider>
