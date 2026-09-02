@@ -234,6 +234,28 @@ const JobberAPI = (() => {
     return response.json();
   }
 
+  // Autofill Profile of an uploaded resume. First call on a paid plan
+  // AI-extracts and caches server-side (can take ~5-15s); later calls are
+  // instant cache hits.
+  async function getUploadedAutofillProfile(resumeId) {
+    const response = await apiFetch(
+      `/api/v1/resumes/${encodeURIComponent(resumeId)}/autofill-profile`,
+    );
+    if (response.status === 401) throw new Error("SESSION_EXPIRED");
+    if (response.status === 403) {
+      const err = await response.json().catch(() => null);
+      throw new Error(
+        err?.error_code === "PAID_FEATURE"
+          ? "PAID_FEATURE"
+          : "PLAN_LIMIT_REACHED",
+      );
+    }
+    if (response.status === 422) throw new Error("RESUME_UNREADABLE");
+    if (response.status === 429) throw new Error("RATE_LIMITED");
+    if (!response.ok) throw new Error("Failed to prepare autofill profile");
+    return response.json();
+  }
+
   // ── Match Score ───────────────────────────────────
 
   async function getMatchScore(jobId, resumeId) {
@@ -305,6 +327,7 @@ const JobberAPI = (() => {
     createJob,
     listJobs,
     listResumes,
+    getUploadedAutofillProfile,
     getMatchScore,
     getSubscription,
     listResumeBuilders,

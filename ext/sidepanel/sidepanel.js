@@ -53,7 +53,10 @@ const jobsError = document.getElementById("jobs-error");
 const autofillSetup = document.getElementById("autofill-setup");
 const autofillActive = document.getElementById("autofill-active");
 const autofillResumeSelect = document.getElementById("autofill-resume-select");
+const autofillHint = document.getElementById("autofill-hint");
+const autofillBridgeHint = document.getElementById("autofill-bridge-hint");
 const btnSetAutofill = document.getElementById("btn-set-autofill");
+const btnOpenBuilder = document.getElementById("btn-open-builder");
 const autofillError = document.getElementById("autofill-error");
 const profileNameEl = document.getElementById("profile-name");
 const profileInfoEl = document.getElementById("profile-info");
@@ -79,6 +82,18 @@ let lastSavedJob = null;
 // Full URL of the active tab, cached so the parse click can request host access
 // for it synchronously (permissions.request must run inside a user gesture).
 let currentTabUrl = null;
+// Subscription cached by loadUsage() so the autofill tab can present the
+// paid-only uploaded-resume options correctly. null = not loaded yet — then we
+// leave options enabled and let the server's 403 decide (it is the source of
+// truth either way).
+let cachedSubscription = null;
+
+function isPaidPlan(sub) {
+  if (!sub || sub.plan === "free") return false;
+  // Mirrors the backend's effective-plan rule: paused/cancelled paid plans
+  // fall back to free; past_due keeps a grace window.
+  return sub.status === "active" || sub.status === "past_due";
+}
 
 // ── Helpers ────────────────────────────────────────────
 
@@ -109,6 +124,8 @@ function showSaveState(state) {
 
 function handleSessionExpired() {
   JobberAPI.logout();
+  // The next account may be on a different plan — never carry the old one over.
+  cachedSubscription = null;
   viewMain.classList.add("hidden");
   viewLogin.classList.remove("hidden");
   showError(loginError, "Session expired. Please sign in again.");
@@ -163,15 +180,30 @@ function showMainView() {
 
 async function updateCurrentUrl() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.url) {
-    currentTabUrl = tab.url;
-    try {
-      currentUrlEl.textContent = new URL(tab.url).hostname;
-    } catch {
-      currentUrlEl.textContent = tab.url;
-    }
+  // Without the "tabs" permission, tab.url is only exposed for origins we hold
+  // host access to. A hidden URL must reset the cache — keeping the previous
+  // tab's URL made requestHostAccess() ask for the wrong origin, so extraction
+  // then failed on the actual page with "Cannot read this page".
+  currentTabUrl = tab?.url || null;
+  if (!currentTabUrl) {
+    currentUrlEl.textContent = "current page";
+    return;
+  }
+  try {
+    currentUrlEl.textContent = new URL(currentTabUrl).hostname;
+  } catch {
+    currentUrlEl.textContent = currentTabUrl;
   }
 }
+
+// The panel outlives tab switches and in-tab navigations, so the cached URL has
+// to track them — it was previously refreshed only when the panel (re)opened.
+chrome.tabs.onActivated.addListener(() => updateCurrentUrl());
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (tab.active && (changeInfo.url || changeInfo.status === "complete")) {
+    updateCurrentUrl();
+  }
+});
 
 // ── Pending Parse (from context menu / shortcut) ───────
 
@@ -197,6 +229,7 @@ async function loadUsage() {
   try {
     const sub = await JobberAPI.getSubscription();
     if (!sub) return;
+    cachedSubscription = sub;
 
     const limits = sub.limits || {};
     const usage = sub.usage || {};
@@ -261,6 +294,7 @@ loginForm.addEventListener("submit", async (e) => {
 
 btnLogout.addEventListener("click", async () => {
   await JobberAPI.logout();
+  cachedSubscription = null;
   viewMain.classList.add("hidden");
   viewLogin.classList.remove("hidden");
 });
@@ -339,26 +373,43 @@ async function parseWithData(pageData) {
 // default — so extraction rode the gesture-scoped `activeTab` grant and broke on
 // the second parse (after "Save Another"). Request persistent host access to the
 // current tab's origin first, inside the click gesture, so re-parsing works.
-btnParse.addEventListener("click", () => {
-  requestHostAccess().then((granted) => {
-    if (granted) {
-      parseCurrentPage();
-    } else {
+btnParse.addEventListener("click", async () => {
+  try {
+    const granted = await requestHostAccess();
+    if (!granted) {
       showError(idleError, "Grant access to this page to parse it.");
+      return;
     }
-  });
+  } catch {
+    // Non-web scheme (chrome://, file:…) or an origin Chrome refuses to grant.
+    showError(idleError, "Cannot read this page. Try a job posting page.");
+    return;
+  }
+  // A fresh grant makes the tab's URL visible — refresh the shown hostname.
+  updateCurrentUrl();
+  parseCurrentPage();
 });
 
-// Promise for host access to the active tab's origin. Must be the first async
-// call in the click handler to satisfy permissions.request()'s user-gesture
+// Promise for host access to the active tab's origin. Must be the first call
+// in the click handler to satisfy permissions.request()'s user-gesture
 // requirement; an already-granted origin resolves true without a prompt.
+// When the URL is hidden from us (a tab we hold no host access to yet), we
+// cannot name its origin — fall back to requesting all-https access, the
+// pattern optional_host_permissions declares. Rejects for pages that can never
+// be parsed (chrome://, file:// and other non-web schemes).
 function requestHostAccess() {
-  if (!currentTabUrl) return Promise.resolve(true);
-  let originPattern;
-  try {
-    originPattern = `${new URL(currentTabUrl).origin}/*`;
-  } catch {
-    return Promise.resolve(true);
+  let originPattern = "https://*/*";
+  if (currentTabUrl) {
+    let url = null;
+    try {
+      url = new URL(currentTabUrl);
+    } catch {
+      // Fall through — treat an unparseable URL as an unreadable page.
+    }
+    if (!url || (url.protocol !== "https:" && url.protocol !== "http:")) {
+      return Promise.reject(new Error("Page scheme cannot be granted"));
+    }
+    originPattern = `${url.origin}/*`;
   }
   return chrome.permissions.request({ origins: [originPattern] });
 }
@@ -638,15 +689,36 @@ async function loadJobs() {
 // ── Autofill ───────────────────────────────────────────
 
 async function loadAutofillTab() {
+  // Refresh plan state on every visit — an upgrade made in the web app must
+  // unlock the uploaded group without reopening the panel (a stale free
+  // snapshot renders the options disabled, which the server can't overrule).
+  await loadUsage();
+
   const { autofillProfile: cached } =
     await chrome.storage.local.get("autofillProfile");
 
-  if (cached?.contact?.full_name) {
+  // A profile is usable with a name OR an email — same threshold the backend
+  // applies to extractions, so an email-only extracted profile stays active.
+  if (cached?.contact?.full_name || cached?.contact?.email) {
     showActiveProfile(cached);
     return;
   }
 
   await showAutofillSetup();
+}
+
+function appendResumeGroup(label, prefix, resumes, enabled) {
+  if (resumes.length === 0) return;
+  const group = document.createElement("optgroup");
+  group.label = label;
+  resumes.forEach((r) => {
+    const option = document.createElement("option");
+    option.value = prefix + r.id;
+    option.textContent = r.title || "Untitled Resume";
+    option.disabled = !enabled;
+    group.appendChild(option);
+  });
+  autofillResumeSelect.appendChild(group);
 }
 
 async function showAutofillSetup() {
@@ -655,17 +727,34 @@ async function showAutofillSetup() {
   hideError(autofillError);
 
   try {
-    const data = await JobberAPI.listResumeBuilders();
-    const resumes = unwrapList(data);
+    const [builderData, uploadedData] = await Promise.all([
+      JobberAPI.listResumeBuilders(),
+      JobberAPI.listResumes(50),
+    ]);
+    const builders = unwrapList(builderData);
+    const uploaded = unwrapList(uploadedData);
+    // Unknown subscription (still loading) keeps options enabled \u2014 the server
+    // 403s free users anyway and the click handler shows the same upsell.
+    const uploadedEnabled =
+      cachedSubscription === null || isPaidPlan(cachedSubscription);
 
     autofillResumeSelect.innerHTML =
       '<option value="">Select a resume\u2026</option>';
-    resumes.forEach((r) => {
-      const option = document.createElement("option");
-      option.value = r.id;
-      option.textContent = r.title || "Untitled Resume";
-      autofillResumeSelect.appendChild(option);
-    });
+    appendResumeGroup("Builder Resumes", "rb:", builders, true);
+    appendResumeGroup("Uploaded Resumes", "up:", uploaded, uploadedEnabled);
+
+    const isEmpty = builders.length === 0 && uploaded.length === 0;
+    let hint = "";
+    if (isEmpty) {
+      hint =
+        "Upload a resume or create one in the Resume Builder to use Autofill.";
+    } else if (!uploadedEnabled && uploaded.length > 0) {
+      hint =
+        "Autofill from uploaded resumes is available on paid plans \u2014 upgrade at jobber-app.com, or create a resume in the Resume Builder.";
+    }
+    autofillHint.textContent = hint;
+    btnSetAutofill.disabled = isEmpty;
+    btnOpenBuilder.classList.toggle("hidden", !isEmpty);
   } catch (err) {
     if (err.message === "SESSION_EXPIRED") {
       handleSessionExpired();
@@ -679,6 +768,13 @@ function showActiveProfile(data) {
   autofillSetup.classList.add("hidden");
   autofillActive.classList.remove("hidden");
 
+  // Extracted profiles can't be edited anywhere (accepted for v1) — bridge to
+  // the free escape hatch: the Resume Builder PDF import.
+  autofillBridgeHint.textContent =
+    data.source === "uploaded"
+      ? "Wrong details? Import this PDF in the Resume Builder to edit."
+      : "";
+
   const c = data.contact || {};
   profileNameEl.textContent = c.full_name || "No name";
 
@@ -689,26 +785,46 @@ function showActiveProfile(data) {
 }
 
 btnSetAutofill.addEventListener("click", async () => {
-  const resumeId = autofillResumeSelect.value;
-  if (!resumeId) {
+  const value = autofillResumeSelect.value;
+  if (!value) {
     showError(autofillError, "Please select a resume");
     return;
   }
 
   hideError(autofillError);
   btnSetAutofill.disabled = true;
-  btnSetAutofill.textContent = "Loading\u2026";
+  const isUploaded = value.startsWith("up:");
+  const resumeId = value.slice(3);
+  // First extraction of an uploaded resume is an AI call (~5-15s); repeat
+  // selections are instant server-side cache hits.
+  btnSetAutofill.textContent = isUploaded
+    ? "Parsing your resume\u2026"
+    : "Loading\u2026";
 
   try {
-    const fullResume = await JobberAPI.getFullResume(resumeId);
-    await chrome.storage.local.set({ autofillProfile: fullResume });
-    showActiveProfile(fullResume);
+    const profile = isUploaded
+      ? {
+          ...(await JobberAPI.getUploadedAutofillProfile(resumeId)),
+          source: "uploaded",
+        }
+      : await JobberAPI.getFullResume(resumeId);
+    await chrome.storage.local.set({ autofillProfile: profile });
+    showActiveProfile(profile);
   } catch (err) {
     if (err.message === "SESSION_EXPIRED") {
       handleSessionExpired();
       return;
     }
-    showError(autofillError, err.message);
+    const friendly = {
+      PAID_FEATURE:
+        "Autofill from uploaded resumes is available on paid plans \u2014 upgrade at jobber-app.com.",
+      PLAN_LIMIT_REACHED:
+        "AI usage limit reached. Upgrade your plan at jobber-app.com.",
+      RESUME_UNREADABLE:
+        "Couldn't read this PDF. Try the Resume Builder instead.",
+      RATE_LIMITED: "Too many attempts — wait a minute and try again.",
+    };
+    showError(autofillError, friendly[err.message] || err.message);
   } finally {
     btnSetAutofill.disabled = false;
     btnSetAutofill.textContent = "Set as Autofill Profile";
@@ -716,6 +832,14 @@ btnSetAutofill.addEventListener("click", async () => {
 });
 
 btnChangeProfile.addEventListener("click", () => showAutofillSetup());
+
+btnOpenBuilder.addEventListener("click", () => {
+  // /app/resume-builder is just a redirect to /app/resumes — link straight to
+  // the resumes page, where "Create Resume" starts a builder resume.
+  chrome.tabs.create({
+    url: `${JobberAPI.getWebAppBase()}/app/resumes`,
+  });
+});
 
 // ── Start ──────────────────────────────────────────────
 

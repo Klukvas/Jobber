@@ -192,9 +192,13 @@
             <select id="autofill-resume-select">
               <option value="">Select a resume&hellip;</option>
             </select>
+            <p class="field-hint" id="autofill-hint"></p>
           </div>
           <button class="btn btn-primary" id="btn-set-autofill">
             Set as Autofill Profile
+          </button>
+          <button class="btn-text hidden" id="btn-open-builder">
+            Open Resume Builder
           </button>
           <div id="autofill-error" class="error hidden"></div>
         </div>
@@ -208,6 +212,7 @@
             <div class="profile-name" id="profile-name"></div>
             <div class="profile-info" id="profile-info"></div>
           </div>
+          <p class="field-hint" id="autofill-bridge-hint"></p>
           <p class="section-desc">
             A <strong>&#x1F4BC; Autofill</strong> button will appear on
             application pages. You can also right-click &rarr; "Autofill with
