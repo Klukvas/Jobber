@@ -5,12 +5,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"github.com/andreypavlenko/jobber/internal/platform/netsafe"
@@ -22,8 +20,6 @@ import (
 	resumeModel "github.com/andreypavlenko/jobber/modules/resumes/model"
 	resumePorts "github.com/andreypavlenko/jobber/modules/resumes/ports"
 )
-
-const maxResumeSize = 20 * 1024 * 1024 // 20 MB
 
 // isPrivateIP and validateExternalURL delegate to the shared netsafe package,
 // kept as thin wrappers so existing call sites and tests stay unchanged.
@@ -160,63 +156,18 @@ func (s *MatchScoreService) CheckMatch(ctx context.Context, userID string, req *
 	return resp, nil
 }
 
-// downloadResumePDF retrieves the resume PDF bytes from S3 or external URL.
+// downloadResumePDF retrieves the resume PDF bytes via the shared platform
+// helper, mapping its missing-file sentinel to this module's error.
 func (s *MatchScoreService) downloadResumePDF(ctx context.Context, resume *resumeModel.Resume) ([]byte, error) {
-	// Try S3 first
-	if resume.StorageType == resumeModel.StorageTypeS3 && resume.StorageKey != nil && s.s3Client != nil {
-		data, err := s.s3Client.GetObject(ctx, *resume.StorageKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to download resume from S3: %w", err)
-		}
-		return data, nil
+	data, err := storage.DownloadResumeFile(ctx, s.s3Client, string(resume.StorageType), resume.StorageKey, resume.FileURL)
+	if errors.Is(err, storage.ErrResumeFileMissing) {
+		return nil, model.ErrResumeFileEmpty
 	}
-
-	// Try external URL
-	if resume.FileURL != nil && *resume.FileURL != "" {
-		data, err := downloadFromURL(ctx, *resume.FileURL)
-		if err != nil {
-			return nil, fmt.Errorf("failed to download resume from URL: %w", err)
-		}
-		return data, nil
-	}
-
-	return nil, model.ErrResumeFileEmpty
+	return data, err
 }
 
-// downloadFromURL fetches a file from an external URL with size limit, timeout, and SSRF protection.
+// downloadFromURL delegates to the shared platform helper; kept as a thin
+// wrapper so existing call sites and tests stay unchanged.
 func downloadFromURL(ctx context.Context, rawURL string) ([]byte, error) {
-	if err := validateExternalURL(rawURL); err != nil {
-		return nil, fmt.Errorf("URL validation failed: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := netsafe.SafeClient().Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	// Limit read to maxResumeSize
-	limitedReader := io.LimitReader(resp.Body, maxResumeSize+1)
-	data, err := io.ReadAll(limitedReader)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(data) > maxResumeSize {
-		return nil, fmt.Errorf("resume file too large (max %d bytes)", maxResumeSize)
-	}
-
-	return data, nil
+	return storage.DownloadFileFromURL(ctx, rawURL)
 }

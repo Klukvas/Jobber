@@ -536,9 +536,10 @@ func TestDownloadResumePDF_S3Path_NotFound(t *testing.T) {
 		StorageKey:  &storageKey,
 	}
 
+	// A missing S3 object (abandoned presigned-upload slot) now maps to the
+	// module's "file empty" sentinel instead of a wrapped internal error.
 	_, err := svc.downloadResumePDF(context.Background(), resume)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to download resume from S3")
+	assert.Equal(t, model.ErrResumeFileEmpty, err)
 }
 
 func TestDownloadResumePDF_S3Path_NilClient(t *testing.T) {
