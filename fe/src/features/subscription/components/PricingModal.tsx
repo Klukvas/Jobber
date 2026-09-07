@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Check, Info } from "lucide-react";
+import { Check } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from "@/shared/ui/Dialog";
 import { useSubscription } from "@/shared/hooks/useSubscription";
-import { usePaddleCheckout } from "@/features/subscription/usePaddleCheckout";
+import { usePlanSelection } from "@/features/subscription/usePlanSelection";
 import { FEATURES } from "@/shared/lib/features";
 import type { SubscriptionPlan } from "@/shared/types/api";
 
@@ -24,6 +24,8 @@ interface PlanCardProps {
   isHighlighted: boolean;
   onSelect: () => void;
   disabled: boolean;
+  /** Replaces the CTA when this plan cannot be bought from here at all. */
+  unavailableNote?: string;
   currentBadge: string;
   ctaLabel: string;
   popularLabel: string;
@@ -37,6 +39,7 @@ function PlanCard({
   isHighlighted,
   onSelect,
   disabled,
+  unavailableNote,
   currentBadge,
   ctaLabel,
   popularLabel,
@@ -73,6 +76,12 @@ function PlanCard({
         <div className="rounded-md border border-border bg-muted px-4 py-2 text-center text-sm font-medium text-muted-foreground">
           {currentBadge}
         </div>
+      ) : unavailableNote ? (
+        // No button at all rather than a disabled one: this plan is not bought,
+        // it is reached by cancelling, and a dead CTA would only look broken.
+        <p className="px-4 py-2 text-center text-sm text-muted-foreground">
+          {unavailableNote}
+        </p>
       ) : (
         <button
           className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
@@ -89,13 +98,24 @@ function PlanCard({
 export function PricingModal({ open, onOpenChange }: PricingModalProps) {
   const { t } = useTranslation();
   const { plan } = useSubscription();
-  const { openCheckout, isReady } = usePaddleCheckout();
+  const {
+    selectPlan,
+    canSelect,
+    isSubscriber,
+    isReady,
+    isPending,
+    isCheckoutPopupOpen,
+    errorMessageKey,
+  } = usePlanSelection({ onPlanChanged: () => onOpenChange(false) });
 
   if (!FEATURES.PAYMENTS) return null;
 
+  // A free user gets the provider's checkout popup drawn over this page —
+  // nothing navigates, and no URL is involved. The modal stays open behind it
+  // on purpose: if starting the checkout failed, this is where the user sees
+  // why. A subscriber changes plan in place and the modal closes on success.
   const handleSelect = (target: SubscriptionPlan) => {
-    openCheckout(target);
-    onOpenChange(false);
+    selectPlan(target);
   };
 
   const plans = [
@@ -148,6 +168,10 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
       open={open}
       onOpenChange={onOpenChange}
       className="max-w-[calc(100vw-2rem)] sm:max-w-4xl"
+      // The payment popup is appended outside this dialog: while it is up, the
+      // keyboard has to reach it, and Escape must not close the page behind a
+      // payment in flight.
+      hasExternalOverlay={isCheckoutPopupOpen}
     >
       <DialogContent
         onClose={() => onOpenChange(false)}
@@ -159,14 +183,10 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
           </DialogTitle>
         </DialogHeader>
 
-        {/* Payments disabled notice — only shown when payments are off */}
-        {!FEATURES.PAYMENTS && (
-          <div className="mt-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
-            <Info className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-            <p className="text-sm text-amber-800 dark:text-amber-200">
-              {t("settings.subscription.paymentsDisabled")}
-            </p>
-          </div>
+        {errorMessageKey && (
+          <p role="alert" className="mt-4 text-sm text-destructive">
+            {t(errorMessageKey)}
+          </p>
         )}
 
         <div className="mt-6 grid grid-cols-1 gap-4 pt-4 md:grid-cols-3">
@@ -179,9 +199,20 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
               isCurrent={plan === p.id}
               isHighlighted={p.highlighted}
               onSelect={() => handleSelect(p.id)}
-              disabled={!FEATURES.PAYMENTS || !isReady}
+              disabled={!FEATURES.PAYMENTS || !isReady || isPending}
+              // Downgrading to free means cancelling the subscription, which
+              // lives in the manage flow — so this card offers no CTA here.
+              unavailableNote={
+                canSelect(p.id)
+                  ? undefined
+                  : t("settings.subscription.pricing.downgradeViaCancel")
+              }
               currentBadge={t("settings.subscription.pricing.currentPlanBadge")}
-              ctaLabel={t("settings.subscription.pricing.choosePlan")}
+              ctaLabel={
+                isSubscriber
+                  ? t("settings.subscription.pricing.switchPlan")
+                  : t("settings.subscription.pricing.choosePlan")
+              }
               popularLabel={t("settings.subscription.pricing.popular")}
             />
           ))}

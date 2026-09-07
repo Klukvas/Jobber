@@ -445,6 +445,8 @@
         "cta": "Поехали"
       },
       "activating": "Активируем вашу подписку...",
+      "activatingDismiss": "Продолжить работу",
+      "checkoutError": "Не удалось открыть оплату. Попробуйте ещё раз.",
       "upgrade": "Обновить",
       "upgradeToPro": "Обновить до Pro",
       "upgradeToEnterprise": "Обновить до Enterprise",
@@ -483,7 +485,11 @@
         "switchToEnterprise": "Перейти на Enterprise",
         "cancelSubscription": "Отменить подписку",
         "cancelConfirmText": "Подписка останется активной до конца текущего платёжного периода. После этого вы будете переведены на план Free.",
-        "confirmCancel": "Да, отменить"
+        "confirmCancel": "Да, отменить",
+        "billingPortal": "Платёжный портал",
+        "billingPortalDescription": "Счета, чеки, способ оплаты и запросы на возврат.",
+        "openBillingPortal": "Открыть портал",
+        "portalError": "Не удалось открыть платёжный портал. Попробуйте ещё раз."
       },
       "pricing": {
         "modalTitle": "Выберите план",
@@ -510,7 +516,9 @@
         "enterpriseAI": "Безлимитный AI-анализ",
         "enterpriseJobParses": "Безлимитный AI-парсинг",
         "enterpriseResumeBuilders": "Безлимитные конструкторы резюме",
-        "enterpriseCoverLetters": "Безлимитные сопроводительные письма"
+        "enterpriseCoverLetters": "Безлимитные сопроводительные письма",
+        "switchPlan": "Перейти на этот план",
+        "downgradeViaCancel": "Чтобы вернуться на Free, отмените подписку."
       }
     }
   },
@@ -1610,7 +1618,7 @@
     "error": "Не удалось отправить сообщение. Попробуйте позже."
   },
   "cookieConsent": {
-    "message": "Мы используем необходимые файлы cookie для входа в аккаунт и безопасной оплаты через Paddle. С вашего согласия мы также используем аналитические файлы cookie (Google Analytics, PostHog), чтобы улучшать продукт.",
+    "message": "Мы используем необходимые файлы cookie для входа в аккаунт и безопасной оплаты через FastSpring. С вашего согласия мы также используем аналитические файлы cookie (Google Analytics, PostHog), чтобы улучшать продукт.",
     "privacyLink": "Политика конфиденциальности",
     "acceptAll": "Принять все",
     "essentialOnly": "Только необходимые",

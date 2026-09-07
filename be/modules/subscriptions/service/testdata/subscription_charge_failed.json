@@ -1,0 +1,102 @@
+{
+  "events": [
+    {
+      "id": "evt-charge-failed-0001",
+      "live": false,
+      "processed": false,
+      "type": "subscription.charge.failed",
+      "created": 1751760000000,
+      "data": {
+        "reason": "EXPIRED_CARD",
+        "account": {
+          "id": "acctJobberTestAcct001x",
+          "account": "acctJobberTestAcct001x",
+          "contact": {
+            "first": "Test",
+            "last": "Buyer",
+            "email": "test.buyer@example.com",
+            "company": null,
+            "phone": null
+          },
+          "address": {
+            "address line 1": "123 Business Rd",
+            "address line 2": "Floor 4",
+            "city": "Metropolis",
+            "country": "US",
+            "postal code": "12345",
+            "region": "US-NY",
+            "region custom": null,
+            "company": "Company Inc."
+          },
+          "language": "en",
+          "country": "US",
+          "lookup": {
+            "global": "gL0balLookupKeyTest01"
+          },
+          "url": "https://jobber.test.onfastspring.com/account"
+        },
+        "subscription": {
+          "id": "SuBsCr1PT10nJobberPro01",
+          "quote": null,
+          "subscription": "SuBsCr1PT10nJobberPro01",
+          "active": true,
+          "state": "trial",
+          "isSubscriptionEligibleForPauseByBuyer": false,
+          "isPauseScheduled": false,
+          "changed": 1751760000000,
+          "changedValue": 1751760000000,
+          "changedInSeconds": 1751760000,
+          "paymentMethodAction": "none",
+          "live": false,
+          "currency": "USD",
+          "declineReason": null,
+          "account": "acctJobberTestAcct001x",
+          "product": "jobber-pro",
+          "sku": "SKU-FF-102",
+          "display": "Furious Falcon",
+          "quantity": 1,
+          "adhoc": false,
+          "autoRenew": true,
+          "price": 14.95,
+          "discount": 0,
+          "subtotal": 14.95,
+          "next": 1749340800000,
+          "nextValue": 1749340800000,
+          "nextInSeconds": 1749340800,
+          "end": null,
+          "endValue": null,
+          "endInSeconds": null,
+          "canceledDate": null,
+          "canceledDateValue": null,
+          "canceledDateInSeconds": null,
+          "deactivationDate": 1749945600000,
+          "deactivationDateValue": 1749945600000,
+          "deactivationDateInSeconds": 1749945600,
+          "sequence": 1,
+          "periods": null,
+          "remainingPeriods": null,
+          "begin": 1749236450805,
+          "beginValue": 1749236450805,
+          "beginInSeconds": 1749236450,
+          "intervalUnit": "month",
+          "intervalUnitAbbreviation": "mo",
+          "intervalLength": 1,
+          "intervalLengthGtOne": false,
+          "nextChargeCurrency": "USD",
+          "nextChargeDate": 1749340800000,
+          "nextChargeDateValue": 1749340800000,
+          "nextChargeDateInSeconds": 1749340800,
+          "nextChargePreTax": 13.84,
+          "nextChargeTotal": 14.95,
+          "cancellationSetting": {
+            "cancellation": "AFTER_PAYMENT_FAILURE",
+            "intervalUnit": "week",
+            "intervalLength": 1
+          },
+          "initialOrderId": "S6XqptRvRJmzS1qceZKcNA",
+          "initialOrderReference": "ABC1234567-8910-11121"
+        }
+      }
+    }
+  ]
+}

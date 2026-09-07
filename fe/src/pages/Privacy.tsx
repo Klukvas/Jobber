@@ -95,16 +95,16 @@ export default function Privacy() {
             .
           </li>
           <li>
-            <strong>Paddle</strong> — payments for paid plans are processed by
-            Paddle, our Merchant of Record. When you subscribe, Paddle collects
-            and processes your billing information under{" "}
+            <strong>FastSpring</strong> — payments for paid plans are processed
+            by FastSpring, our Merchant of Record. When you subscribe,
+            FastSpring collects and processes your billing information under{" "}
             <a
-              href="https://www.paddle.com/legal/privacy"
+              href="https://fastspring.com/privacy/"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary underline"
             >
-              Paddle&apos;s Privacy Policy
+              FastSpring&apos;s Privacy Policy
             </a>
             . We never see or store your full payment card details.
           </li>
@@ -139,8 +139,9 @@ export default function Privacy() {
           <li>
             <strong>Essential cookies</strong> — required for the service to
             work: secure, httpOnly authentication cookies that keep you signed
-            in, and cookies set by Paddle to enable secure checkout and fraud
-            prevention. These cannot be switched off.
+            in. Checkout runs on FastSpring&apos;s own hosted storefront, which
+            sets its own cookies for payment processing and fraud prevention
+            while you are on that page. These cannot be switched off.
           </li>
           <li>
             <strong>Analytics cookies (optional)</strong> — set only after you

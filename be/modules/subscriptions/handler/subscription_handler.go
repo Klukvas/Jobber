@@ -53,13 +53,51 @@ func (h *SubscriptionHandler) GetSubscription(c *gin.Context) {
 	httpPlatform.RespondWithData(c, http.StatusOK, dto)
 }
 
-// GetCheckoutConfig returns Paddle checkout configuration for the frontend.
+// GetCheckoutConfig returns the billing provider configuration for the frontend.
 func (h *SubscriptionHandler) GetCheckoutConfig(c *gin.Context) {
 	config := h.service.GetCheckoutConfig()
 	httpPlatform.RespondWithData(c, http.StatusOK, config)
 }
 
-// CreatePortalSession creates a Paddle customer portal session.
+// CreateCheckoutSession creates a provider checkout session for the current user
+// and returns the opaque session id its popup opens on. No checkout URL is
+// returned and nothing is navigated: the browser hands the id straight to the
+// provider's Store Builder Library, which draws the checkout over the page. The
+// user is taken from the auth context, never from the request body.
+func (h *SubscriptionHandler) CreateCheckoutSession(c *gin.Context) {
+	userID, exists := auth.GetUserID(c)
+	if !exists {
+		httpPlatform.RespondWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized")
+		return
+	}
+
+	var req model.CheckoutSessionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid request body")
+		return
+	}
+
+	session, err := h.service.CreateCheckoutSession(c.Request.Context(), userID, req.Plan)
+	if err != nil {
+		switch {
+		case errors.Is(err, model.ErrUnknownPlan):
+			httpPlatform.RespondWithError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid plan")
+		case errors.Is(err, model.ErrAlreadySubscribed):
+			// Defence in depth: the UI sends a subscriber to change-plan, but a
+			// second checkout from any other client would bill them twice.
+			httpPlatform.RespondWithError(c, http.StatusConflict, "ALREADY_SUBSCRIBED",
+				"You already have a subscription. Change your plan instead of starting a new checkout.")
+		default:
+			h.logger.Error("failed to create checkout session", zap.String("user_id", userID), zap.Error(err))
+			httpPlatform.RespondWithError(c, http.StatusInternalServerError, "CHECKOUT_ERROR", "Failed to start checkout")
+		}
+		return
+	}
+
+	httpPlatform.RespondWithData(c, http.StatusOK, session)
+}
+
+// CreatePortalSession creates an authenticated customer account portal session.
 func (h *SubscriptionHandler) CreatePortalSession(c *gin.Context) {
 	userID, exists := auth.GetUserID(c)
 	if !exists {
@@ -69,6 +107,10 @@ func (h *SubscriptionHandler) CreatePortalSession(c *gin.Context) {
 
 	portalURL, err := h.service.CreatePortalSession(c.Request.Context(), userID)
 	if err != nil {
+		if errors.Is(err, model.ErrNoActiveSubscription) || errors.Is(err, model.ErrSubscriptionNotFound) {
+			httpPlatform.RespondWithError(c, http.StatusNotFound, "NO_SUBSCRIPTION", "No billing account found")
+			return
+		}
 		h.logger.Error("failed to create portal session", zap.String("user_id", userID), zap.Error(err))
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, "PORTAL_ERROR", "Failed to create portal session")
 		return
@@ -91,14 +133,16 @@ func (h *SubscriptionHandler) ChangePlan(c *gin.Context) {
 		return
 	}
 
-	if req.Plan != "pro" && req.Plan != "enterprise" {
-		httpPlatform.RespondWithError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid plan")
-		return
-	}
-
 	if err := h.service.ChangePlan(c.Request.Context(), userID, req.Plan); err != nil {
-		h.logger.Error("failed to change plan", zap.String("user_id", userID), zap.Error(err))
-		httpPlatform.RespondWithError(c, http.StatusInternalServerError, "CHANGE_PLAN_ERROR", "Failed to change plan")
+		switch {
+		case errors.Is(err, model.ErrUnknownPlan):
+			httpPlatform.RespondWithError(c, http.StatusBadRequest, "BAD_REQUEST", "Invalid plan")
+		case errors.Is(err, model.ErrNoActiveSubscription) || errors.Is(err, model.ErrSubscriptionNotFound):
+			httpPlatform.RespondWithError(c, http.StatusNotFound, "NO_SUBSCRIPTION", "No active subscription")
+		default:
+			h.logger.Error("failed to change plan", zap.String("user_id", userID), zap.Error(err))
+			httpPlatform.RespondWithError(c, http.StatusInternalServerError, "CHANGE_PLAN_ERROR", "Failed to change plan")
+		}
 		return
 	}
 
@@ -114,6 +158,10 @@ func (h *SubscriptionHandler) CancelSubscription(c *gin.Context) {
 	}
 
 	if err := h.service.CancelSubscription(c.Request.Context(), userID); err != nil {
+		if errors.Is(err, model.ErrNoActiveSubscription) || errors.Is(err, model.ErrSubscriptionNotFound) {
+			httpPlatform.RespondWithError(c, http.StatusNotFound, "NO_SUBSCRIPTION", "No active subscription")
+			return
+		}
 		h.logger.Error("failed to cancel subscription", zap.String("user_id", userID), zap.Error(err))
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, "CANCEL_ERROR", "Failed to cancel subscription")
 		return
@@ -123,7 +171,9 @@ func (h *SubscriptionHandler) CancelSubscription(c *gin.Context) {
 }
 
 // RegisterRoutes registers subscription routes (auth required).
-// When paymentsEnabled is false, checkout and portal endpoints are not registered.
+// When paymentsEnabled is false, only the read-only subscription endpoint is
+// registered: new purchases and plan management are switched off, while webhook
+// ingestion keeps running so existing subscriptions stay in sync.
 func (h *SubscriptionHandler) RegisterRoutes(router *gin.RouterGroup, authMiddleware gin.HandlerFunc, paymentsEnabled bool) {
 	sub := router.Group("/subscription")
 	sub.Use(authMiddleware)
@@ -131,6 +181,7 @@ func (h *SubscriptionHandler) RegisterRoutes(router *gin.RouterGroup, authMiddle
 		sub.GET("", h.GetSubscription)
 		if paymentsEnabled {
 			sub.GET("/checkout-config", h.GetCheckoutConfig)
+			sub.POST("/checkout-session", h.CreateCheckoutSession)
 			sub.POST("/portal", h.CreatePortalSession)
 			sub.POST("/change-plan", h.ChangePlan)
 			sub.POST("/cancel", h.CancelSubscription)

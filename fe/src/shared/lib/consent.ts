@@ -26,8 +26,9 @@ export function getStoredConsent(): CookieConsent | null {
 }
 
 // Analytics (GA4, PostHog) load ONLY after explicit opt-in — the site must be
-// fully usable without tracking cookies. Essential cookies (auth, Paddle
-// checkout) are not gated: the service cannot function without them.
+// fully usable without tracking cookies. Essential cookies (authentication) are
+// not gated: the service cannot function without them. Checkout happens on the
+// FastSpring hosted storefront, which sets its own cookies on its own domain.
 export function applyConsent(consent: CookieConsent): void {
   try {
     // Timestamped so we can show when consent was given and re-ask after

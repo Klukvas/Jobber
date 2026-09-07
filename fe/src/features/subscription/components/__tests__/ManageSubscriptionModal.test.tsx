@@ -1,5 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import { ManageSubscriptionModal } from "../ManageSubscriptionModal";
 
 const mockSubscriptionRef = vi.hoisted(() => ({
@@ -55,41 +57,47 @@ vi.mock("@/shared/lib/dateFnsLocale", () => ({
   useDateLocale: () => undefined,
 }));
 
-vi.mock("@/services/subscriptionService", () => ({
-  subscriptionService: {
-    changePlan: vi.fn().mockResolvedValue({}),
-    cancelSubscription: vi.fn().mockResolvedValue({}),
-  },
+const api = vi.hoisted(() => ({
+  changePlan: vi.fn(),
+  cancelSubscription: vi.fn(),
+  createPortalSession: vi.fn(),
 }));
 
-vi.mock("@/shared/lib/notifications", () => ({
+vi.mock("@/services/subscriptionService", () => ({
+  subscriptionService: api,
+}));
+
+const notifications = vi.hoisted(() => ({
   showSuccessNotification: vi.fn(),
   showErrorNotification: vi.fn(),
 }));
 
-vi.mock("@tanstack/react-query", () => ({
-  useMutation: ({ mutationFn }: { mutationFn: unknown }) => ({
-    mutate: mutationFn,
-    isPending: false,
-  }),
-  useQueryClient: () => ({
-    invalidateQueries: vi.fn(),
-  }),
-}));
+vi.mock("@/shared/lib/notifications", () => notifications);
 
 vi.mock("@/shared/ui/Dialog", () => ({
-  Dialog: ({
-    open,
-    children,
-  }: {
-    open: boolean;
-    children: React.ReactNode;
-  }) => (open ? <div data-testid="dialog">{children}</div> : null),
+  Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
+    open ? <div data-testid="dialog">{children}</div> : null,
 }));
+
+// A real query client rather than a hand-rolled useMutation stub: these flows
+// live in onSuccess/onError, which a stub that just calls mutationFn never runs.
+function renderModal(ui: ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
 
 describe("ManageSubscriptionModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    api.changePlan.mockResolvedValue(undefined);
+    api.cancelSubscription.mockResolvedValue(undefined);
+    api.createPortalSession.mockResolvedValue({
+      url: "https://store.onfastspring.com/account/abc#/subscriptions",
+    });
     mockSubscriptionRef.current = {
       plan: "pro",
       subscription: {
@@ -124,7 +132,7 @@ describe("ManageSubscriptionModal", () => {
       ...mockSubscriptionRef.current,
       plan: "free",
     };
-    const { container } = render(
+    const { container } = renderModal(
       <ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />,
     );
     expect(container.innerHTML).toBe("");
@@ -135,25 +143,21 @@ describe("ManageSubscriptionModal", () => {
       ...mockSubscriptionRef.current,
       subscription: null as never,
     };
-    const { container } = render(
+    const { container } = renderModal(
       <ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />,
     );
     expect(container.innerHTML).toBe("");
   });
 
   it("renders the modal title when open with a paid plan", () => {
-    render(
-      <ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />,
-    );
+    renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
     expect(
       screen.getByText("settings.subscription.manage.title"),
     ).toBeInTheDocument();
   });
 
   it("renders the current plan label for pro", () => {
-    render(
-      <ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />,
-    );
+    renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
     expect(
       screen.getByText("settings.subscription.currentPlan"),
     ).toBeInTheDocument();
@@ -163,16 +167,12 @@ describe("ManageSubscriptionModal", () => {
   });
 
   it("shows upgrade to enterprise option when on pro plan", () => {
-    render(
-      <ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />,
-    );
+    renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
     expect(
       screen.getByText("settings.subscription.enterprisePlan"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "settings.subscription.manage.switchToEnterprise",
-      ),
+      screen.getByText("settings.subscription.manage.switchToEnterprise"),
     ).toBeInTheDocument();
   });
 
@@ -185,22 +185,16 @@ describe("ManageSubscriptionModal", () => {
         plan: "enterprise",
       },
     };
-    render(
-      <ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />,
-    );
+    renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
     expect(
       screen.getByText("settings.subscription.manage.switchToPro"),
     ).toBeInTheDocument();
   });
 
   it("renders cancel subscription link when not cancelled", () => {
-    render(
-      <ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />,
-    );
+    renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
     expect(
-      screen.getByText(
-        "settings.subscription.manage.cancelSubscription",
-      ),
+      screen.getByText("settings.subscription.manage.cancelSubscription"),
     ).toBeInTheDocument();
   });
 
@@ -212,20 +206,142 @@ describe("ManageSubscriptionModal", () => {
         cancel_at: "2025-01-31T00:00:00Z",
       },
     };
-    render(
-      <ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />,
-    );
+    renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
     expect(
-      screen.queryByText(
-        "settings.subscription.manage.cancelSubscription",
-      ),
+      screen.queryByText("settings.subscription.manage.cancelSubscription"),
     ).not.toBeInTheDocument();
   });
 
   it("renders nothing when open is false", () => {
-    const { container } = render(
+    const { container } = renderModal(
       <ManageSubscriptionModal open={false} onOpenChange={vi.fn()} />,
     );
     expect(container.innerHTML).toBe("");
+  });
+});
+
+describe("ManageSubscriptionModal — billing portal", () => {
+  // Invoices, receipts, the payment method and refund requests all live on the
+  // provider's side. Without this button the refund policy promises a route the
+  // app never offered.
+  let assignSpy: ReturnType<typeof vi.fn>;
+  let originalLocation: Location;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.createPortalSession.mockResolvedValue({
+      url: "https://store.onfastspring.com/account/abc#/subscriptions",
+    });
+    mockSubscriptionRef.current = {
+      plan: "pro",
+      subscription: {
+        plan: "pro",
+        status: "active",
+        current_period_end: "2024-12-31T00:00:00Z",
+        cancel_at: null,
+        limits: {
+          max_jobs: -1,
+          max_resumes: -1,
+          max_applications: -1,
+          max_ai_requests: 50,
+          max_job_parses: -1,
+          max_resume_builders: -1,
+          max_cover_letters: -1,
+        },
+        usage: {
+          jobs: 0,
+          resumes: 0,
+          applications: 0,
+          ai_requests: 0,
+          job_parses: 0,
+          resume_builders: 0,
+          cover_letters: 0,
+        },
+      },
+    };
+
+    assignSpy = vi.fn();
+    originalLocation = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...originalLocation, assign: assignSpy },
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: originalLocation,
+    });
+  });
+
+  it("offers the portal to a paying subscriber", () => {
+    renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
+
+    expect(
+      screen.getByText("settings.subscription.manage.billingPortal"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("settings.subscription.manage.openBillingPortal"),
+    ).toBeInTheDocument();
+  });
+
+  it("navigates to the URL the backend returned, in the same tab", async () => {
+    // window.open after an await is severed from the click and gets blocked as
+    // a popup, so the portal must be reached by navigating this tab.
+    renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
+
+    fireEvent.click(
+      screen.getByText("settings.subscription.manage.openBillingPortal"),
+    );
+
+    await waitFor(() =>
+      expect(assignSpy).toHaveBeenCalledExactlyOnceWith(
+        "https://store.onfastspring.com/account/abc#/subscriptions",
+      ),
+    );
+    expect(api.createPortalSession).toHaveBeenCalledOnce();
+  });
+
+  it("reports a failure instead of navigating nowhere", async () => {
+    api.createPortalSession.mockRejectedValue(new Error("portal unavailable"));
+
+    renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
+
+    fireEvent.click(
+      screen.getByText("settings.subscription.manage.openBillingPortal"),
+    );
+
+    await waitFor(() =>
+      expect(notifications.showErrorNotification).toHaveBeenCalledWith(
+        "settings.subscription.manage.portalError",
+      ),
+    );
+    expect(assignSpy).not.toHaveBeenCalled();
+  });
+
+  it("blocks the other actions while the portal session is being created", async () => {
+    let releasePortal: (value: { url: string }) => void = () => {};
+    api.createPortalSession.mockReturnValue(
+      new Promise<{ url: string }>((resolve) => {
+        releasePortal = resolve;
+      }),
+    );
+
+    renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
+
+    fireEvent.click(
+      screen.getByText("settings.subscription.manage.openBillingPortal"),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen
+          .getByText("settings.subscription.manage.switchToEnterprise")
+          .closest("button"),
+      ).toBeDisabled(),
+    );
+
+    releasePortal({ url: "https://store.onfastspring.com/account/abc" });
   });
 });

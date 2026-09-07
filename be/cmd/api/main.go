@@ -87,6 +87,7 @@ import (
 	rbRepo "github.com/andreypavlenko/jobber/modules/resumebuilder/repository"
 	rbService "github.com/andreypavlenko/jobber/modules/resumebuilder/service"
 
+	"github.com/andreypavlenko/jobber/modules/subscriptions/fastspring"
 	subHandler "github.com/andreypavlenko/jobber/modules/subscriptions/handler"
 	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	subRepo "github.com/andreypavlenko/jobber/modules/subscriptions/repository"
@@ -289,14 +290,20 @@ func main() {
 	subscriptionRepository := subRepo.NewSubscriptionRepository(pgClient.Pool)
 
 	// Initialize subscription service (used as limit checker by other services)
+	fastSpringClient := fastspring.NewClient(fastspring.Config{
+		Username: cfg.FastSpring.APIUsername,
+		Password: cfg.FastSpring.APIPassword,
+	})
 	subscriptionSvc := subService.NewSubscriptionService(
 		subscriptionRepository,
-		cfg.Paddle.WebhookSecret,
-		cfg.Paddle.APIKey,
-		cfg.Paddle.ProPriceID,
-		cfg.Paddle.EnterprisePriceID,
-		cfg.Paddle.ClientToken,
-		cfg.Paddle.Environment,
+		fastSpringClient,
+		subService.BillingConfig{
+			WebhookSecret:         cfg.FastSpring.WebhookSecret,
+			CheckoutPath:          cfg.FastSpring.CheckoutPath,
+			Environment:           cfg.FastSpring.Environment,
+			ProProductPath:        cfg.FastSpring.ProProductPath,
+			EnterpriseProductPath: cfg.FastSpring.EnterpriseProductPath,
+		},
 	)
 
 	// Initialize match score cache repository
@@ -596,10 +603,15 @@ func main() {
 		contentLibraryHdl.RegisterRoutes(v1, authMiddleware)
 		coverLetterHdl.RegisterRoutes(v1, authMiddleware)
 		subscriptionHdl.RegisterRoutes(v1, authMiddleware, cfg.Features.PaymentsEnabled)
-		if cfg.Features.PaymentsEnabled {
-			webhookHdl.RegisterRoutes(v1) // Public, no auth — Paddle calls this
+		if !cfg.Features.PaymentsEnabled {
+			logger.Info("Checkout disabled via FEATURE_PAYMENTS_ENABLED=false, purchase and plan-management routes not registered")
+		}
+		// Webhook ingestion is gated separately so closing the checkout does not
+		// drop renewals, cancellations or deactivations for existing customers.
+		if cfg.Features.BillingWebhookEnabled {
+			webhookHdl.RegisterRoutes(v1) // Public, no auth — FastSpring signs the payload
 		} else {
-			logger.Info("Payments disabled via FEATURE_PAYMENTS_ENABLED=false, Paddle webhook and checkout routes not registered")
+			logger.Warn("Billing webhook disabled via FEATURE_BILLING_WEBHOOK_ENABLED=false, subscription lifecycle events will not be recorded")
 		}
 		if supportHdl != nil {
 			supportHdl.RegisterRoutes(v1, authMiddleware, supportRateLimiter)

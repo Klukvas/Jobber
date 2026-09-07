@@ -523,3 +523,178 @@ func TestResolvePublicBaseURL(t *testing.T) {
 		assert.Equal(t, defaultPublicBaseURL, resolvePublicBaseURL())
 	})
 }
+
+// setPaymentsEnv turns the checkout on with every credential a valid billing
+// setup needs, so each test below can knock out exactly one of them.
+func setPaymentsEnv(t *testing.T) {
+	t.Helper()
+	setMinimalEnv(t)
+	t.Setenv("FEATURE_PAYMENTS_ENABLED", "true")
+	t.Setenv("FASTSPRING_API_USERNAME", "api-user")
+	t.Setenv("FASTSPRING_API_PASSWORD", "api-pass")
+	t.Setenv("FASTSPRING_CHECKOUT_PATH", "fluxlab/popup-jobber")
+	t.Setenv("FASTSPRING_WEBHOOK_SECRET", "webhook-secret")
+}
+
+func TestLoad_BillingGuards(t *testing.T) {
+	t.Run("accepts a two-segment popup checkout path", func(t *testing.T) {
+		setPaymentsEnv(t)
+
+		cfg, err := Load()
+
+		require.NoError(t, err)
+		assert.Equal(t, "fluxlab/popup-jobber", cfg.FastSpring.CheckoutPath)
+		assert.True(t, cfg.Features.PaymentsEnabled)
+	})
+
+	t.Run("refuses the full-page web checkout path", func(t *testing.T) {
+		// Checkout opens in the Store Builder Library popup, which can only open
+		// a checkout the dashboard generated as a popup. The old Web Checkout id
+		// passes every other check and then shows a real buyer an empty popup —
+		// so it has to fail the boot, not the purchase.
+		setPaymentsEnv(t)
+		t.Setenv("FASTSPRING_CHECKOUT_PATH", "fluxlab/jobber-checkout")
+
+		_, err := Load()
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "FASTSPRING_CHECKOUT_PATH")
+		assert.Contains(t, err.Error(), "popup-")
+	})
+
+	t.Run("refuses any checkout id without the popup prefix", func(t *testing.T) {
+		for _, path := range []string{
+			"fluxlab/jobber-checkout",
+			"fluxlab/checkout",
+			"fluxlab/jobber-popup-checkout", // the prefix must start the segment
+			"fluxlab/POPUP-jobber",          // FastSpring generates it lowercase
+		} {
+			t.Run(path, func(t *testing.T) {
+				setPaymentsEnv(t)
+				t.Setenv("FASTSPRING_CHECKOUT_PATH", path)
+
+				_, err := Load()
+
+				require.Error(t, err, "path %q must not boot the server", path)
+			})
+		}
+	})
+
+	t.Run("rejects a checkout path that is not exactly storefront-id/checkout-id", func(t *testing.T) {
+		// A typo here would otherwise surface as a failed checkout for a real
+		// buyer; the same whitelist the API client uses runs at startup instead.
+		invalid := map[string]string{
+			"single segment":   "fluxlab",
+			"three segments":   "fluxlab/popup/jobber",
+			"leading slash":    "/fluxlab/popup-jobber",
+			"trailing slash":   "fluxlab/popup-jobber/",
+			"path traversal":   "fluxlab/../accounts",
+			"encoded slash":    "fluxlab/popup%2Fjobber",
+			"query smuggling":  "fluxlab/popup-jobber?x=1",
+			"spaces":           "flux lab/popup jobber",
+			"empty segment":    "fluxlab//popup-jobber",
+			"only a separator": "/",
+		}
+
+		for name, path := range invalid {
+			t.Run(name, func(t *testing.T) {
+				setPaymentsEnv(t)
+				t.Setenv("FASTSPRING_CHECKOUT_PATH", path)
+
+				_, err := Load()
+
+				require.Error(t, err, "path %q must not boot the server", path)
+				assert.Contains(t, err.Error(), "FASTSPRING_CHECKOUT_PATH")
+			})
+		}
+	})
+
+	t.Run("an unset checkout path is still refused when payments are on", func(t *testing.T) {
+		setPaymentsEnv(t)
+		t.Setenv("FASTSPRING_CHECKOUT_PATH", "")
+
+		_, err := Load()
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "FASTSPRING_CHECKOUT_PATH")
+	})
+
+	t.Run("a bad checkout path is ignored while payments are off", func(t *testing.T) {
+		setMinimalEnv(t)
+		t.Setenv("FASTSPRING_CHECKOUT_PATH", "nonsense//path")
+
+		_, err := Load()
+
+		require.NoError(t, err, "billing config is only validated when billing is on")
+	})
+
+	t.Run("refuses to start with webhook ingestion on and no secret", func(t *testing.T) {
+		// A server that boots without the secret answers every delivery with a
+		// rejection: it looks healthy while dropping renewals and cancellations.
+		setPaymentsEnv(t)
+		t.Setenv("FASTSPRING_WEBHOOK_SECRET", "")
+
+		_, err := Load()
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "FASTSPRING_WEBHOOK_SECRET")
+	})
+
+	t.Run("webhook ingestion follows payments by default", func(t *testing.T) {
+		tests := []struct {
+			payments string
+			want     bool
+		}{
+			{payments: "false", want: false},
+			{payments: "true", want: true},
+		}
+
+		for _, tc := range tests {
+			t.Run("payments="+tc.payments, func(t *testing.T) {
+				setPaymentsEnv(t)
+				t.Setenv("FEATURE_PAYMENTS_ENABLED", tc.payments)
+
+				cfg, err := Load()
+
+				require.NoError(t, err)
+				assert.Equal(t, tc.want, cfg.Features.BillingWebhookEnabled)
+			})
+		}
+	})
+
+	t.Run("local billing-off startup needs no billing config at all", func(t *testing.T) {
+		// The default developer setup: no FastSpring credentials, no secret.
+		setMinimalEnv(t)
+
+		cfg, err := Load()
+
+		require.NoError(t, err)
+		assert.False(t, cfg.Features.PaymentsEnabled)
+		assert.False(t, cfg.Features.BillingWebhookEnabled)
+	})
+
+	t.Run("webhook ingestion can outlive a closed checkout when a secret is set", func(t *testing.T) {
+		// The documented kill-switch split: stop new purchases, keep recording
+		// renewals and cancellations for people who already paid.
+		setMinimalEnv(t)
+		t.Setenv("FEATURE_PAYMENTS_ENABLED", "false")
+		t.Setenv("FEATURE_BILLING_WEBHOOK_ENABLED", "true")
+		t.Setenv("FASTSPRING_WEBHOOK_SECRET", "webhook-secret")
+
+		cfg, err := Load()
+
+		require.NoError(t, err)
+		assert.False(t, cfg.Features.PaymentsEnabled)
+		assert.True(t, cfg.Features.BillingWebhookEnabled)
+	})
+
+	t.Run("rejects an environment that is neither test nor live", func(t *testing.T) {
+		setMinimalEnv(t)
+		t.Setenv("FASTSPRING_ENVIRONMENT", "sandbox")
+
+		_, err := Load()
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "FASTSPRING_ENVIRONMENT")
+	})
+}

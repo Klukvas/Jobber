@@ -9,8 +9,21 @@ import (
 // SubscriptionRepository defines the data access interface for subscriptions.
 type SubscriptionRepository interface {
 	GetByUserID(ctx context.Context, userID string) (*model.Subscription, error)
-	GetByPaddleSubscriptionID(ctx context.Context, paddleSubID string) (*model.Subscription, error)
-	Upsert(ctx context.Context, sub *model.Subscription) error
+	// GetByExternalSubscriptionID looks a subscription up by the billing
+	// provider's subscription ID (FastSpring `subscription`).
+	GetByExternalSubscriptionID(ctx context.Context, externalSubID string) (*model.Subscription, error)
+	// GetByExternalAccountID looks a subscription up by the billing provider's
+	// customer account ID (FastSpring `account`). This is the server-side link
+	// between a purchase and a local user.
+	GetByExternalAccountID(ctx context.Context, externalAccountID string) (*model.Subscription, error)
+	// EnsureFree creates a free row for a user when none exists and leaves an
+	// existing row alone, so it can never downgrade a paying subscriber.
+	EnsureFree(ctx context.Context, userID string) error
+	// LinkExternalAccount records the provider account ID for a user without
+	// touching plan or status, so an abandoned checkout grants nothing.
+	LinkExternalAccount(ctx context.Context, userID, externalAccountID string) error
+	// GetUserContact returns the details needed to pre-fill a provider checkout.
+	GetUserContact(ctx context.Context, userID string) (*model.UserContact, error)
 	CountUserJobs(ctx context.Context, userID string) (int, error)
 	CountUserResumes(ctx context.Context, userID string) (int, error)
 	CountUserAIRequestsThisMonth(ctx context.Context, userID string) (int, error)
@@ -21,12 +34,13 @@ type SubscriptionRepository interface {
 	CountUserResumeBuilders(ctx context.Context, userID string) (int, error)
 	CountUserCoverLetters(ctx context.Context, userID string) (int, error)
 	GetAllCounts(ctx context.Context, userID string) (jobs, resumes, aiReqs, jobParses, resumeBuilders, coverLetters int, err error)
-	// WebhookEventExists returns true if the event ID has already been processed.
-	WebhookEventExists(ctx context.Context, eventID string) (bool, error)
-	// RecordWebhookEvent stores a processed event ID to prevent duplicate processing.
-	RecordWebhookEvent(ctx context.Context, eventID, eventType string) error
-	// TryClaimWebhookEvent atomically claims an event ID. Returns true if inserted (first claim).
-	TryClaimWebhookEvent(ctx context.Context, eventID, eventType string) (bool, error)
-	// ReleaseWebhookEvent removes a claimed event ID so a failed handler can be retried.
-	ReleaseWebhookEvent(ctx context.Context, eventID string) error
+	// ApplySubscriptionEvent claims a provider webhook event and writes the
+	// subscription state it carries in one atomic operation.
+	//
+	// Claiming and writing must not be separate calls: a crash between them
+	// would leave an event marked processed with its state lost, and the
+	// provider's retry would then be acknowledged as a duplicate. The same
+	// statement enforces lifecycle ordering, so a concurrent delivery of an
+	// older event can never leave the row in the older state.
+	ApplySubscriptionEvent(ctx context.Context, eventID, eventType string, sub *model.Subscription) (model.WebhookApplyOutcome, error)
 }

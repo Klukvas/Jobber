@@ -83,6 +83,75 @@ describe("Dialog", () => {
   });
 });
 
+// ---------- Dialog with an overlay it does not own ----------
+describe("Dialog while an external overlay is on screen", () => {
+  // The billing provider's payment popup is appended to <body>, outside this
+  // dialog. Trapping Tab would lock the keyboard out of the payment form, and
+  // Escape would close the page behind a payment that is already in flight.
+  function renderDialog(hasExternalOverlay: boolean) {
+    const onOpenChange = vi.fn();
+    const view = render(
+      <Dialog
+        open
+        onOpenChange={onOpenChange}
+        hasExternalOverlay={hasExternalOverlay}
+      >
+        <button>first</button>
+        <button>last</button>
+      </Dialog>,
+    );
+    return { onOpenChange, ...view };
+  }
+
+  it("wraps Tab back to the first control while it owns the keyboard", () => {
+    renderDialog(false);
+    const last = screen.getByText("last");
+    last.focus();
+
+    fireEvent.keyDown(document, { key: "Tab" });
+
+    expect(document.activeElement).toBe(screen.getByText("first"));
+  });
+
+  it("lets Tab leave, so focus can reach the payment form", () => {
+    renderDialog(true);
+    const last = screen.getByText("last");
+    last.focus();
+
+    fireEvent.keyDown(document, { key: "Tab" });
+
+    expect(document.activeElement).toBe(last);
+  });
+
+  it("ignores Escape, so it cannot close behind a payment in flight", () => {
+    const { onOpenChange } = renderDialog(true);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("takes the keyboard back when the overlay closes", () => {
+    const { onOpenChange, rerender } = renderDialog(true);
+    const last = screen.getByText("last");
+    last.focus();
+
+    rerender(
+      <Dialog open onOpenChange={onOpenChange} hasExternalOverlay={false}>
+        <button>first</button>
+        <button>last</button>
+      </Dialog>,
+    );
+
+    // Handing the keyboard over and back must not re-run the dialog's
+    // open-time focus, or it would snatch focus mid-payment.
+    expect(document.activeElement).toBe(last);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+
 // ---------- DialogContent ----------
 describe("DialogContent", () => {
   it("renders children", () => {
