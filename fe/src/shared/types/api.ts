@@ -387,10 +387,30 @@ export interface SubscriptionDTO {
   cancel_at?: string;
 }
 
+/**
+ * Billing provider configuration. Deliberately credential-free: checkout
+ * sessions are created server-side, so the browser never sees API keys or
+ * catalog product identifiers.
+ */
 export interface CheckoutConfigDTO {
-  client_token: string;
-  prices: Record<string, string>;
+  provider: string;
   environment: string;
+  /**
+   * Popup storefront the provider's checkout script is pointed at, as
+   * `<host>/<popup-checkout-id>`. Derived by the backend from its checkout
+   * path and environment; empty means checkout cannot be opened.
+   */
+  storefront: string;
+  plans: SubscriptionPlan[];
+}
+
+/**
+ * A checkout session created by the backend. There is no URL: the popup takes
+ * the opaque session id, so the browser is handed nothing to navigate to.
+ */
+export interface CheckoutSessionDTO {
+  session_id: string;
+  expires_at?: string;
 }
 
 export interface PortalSessionDTO {

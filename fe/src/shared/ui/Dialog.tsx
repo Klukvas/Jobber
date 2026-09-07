@@ -24,6 +24,17 @@ interface DialogProps {
    * prefers reduced motion — both fall back to the standard centered dialog.
    */
   swipeToDismiss?: boolean;
+  /**
+   * True while an overlay this dialog does not own is on screen — the billing
+   * provider's payment popup, which its script appends to `<body>`, outside
+   * this dialog's DOM.
+   *
+   * The dialog keeps rendering, but stops managing the keyboard: the Tab trap
+   * would lock focus out of the payment form, and Escape would close the modal
+   * out from under a payment in flight. Ownership returns the moment the
+   * overlay does.
+   */
+  hasExternalOverlay?: boolean;
 }
 
 // Release past this distance (px) or faster than this velocity (px/s) dismisses.
@@ -36,6 +47,7 @@ export function Dialog({
   children,
   className,
   swipeToDismiss = false,
+  hasExternalOverlay = false,
 }: DialogProps) {
   const dialogRef = React.useRef<HTMLDivElement>(null);
   const previousFocusRef = React.useRef<HTMLElement | null>(null);
@@ -48,6 +60,10 @@ export function Dialog({
   const overlayOpacity = useTransform(y, [0, 500], [1, 0.15]);
   const dragControls = useDragControls();
 
+  // Opening and closing: freeze the page behind, start focus inside, hand it
+  // back on close. Kept apart from the keyboard effect below, which suspends
+  // while an external overlay is up — re-running *this* one on that switch
+  // would snatch focus back out of the overlay.
   React.useEffect(() => {
     if (!open) return;
 
@@ -62,6 +78,19 @@ export function Dialog({
     requestAnimationFrame(() => {
       dialogRef.current?.focus();
     });
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      // Restore focus to the element that opened the dialog
+      previousFocusRef.current?.focus();
+    };
+  }, [open]);
+
+  // Escape closes, Tab stays inside — but only while this dialog is the
+  // topmost thing on the page. An overlay it does not own (the payment popup)
+  // lives outside its DOM, so both rules would work against the user there.
+  React.useEffect(() => {
+    if (!open || hasExternalOverlay) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -95,13 +124,8 @@ export function Dialog({
 
     document.addEventListener("keydown", handleKeyDown);
 
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-      // Restore focus to the element that opened the dialog
-      previousFocusRef.current?.focus();
-    };
-  }, [open, onOpenChange]);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, hasExternalOverlay, onOpenChange]);
 
   // Materialize the sheet upward each time it opens.
   React.useLayoutEffect(() => {

@@ -24,7 +24,7 @@ This is a **modular monolith** designed with clear module boundaries for future 
 - **Storage**: S3-compatible (Hetzner Object Storage)
 - **AI**: Anthropic Claude SDK (job import parsing, match score)
 - **Calendar**: Google Calendar v3 OAuth2
-- **Payments**: Paddle (subscription webhooks)
+- **Payments**: FastSpring (Merchant of Record; signed subscription webhooks)
 
 ## Project Structure
 
@@ -55,7 +55,7 @@ jobber/
 │   ├── calendar/         # Google Calendar OAuth2 integration
 │   ├── jobimport/        # Import jobs by URL (JSON-LD + Claude AI)
 │   ├── matchscore/       # AI resume-to-job matching + cache
-│   ├── subscriptions/    # Plans, billing, Paddle webhooks
+│   ├── subscriptions/    # Plans, billing, FastSpring webhooks
 │   ├── reminders/        # Reminder system (model + repository)
 │   └── tags/             # Tagging system (model + repository)
 ├── migrations/           # Database schema (golang-migrate)
@@ -209,6 +209,25 @@ make test-integration
 # Run with coverage
 make test-coverage
 ```
+
+### Live-PostgreSQL repository tests
+
+`ApplySubscriptionEvent` is one hand-written statement whose correctness lives in
+PostgreSQL — a CTE that claims a webhook event and writes entitlement together,
+an `ON CONFLICT` target, an ordering guard re-evaluated under concurrency, and a
+`COALESCE`. A mock can only replay what its author already believed, so these run
+against a real server:
+
+```bash
+cd be/
+TEST_DATABASE_URL='postgres://jobber:jobber@localhost:5434/jobber?sslmode=disable' \
+  go test -race -tags integration -run Integration ./modules/subscriptions/repository/
+```
+
+Each test creates its own uniquely named schema, points the pool's `search_path`
+at that schema alone, and drops it by exact name afterwards — so it cannot read
+or write anything else in the database it borrows. Without `TEST_DATABASE_URL`
+every test skips.
 
 ## Deployment
 

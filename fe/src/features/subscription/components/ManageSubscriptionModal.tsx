@@ -2,7 +2,12 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { format } from "date-fns";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  ExternalLink,
+} from "lucide-react";
 import { Dialog } from "@/shared/ui/Dialog";
 import { Button } from "@/shared/ui/Button";
 import { subscriptionService } from "@/services/subscriptionService";
@@ -45,6 +50,19 @@ export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
     },
   });
 
+  // Same-tab navigation, never window.open: the URL only exists after an async
+  // round-trip, by which point a popup is no longer tied to the user's click and
+  // browsers block it.
+  const portalMutation = useMutation({
+    mutationFn: subscriptionService.createPortalSession,
+    onSuccess: ({ url }) => {
+      window.location.assign(url);
+    },
+    onError: () => {
+      showErrorNotification(t("settings.subscription.manage.portalError"));
+    },
+  });
+
   const cancelMutation = useMutation({
     mutationFn: subscriptionService.cancelSubscription,
     onSuccess: () => {
@@ -64,7 +82,10 @@ export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
     plan === "enterprise" ? "pro" : "enterprise";
   const isDowngrade = plan === "enterprise";
   const isCancelled = !!subscription?.cancel_at;
-  const isLoading = changePlanMutation.isPending || cancelMutation.isPending;
+  const isLoading =
+    changePlanMutation.isPending ||
+    cancelMutation.isPending ||
+    portalMutation.isPending;
 
   if (!subscription || plan === "free") return null;
 
@@ -149,11 +170,40 @@ export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
           </div>
         </div>
 
+        {/* Billing portal — invoices, receipts, payment method and refunds all
+            live on the provider's side, so this is the only route to them. */}
+        <div className="rounded-lg border px-4 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium text-sm">
+                  {t("settings.subscription.manage.billingPortal")}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {t("settings.subscription.manage.billingPortalDescription")}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => portalMutation.mutate()}
+              disabled={isLoading}
+            >
+              {portalMutation.isPending
+                ? t("common.loading")
+                : t("settings.subscription.manage.openBillingPortal")}
+            </Button>
+          </div>
+        </div>
+
         {/* Cancel section */}
         {!isCancelled && (
           <div className="border-t pt-4">
             {!confirmCancel ? (
               <button
+                type="button"
                 className="text-sm text-destructive hover:underline disabled:opacity-50"
                 onClick={() => setConfirmCancel(true)}
                 disabled={isLoading}
@@ -163,8 +213,13 @@ export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
             ) : (
               <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-3">
                 <div className="flex gap-2">
-                  <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-                  <p className="text-sm text-destructive">
+                  <AlertTriangle
+                    aria-hidden="true"
+                    className="h-4 w-4 text-destructive mt-0.5 shrink-0"
+                  />
+                  {/* Announced when it appears — the consequence of cancelling
+                      must reach a screen reader, not only the sighted user. */}
+                  <p role="alert" className="text-sm text-destructive">
                     {t("settings.subscription.manage.cancelConfirmText")}
                   </p>
                 </div>

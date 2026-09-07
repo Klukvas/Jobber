@@ -58,6 +58,7 @@ import (
 	rbRepo "github.com/andreypavlenko/jobber/modules/resumebuilder/repository"
 	rbService "github.com/andreypavlenko/jobber/modules/resumebuilder/service"
 
+	"github.com/andreypavlenko/jobber/modules/subscriptions/fastspring"
 	subHandler "github.com/andreypavlenko/jobber/modules/subscriptions/handler"
 	subRepo "github.com/andreypavlenko/jobber/modules/subscriptions/repository"
 	subService "github.com/andreypavlenko/jobber/modules/subscriptions/service"
@@ -213,9 +214,14 @@ func TestMain(m *testing.M) {
 	resumeBuilderRepository := rbRepo.NewResumeBuilderRepository(pool)
 
 	// Services
+	//
+	// Billing runs with no provider credentials: these tests exercise plan
+	// limits and entitlement, never a real checkout. Every FastSpring call
+	// therefore fails with ErrNotConfigured instead of reaching the network.
 	subscriptionSvc := subService.NewSubscriptionService(
 		subscriptionRepository,
-		"", "", "", "", "", "sandbox",
+		fastspring.NewClient(fastspring.Config{}),
+		subService.BillingConfig{Environment: subService.EnvironmentTest},
 	)
 
 	authSvc := authService.NewAuthService(authService.AuthServiceConfig{
@@ -278,8 +284,8 @@ func TestMain(m *testing.M) {
 			c.JSON(200, gin.H{"status": "ok"})
 		})
 		authHdl.RegisterRoutes(v1, authHandler.AuthRouteConfig{
-			AuthMiddleware:   authMiddleware,
-			RateLimiter:      authRateLimiter,
+			AuthMiddleware: authMiddleware,
+			RateLimiter:    authRateLimiter,
 		})
 		companyHdl.RegisterRoutes(v1, authMiddleware)
 		jobHdl.RegisterRoutes(v1, authMiddleware)

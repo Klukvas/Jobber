@@ -3,37 +3,43 @@ package handler
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/andreypavlenko/jobber/modules/subscriptions/fastspring"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // MockSubscriptionRepository implements ports.SubscriptionRepository
 type MockSubscriptionRepository struct {
-	GetByUserIDFunc               func(ctx context.Context, userID string) (*model.Subscription, error)
-	GetByPaddleSubscriptionIDFunc func(ctx context.Context, paddleSubID string) (*model.Subscription, error)
-	UpsertFunc                    func(ctx context.Context, sub *model.Subscription) error
-	CountUserJobsFunc             func(ctx context.Context, userID string) (int, error)
-	CountUserResumesFunc          func(ctx context.Context, userID string) (int, error)
-	CountUserAIRequestsFunc       func(ctx context.Context, userID string) (int, error)
-	CountUserJobParsesFunc        func(ctx context.Context, userID string) (int, error)
-	RecordAIUsageFunc             func(ctx context.Context, userID string) error
-	RecordJobParseUsageFunc       func(ctx context.Context, userID string) error
-	RecordResumeAutofillUsageFunc func(ctx context.Context, userID string) error
-	CountUserResumeBuildersFunc   func(ctx context.Context, userID string) (int, error)
-	CountUserCoverLettersFunc     func(ctx context.Context, userID string) (int, error)
-	GetAllCountsFunc              func(ctx context.Context, userID string) (int, int, int, int, int, int, error)
-	WebhookEventExistsFunc        func(ctx context.Context, eventID string) (bool, error)
-	RecordWebhookEventFunc        func(ctx context.Context, eventID, eventType string) error
-	TryClaimWebhookEventFunc      func(ctx context.Context, eventID, eventType string) (bool, error)
+	GetByUserIDFunc                 func(ctx context.Context, userID string) (*model.Subscription, error)
+	GetByExternalSubscriptionIDFunc func(ctx context.Context, externalSubID string) (*model.Subscription, error)
+	GetByExternalAccountIDFunc      func(ctx context.Context, externalAccountID string) (*model.Subscription, error)
+	EnsureFreeFunc                  func(ctx context.Context, userID string) error
+	LinkExternalAccountFunc         func(ctx context.Context, userID, externalAccountID string) error
+	GetUserContactFunc              func(ctx context.Context, userID string) (*model.UserContact, error)
+	CountUserJobsFunc               func(ctx context.Context, userID string) (int, error)
+	CountUserResumesFunc            func(ctx context.Context, userID string) (int, error)
+	CountUserAIRequestsFunc         func(ctx context.Context, userID string) (int, error)
+	CountUserJobParsesFunc          func(ctx context.Context, userID string) (int, error)
+	RecordAIUsageFunc               func(ctx context.Context, userID string) error
+	RecordJobParseUsageFunc         func(ctx context.Context, userID string) error
+	RecordResumeAutofillUsageFunc   func(ctx context.Context, userID string) error
+	CountUserResumeBuildersFunc     func(ctx context.Context, userID string) (int, error)
+	CountUserCoverLettersFunc       func(ctx context.Context, userID string) (int, error)
+	GetAllCountsFunc                func(ctx context.Context, userID string) (int, int, int, int, int, int, error)
+	ApplySubscriptionEventFunc      func(ctx context.Context, eventID, eventType string, sub *model.Subscription) (model.WebhookApplyOutcome, error)
 }
 
 func (m *MockSubscriptionRepository) GetByUserID(ctx context.Context, userID string) (*model.Subscription, error) {
@@ -43,18 +49,39 @@ func (m *MockSubscriptionRepository) GetByUserID(ctx context.Context, userID str
 	return nil, model.ErrSubscriptionNotFound
 }
 
-func (m *MockSubscriptionRepository) GetByPaddleSubscriptionID(ctx context.Context, paddleSubID string) (*model.Subscription, error) {
-	if m.GetByPaddleSubscriptionIDFunc != nil {
-		return m.GetByPaddleSubscriptionIDFunc(ctx, paddleSubID)
+func (m *MockSubscriptionRepository) GetByExternalSubscriptionID(ctx context.Context, externalSubID string) (*model.Subscription, error) {
+	if m.GetByExternalSubscriptionIDFunc != nil {
+		return m.GetByExternalSubscriptionIDFunc(ctx, externalSubID)
 	}
 	return nil, model.ErrSubscriptionNotFound
 }
 
-func (m *MockSubscriptionRepository) Upsert(ctx context.Context, sub *model.Subscription) error {
-	if m.UpsertFunc != nil {
-		return m.UpsertFunc(ctx, sub)
+func (m *MockSubscriptionRepository) GetByExternalAccountID(ctx context.Context, externalAccountID string) (*model.Subscription, error) {
+	if m.GetByExternalAccountIDFunc != nil {
+		return m.GetByExternalAccountIDFunc(ctx, externalAccountID)
+	}
+	return nil, model.ErrSubscriptionNotFound
+}
+
+func (m *MockSubscriptionRepository) EnsureFree(ctx context.Context, userID string) error {
+	if m.EnsureFreeFunc != nil {
+		return m.EnsureFreeFunc(ctx, userID)
 	}
 	return nil
+}
+
+func (m *MockSubscriptionRepository) LinkExternalAccount(ctx context.Context, userID, externalAccountID string) error {
+	if m.LinkExternalAccountFunc != nil {
+		return m.LinkExternalAccountFunc(ctx, userID, externalAccountID)
+	}
+	return nil
+}
+
+func (m *MockSubscriptionRepository) GetUserContact(ctx context.Context, userID string) (*model.UserContact, error) {
+	if m.GetUserContactFunc != nil {
+		return m.GetUserContactFunc(ctx, userID)
+	}
+	return &model.UserContact{Email: "buyer@example.com", Name: "Test Buyer", Locale: "en"}, nil
 }
 
 func (m *MockSubscriptionRepository) CountUserJobs(ctx context.Context, userID string) (int, error) {
@@ -127,29 +154,13 @@ func (m *MockSubscriptionRepository) GetAllCounts(ctx context.Context, userID st
 	return 0, 0, 0, 0, 0, 0, nil
 }
 
-func (m *MockSubscriptionRepository) WebhookEventExists(ctx context.Context, eventID string) (bool, error) {
-	if m.WebhookEventExistsFunc != nil {
-		return m.WebhookEventExistsFunc(ctx, eventID)
+func (m *MockSubscriptionRepository) ApplySubscriptionEvent(
+	ctx context.Context, eventID, eventType string, sub *model.Subscription,
+) (model.WebhookApplyOutcome, error) {
+	if m.ApplySubscriptionEventFunc != nil {
+		return m.ApplySubscriptionEventFunc(ctx, eventID, eventType, sub)
 	}
-	return false, nil
-}
-
-func (m *MockSubscriptionRepository) RecordWebhookEvent(ctx context.Context, eventID, eventType string) error {
-	if m.RecordWebhookEventFunc != nil {
-		return m.RecordWebhookEventFunc(ctx, eventID, eventType)
-	}
-	return nil
-}
-
-func (m *MockSubscriptionRepository) TryClaimWebhookEvent(ctx context.Context, eventID, eventType string) (bool, error) {
-	if m.TryClaimWebhookEventFunc != nil {
-		return m.TryClaimWebhookEventFunc(ctx, eventID, eventType)
-	}
-	return true, nil
-}
-
-func (m *MockSubscriptionRepository) ReleaseWebhookEvent(ctx context.Context, eventID string) error {
-	return nil
+	return model.WebhookApplied, nil
 }
 
 func setupTestRouter() *gin.Engine {
@@ -164,15 +175,26 @@ func mockAuthMiddleware(userID string) gin.HandlerFunc {
 	}
 }
 
+const (
+	testWebhookSecret  = "test-webhook-secret"
+	testProPath        = "jobber-pro"
+	testEnterprisePath = "jobber-enterprise"
+	testCheckoutPath   = "fluxlab/popup-jobber"
+)
+
 func newTestService(repo *MockSubscriptionRepository) *service.SubscriptionService {
 	return service.NewSubscriptionService(
 		repo,
-		"test-webhook-secret",
-		"test-paddle-api-key",
-		"price_pro_123",
-		"price_ent_456",
-		"client-token-xyz",
-		"sandbox",
+		// No API credentials: these handler tests exercise HTTP wiring, and an
+		// unconfigured client fails fast instead of reaching the network.
+		fastspring.NewClient(fastspring.Config{}),
+		service.BillingConfig{
+			WebhookSecret:         testWebhookSecret,
+			CheckoutPath:          testCheckoutPath,
+			Environment:           service.EnvironmentTest,
+			ProProductPath:        testProPath,
+			EnterpriseProductPath: testEnterprisePath,
+		},
 	)
 }
 
@@ -186,6 +208,13 @@ func newTestWebhookHandler(repo *MockSubscriptionRepository) *WebhookHandler {
 	svc := newTestService(repo)
 	logger := zap.NewNop()
 	return NewWebhookHandler(svc, logger)
+}
+
+// newObservedWebhookHandler is newTestWebhookHandler with a logger whose
+// entries can be read back, for the outcomes that are only visible in the log.
+func newObservedWebhookHandler(repo *MockSubscriptionRepository) (*WebhookHandler, *observer.ObservedLogs) {
+	core, logs := observer.New(zap.InfoLevel)
+	return NewWebhookHandler(newTestService(repo), zap.New(core)), logs
 }
 
 // --- SubscriptionHandler Tests ---
@@ -242,9 +271,6 @@ func TestSubscriptionHandler_GetSubscription(t *testing.T) {
 					Plan:   "free",
 				}, nil
 			},
-			UpsertFunc: func(ctx context.Context, sub *model.Subscription) error {
-				return nil
-			},
 			GetAllCountsFunc: func(ctx context.Context, uid string) (int, int, int, int, int, int, error) {
 				return 0, 0, 0, 0, 0, 0, nil
 			},
@@ -286,7 +312,7 @@ func TestSubscriptionHandler_GetSubscription(t *testing.T) {
 			GetByUserIDFunc: func(ctx context.Context, uid string) (*model.Subscription, error) {
 				return nil, model.ErrSubscriptionNotFound
 			},
-			UpsertFunc: func(ctx context.Context, sub *model.Subscription) error {
+			EnsureFreeFunc: func(ctx context.Context, uid string) error {
 				return assert.AnError
 			},
 		}
@@ -307,9 +333,6 @@ func TestSubscriptionHandler_GetSubscription(t *testing.T) {
 		mockRepo := &MockSubscriptionRepository{
 			GetByUserIDFunc: func(ctx context.Context, uid string) (*model.Subscription, error) {
 				return nil, model.ErrSubscriptionNotFound
-			},
-			UpsertFunc: func(ctx context.Context, sub *model.Subscription) error {
-				return nil
 			},
 		}
 
@@ -363,10 +386,70 @@ func TestSubscriptionHandler_GetCheckoutConfig(t *testing.T) {
 		var response model.CheckoutConfigDTO
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
-		assert.Equal(t, "client-token-xyz", response.ClientToken)
-		assert.Equal(t, "sandbox", response.Environment)
-		assert.Equal(t, "price_pro_123", response.Prices["pro"])
-		assert.Equal(t, "price_ent_456", response.Prices["enterprise"])
+		assert.Equal(t, service.Provider, response.Provider)
+		assert.Equal(t, service.EnvironmentTest, response.Environment)
+		assert.Equal(t, []string{"pro", "enterprise"}, response.Plans)
+		assert.NotContains(t, w.Body.String(), testWebhookSecret,
+			"the public config must not expose any credential")
+	})
+}
+
+func TestSubscriptionHandler_CreateCheckoutSession(t *testing.T) {
+	userID := "user-123"
+
+	t.Run("returns 401 when not authenticated", func(t *testing.T) {
+		handler := newTestSubscriptionHandler(&MockSubscriptionRepository{})
+
+		router := setupTestRouter()
+		router.POST("/subscription/checkout-session", handler.CreateCheckoutSession)
+
+		req, _ := http.NewRequest(http.MethodPost, "/subscription/checkout-session", bytes.NewBufferString(`{"plan":"pro"}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+
+	t.Run("rejects an unknown plan", func(t *testing.T) {
+		handler := newTestSubscriptionHandler(&MockSubscriptionRepository{})
+
+		router := setupTestRouter()
+		router.POST("/subscription/checkout-session", mockAuthMiddleware(userID), handler.CreateCheckoutSession)
+
+		req, _ := http.NewRequest(http.MethodPost, "/subscription/checkout-session", bytes.NewBufferString(`{"plan":"platinum"}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("ignores a user_id supplied by the client", func(t *testing.T) {
+		// The buyer must come from the auth context; anything in the body is
+		// discarded by the DTO, which only carries a plan.
+		var contactUserID string
+		mockRepo := &MockSubscriptionRepository{
+			GetUserContactFunc: func(_ context.Context, uid string) (*model.UserContact, error) {
+				contactUserID = uid
+				return &model.UserContact{Email: "buyer@example.com", Name: "Test Buyer", Locale: "en"}, nil
+			},
+		}
+		handler := newTestSubscriptionHandler(mockRepo)
+
+		router := setupTestRouter()
+		router.POST("/subscription/checkout-session", mockAuthMiddleware(userID), handler.CreateCheckoutSession)
+
+		body := `{"plan":"pro","user_id":"attacker-controlled","userID":"attacker-controlled"}`
+		req, _ := http.NewRequest(http.MethodPost, "/subscription/checkout-session", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		// The provider client has no credentials here, so the call fails after
+		// the identity has already been resolved from the session.
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Equal(t, userID, contactUserID, "the buyer must come from the auth context")
 	})
 }
 
@@ -387,9 +470,27 @@ func TestSubscriptionHandler_CreatePortalSession(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
-	t.Run("returns 500 when service fails", func(t *testing.T) {
-		// GetByUserID returns subscription not found -> portal session creation fails
+	t.Run("returns 404 when the user has no billing account", func(t *testing.T) {
 		mockRepo := &MockSubscriptionRepository{}
+		handler := newTestSubscriptionHandler(mockRepo)
+
+		router := setupTestRouter()
+		router.POST("/subscription/portal", mockAuthMiddleware(userID), handler.CreatePortalSession)
+
+		req, _ := http.NewRequest(http.MethodPost, "/subscription/portal", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("returns 500 when the provider call fails", func(t *testing.T) {
+		accountID := "acct-external-1"
+		mockRepo := &MockSubscriptionRepository{
+			GetByUserIDFunc: func(_ context.Context, uid string) (*model.Subscription, error) {
+				return &model.Subscription{UserID: uid, ExternalAccountID: &accountID, Status: "active", Plan: "pro"}, nil
+			},
+		}
 		handler := newTestSubscriptionHandler(mockRepo)
 
 		router := setupTestRouter()
@@ -486,9 +587,34 @@ func TestSubscriptionHandler_ChangePlan(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
-	t.Run("returns 500 when service fails for valid plan", func(t *testing.T) {
-		// Service will fail because GetByUserID returns not found
+	t.Run("returns 404 when there is no subscription to change", func(t *testing.T) {
 		mockRepo := &MockSubscriptionRepository{}
+		handler := newTestSubscriptionHandler(mockRepo)
+
+		router := setupTestRouter()
+		router.POST("/subscription/change-plan", mockAuthMiddleware(userID), handler.ChangePlan)
+
+		body := bytes.NewBufferString(`{"plan":"pro"}`)
+		req, _ := http.NewRequest(http.MethodPost, "/subscription/change-plan", body)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("returns 500 when the provider call fails", func(t *testing.T) {
+		externalID := "sub-external-1"
+		mockRepo := &MockSubscriptionRepository{
+			GetByUserIDFunc: func(_ context.Context, uid string) (*model.Subscription, error) {
+				return &model.Subscription{
+					UserID:                 uid,
+					ExternalSubscriptionID: &externalID,
+					Status:                 "active",
+					Plan:                   "pro",
+				}, nil
+			},
+		}
 		handler := newTestSubscriptionHandler(mockRepo)
 
 		router := setupTestRouter()
@@ -521,7 +647,7 @@ func TestSubscriptionHandler_CancelSubscription(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
-	t.Run("returns 500 when service fails", func(t *testing.T) {
+	t.Run("returns 404 when the user has no subscription to cancel", func(t *testing.T) {
 		mockRepo := &MockSubscriptionRepository{}
 		handler := newTestSubscriptionHandler(mockRepo)
 
@@ -532,8 +658,46 @@ func TestSubscriptionHandler_CancelSubscription(t *testing.T) {
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
-		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
+
+	t.Run("returns 500 when the provider call fails", func(t *testing.T) {
+		// A linked subscription exists, so the handler reaches the provider —
+		// which has no credentials and fails.
+		externalID := "sub-external-1"
+		mockRepo := &MockSubscriptionRepository{
+			GetByUserIDFunc: func(_ context.Context, uid string) (*model.Subscription, error) {
+				return &model.Subscription{
+					UserID:                 uid,
+					ExternalSubscriptionID: &externalID,
+					Status:                 "active",
+					Plan:                   "pro",
+				}, nil
+			},
+		}
+		handler := newTestSubscriptionHandler(mockRepo)
+
+		router := setupTestRouter()
+		router.POST("/subscription/cancel", mockAuthMiddleware(userID), handler.CancelSubscription)
+
+		req, _ := http.NewRequest(http.MethodPost, "/subscription/cancel", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.NotContains(t, w.Body.String(), "fastspring",
+			"the client response must not expose provider internals")
+	})
+}
+
+// registeredRoutes returns the "METHOD PATH" set actually mounted on a router,
+// so registration is asserted directly instead of inferred from a status code.
+func registeredRoutes(router *gin.Engine) map[string]bool {
+	mounted := make(map[string]bool)
+	for _, route := range router.Routes() {
+		mounted[route.Method+" "+route.Path] = true
+	}
+	return mounted
 }
 
 func TestSubscriptionHandler_RegisterRoutes(t *testing.T) {
@@ -551,32 +715,16 @@ func TestSubscriptionHandler_RegisterRoutes(t *testing.T) {
 	v1 := router.Group("/api/v1")
 	handler.RegisterRoutes(v1, mockAuthMiddleware("user-123"), true)
 
-	routes := []struct {
-		method string
-		path   string
-	}{
-		{http.MethodGet, "/api/v1/subscription"},
-		{http.MethodGet, "/api/v1/subscription/checkout-config"},
-		{http.MethodPost, "/api/v1/subscription/portal"},
-		{http.MethodPost, "/api/v1/subscription/change-plan"},
-		{http.MethodPost, "/api/v1/subscription/cancel"},
-	}
-
-	for _, route := range routes {
-		t.Run(route.method+" "+route.path, func(t *testing.T) {
-			var body *bytes.Buffer
-			if route.method == http.MethodPost {
-				body = bytes.NewBufferString(`{"plan":"pro"}`)
-			} else {
-				body = bytes.NewBuffer(nil)
-			}
-			req, _ := http.NewRequest(route.method, route.path, body)
-			req.Header.Set("Content-Type", "application/json")
-			w := httptest.NewRecorder()
-			router.ServeHTTP(w, req)
-
-			assert.NotEqual(t, http.StatusNotFound, w.Code, "Route %s %s should be registered", route.method, route.path)
-		})
+	mounted := registeredRoutes(router)
+	for _, route := range []string{
+		"GET /api/v1/subscription",
+		"GET /api/v1/subscription/checkout-config",
+		"POST /api/v1/subscription/checkout-session",
+		"POST /api/v1/subscription/portal",
+		"POST /api/v1/subscription/change-plan",
+		"POST /api/v1/subscription/cancel",
+	} {
+		assert.True(t, mounted[route], "%s should be registered", route)
 	}
 }
 
@@ -603,94 +751,176 @@ func TestSubscriptionHandler_RegisterRoutes_PaymentsDisabled(t *testing.T) {
 		assert.NotEqual(t, http.StatusNotFound, w.Code)
 	})
 
-	// When payments disabled, checkout/portal/change-plan/cancel should NOT be registered
-	disabledRoutes := []struct {
-		method string
-		path   string
-	}{
-		{http.MethodGet, "/api/v1/subscription/checkout-config"},
-		{http.MethodPost, "/api/v1/subscription/portal"},
-		{http.MethodPost, "/api/v1/subscription/change-plan"},
-		{http.MethodPost, "/api/v1/subscription/cancel"},
+	// With the checkout kill-switch on, purchase and plan-management routes are
+	// not mounted at all — the read-only subscription endpoint stays available.
+	mounted := registeredRoutes(router)
+	for _, route := range []string{
+		"GET /api/v1/subscription/checkout-config",
+		"POST /api/v1/subscription/checkout-session",
+		"POST /api/v1/subscription/portal",
+		"POST /api/v1/subscription/change-plan",
+		"POST /api/v1/subscription/cancel",
+	} {
+		assert.False(t, mounted[route], "%s must not be registered when payments are disabled", route)
 	}
-
-	for _, route := range disabledRoutes {
-		t.Run(route.method+" "+route.path+" is NOT registered", func(t *testing.T) {
-			body := bytes.NewBufferString(`{"plan":"pro"}`)
-			req, _ := http.NewRequest(route.method, route.path, body)
-			req.Header.Set("Content-Type", "application/json")
-			w := httptest.NewRecorder()
-			router.ServeHTTP(w, req)
-
-			assert.Equal(t, http.StatusNotFound, w.Code, "Route %s %s should NOT be registered when payments disabled", route.method, route.path)
-		})
-	}
+	assert.True(t, mounted["GET /api/v1/subscription"])
 }
 
 // --- WebhookHandler Tests ---
 
-func TestWebhookHandler_HandlePaddleWebhook(t *testing.T) {
-	t.Run("returns 400 for empty body", func(t *testing.T) {
-		mockRepo := &MockSubscriptionRepository{}
-		handler := newTestWebhookHandler(mockRepo)
+// signWebhook produces the header value FastSpring would send for a body.
+func signWebhook(body string) string {
+	mac := hmac.New(sha256.New, []byte(testWebhookSecret))
+	mac.Write([]byte(body))
+	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
+}
 
-		router := setupTestRouter()
-		router.POST("/webhooks/paddle", handler.HandlePaddleWebhook)
+func postWebhook(handler *WebhookHandler, body, signature string) *httptest.ResponseRecorder {
+	router := setupTestRouter()
+	router.POST("/webhooks/fastspring", handler.HandleFastSpringWebhook)
 
-		req, _ := http.NewRequest(http.MethodPost, "/webhooks/paddle", bytes.NewBufferString(""))
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+	req, _ := http.NewRequest(http.MethodPost, "/webhooks/fastspring", bytes.NewBufferString(body))
+	if signature != "" {
+		req.Header.Set("X-FS-Signature", signature)
+	}
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	return w
+}
 
-		// Empty body will fail signature verification
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+func TestWebhookHandler_RejectsUnverifiedPayloads(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		signature string
+	}{
+		{name: "empty body", body: "", signature: ""},
+		{name: "missing signature", body: `{"events":[]}`, signature: ""},
+		{name: "wrong signature", body: `{"events":[]}`, signature: "bm90LWEtc2lnbmF0dXJl"},
+		{name: "signature for a different body", body: `{"events":[]}`, signature: signWebhook(`{"events":[{}]}`)},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var wrote bool
+			mockRepo := &MockSubscriptionRepository{
+				ApplySubscriptionEventFunc: func(context.Context, string, string, *model.Subscription) (model.WebhookApplyOutcome, error) {
+					wrote = true
+					return model.WebhookApplied, nil
+				},
+			}
+
+			w := postWebhook(newTestWebhookHandler(mockRepo), tc.body, tc.signature)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+			assert.False(t, wrote, "a rejected webhook must not touch the database")
+		})
+	}
+}
+
+func TestWebhookHandler_AcknowledgesProcessedBatch(t *testing.T) {
+	// Two events Jobber does not act on: both are acknowledged with 200 so
+	// FastSpring stops redelivering them.
+	body := `{"events":[
+		{"id":"evt-1","live":false,"processed":false,"type":"order.completed","created":1751328000000,"data":{}},
+		{"id":"evt-2","live":false,"processed":false,"type":"account.updated","created":1751328000001,"data":{}}
+	]}`
+
+	w := postWebhook(newTestWebhookHandler(&MockSubscriptionRepository{}), body, signWebhook(body))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestWebhookHandler_LogsEnvironmentMismatchLouderThanOrdinarySkips(t *testing.T) {
+	// Both are acknowledged and neither is retried, so the log is the only place
+	// they differ — and they must differ. A routine skip is noise; a mismatch
+	// means this deployment is reading the wrong billing environment and every
+	// event it drops is lost for good.
+	t.Run("an environment mismatch is a warning", func(t *testing.T) {
+		// live:true against a test-mode deployment.
+		body := `{"events":[
+			{"id":"evt-live","live":true,"processed":false,"type":"subscription.activated","created":1751328000000,
+			 "data":{"id":"sub-x","subscription":"sub-x","state":"active","active":true,
+			         "account":{"id":"acct-x"},"product":{"product":"jobber-pro"}}}
+		]}`
+		handler, logs := newObservedWebhookHandler(&MockSubscriptionRepository{})
+
+		w := postWebhook(handler, body, signWebhook(body))
+
+		assert.Equal(t, http.StatusOK, w.Code, "a mismatched event is still acknowledged")
+		warnings := logs.FilterLevelExact(zap.WarnLevel).All()
+		require.Len(t, warnings, 1)
+		assert.Contains(t, warnings[0].Message, "billing environment mismatch")
+		assert.Equal(t, "evt-live", warnings[0].ContextMap()["event_id"])
 	})
 
-	t.Run("returns 400 for invalid signature", func(t *testing.T) {
-		mockRepo := &MockSubscriptionRepository{}
-		handler := newTestWebhookHandler(mockRepo)
+	t.Run("an event Jobber does not act on stays informational", func(t *testing.T) {
+		body := `{"events":[
+			{"id":"evt-ok","live":false,"processed":false,"type":"order.completed","created":1751328000000,"data":{}}
+		]}`
+		handler, logs := newObservedWebhookHandler(&MockSubscriptionRepository{})
 
-		router := setupTestRouter()
-		router.POST("/webhooks/paddle", handler.HandlePaddleWebhook)
+		w := postWebhook(handler, body, signWebhook(body))
 
-		body := `{"event_type":"subscription.created","data":{}}`
-		req, _ := http.NewRequest(http.MethodPost, "/webhooks/paddle", bytes.NewBufferString(body))
-		req.Header.Set("Paddle-Signature", "invalid-signature")
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-
-	t.Run("returns 400 for missing signature", func(t *testing.T) {
-		mockRepo := &MockSubscriptionRepository{}
-		handler := newTestWebhookHandler(mockRepo)
-
-		router := setupTestRouter()
-		router.POST("/webhooks/paddle", handler.HandlePaddleWebhook)
-
-		body := `{"event_type":"subscription.created","data":{}}`
-		req, _ := http.NewRequest(http.MethodPost, "/webhooks/paddle", bytes.NewBufferString(body))
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Empty(t, logs.FilterLevelExact(zap.WarnLevel).All(),
+			"a routine skip must not raise the noise floor for the real misconfiguration")
+		require.Len(t, logs.FilterLevelExact(zap.InfoLevel).All(), 1)
 	})
 }
 
+func TestWebhookHandler_PartialBatchReturns202WithProcessedIDs(t *testing.T) {
+	// evt-ok is acknowledged as non-actionable; evt-bad cannot be resolved to a
+	// user, so it must be retried.
+	body := `{"events":[
+		{"id":"evt-ok","live":false,"processed":false,"type":"order.completed","created":1751328000000,"data":{}},
+		{"id":"evt-bad","live":false,"processed":false,"type":"subscription.activated","created":1751328000001,
+		 "data":{"id":"sub-x","subscription":"sub-x","state":"active","active":true,
+		         "account":{"id":"acct-unknown"},"product":{"product":"jobber-pro"}}}
+	]}`
+
+	w := postWebhook(newTestWebhookHandler(&MockSubscriptionRepository{}), body, signWebhook(body))
+
+	assert.Equal(t, http.StatusAccepted, w.Code)
+	assert.Equal(t, "evt-ok", w.Body.String(),
+		"the 202 body lists only the processed event IDs, one per line")
+}
+
+func TestWebhookHandler_FullyFailedBatchAsksForRetry(t *testing.T) {
+	body := `{"events":[
+		{"id":"evt-bad","live":false,"processed":false,"type":"subscription.activated","created":1751328000000,
+		 "data":{"id":"sub-x","subscription":"sub-x","state":"active","active":true,
+		         "account":{"id":"acct-unknown"},"product":{"product":"jobber-pro"}}}
+	]}`
+
+	w := postWebhook(newTestWebhookHandler(&MockSubscriptionRepository{}), body, signWebhook(body))
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestWebhookHandler_MissingSecretAsksForRetry(t *testing.T) {
+	// Our own misconfiguration must not be reported as a client error, or
+	// FastSpring would stop retrying and the event would be lost.
+	svc := service.NewSubscriptionService(&MockSubscriptionRepository{},
+		fastspring.NewClient(fastspring.Config{}),
+		service.BillingConfig{Environment: service.EnvironmentTest})
+	handler := NewWebhookHandler(svc, zap.NewNop())
+
+	w := postWebhook(handler, `{"events":[]}`, "c2lnbmF0dXJl")
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
 func TestWebhookHandler_RegisterRoutes(t *testing.T) {
-	mockRepo := &MockSubscriptionRepository{}
-	handler := newTestWebhookHandler(mockRepo)
+	handler := newTestWebhookHandler(&MockSubscriptionRepository{})
 
 	router := setupTestRouter()
 	v1 := router.Group("/api/v1")
 	handler.RegisterRoutes(v1)
 
-	t.Run("POST /api/v1/webhooks/paddle is registered", func(t *testing.T) {
-		body := `{}`
-		req, _ := http.NewRequest(http.MethodPost, "/api/v1/webhooks/paddle", bytes.NewBufferString(body))
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/webhooks/fastspring", bytes.NewBufferString("{}"))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
 
-		assert.NotEqual(t, http.StatusNotFound, w.Code, "Route should be registered")
-	})
+	assert.NotEqual(t, http.StatusNotFound, w.Code, "POST /api/v1/webhooks/fastspring should be registered")
 }

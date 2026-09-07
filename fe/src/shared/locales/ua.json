@@ -492,6 +492,8 @@
         "cta": "Почнемо"
       },
       "activating": "Активуємо вашу підписку...",
+      "activatingDismiss": "Продовжити роботу",
+      "checkoutError": "Не вдалося відкрити оплату. Спробуйте ще раз.",
       "upgrade": "Оновити",
       "upgradeToPro": "Оновити до Pro",
       "upgradeToEnterprise": "Оновити до Enterprise",
@@ -530,7 +532,11 @@
         "switchToEnterprise": "Перейти на Enterprise",
         "cancelSubscription": "Скасувати підписку",
         "cancelConfirmText": "Підписка залишатиметься активною до кінця поточного платіжного циклу. Після цього вас буде переведено на план Free.",
-        "confirmCancel": "Так, скасувати"
+        "confirmCancel": "Так, скасувати",
+        "billingPortal": "Платіжний портал",
+        "billingPortalDescription": "Рахунки, чеки, спосіб оплати та запити на повернення.",
+        "openBillingPortal": "Відкрити портал",
+        "portalError": "Не вдалося відкрити платіжний портал. Спробуйте ще раз."
       },
       "pricing": {
         "modalTitle": "Оберіть план",
@@ -557,7 +563,9 @@
         "enterpriseAI": "Необмежений AI-аналіз",
         "enterpriseJobParses": "Необмежений AI-парсинг",
         "enterpriseResumeBuilders": "Необмежені конструктори резюме",
-        "enterpriseCoverLetters": "Необмежені супровідні листи"
+        "enterpriseCoverLetters": "Необмежені супровідні листи",
+        "switchPlan": "Перейти на цей план",
+        "downgradeViaCancel": "Щоб повернутися на Free, скасуйте підписку."
       }
     }
   },
@@ -1610,7 +1618,7 @@
     "error": "Не вдалося надіслати повідомлення. Спробуйте пізніше."
   },
   "cookieConsent": {
-    "message": "Ми використовуємо необхідні файли cookie для входу в акаунт і безпечної оплати через Paddle. За вашою згодою ми також використовуємо аналітичні файли cookie (Google Analytics, PostHog), щоб покращувати продукт.",
+    "message": "Ми використовуємо необхідні файли cookie для входу в акаунт і безпечної оплати через FastSpring. За вашою згодою ми також використовуємо аналітичні файли cookie (Google Analytics, PostHog), щоб покращувати продукт.",
     "privacyLink": "Політика конфіденційності",
     "acceptAll": "Прийняти всі",
     "essentialOnly": "Лише необхідні",

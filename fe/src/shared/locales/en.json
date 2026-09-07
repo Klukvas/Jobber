@@ -445,6 +445,8 @@
         "cta": "Let's go"
       },
       "activating": "Activating your subscription...",
+      "activatingDismiss": "Continue to the app",
+      "checkoutError": "Could not start checkout. Please try again.",
       "upgrade": "Upgrade",
       "upgradeToPro": "Upgrade to Pro",
       "upgradeToEnterprise": "Upgrade to Enterprise",
@@ -483,7 +485,11 @@
         "switchToEnterprise": "Switch to Enterprise",
         "cancelSubscription": "Cancel subscription",
         "cancelConfirmText": "Your subscription will remain active until the end of the current billing period. After that you will be moved to the Free plan.",
-        "confirmCancel": "Yes, cancel"
+        "confirmCancel": "Yes, cancel",
+        "billingPortal": "Billing portal",
+        "billingPortalDescription": "Invoices, receipts, payment method and refund requests.",
+        "openBillingPortal": "Open portal",
+        "portalError": "Could not open the billing portal. Please try again."
       },
       "pricing": {
         "modalTitle": "Choose Your Plan",
@@ -510,7 +516,9 @@
         "enterpriseAI": "Unlimited AI match scores",
         "enterpriseJobParses": "Unlimited AI job parses",
         "enterpriseResumeBuilders": "Unlimited resume builders",
-        "enterpriseCoverLetters": "Unlimited cover letters"
+        "enterpriseCoverLetters": "Unlimited cover letters",
+        "switchPlan": "Switch to this plan",
+        "downgradeViaCancel": "Cancel your subscription to return to Free."
       }
     }
   },
@@ -1610,7 +1618,7 @@
     "error": "Failed to send message. Please try again later."
   },
   "cookieConsent": {
-    "message": "We use essential cookies to sign you in and to process secure payments via Paddle. With your consent, we also use analytics cookies (Google Analytics, PostHog) to improve the product.",
+    "message": "We use essential cookies to sign you in and to process secure payments via FastSpring. With your consent, we also use analytics cookies (Google Analytics, PostHog) to improve the product.",
     "privacyLink": "Privacy Policy",
     "acceptAll": "Accept all",
     "essentialOnly": "Essential only",

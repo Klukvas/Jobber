@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andreypavlenko/jobber/modules/subscriptions/fastspring"
 	"gopkg.in/yaml.v3"
 )
 
@@ -37,7 +38,7 @@ type Config struct {
 	S3             S3Config
 	GoogleCalendar GoogleCalendarConfig
 	Anthropic      AnthropicConfig
-	Paddle         PaddleConfig
+	FastSpring     FastSpringConfig
 	Sentry         SentryConfig
 	Resend         ResendConfig
 	Telegram       TelegramConfig
@@ -47,9 +48,14 @@ type Config struct {
 
 // FeaturesConfig holds feature flags that can be toggled per environment.
 type FeaturesConfig struct {
-	SentryEnabled   bool
-	EmailEnabled    bool
+	SentryEnabled bool
+	EmailEnabled  bool
+	// PaymentsEnabled gates new purchases and self-service plan management.
 	PaymentsEnabled bool
+	// BillingWebhookEnabled gates webhook ingestion. It is separate from
+	// PaymentsEnabled, but follows its value by default. Set it explicitly to
+	// true when closing checkout while keeping billing lifecycle events flowing.
+	BillingWebhookEnabled bool
 }
 
 // SentryConfig holds Sentry error tracking configuration
@@ -64,14 +70,24 @@ type ResendConfig struct {
 	FromAddress string
 }
 
-// PaddleConfig holds Paddle payment configuration
-type PaddleConfig struct {
-	APIKey            string
-	WebhookSecret     string
-	Environment       string // sandbox or production
-	ProPriceID        string
-	EnterprisePriceID string
-	ClientToken       string // frontend overlay checkout
+// FastSpringConfig holds FastSpring payment configuration.
+//
+// The API credentials are an HTTP Basic username/password pair created under
+// Developer Tools > API Credentials; WebhookSecret is the HMAC SHA256 secret set
+// on the webhook endpoint. Product paths are catalog identifiers, so they are
+// configurable rather than hardcoded.
+type FastSpringConfig struct {
+	APIUsername   string
+	APIPassword   string
+	WebhookSecret string
+	// CheckoutPath is the dashboard checkout the Sessions API creates sessions
+	// against. It is exactly "<store-id>/<checkout-id>" — two segments, no
+	// surrounding slashes — and is validated segment by segment before it is
+	// ever put in a request URL.
+	CheckoutPath          string
+	Environment           string // test or live
+	ProProductPath        string
+	EnterpriseProductPath string
 }
 
 // AnthropicConfig holds Anthropic API configuration
@@ -120,10 +136,10 @@ type RedisConfig struct {
 
 // JWTConfig holds JWT configuration
 type JWTConfig struct {
-	AccessSecret   string
-	RefreshSecret  string
-	AccessExpiry   time.Duration
-	RefreshExpiry  time.Duration
+	AccessSecret  string
+	RefreshSecret string
+	AccessExpiry  time.Duration
+	RefreshExpiry time.Duration
 }
 
 // LogConfig holds logging configuration
@@ -143,6 +159,13 @@ type S3Config struct {
 
 // Load reads configuration from environment variables
 func Load() (*Config, error) {
+	// Webhook ingestion follows the checkout unless an operator says otherwise.
+	// Reading it here rather than inline keeps that default honest: with billing
+	// off (the local default) no webhook secret is needed and the app boots,
+	// while turning payments on makes the secret mandatory instead of shipping a
+	// deployment whose every delivery is rejected.
+	paymentsEnabled := getEnvAsBool("FEATURE_PAYMENTS_ENABLED", false)
+
 	cfg := &Config{
 		Server: ServerConfig{
 			Port:           getEnv("SERVER_PORT", "8080"),
@@ -169,10 +192,10 @@ func Load() (*Config, error) {
 			DB:       getEnvAsInt("REDIS_DB", 0),
 		},
 		JWT: JWTConfig{
-			AccessSecret:   getEnv("JWT_ACCESS_SECRET", ""),
-			RefreshSecret:  getEnv("JWT_REFRESH_SECRET", ""),
-			AccessExpiry:   getEnvAsDuration("JWT_ACCESS_EXPIRY", 15*time.Minute),
-			RefreshExpiry:  getEnvAsDuration("JWT_REFRESH_EXPIRY", 168*time.Hour),
+			AccessSecret:  getEnv("JWT_ACCESS_SECRET", ""),
+			RefreshSecret: getEnv("JWT_REFRESH_SECRET", ""),
+			AccessExpiry:  getEnvAsDuration("JWT_ACCESS_EXPIRY", 15*time.Minute),
+			RefreshExpiry: getEnvAsDuration("JWT_REFRESH_EXPIRY", 168*time.Hour),
 		},
 		Log: LogConfig{
 			Level:  getEnv("LOG_LEVEL", "info"),
@@ -195,13 +218,14 @@ func Load() (*Config, error) {
 		Anthropic: AnthropicConfig{
 			APIKey: getEnv("ANTHROPIC_API_KEY", ""),
 		},
-		Paddle: PaddleConfig{
-			APIKey:            getEnv("PADDLE_API_KEY", ""),
-			WebhookSecret:     getEnv("PADDLE_WEBHOOK_SECRET", ""),
-			Environment:       getEnv("PADDLE_ENVIRONMENT", "sandbox"),
-			ProPriceID:        getEnv("PADDLE_PRO_PRICE_ID", ""),
-			EnterprisePriceID: getEnv("PADDLE_ENTERPRISE_PRICE_ID", ""),
-			ClientToken:       getEnv("PADDLE_CLIENT_TOKEN", ""),
+		FastSpring: FastSpringConfig{
+			APIUsername:           getEnv("FASTSPRING_API_USERNAME", ""),
+			APIPassword:           getEnv("FASTSPRING_API_PASSWORD", ""),
+			WebhookSecret:         getEnv("FASTSPRING_WEBHOOK_SECRET", ""),
+			CheckoutPath:          getEnv("FASTSPRING_CHECKOUT_PATH", ""),
+			Environment:           getEnv("FASTSPRING_ENVIRONMENT", "test"),
+			ProProductPath:        getEnv("FASTSPRING_PRO_PRODUCT_PATH", "jobber-pro"),
+			EnterpriseProductPath: getEnv("FASTSPRING_ENTERPRISE_PRODUCT_PATH", "jobber-enterprise"),
 		},
 		Sentry: SentryConfig{
 			DSN:     getEnv("SENTRY_DSN", ""),
@@ -216,9 +240,10 @@ func Load() (*Config, error) {
 			ChatID:   getEnv("TELEGRAM_SUPPORT_CHAT_ID", ""),
 		},
 		Features: FeaturesConfig{
-			SentryEnabled:   getEnvAsBool("FEATURE_SENTRY_ENABLED", true),
-			EmailEnabled:    getEnvAsBool("FEATURE_EMAIL_ENABLED", true),
-			PaymentsEnabled: getEnvAsBool("FEATURE_PAYMENTS_ENABLED", false),
+			SentryEnabled:         getEnvAsBool("FEATURE_SENTRY_ENABLED", true),
+			EmailEnabled:          getEnvAsBool("FEATURE_EMAIL_ENABLED", true),
+			PaymentsEnabled:       paymentsEnabled,
+			BillingWebhookEnabled: getEnvAsBool("FEATURE_BILLING_WEBHOOK_ENABLED", paymentsEnabled),
 		},
 	}
 
@@ -232,6 +257,41 @@ func Load() (*Config, error) {
 	}
 	if cfg.JWT.RefreshSecret == "" {
 		return nil, fmt.Errorf("JWT_REFRESH_SECRET is required")
+	}
+
+	// Billing guards — fail at startup rather than at the first checkout.
+	if cfg.Features.PaymentsEnabled {
+		if cfg.FastSpring.APIUsername == "" || cfg.FastSpring.APIPassword == "" {
+			return nil, fmt.Errorf("FASTSPRING_API_USERNAME and FASTSPRING_API_PASSWORD are required when FEATURE_PAYMENTS_ENABLED=true")
+		}
+		if cfg.FastSpring.CheckoutPath == "" {
+			return nil, fmt.Errorf("FASTSPRING_CHECKOUT_PATH is required when FEATURE_PAYMENTS_ENABLED=true")
+		}
+		// The same whitelist the client applies before building a request URL.
+		// Running it here turns a typo into a failed boot instead of a checkout
+		// that only breaks once a real buyer clicks Upgrade.
+		if _, err := fastspring.EscapeCheckoutPath(cfg.FastSpring.CheckoutPath); err != nil {
+			return nil, fmt.Errorf(`FASTSPRING_CHECKOUT_PATH must be exactly "<storefront-id>/<checkout-id>": %w`, err)
+		}
+		// Checkout opens in the Store Builder Library popup, which can only open
+		// a checkout the dashboard generated as a popup. A leftover full-page
+		// Web Checkout path passes every other check and then produces an empty
+		// popup for a real buyer, so it fails the boot instead.
+		if err := fastspring.ValidatePopupCheckoutPath(cfg.FastSpring.CheckoutPath); err != nil {
+			return nil, fmt.Errorf(
+				`FASTSPRING_CHECKOUT_PATH must name a popup checkout, e.g. "<storefront-id>/%s<name>": %w`,
+				fastspring.PopupCheckoutPrefix, err)
+		}
+	}
+	if cfg.FastSpring.Environment != "test" && cfg.FastSpring.Environment != "live" {
+		return nil, fmt.Errorf("FASTSPRING_ENVIRONMENT must be 'test' or 'live', got %q", cfg.FastSpring.Environment)
+	}
+	// Without the secret every delivery is rejected, so the server would run
+	// looking healthy while silently dropping every renewal and cancellation.
+	// Refusing to start makes that a deploy failure someone sees.
+	if cfg.Features.BillingWebhookEnabled && cfg.FastSpring.WebhookSecret == "" {
+		return nil, fmt.Errorf("FASTSPRING_WEBHOOK_SECRET is required when FEATURE_BILLING_WEBHOOK_ENABLED=true " +
+			"(it defaults to the value of FEATURE_PAYMENTS_ENABLED); set the secret or set FEATURE_BILLING_WEBHOOK_ENABLED=false")
 	}
 
 	// Production security guards

@@ -1,59 +1,73 @@
 package service
 
 import (
-	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"strconv"
-	"strings"
-	"time"
 
-	"github.com/andreypavlenko/jobber/internal/platform/circuitbreaker"
+	"github.com/andreypavlenko/jobber/modules/subscriptions/fastspring"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/ports"
 )
 
+// Provider names the billing provider exposed to the frontend.
+const Provider = "fastspring"
+
+// Billing environments. FastSpring marks every order and webhook event as live
+// or test; the service refuses to act on events from the other mode.
+const (
+	EnvironmentLive = "live"
+	EnvironmentTest = "test"
+)
+
+// Plan names.
+const (
+	PlanFree       = "free"
+	PlanPro        = "pro"
+	PlanEnterprise = "enterprise"
+)
+
+// Internal subscription statuses.
+const (
+	StatusFree      = "free"
+	StatusActive    = "active"
+	StatusPastDue   = "past_due"
+	StatusCancelled = "cancelled"
+	StatusPaused    = "paused"
+)
+
+// BillingConfig holds the FastSpring settings the service needs. Product paths
+// and the checkout path are configurable because they are dashboard-owned
+// identifiers, not code.
+type BillingConfig struct {
+	WebhookSecret string
+	// CheckoutPath identifies the dashboard *popup* checkout the Sessions API
+	// creates sessions against, e.g. "<storefront-id>/popup-<checkout-id>". The
+	// popup storefront the browser loads is derived from it, so a single value
+	// governs both halves of the flow.
+	CheckoutPath          string
+	Environment           string
+	ProProductPath        string
+	EnterpriseProductPath string
+}
+
+// IsLive reports whether the service is wired to the live FastSpring store.
+func (c BillingConfig) IsLive() bool { return c.Environment == EnvironmentLive }
+
 // SubscriptionService handles subscription business logic.
 type SubscriptionService struct {
-	repo              ports.SubscriptionRepository
-	webhookSecret     string
-	paddleAPIKey      string
-	proPriceID        string
-	enterprisePriceID string
-	clientToken       string
-	environment       string
-	breaker           *circuitbreaker.Breaker
-	httpClient        *http.Client
+	repo    ports.SubscriptionRepository
+	billing *fastspring.Client
+	cfg     BillingConfig
 }
 
 // NewSubscriptionService creates a new SubscriptionService.
 func NewSubscriptionService(
 	repo ports.SubscriptionRepository,
-	webhookSecret string,
-	paddleAPIKey string,
-	proPriceID string,
-	enterprisePriceID string,
-	clientToken string,
-	environment string,
+	billing *fastspring.Client,
+	cfg BillingConfig,
 ) *SubscriptionService {
-	return &SubscriptionService{
-		repo:              repo,
-		webhookSecret:     webhookSecret,
-		paddleAPIKey:      paddleAPIKey,
-		proPriceID:        proPriceID,
-		enterprisePriceID: enterprisePriceID,
-		clientToken:       clientToken,
-		environment:       environment,
-		breaker:           circuitbreaker.New("paddle", 3, 30*time.Second),
-		httpClient:        &http.Client{Timeout: 15 * time.Second},
-	}
+	return &SubscriptionService{repo: repo, billing: billing, cfg: cfg}
 }
 
 // GetSubscription returns the current subscription with usage for a user.
@@ -71,18 +85,73 @@ func (s *SubscriptionService) GetSubscription(ctx context.Context, userID string
 	return sub.ToDTO(usage), nil
 }
 
-// GetCheckoutConfig returns Paddle checkout configuration for the frontend.
+// GetCheckoutConfig tells the frontend which provider and plans are live, and
+// which popup storefront to load the provider's script against. It carries no
+// credentials and no catalog product paths — checkout sessions are created
+// server-side.
+//
+// The storefront is derived from the configured checkout path and the store
+// mode rather than configured separately, so "which checkout the API creates a
+// session against" and "which storefront the browser opens" can never name two
+// different checkouts. A path that yields no storefront leaves the field empty,
+// which the frontend reads as "checkout is not openable" — startup validation
+// makes that unreachable while payments are on.
 func (s *SubscriptionService) GetCheckoutConfig() *model.CheckoutConfigDTO {
-	prices := map[string]string{
-		"pro": s.proPriceID,
-	}
-	if s.enterprisePriceID != "" {
-		prices["enterprise"] = s.enterprisePriceID
+	storefront, err := fastspring.PopupStorefront(s.cfg.CheckoutPath, s.cfg.IsLive())
+	if err != nil {
+		storefront = ""
 	}
 	return &model.CheckoutConfigDTO{
-		ClientToken: s.clientToken,
-		Prices:      prices,
-		Environment: s.environment,
+		Provider:    Provider,
+		Environment: s.cfg.Environment,
+		Storefront:  storefront,
+		Plans:       s.purchasablePlans(),
+	}
+}
+
+// purchasablePlans lists the plans with a configured product path, cheapest
+// first. A plan without a path cannot be bought and is never advertised.
+func (s *SubscriptionService) purchasablePlans() []string {
+	plans := make([]string, 0, 2)
+	if s.cfg.ProProductPath != "" {
+		plans = append(plans, PlanPro)
+	}
+	if s.cfg.EnterpriseProductPath != "" {
+		plans = append(plans, PlanEnterprise)
+	}
+	return plans
+}
+
+// productPathForPlan maps a plan name to its FastSpring catalog product path.
+func (s *SubscriptionService) productPathForPlan(plan string) (string, error) {
+	switch plan {
+	case PlanPro:
+		if s.cfg.ProProductPath == "" {
+			return "", fmt.Errorf("%w: pro product path is not configured", model.ErrUnknownPlan)
+		}
+		return s.cfg.ProProductPath, nil
+	case PlanEnterprise:
+		if s.cfg.EnterpriseProductPath == "" {
+			return "", fmt.Errorf("%w: enterprise product path is not configured", model.ErrUnknownPlan)
+		}
+		return s.cfg.EnterpriseProductPath, nil
+	default:
+		return "", fmt.Errorf("%w: %q", model.ErrUnknownPlan, plan)
+	}
+}
+
+// planForProductPath is the reverse mapping, used when a webhook tells us what
+// was actually bought. An unrecognised path never yields a paid plan.
+func (s *SubscriptionService) planForProductPath(path string) (string, error) {
+	switch {
+	case path == "":
+		return "", errors.New("subscription event carried no product path")
+	case s.cfg.EnterpriseProductPath != "" && path == s.cfg.EnterpriseProductPath:
+		return PlanEnterprise, nil
+	case s.cfg.ProProductPath != "" && path == s.cfg.ProProductPath:
+		return PlanPro, nil
+	default:
+		return "", fmt.Errorf("unrecognised product path %q", path)
 	}
 }
 
@@ -95,12 +164,12 @@ func (s *SubscriptionService) effectivePlan(ctx context.Context, userID string) 
 	sub, err := s.repo.GetByUserID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, model.ErrSubscriptionNotFound) {
-			return "free", nil
+			return PlanFree, nil
 		}
 		return "", fmt.Errorf("failed to get subscription: %w", err)
 	}
-	if sub.Plan != "free" && sub.Status != "active" && sub.Status != "past_due" {
-		return "free", nil
+	if sub.Plan != PlanFree && sub.Status != StatusActive && sub.Status != StatusPastDue {
+		return PlanFree, nil
 	}
 	return sub.Plan, nil
 }
@@ -113,7 +182,7 @@ func (s *SubscriptionService) RequirePaidPlan(ctx context.Context, userID string
 	if err != nil {
 		return err
 	}
-	if plan == "free" {
+	if plan == PlanFree {
 		return model.ErrPaidFeature
 	}
 	return nil
@@ -209,241 +278,10 @@ func (s *SubscriptionService) RecordResumeAutofillUsage(ctx context.Context, use
 	return s.repo.RecordResumeAutofillUsage(ctx, userID)
 }
 
-// EnsureFreeSubscription creates a free subscription for a user if one doesn't exist.
+// EnsureFreeSubscription creates a free subscription for a user if one doesn't
+// exist. An existing row is left untouched so it can never downgrade a payer.
 func (s *SubscriptionService) EnsureFreeSubscription(ctx context.Context, userID string) error {
-	sub := &model.Subscription{
-		UserID: userID,
-		Status: "free",
-		Plan:   "free",
-	}
-	return s.repo.Upsert(ctx, sub)
-}
-
-// HandleWebhook verifies and processes a Paddle webhook event.
-func (s *SubscriptionService) HandleWebhook(ctx context.Context, body []byte, signature string) error {
-	// Verify webhook signature
-	if err := s.verifyWebhookSignature(body, signature); err != nil {
-		return fmt.Errorf("invalid webhook signature: %w", err)
-	}
-
-	// Parse the event
-	var event paddleEvent
-	if err := json.Unmarshal(body, &event); err != nil {
-		return fmt.Errorf("failed to parse webhook event: %w", err)
-	}
-
-	// Idempotency: atomically claim the event before processing.
-	// If TryClaimWebhookEvent returns false, another goroutine already processed it.
-	if event.EventID != "" {
-		claimed, err := s.repo.TryClaimWebhookEvent(ctx, event.EventID, event.EventType)
-		if err != nil {
-			return fmt.Errorf("failed to claim webhook event: %w", err)
-		}
-		if !claimed {
-			return nil // already processed
-		}
-	}
-
-	var handlerErr error
-	switch event.EventType {
-	case "subscription.created", "subscription.activated":
-		handlerErr = s.handleSubscriptionActivated(ctx, &event)
-	case "subscription.updated":
-		handlerErr = s.handleSubscriptionUpdated(ctx, &event)
-	case "subscription.canceled":
-		handlerErr = s.handleSubscriptionCanceled(ctx, &event)
-	case "subscription.past_due":
-		handlerErr = s.handleSubscriptionPastDue(ctx, &event)
-	default:
-		// Ignore unhandled events
-		return nil
-	}
-
-	// The event was claimed before processing. If processing failed, release
-	// the claim so Paddle's retry can reprocess it — otherwise a single
-	// transient failure would drop the event permanently. Best-effort: the
-	// handler error itself is returned and logged by the caller.
-	if handlerErr != nil && event.EventID != "" {
-		_ = s.repo.ReleaseWebhookEvent(ctx, event.EventID)
-	}
-	return handlerErr
-}
-
-// paddleBaseURL returns the Paddle API base URL for the configured environment.
-func (s *SubscriptionService) paddleBaseURL() string {
-	if s.environment == "sandbox" {
-		return "https://sandbox-api.paddle.com"
-	}
-	return "https://api.paddle.com"
-}
-
-// paddleRequest executes an authenticated HTTP request against the Paddle API,
-// protected by a circuit breaker.
-func (s *SubscriptionService) paddleRequest(ctx context.Context, method, path string, body []byte) (*http.Response, error) {
-	var bodyReader io.Reader
-	if body != nil {
-		bodyReader = bytes.NewReader(body)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, s.paddleBaseURL()+path, bodyReader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+s.paddleAPIKey)
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	var resp *http.Response
-	err = s.breaker.Execute(func() error {
-		var doErr error
-		resp, doErr = s.httpClient.Do(req)
-		if doErr != nil {
-			return doErr
-		}
-		// Treat 5xx as failures for the circuit breaker
-		if resp.StatusCode >= 500 {
-			// Drain and close body to prevent leak
-			_, _ = io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
-			return fmt.Errorf("paddle API returned %d", resp.StatusCode)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("paddle API call failed: %w", err)
-	}
-	return resp, nil
-}
-
-// ChangePlan switches the user's subscription to a different plan via Paddle API.
-// The change is prorated immediately.
-func (s *SubscriptionService) ChangePlan(ctx context.Context, userID, newPlan string) error {
-	sub, err := s.repo.GetByUserID(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if sub.PaddleSubscriptionID == nil || *sub.PaddleSubscriptionID == "" {
-		return fmt.Errorf("no active paddle subscription found")
-	}
-
-	var priceID string
-	switch newPlan {
-	case "pro":
-		priceID = s.proPriceID
-	case "enterprise":
-		priceID = s.enterprisePriceID
-	default:
-		return fmt.Errorf("invalid plan: %s", newPlan)
-	}
-	if priceID == "" {
-		return fmt.Errorf("price not configured for plan: %s", newPlan)
-	}
-
-	reqBody, err := json.Marshal(map[string]interface{}{
-		"items":                  []map[string]interface{}{{"price_id": priceID, "quantity": 1}},
-		"proration_billing_mode": "prorated_immediately",
-	})
-	if err != nil {
-		return fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	resp, err := s.paddleRequest(ctx, http.MethodPatch, "/subscriptions/"+*sub.PaddleSubscriptionID, reqBody)
-	if err != nil {
-		return fmt.Errorf("failed to call Paddle API: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("paddle API error (status %d): %s", resp.StatusCode, string(respBody))
-	}
-	return nil
-}
-
-// CancelSubscription schedules cancellation at the end of the current billing period.
-func (s *SubscriptionService) CancelSubscription(ctx context.Context, userID string) error {
-	sub, err := s.repo.GetByUserID(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if sub.PaddleSubscriptionID == nil || *sub.PaddleSubscriptionID == "" {
-		return fmt.Errorf("no active paddle subscription found")
-	}
-
-	reqBody, err := json.Marshal(map[string]string{"effective_from": "next_billing_period"})
-	if err != nil {
-		return fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	resp, err := s.paddleRequest(ctx, http.MethodPost, "/subscriptions/"+*sub.PaddleSubscriptionID+"/cancel", reqBody)
-	if err != nil {
-		return fmt.Errorf("failed to call Paddle API: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("paddle API error (status %d): %s", resp.StatusCode, string(respBody))
-	}
-	return nil
-}
-
-// CreatePortalSession creates a Paddle customer portal session URL.
-func (s *SubscriptionService) CreatePortalSession(ctx context.Context, userID string) (string, error) {
-	sub, err := s.repo.GetByUserID(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-
-	if sub.PaddleSubscriptionID == nil || *sub.PaddleSubscriptionID == "" {
-		return "", fmt.Errorf("no paddle subscription found")
-	}
-	if sub.PaddleCustomerID == nil || *sub.PaddleCustomerID == "" {
-		return "", fmt.Errorf("no paddle customer ID found")
-	}
-
-	reqBody, err := json.Marshal(map[string][]string{
-		"subscription_ids": {*sub.PaddleSubscriptionID},
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	resp, err := s.paddleRequest(ctx, http.MethodPost,
-		"/customers/"+*sub.PaddleCustomerID+"/portal-sessions",
-		reqBody,
-	)
-	if err != nil {
-		return "", fmt.Errorf("failed to call Paddle API: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		if readErr != nil {
-			return "", fmt.Errorf("paddle API error (status %d), failed to read body: %w", resp.StatusCode, readErr)
-		}
-		return "", fmt.Errorf("paddle API error (status %d): %s", resp.StatusCode, string(respBody))
-	}
-
-	var portalResp struct {
-		Data struct {
-			URLs struct {
-				General struct {
-					Overview string `json:"overview"`
-				} `json:"general"`
-			} `json:"urls"`
-		} `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&portalResp); err != nil {
-		return "", fmt.Errorf("failed to decode portal response: %w", err)
-	}
-
-	if portalResp.Data.URLs.General.Overview == "" {
-		return "", fmt.Errorf("no portal URL returned")
-	}
-
-	return portalResp.Data.URLs.General.Overview, nil
+	return s.repo.EnsureFree(ctx, userID)
 }
 
 // getUsage returns current resource usage for a user in a single query.
@@ -461,253 +299,4 @@ func (s *SubscriptionService) getUsage(ctx context.Context, userID string) (mode
 		ResumeBuilders: resumeBuilders,
 		CoverLetters:   coverLetters,
 	}, nil
-}
-
-// verifyWebhookSignature verifies Paddle webhook signature using HMAC-SHA256.
-func (s *SubscriptionService) verifyWebhookSignature(payload []byte, signature string) error {
-	if s.webhookSecret == "" {
-		return fmt.Errorf("webhook secret is not configured")
-	}
-
-	// Paddle signature format: ts=<timestamp>;h1=<hash>
-	parts := strings.Split(signature, ";")
-	if len(parts) != 2 {
-		return fmt.Errorf("invalid signature format")
-	}
-
-	var ts string
-	var h1 string
-	for _, part := range parts {
-		if v, ok := strings.CutPrefix(part, "ts="); ok {
-			ts = v
-		} else if v, ok := strings.CutPrefix(part, "h1="); ok {
-			h1 = v
-		}
-	}
-
-	if ts == "" || h1 == "" {
-		return fmt.Errorf("missing timestamp or hash in signature")
-	}
-
-	// Verify timestamp is not too old (5 minutes tolerance)
-	tsInt, err := strconv.ParseInt(ts, 10, 64)
-	if err != nil {
-		return fmt.Errorf("invalid timestamp: %w", err)
-	}
-	if time.Since(time.Unix(tsInt, 0)) > 5*time.Minute {
-		return fmt.Errorf("webhook timestamp too old")
-	}
-
-	// Compute expected signature: HMAC-SHA256(ts:body)
-	signedPayload := ts + ":" + string(payload)
-	mac := hmac.New(sha256.New, []byte(s.webhookSecret))
-	mac.Write([]byte(signedPayload))
-	expectedMAC := hex.EncodeToString(mac.Sum(nil))
-
-	if !hmac.Equal([]byte(h1), []byte(expectedMAC)) {
-		return fmt.Errorf("signature mismatch")
-	}
-
-	return nil
-}
-
-// Paddle webhook event types
-
-type paddleEvent struct {
-	EventID   string          `json:"event_id"`
-	EventType string          `json:"event_type"`
-	Data      json.RawMessage `json:"data"`
-}
-
-type paddleSubscriptionData struct {
-	ID                   string `json:"id"`
-	Status               string `json:"status"`
-	CustomerID           string `json:"customer_id"`
-	CurrentBillingPeriod *struct {
-		StartsAt string `json:"starts_at"`
-		EndsAt   string `json:"ends_at"`
-	} `json:"current_billing_period"`
-	ScheduledChange *struct {
-		Action      string `json:"action"`
-		EffectiveAt string `json:"effective_at"`
-	} `json:"scheduled_change"`
-	CustomData *struct {
-		UserID string `json:"user_id"`
-	} `json:"custom_data"`
-	Items []struct {
-		Price struct {
-			ID string `json:"id"`
-		} `json:"price"`
-	} `json:"items"`
-}
-
-func (s *SubscriptionService) parseSubscriptionData(event *paddleEvent) (*paddleSubscriptionData, error) {
-	var data paddleSubscriptionData
-	if err := json.Unmarshal(event.Data, &data); err != nil {
-		return nil, fmt.Errorf("failed to parse subscription data: %w", err)
-	}
-	return &data, nil
-}
-
-func (s *SubscriptionService) handleSubscriptionActivated(ctx context.Context, event *paddleEvent) error {
-	data, err := s.parseSubscriptionData(event)
-	if err != nil {
-		return err
-	}
-
-	if data.CustomData == nil || data.CustomData.UserID == "" {
-		return fmt.Errorf("missing user_id in custom_data")
-	}
-
-	// Validate user_id is a valid UUID to prevent injection
-	if _, err := parseUUID(data.CustomData.UserID); err != nil {
-		return fmt.Errorf("invalid user_id in custom_data: %w", err)
-	}
-
-	plan, err := s.determinePlanFromEvent(data)
-	if err != nil {
-		return fmt.Errorf("handleSubscriptionActivated: %w", err)
-	}
-
-	sub := &model.Subscription{
-		UserID:               data.CustomData.UserID,
-		PaddleSubscriptionID: &data.ID,
-		PaddleCustomerID:     &data.CustomerID,
-		Status:               "active",
-		Plan:                 plan,
-	}
-
-	if data.CurrentBillingPeriod != nil {
-		if start, err := time.Parse(time.RFC3339, data.CurrentBillingPeriod.StartsAt); err == nil {
-			sub.CurrentPeriodStart = &start
-		}
-		if end, err := time.Parse(time.RFC3339, data.CurrentBillingPeriod.EndsAt); err == nil {
-			sub.CurrentPeriodEnd = &end
-		}
-	}
-
-	return s.repo.Upsert(ctx, sub)
-}
-
-func (s *SubscriptionService) handleSubscriptionUpdated(ctx context.Context, event *paddleEvent) error {
-	data, err := s.parseSubscriptionData(event)
-	if err != nil {
-		return err
-	}
-
-	// Try to find subscription by Paddle ID first
-	existing, err := s.repo.GetByPaddleSubscriptionID(ctx, data.ID)
-	if err != nil {
-		return fmt.Errorf("subscription not found for paddle ID %s: %w", data.ID, err)
-	}
-
-	existing.Status = mapPaddleStatus(data.Status)
-	plan, err := s.determinePlanFromEvent(data)
-	if err != nil {
-		return fmt.Errorf("handleSubscriptionUpdated: %w", err)
-	}
-	existing.Plan = plan
-
-	if data.CurrentBillingPeriod != nil {
-		if start, err := time.Parse(time.RFC3339, data.CurrentBillingPeriod.StartsAt); err == nil {
-			existing.CurrentPeriodStart = &start
-		}
-		if end, err := time.Parse(time.RFC3339, data.CurrentBillingPeriod.EndsAt); err == nil {
-			existing.CurrentPeriodEnd = &end
-		}
-	}
-
-	if data.ScheduledChange != nil && data.ScheduledChange.Action == "cancel" {
-		if cancelAt, err := time.Parse(time.RFC3339, data.ScheduledChange.EffectiveAt); err == nil {
-			existing.CancelAt = &cancelAt
-		}
-	} else {
-		// No scheduled cancellation — clear any previously stored cancel date
-		existing.CancelAt = nil
-	}
-
-	return s.repo.Upsert(ctx, existing)
-}
-
-func (s *SubscriptionService) handleSubscriptionCanceled(ctx context.Context, event *paddleEvent) error {
-	data, err := s.parseSubscriptionData(event)
-	if err != nil {
-		return err
-	}
-
-	existing, err := s.repo.GetByPaddleSubscriptionID(ctx, data.ID)
-	if err != nil {
-		return fmt.Errorf("subscription not found for paddle ID %s: %w", data.ID, err)
-	}
-
-	existing.Status = "cancelled"
-	existing.Plan = "free"
-	existing.CancelAt = nil
-
-	return s.repo.Upsert(ctx, existing)
-}
-
-func (s *SubscriptionService) handleSubscriptionPastDue(ctx context.Context, event *paddleEvent) error {
-	data, err := s.parseSubscriptionData(event)
-	if err != nil {
-		return err
-	}
-
-	existing, err := s.repo.GetByPaddleSubscriptionID(ctx, data.ID)
-	if err != nil {
-		return fmt.Errorf("subscription not found for paddle ID %s: %w", data.ID, err)
-	}
-
-	existing.Status = "past_due"
-
-	return s.repo.Upsert(ctx, existing)
-}
-
-// determinePlanFromEvent determines the plan based on price IDs in the subscription items.
-// Returns an error if no recognised price ID is found.
-func (s *SubscriptionService) determinePlanFromEvent(data *paddleSubscriptionData) (string, error) {
-	for _, item := range data.Items {
-		if s.enterprisePriceID != "" && item.Price.ID == s.enterprisePriceID {
-			return "enterprise", nil
-		}
-		if item.Price.ID == s.proPriceID {
-			return "pro", nil
-		}
-	}
-	return "", fmt.Errorf("no recognised price ID in subscription items (got %d items)", len(data.Items))
-}
-
-// parseUUID validates that a string is a valid UUID format.
-func parseUUID(s string) (string, error) {
-	if len(s) != 36 {
-		return "", fmt.Errorf("invalid UUID length: %d", len(s))
-	}
-	for i, c := range s {
-		if i == 8 || i == 13 || i == 18 || i == 23 {
-			if c != '-' {
-				return "", fmt.Errorf("invalid UUID format")
-			}
-			continue
-		}
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
-			return "", fmt.Errorf("invalid UUID character at position %d", i)
-		}
-	}
-	return s, nil
-}
-
-// mapPaddleStatus maps Paddle subscription status to our internal status.
-func mapPaddleStatus(paddleStatus string) string {
-	switch paddleStatus {
-	case "active":
-		return "active"
-	case "past_due":
-		return "past_due"
-	case "canceled":
-		return "cancelled"
-	case "paused":
-		return "paused"
-	default:
-		return paddleStatus
-	}
 }

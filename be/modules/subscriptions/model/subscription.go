@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -10,31 +11,54 @@ var (
 	ErrSubscriptionNotFound = errors.New("subscription not found")
 	ErrLimitReached         = errors.New("plan limit reached")
 	ErrPaidFeature          = errors.New("paid plan required")
+	// ErrNoActiveSubscription is returned when an operation needs a provider
+	// subscription (change plan, cancel, portal) but the user has none.
+	ErrNoActiveSubscription = errors.New("no active provider subscription")
+	// ErrUnknownPlan is returned for a plan name that is not purchasable.
+	ErrUnknownPlan = errors.New("unknown plan")
+	// ErrAlreadySubscribed is returned when a user who already holds a provider
+	// subscription tries to start a *second* checkout. The row carries a single
+	// external_subscription_id, so a second purchase would overwrite the first
+	// and leave it billing invisibly — plan changes must go through the provider
+	// subscription instead.
+	ErrAlreadySubscribed = errors.New("user already has a provider subscription")
 )
 
 // Subscription represents a user's subscription record.
+//
+// The external IDs are provider-neutral: with FastSpring they hold the
+// subscription ID and the customer account ID respectively.
 type Subscription struct {
-	ID                   string
-	UserID               string
-	PaddleSubscriptionID *string
-	PaddleCustomerID     *string
-	Status               string // free, active, past_due, cancelled, paused
-	Plan                 string // free, pro, enterprise
-	CurrentPeriodStart   *time.Time
-	CurrentPeriodEnd     *time.Time
-	CancelAt             *time.Time
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	ID                     string
+	UserID                 string
+	ExternalSubscriptionID *string
+	ExternalAccountID      *string
+	Status                 string // free, active, past_due, cancelled, paused
+	Plan                   string // free, pro, enterprise
+	CurrentPeriodStart     *time.Time
+	CurrentPeriodEnd       *time.Time
+	CancelAt               *time.Time
+	// LastEventAt is the provider's own timestamp for the newest subscription
+	// *state change* applied to this row — the payload's `data.changed`, not the
+	// moment the webhook was created or delivered. (The charge events carry no
+	// `changed`, so those fall back to the envelope's `created`.) The
+	// distinction is the point: a manual resend arrives in a fresh envelope with
+	// a fresh `created`, and using that would let it overwrite newer state.
+	// An event is applied only when it is *strictly* newer, so neither a replay
+	// nor a second event describing the same change can undo what already stands.
+	LastEventAt *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // SubscriptionDTO is the JSON response for a subscription.
 type SubscriptionDTO struct {
-	Plan             string    `json:"plan"`
-	Status           string    `json:"status"`
+	Plan             string     `json:"plan"`
+	Status           string     `json:"status"`
 	Limits           PlanLimits `json:"limits"`
-	Usage            Usage     `json:"usage"`
-	CurrentPeriodEnd *string   `json:"current_period_end,omitempty"`
-	CancelAt         *string   `json:"cancel_at,omitempty"`
+	Usage            Usage      `json:"usage"`
+	CurrentPeriodEnd *string    `json:"current_period_end,omitempty"`
+	CancelAt         *string    `json:"cancel_at,omitempty"`
 }
 
 // Usage holds resource usage counts.
@@ -162,14 +186,32 @@ func (s *Subscription) ToDTO(usage Usage) *SubscriptionDTO {
 	return dto
 }
 
-// CheckoutConfigDTO holds Paddle checkout config for the frontend.
+// CheckoutConfigDTO tells the frontend which billing provider is wired up, which
+// plans are purchasable, and which storefront the provider's popup script must
+// be pointed at. It deliberately carries no credentials, no API keys and no
+// catalog product paths: checkout sessions are created server-side.
 type CheckoutConfigDTO struct {
-	ClientToken string            `json:"client_token"`
-	Prices      map[string]string `json:"prices"`
-	Environment string            `json:"environment"`
+	Provider    string `json:"provider"`
+	Environment string `json:"environment"`
+	// Storefront is the popup storefront the browser loads the provider's
+	// Store Builder Library against, as "<host>/<popup-checkout-id>". It is
+	// *derived* from the configured checkout path and the environment, never
+	// configured separately, so the two cannot drift apart. Empty means the
+	// checkout is not openable and the frontend must not offer it.
+	Storefront string   `json:"storefront"`
+	Plans      []string `json:"plans"`
 }
 
-// PortalSessionDTO holds the Paddle customer portal URL.
+// CheckoutSessionDTO holds a provider checkout session for the popup to open.
+//
+// There is deliberately no URL: the popup takes the opaque session id, so the
+// browser is never handed a page to navigate to.
+type CheckoutSessionDTO struct {
+	SessionID string `json:"session_id"`
+	ExpiresAt string `json:"expires_at,omitempty"`
+}
+
+// PortalSessionDTO holds the authenticated customer account portal URL.
 type PortalSessionDTO struct {
 	URL string `json:"url"`
 }
@@ -177,4 +219,33 @@ type PortalSessionDTO struct {
 // ChangePlanRequest is the request body for changing a subscription plan.
 type ChangePlanRequest struct {
 	Plan string `json:"plan" binding:"required"`
+}
+
+// CheckoutSessionRequest is the request body for starting a checkout. Only the
+// plan is accepted: the buyer is taken from the authenticated session.
+type CheckoutSessionRequest struct {
+	Plan string `json:"plan" binding:"required"`
+}
+
+// UserContact carries the buyer details handed to the billing provider when a
+// checkout session is created. Sourced from the authenticated user record, never
+// from the client.
+type UserContact struct {
+	Email  string
+	Name   string
+	Locale string
+}
+
+// FirstLast splits the stored display name into the first/last pair the billing
+// provider expects. A single-word name becomes the first name only.
+func (c UserContact) FirstLast() (first, last string) {
+	fields := strings.Fields(c.Name)
+	switch len(fields) {
+	case 0:
+		return "", ""
+	case 1:
+		return fields[0], ""
+	default:
+		return fields[0], strings.Join(fields[1:], " ")
+	}
 }

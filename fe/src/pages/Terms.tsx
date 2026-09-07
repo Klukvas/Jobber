@@ -81,20 +81,20 @@ export default function Terms() {
           <li>
             Payments are processed by{" "}
             <a
-              href="https://www.paddle.com"
+              href="https://www.fastspring.com"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary underline"
             >
-              Paddle
+              FastSpring
             </a>
-            , our Merchant of Record. Paddle handles all billing, taxes, and
+            , our Merchant of Record. FastSpring handles all billing, taxes, and
             compliance on our behalf.
           </li>
           <li>
-            By subscribing to a paid plan, you agree to Paddle&apos;s{" "}
+            By subscribing to a paid plan, you agree to FastSpring&apos;s{" "}
             <a
-              href="https://www.paddle.com/legal/terms"
+              href="https://fastspring.com/terms-of-use/"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary underline"
@@ -103,7 +103,7 @@ export default function Terms() {
             </a>{" "}
             and{" "}
             <a
-              href="https://www.paddle.com/legal/privacy"
+              href="https://fastspring.com/privacy/"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary underline"

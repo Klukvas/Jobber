@@ -2,6 +2,7 @@ import { apiClient } from "./api";
 import type {
   SubscriptionDTO,
   CheckoutConfigDTO,
+  CheckoutSessionDTO,
   PortalSessionDTO,
   SubscriptionPlan,
 } from "@/shared/types/api";
@@ -13,6 +14,14 @@ export const subscriptionService = {
 
   async getCheckoutConfig(): Promise<CheckoutConfigDTO> {
     return apiClient.get<CheckoutConfigDTO>("subscription/checkout-config");
+  },
+
+  async createCheckoutSession(
+    plan: SubscriptionPlan,
+  ): Promise<CheckoutSessionDTO> {
+    return apiClient.post<CheckoutSessionDTO>("subscription/checkout-session", {
+      plan,
+    });
   },
 
   async createPortalSession(): Promise<PortalSessionDTO> {

@@ -53,6 +53,8 @@ temp/
 !README.md
 !SYSTEM_SPECIFICATION.md
 !fe/src/content/**/*.md
+# Tracked because README.md links to it as the billing design record.
+!docs/adr/0002-fastspring-billing.md
 
 # Terraform
 terraform/.terraform/

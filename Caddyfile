@@ -9,16 +9,48 @@ jobber-app.com {
 		# Block MIME-type sniffing
 		X-Content-Type-Options "nosniff"
 
-		# CSP — allow self, Google Fonts, Sentry, inline styles (Tailwind), Paddle.
-		# Paddle Billing overlay checkout iframes from buy.paddle.com and its JS
-		# calls checkout-service.paddle.com (checkout.paddle.com is the legacy
-		# Classic domain, kept for safety).
-		Content-Security-Policy "default-src 'self'; script-src 'self' https://cdn.paddle.com https://sandbox-cdn.paddle.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://paddle-static.s3.amazonaws.com; connect-src 'self' https://nbg1.your-objectstorage.com https://*.ingest.sentry.io https://cdn.paddle.com https://sandbox-cdn.paddle.com https://checkout.paddle.com https://sandbox-checkout.paddle.com https://checkout-service.paddle.com https://sandbox-checkout-service.paddle.com; frame-src https://buy.paddle.com https://sandbox-buy.paddle.com https://checkout.paddle.com https://sandbox-checkout.paddle.com; object-src 'none'; base-uri 'self'"
+		# CSP — allow self, Google Fonts, Sentry, inline styles (Tailwind), and
+		# exactly what the FastSpring popup checkout needs.
+		#
+		# Checkout runs as a Store Builder Library popup on our own pages, so
+		# five allowances are unavoidable and each is scoped to FastSpring:
+		#   script-src  https://sbl.onfastspring.com — the SBL script itself, a
+		#               pinned 1.0.9 build loaded on demand by the checkout hook.
+		#   style-src   https://sbl.onfastspring.com — on start SBL appends a
+		#               stylesheet from its own directory (fastspring.css) for
+		#               the popup chrome; without this the popup renders unstyled.
+		#   img-src     https://sbl.onfastspring.com — the popup's loading
+		#               spinner (pinhole/spin.svg) is served from there too.
+		#   frame-src   https://*.onfastspring.com  — SBL renders the checkout in
+		#               a storefront iframe; its contents obey that origin's own
+		#               policy, not ours.
+		#   connect-src https://*.onfastspring.com  — SBL talks to the storefront
+		#               to fetch the session and report the order.
+		# No 'unsafe-inline' and no 'unsafe-eval' are granted to scripts: SBL is
+		# an external file and does not need either. cdnjs is deliberately absent:
+		# SBL only reaches for it to render DynaCart markup, which Jobber has none of.
+		#
+		# form-action deliberately still allows the storefront. The full-page
+		# checkout redirect is gone, so nothing here submits a form to
+		# FastSpring today — but SBL is third-party code running in our
+		# documents, and the failure mode of tightening this is a checkout that
+		# breaks in production only. The allowance stays scoped to the one
+		# origin family already trusted for script and frame.
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://sbl.onfastspring.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://sbl.onfastspring.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://sbl.onfastspring.com; connect-src 'self' https://nbg1.your-objectstorage.com https://*.ingest.sentry.io https://*.onfastspring.com; frame-src https://*.onfastspring.com; form-action 'self' https://*.onfastspring.com; object-src 'none'; base-uri 'self'"
 
 		# Referrer policy
 		Referrer-Policy "strict-origin-when-cross-origin"
 
-		# Permissions policy — disable unused browser features
+		# Permissions policy — disable unused browser features.
+		#
+		# `payment` is deliberately left unlisted, which means it keeps its
+		# default allowlist of `self`: the FastSpring iframe cannot use the
+		# Payment Request API, so digital-wallet buttons (Apple Pay / Google
+		# Pay) will not appear inside the popup. Card payment is unaffected.
+		# SBL 1.0.9 does set allow="payment" on the iframe it creates, so this
+		# header is the only thing withholding the feature — widening it is a
+		# deliberate decision about wallets, not a fix for checkout, and it is a
+		# go-live checklist item (ADR-0002) rather than a change made blind.
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 
 		# Remove server header

@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func subscriptionColumns() []string {
+func subscriptionRowColumns() []string {
 	return []string{
-		"id", "user_id", "paddle_subscription_id", "paddle_customer_id",
+		"id", "user_id", "external_subscription_id", "external_account_id",
 		"status", "plan", "current_period_start", "current_period_end",
-		"cancel_at", "created_at", "updated_at",
+		"cancel_at", "last_event_at", "created_at", "updated_at",
 	}
 }
 
@@ -30,12 +30,12 @@ func TestSubscriptionRepository_GetByUserID(t *testing.T) {
 		now := time.Now()
 		psid := "psub-1"
 		pcid := "pcust-1"
-		rows := pgxmock.NewRows(subscriptionColumns()).AddRow(
+		rows := pgxmock.NewRows(subscriptionRowColumns()).AddRow(
 			"sub-1", "user-1", &psid, &pcid, "active", "pro",
-			&now, &now, (*time.Time)(nil), now, now,
+			&now, &now, (*time.Time)(nil), &now, now, now,
 		)
 
-		mock.ExpectQuery("SELECT id, user_id, paddle_subscription_id, paddle_customer_id").
+		mock.ExpectQuery("SELECT id, user_id, external_subscription_id, external_account_id").
 			WithArgs("user-1").
 			WillReturnRows(rows)
 
@@ -53,7 +53,7 @@ func TestSubscriptionRepository_GetByUserID(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		mock.ExpectQuery("SELECT id, user_id, paddle_subscription_id, paddle_customer_id").
+		mock.ExpectQuery("SELECT id, user_id, external_subscription_id, external_account_id").
 			WithArgs("user-1").
 			WillReturnError(pgx.ErrNoRows)
 
@@ -69,7 +69,7 @@ func TestSubscriptionRepository_GetByUserID(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		mock.ExpectQuery("SELECT id, user_id, paddle_subscription_id, paddle_customer_id").
+		mock.ExpectQuery("SELECT id, user_id, external_subscription_id, external_account_id").
 			WithArgs("user-1").
 			WillReturnError(errors.New("boom"))
 
@@ -82,7 +82,7 @@ func TestSubscriptionRepository_GetByUserID(t *testing.T) {
 	})
 }
 
-func TestSubscriptionRepository_GetByPaddleSubscriptionID(t *testing.T) {
+func TestSubscriptionRepository_GetByExternalSubscriptionID(t *testing.T) {
 	t.Run("returns subscription", func(t *testing.T) {
 		mock, err := pgxmock.NewPool()
 		require.NoError(t, err)
@@ -90,17 +90,17 @@ func TestSubscriptionRepository_GetByPaddleSubscriptionID(t *testing.T) {
 
 		now := time.Now()
 		psid := "psub-1"
-		rows := pgxmock.NewRows(subscriptionColumns()).AddRow(
+		rows := pgxmock.NewRows(subscriptionRowColumns()).AddRow(
 			"sub-1", "user-1", &psid, (*string)(nil), "active", "pro",
-			(*time.Time)(nil), (*time.Time)(nil), (*time.Time)(nil), now, now,
+			(*time.Time)(nil), (*time.Time)(nil), (*time.Time)(nil), (*time.Time)(nil), now, now,
 		)
 
-		mock.ExpectQuery("WHERE paddle_subscription_id = ").
+		mock.ExpectQuery("WHERE external_subscription_id = ").
 			WithArgs("psub-1").
 			WillReturnRows(rows)
 
 		repo := NewSubscriptionRepository(mock)
-		sub, err := repo.GetByPaddleSubscriptionID(context.Background(), "psub-1")
+		sub, err := repo.GetByExternalSubscriptionID(context.Background(), "psub-1")
 		require.NoError(t, err)
 		assert.Equal(t, "sub-1", sub.ID)
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -111,12 +111,12 @@ func TestSubscriptionRepository_GetByPaddleSubscriptionID(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		mock.ExpectQuery("WHERE paddle_subscription_id = ").
+		mock.ExpectQuery("WHERE external_subscription_id = ").
 			WithArgs("psub-1").
 			WillReturnError(pgx.ErrNoRows)
 
 		repo := NewSubscriptionRepository(mock)
-		sub, err := repo.GetByPaddleSubscriptionID(context.Background(), "psub-1")
+		sub, err := repo.GetByExternalSubscriptionID(context.Background(), "psub-1")
 		assert.Nil(t, sub)
 		assert.ErrorIs(t, err, model.ErrSubscriptionNotFound)
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -127,70 +127,15 @@ func TestSubscriptionRepository_GetByPaddleSubscriptionID(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		mock.ExpectQuery("WHERE paddle_subscription_id = ").
+		mock.ExpectQuery("WHERE external_subscription_id = ").
 			WithArgs("psub-1").
 			WillReturnError(errors.New("boom"))
 
 		repo := NewSubscriptionRepository(mock)
-		sub, err := repo.GetByPaddleSubscriptionID(context.Background(), "psub-1")
+		sub, err := repo.GetByExternalSubscriptionID(context.Background(), "psub-1")
 		assert.Nil(t, sub)
 		require.Error(t, err)
 		assert.NotErrorIs(t, err, model.ErrSubscriptionNotFound)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-}
-
-func TestSubscriptionRepository_Upsert(t *testing.T) {
-	t.Run("upserts and populates generated fields", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
-
-		now := time.Now()
-		psid := "psub-1"
-		pcid := "pcust-1"
-		sub := &model.Subscription{
-			UserID:               "user-1",
-			PaddleSubscriptionID: &psid,
-			PaddleCustomerID:     &pcid,
-			Status:               "active",
-			Plan:                 "pro",
-			CurrentPeriodStart:   &now,
-			CurrentPeriodEnd:     &now,
-			CancelAt:             nil,
-		}
-
-		rows := pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow("sub-1", now, now)
-		mock.ExpectQuery("INSERT INTO subscriptions").
-			WithArgs(
-				sub.UserID, sub.PaddleSubscriptionID, sub.PaddleCustomerID,
-				sub.Status, sub.Plan, sub.CurrentPeriodStart, sub.CurrentPeriodEnd, sub.CancelAt,
-			).
-			WillReturnRows(rows)
-
-		repo := NewSubscriptionRepository(mock)
-		require.NoError(t, repo.Upsert(context.Background(), sub))
-		assert.Equal(t, "sub-1", sub.ID)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("propagates db error", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
-
-		mock.ExpectQuery("INSERT INTO subscriptions").
-			WithArgs(
-				"user-1", (*string)(nil), (*string)(nil),
-				"free", "free", (*time.Time)(nil), (*time.Time)(nil), (*time.Time)(nil),
-			).
-			WillReturnError(errors.New("boom"))
-
-		repo := NewSubscriptionRepository(mock)
-		err = repo.Upsert(context.Background(), &model.Subscription{
-			UserID: "user-1", Status: "free", Plan: "free",
-		})
-		assert.Error(t, err)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
@@ -354,84 +299,192 @@ func TestSubscriptionRepository_GetAllCounts(t *testing.T) {
 	})
 }
 
-func TestSubscriptionRepository_WebhookEventExists(t *testing.T) {
-	t.Run("returns true when event exists", func(t *testing.T) {
+// applyArgs is the argument list ApplySubscriptionEvent sends: the event claim
+// followed by the subscription state it carries.
+func applyArgs(sub *model.Subscription) []any {
+	return []any{
+		"evt-1", "subscription.activated",
+		sub.UserID, sub.ExternalSubscriptionID, sub.ExternalAccountID,
+		sub.Status, sub.Plan, sub.CurrentPeriodStart, sub.CurrentPeriodEnd,
+		sub.CancelAt, sub.LastEventAt,
+	}
+}
+
+func eventSubscription() *model.Subscription {
+	extSubID := "psub-1"
+	extAccountID := "acct-1"
+	changedAt := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	return &model.Subscription{
+		UserID:                 "user-1",
+		ExternalSubscriptionID: &extSubID,
+		ExternalAccountID:      &extAccountID,
+		Status:                 "active",
+		Plan:                   "pro",
+		LastEventAt:            &changedAt,
+	}
+}
+
+func TestSubscriptionRepository_ApplySubscriptionEvent(t *testing.T) {
+	tests := []struct {
+		name        string
+		claimed     bool
+		applied     bool
+		wantOutcome model.WebhookApplyOutcome
+	}{
+		{
+			name:        "first delivery claims and writes",
+			claimed:     true,
+			applied:     true,
+			wantOutcome: model.WebhookApplied,
+		},
+		{
+			name:        "redelivery of a claimed event writes nothing",
+			claimed:     false,
+			applied:     false,
+			wantOutcome: model.WebhookDuplicate,
+		},
+		{
+			// The strict guard folds two cases into one outcome: an event older
+			// than the applied state, and one carrying the same `data.changed`.
+			// Either way the row is left alone and the event is still recorded
+			// as processed, so the provider stops redelivering it.
+			name:        "claimed but not newer than the applied state",
+			claimed:     true,
+			applied:     false,
+			wantOutcome: model.WebhookSuperseded,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mock, err := pgxmock.NewPool()
+			require.NoError(t, err)
+			defer mock.Close()
+
+			sub := eventSubscription()
+			mock.ExpectQuery("WITH claim AS").
+				WithArgs(applyArgs(sub)...).
+				WillReturnRows(pgxmock.NewRows([]string{"claimed", "applied"}).AddRow(tc.claimed, tc.applied))
+
+			repo := NewSubscriptionRepository(mock)
+			outcome, err := repo.ApplySubscriptionEvent(context.Background(), "evt-1", "subscription.activated", sub)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantOutcome, outcome)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+
+	t.Run("propagates db error without claiming anything", func(t *testing.T) {
 		mock, err := pgxmock.NewPool()
 		require.NoError(t, err)
 		defer mock.Close()
 
-		rows := pgxmock.NewRows([]string{"exists"}).AddRow(true)
-		mock.ExpectQuery("SELECT EXISTS").
-			WithArgs("evt-1").
-			WillReturnRows(rows)
-
-		repo := NewSubscriptionRepository(mock)
-		exists, err := repo.WebhookEventExists(context.Background(), "evt-1")
-		require.NoError(t, err)
-		assert.True(t, exists)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("propagates db error", func(t *testing.T) {
-		mock, err := pgxmock.NewPool()
-		require.NoError(t, err)
-		defer mock.Close()
-
-		mock.ExpectQuery("SELECT EXISTS").
-			WithArgs("evt-1").
+		sub := eventSubscription()
+		mock.ExpectQuery("WITH claim AS").
+			WithArgs(applyArgs(sub)...).
 			WillReturnError(errors.New("boom"))
 
 		repo := NewSubscriptionRepository(mock)
-		_, err = repo.WebhookEventExists(context.Background(), "evt-1")
-		assert.Error(t, err)
+		outcome, err := repo.ApplySubscriptionEvent(context.Background(), "evt-1", "subscription.activated", sub)
+
+		require.Error(t, err)
+		assert.Empty(t, string(outcome), "a failed statement has no outcome to report")
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
-func TestSubscriptionRepository_RecordWebhookEvent(t *testing.T) {
-	mock, err := pgxmock.NewPool()
+func TestApplySubscriptionEventKeepsItsGuardsInOneStatement(t *testing.T) {
+	// The claim gate and the ordering guard are what make this write safe. A
+	// refactor could drop either — or split the statement in two — and still
+	// compile, so the SQL itself is asserted.
+	var executed string
+	capture := pgxmock.QueryMatcherFunc(func(_, actualSQL string) error {
+		executed = actualSQL
+		return nil
+	})
+	mock, err := pgxmock.NewPool(pgxmock.QueryMatcherOption(capture))
 	require.NoError(t, err)
 	defer mock.Close()
 
-	mock.ExpectExec("INSERT INTO webhook_events").
-		WithArgs("evt-1", "subscription.updated").
-		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	sub := eventSubscription()
+	mock.ExpectQuery("").
+		WithArgs(applyArgs(sub)...).
+		WillReturnRows(pgxmock.NewRows([]string{"claimed", "applied"}).AddRow(true, true))
 
 	repo := NewSubscriptionRepository(mock)
-	require.NoError(t, repo.RecordWebhookEvent(context.Background(), "evt-1", "subscription.updated"))
+	_, err = repo.ApplySubscriptionEvent(context.Background(), "evt-1", "subscription.activated", sub)
+	require.NoError(t, err)
+
+	assert.Contains(t, executed, "INSERT INTO webhook_events")
+	assert.Contains(t, executed, "INSERT INTO subscriptions")
+	assert.Contains(t, executed, "FROM claim",
+		"the entitlement write must be gated on winning the claim")
+	assert.Contains(t, executed, "EXCLUDED.last_event_at > subscriptions.last_event_at",
+		"the lifecycle-ordering guard must live in the SQL WHERE, not in a prior read")
+	assert.NotContains(t, executed, "EXCLUDED.last_event_at >= subscriptions.last_event_at",
+		"the guard must be strict: an event carrying the same `changed` describes a change "+
+			"already accounted for, so replaying it could only undo a correct write")
+	assert.NotContains(t, executed, ";",
+		"one statement only — separate statements would not roll back together")
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestSubscriptionRepository_TryClaimWebhookEvent(t *testing.T) {
-	t.Run("returns true when row inserted (won the race)", func(t *testing.T) {
+func TestSubscriptionRepository_GetByExternalAccountID(t *testing.T) {
+	t.Run("returns subscription", func(t *testing.T) {
 		mock, err := pgxmock.NewPool()
 		require.NoError(t, err)
 		defer mock.Close()
 
-		mock.ExpectExec("INSERT INTO webhook_events").
-			WithArgs("evt-1", "type").
-			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		now := time.Now()
+		accountID := "acct-1"
+		rows := pgxmock.NewRows(subscriptionRowColumns()).AddRow(
+			"sub-1", "user-1", (*string)(nil), &accountID, "free", "free",
+			(*time.Time)(nil), (*time.Time)(nil), (*time.Time)(nil), (*time.Time)(nil), now, now,
+		)
+
+		mock.ExpectQuery("WHERE external_account_id = ").
+			WithArgs("acct-1").
+			WillReturnRows(rows)
 
 		repo := NewSubscriptionRepository(mock)
-		claimed, err := repo.TryClaimWebhookEvent(context.Background(), "evt-1", "type")
+		sub, err := repo.GetByExternalAccountID(context.Background(), "acct-1")
 		require.NoError(t, err)
-		assert.True(t, claimed)
+		assert.Equal(t, "user-1", sub.UserID)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("returns false when conflict (already processed)", func(t *testing.T) {
+	t.Run("maps no rows to ErrSubscriptionNotFound", func(t *testing.T) {
 		mock, err := pgxmock.NewPool()
 		require.NoError(t, err)
 		defer mock.Close()
 
-		mock.ExpectExec("INSERT INTO webhook_events").
-			WithArgs("evt-1", "type").
-			WillReturnResult(pgxmock.NewResult("INSERT", 0))
+		mock.ExpectQuery("WHERE external_account_id = ").
+			WithArgs("acct-1").
+			WillReturnError(pgx.ErrNoRows)
 
 		repo := NewSubscriptionRepository(mock)
-		claimed, err := repo.TryClaimWebhookEvent(context.Background(), "evt-1", "type")
+		sub, err := repo.GetByExternalAccountID(context.Background(), "acct-1")
+		assert.Nil(t, sub)
+		assert.ErrorIs(t, err, model.ErrSubscriptionNotFound)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestSubscriptionRepository_LinkExternalAccount(t *testing.T) {
+	t.Run("links the account without granting a plan", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
 		require.NoError(t, err)
-		assert.False(t, claimed)
+		defer mock.Close()
+
+		// The insert seeds a free row; the conflict branch only refreshes the
+		// account so an abandoned checkout cannot upgrade anyone.
+		mock.ExpectExec("INSERT INTO subscriptions").
+			WithArgs("user-1", "acct-1").
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+
+		repo := NewSubscriptionRepository(mock)
+		require.NoError(t, repo.LinkExternalAccount(context.Background(), "user-1", "acct-1"))
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
@@ -440,28 +493,102 @@ func TestSubscriptionRepository_TryClaimWebhookEvent(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		mock.ExpectExec("INSERT INTO webhook_events").
-			WithArgs("evt-1", "type").
+		mock.ExpectExec("INSERT INTO subscriptions").
+			WithArgs("user-1", "acct-1").
 			WillReturnError(errors.New("boom"))
 
 		repo := NewSubscriptionRepository(mock)
-		claimed, err := repo.TryClaimWebhookEvent(context.Background(), "evt-1", "type")
-		assert.Error(t, err)
-		assert.False(t, claimed)
+		require.Error(t, repo.LinkExternalAccount(context.Background(), "user-1", "acct-1"))
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
-func TestSubscriptionRepository_ReleaseWebhookEvent(t *testing.T) {
+func TestSubscriptionRepository_EnsureFree(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	require.NoError(t, err)
 	defer mock.Close()
 
-	mock.ExpectExec("DELETE FROM webhook_events").
-		WithArgs("evt-1").
-		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	mock.ExpectExec("INSERT INTO subscriptions").
+		WithArgs("user-1").
+		WillReturnResult(pgxmock.NewResult("INSERT", 0))
 
 	repo := NewSubscriptionRepository(mock)
-	require.NoError(t, repo.ReleaseWebhookEvent(context.Background(), "evt-1"))
+	require.NoError(t, repo.EnsureFree(context.Background(), "user-1"))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSubscriptionRepository_GetUserContact(t *testing.T) {
+	t.Run("returns the buyer details", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		rows := pgxmock.NewRows([]string{"email", "name", "locale"}).
+			AddRow("buyer@example.com", "Test Buyer", "en")
+		mock.ExpectQuery("SELECT email, name, locale FROM users").
+			WithArgs("user-1").
+			WillReturnRows(rows)
+
+		repo := NewSubscriptionRepository(mock)
+		contact, err := repo.GetUserContact(context.Background(), "user-1")
+		require.NoError(t, err)
+		assert.Equal(t, "buyer@example.com", contact.Email)
+		first, last := contact.FirstLast()
+		assert.Equal(t, "Test", first)
+		assert.Equal(t, "Buyer", last)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("maps a missing user to ErrSubscriptionNotFound", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		mock.ExpectQuery("SELECT email, name, locale FROM users").
+			WithArgs("user-1").
+			WillReturnError(pgx.ErrNoRows)
+
+		repo := NewSubscriptionRepository(mock)
+		_, err = repo.GetUserContact(context.Background(), "user-1")
+		assert.ErrorIs(t, err, model.ErrSubscriptionNotFound)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("propagates generic db error", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		mock.ExpectQuery("SELECT email, name, locale FROM users").
+			WithArgs("user-1").
+			WillReturnError(errors.New("boom"))
+
+		repo := NewSubscriptionRepository(mock)
+		_, err = repo.GetUserContact(context.Background(), "user-1")
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, model.ErrSubscriptionNotFound)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestApplySubscriptionEventPreservesLinkedAccount(t *testing.T) {
+	// The conflict branch must keep an already-linked account when an event
+	// carries none — the COALESCE is what stops a provider payload without an
+	// account from severing the purchase→user link.
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	now := time.Now()
+	sub := &model.Subscription{UserID: "user-1", Status: "active", Plan: "pro", LastEventAt: &now}
+	mock.ExpectQuery(`external_account_id = COALESCE\(EXCLUDED\.external_account_id, subscriptions\.external_account_id\)`).
+		WithArgs(applyArgs(sub)...).
+		WillReturnRows(pgxmock.NewRows([]string{"claimed", "applied"}).AddRow(true, true))
+
+	repo := NewSubscriptionRepository(mock)
+	outcome, err := repo.ApplySubscriptionEvent(context.Background(), "evt-1", "subscription.activated", sub)
+
+	require.NoError(t, err)
+	assert.Equal(t, model.WebhookApplied, outcome)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
