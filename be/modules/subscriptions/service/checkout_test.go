@@ -108,8 +108,14 @@ func TestCreateCheckoutSession(t *testing.T) {
 		assert.NotContains(t, customer["billToContact"], "country",
 			"country is a top-level session field, not a contact field — sending it here would do nothing")
 
-		// Diagnostic only — nothing resolves a user from it.
-		assert.Equal(t, testUserID, req.Body["orderTags"].(map[string]any)[userIDTagKey])
+		// The order tags the webhook resolves a first purchase through. The ID
+		// alone would be forgeable from the storefront, so it travels with the
+		// proof only this server can mint.
+		tags, ok := req.Body["orderTags"].(map[string]any)
+		require.True(t, ok, "a first purchase is resolvable only through these")
+		assert.Equal(t, testUserID, tags[userIDTagKey])
+		assert.True(t, orderTagProofIsValid(testWebhookSecret, testUserID, tags[userProofTagKey].(string)),
+			"the proof written here is the one the webhook verifies")
 
 		assert.Equal(t, testUserID, linkedUser)
 		assert.Equal(t, "acctTest001", linkedAccount)
@@ -140,6 +146,23 @@ func TestCreateCheckoutSession(t *testing.T) {
 					"a test deployment must never open a live checkout, or the reverse")
 			})
 		}
+	})
+
+	t.Run("sends no order tag it cannot prove", func(t *testing.T) {
+		// With no webhook secret there is no key to mint the proof with — and no
+		// webhook ingestion either, so nothing would ever read the tag. Sending a
+		// bare user ID would only put an unverifiable identifier on the wire.
+		svc, captured := newStubProvider(t, &MockSubscriptionRepository{}, func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(sessionResponseBody))
+		})
+		svc.cfg.WebhookSecret = ""
+
+		_, err := svc.CreateCheckoutSession(context.Background(), testUserID, PlanPro)
+
+		require.NoError(t, err)
+		require.Len(t, *captured, 1)
+		assert.NotContains(t, (*captured)[0].Body, "orderTags")
 	})
 
 	t.Run("localises the checkout from the buyer record", func(t *testing.T) {

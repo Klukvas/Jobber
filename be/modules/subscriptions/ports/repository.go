@@ -39,8 +39,12 @@ type SubscriptionRepository interface {
 	//
 	// Claiming and writing must not be separate calls: a crash between them
 	// would leave an event marked processed with its state lost, and the
-	// provider's retry would then be acknowledged as a duplicate. The same
-	// statement enforces lifecycle ordering, so a concurrent delivery of an
-	// older event can never leave the row in the older state.
+	// provider's retry would then be acknowledged as a duplicate.
+	//
+	// The same operation owns two guards, because both have to hold against a
+	// concurrent delivery rather than against a stale read: lifecycle ordering,
+	// so an older event can never leave the row in the older state, and the
+	// single-subscription link, so a user's external_subscription_id is never
+	// replaced while the subscription it names is still billing.
 	ApplySubscriptionEvent(ctx context.Context, eventID, eventType string, sub *model.Subscription) (model.WebhookApplyOutcome, error)
 }

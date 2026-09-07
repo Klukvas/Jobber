@@ -73,6 +73,14 @@ func newRecordingRepo(existing *model.Subscription) *recordingRepo {
 	r.ApplySubscriptionEventFunc = func(_ context.Context, eventID, _ string, sub *model.Subscription) (model.WebhookApplyOutcome, error) {
 		r.mu.Lock()
 		defer r.mu.Unlock()
+
+		// The link guard the real write enforces under a row lock, before it
+		// claims anything: the row holds one external_subscription_id, and it is
+		// never replaced while the subscription it names is still billing.
+		if replacesLiveLink(r.current, sub.ExternalSubscriptionID) {
+			return model.WebhookLinkConflict, nil
+		}
+
 		for _, seen := range r.claims {
 			if seen == eventID {
 				return model.WebhookDuplicate, nil
@@ -94,6 +102,20 @@ func newRecordingRepo(existing *model.Subscription) *recordingRepo {
 		return model.WebhookApplied, nil
 	}
 	return r
+}
+
+// replacesLiveLink mirrors the repository's link guard. It lives here rather
+// than being imported because the service must not depend on the repository —
+// the price is that the two are kept in step by the integration tests that run
+// the real SQL.
+func replacesLiveLink(stored *model.Subscription, incomingID *string) bool {
+	if stored == nil || stored.ExternalSubscriptionID == nil || *stored.ExternalSubscriptionID == "" {
+		return false
+	}
+	if incomingID != nil && *incomingID == *stored.ExternalSubscriptionID {
+		return false
+	}
+	return stored.Status != StatusCancelled
 }
 
 func (r *recordingRepo) lastUpsert(t *testing.T) model.Subscription {

@@ -369,3 +369,225 @@ func TestIntegrationApplySubscriptionEventConcurrentDeliveries(t *testing.T) {
 	// would be redelivered by the provider forever.
 	assert.ElementsMatch(t, []string{"evt-seed", "evt-old", "evt-new"}, recordedEventIDs(t, pool))
 }
+
+// seedSubscriptionRow writes a user's row directly, so a test can start from any
+// state the guard has to judge — including ones only the provider can produce.
+func seedSubscriptionRow(t *testing.T, pool *pgxpool.Pool, userID string, linkedID *string, status, plan string) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO subscriptions (user_id, external_subscription_id, status, plan)
+		 VALUES ($1::uuid, $2::text, $3::text, $4::text)`,
+		userID, linkedID, status, plan)
+	require.NoError(t, err)
+}
+
+func linkedSubscriptionID(t *testing.T, repo *SubscriptionRepository, userID string) string {
+	t.Helper()
+	sub, err := repo.GetByUserID(context.Background(), userID)
+	require.NoError(t, err)
+	if sub.ExternalSubscriptionID == nil {
+		return ""
+	}
+	return *sub.ExternalSubscriptionID
+}
+
+// TestIntegrationApplySubscriptionEventLinkGuard runs the invariant that keeps a
+// subscriber from being billed twice with only one of the two cancellable:
+// the row holds a single external_subscription_id, so it may only be replaced
+// when there is none, when the event describes that very subscription, or when
+// the provider has already ended it.
+//
+// A mock can only replay what the test author believed the SQL does; this runs
+// the real WHERE clause and the real row lock.
+func TestIntegrationApplySubscriptionEventLinkGuard(t *testing.T) {
+	changedAt := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
+
+	// What the row points at before the event lands. The identifiers themselves
+	// are generated per case: external_subscription_id is globally unique, so no
+	// two rows in one schema may name the same subscription.
+	type link int
+	const (
+		linkNone  link = iota // no provider subscription yet
+		linkSame              // the very subscription this event describes
+		linkOther             // a different subscription
+	)
+
+	tests := []struct {
+		name        string
+		link        link
+		status      string
+		wantOutcome model.WebhookApplyOutcome
+	}{
+		{
+			name:        "the first activation links a row that points at nothing",
+			link:        linkNone,
+			status:      "free",
+			wantOutcome: model.WebhookApplied,
+		},
+		{
+			name:        "the same subscription keeps moving through its lifecycle",
+			link:        linkSame,
+			status:      "active",
+			wantOutcome: model.WebhookApplied,
+		},
+		{
+			name:        "a second subscription cannot replace an active one",
+			link:        linkOther,
+			status:      "active",
+			wantOutcome: model.WebhookLinkConflict,
+		},
+		{
+			// Dunning: FastSpring is still trying to charge the old subscription.
+			name:        "a second subscription cannot replace a past-due one",
+			link:        linkOther,
+			status:      "past_due",
+			wantOutcome: model.WebhookLinkConflict,
+		},
+		{
+			// A pause resumes into billing, so the identifier must survive it.
+			name:        "a second subscription cannot replace a paused one",
+			link:        linkOther,
+			status:      "paused",
+			wantOutcome: model.WebhookLinkConflict,
+		},
+		{
+			// A scheduled cancellation is stored as active with cancel_at: access
+			// and billing both run to the deactivation date.
+			name:        "a second subscription cannot replace one winding down",
+			link:        linkOther,
+			status:      "active",
+			wantOutcome: model.WebhookLinkConflict,
+		},
+		{
+			// The provider ended it, so there is nothing left to strand and
+			// buying again is the only way back to a paid plan.
+			name:        "a cancelled subscription may be replaced",
+			link:        linkOther,
+			status:      "cancelled",
+			wantOutcome: model.WebhookApplied,
+		},
+	}
+
+	repo, pool := newIntegrationRepo(t)
+	ctx := context.Background()
+
+	for i, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			userID := fmt.Sprintf("33333333-3333-4333-8333-3333333333%02d", i)
+			incomingID := fmt.Sprintf("SuBsCr1PT10nIncoming%02d", i)
+			eventID := fmt.Sprintf("evt-link-guard-%02d", i)
+
+			var linked *string
+			switch tc.link {
+			case linkSame:
+				linked = &incomingID
+			case linkOther:
+				linked = ptr(fmt.Sprintf("SuBsCr1PT10nAlreadyLinked%02d", i))
+			}
+
+			seedUser(t, pool, userID)
+			seedSubscriptionRow(t, pool, userID, linked, tc.status, "pro")
+
+			outcome, err := repo.ApplySubscriptionEvent(ctx, eventID, "subscription.activated",
+				eventState(userID, incomingID, nil, "active", "enterprise", changedAt))
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantOutcome, outcome)
+
+			if tc.wantOutcome == model.WebhookLinkConflict {
+				require.NotNil(t, linked)
+				assert.Equal(t, *linked, linkedSubscriptionID(t, repo, userID),
+					"the live subscription must still be the one the row points at")
+				assert.NotContains(t, recordedEventIDs(t, pool), eventID,
+					"a refused event claims nothing, so a resend can still land once the old link is ended")
+				return
+			}
+			assert.Equal(t, incomingID, linkedSubscriptionID(t, repo, userID))
+			assert.Contains(t, recordedEventIDs(t, pool), eventID)
+		})
+	}
+}
+
+// TestIntegrationApplySubscriptionEventConcurrentActivations is the race the
+// guard exists for: a user starts two checkouts while free and pays for both, so
+// two activations for two different provider subscriptions land at once.
+//
+// Exactly one may link. If both were allowed the second would overwrite the
+// first identifier and leave that subscription billing at FastSpring with
+// nothing in Jobber able to cancel it.
+func TestIntegrationApplySubscriptionEventConcurrentActivations(t *testing.T) {
+	repo, pool := newIntegrationRepo(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	const (
+		userID = "44444444-4444-4444-8444-444444444444"
+		subA   = "SuBsCr1PT10nJobberRaceA"
+		subB   = "SuBsCr1PT10nJobberRaceB"
+	)
+	seedUser(t, pool, userID)
+	seedSubscriptionRow(t, pool, userID, nil, "free", "free")
+
+	activations := []struct {
+		eventID string
+		subID   string
+	}{
+		{eventID: "evt-activated-a", subID: subA},
+		{eventID: "evt-activated-b", subID: subB},
+	}
+	// Distinct change times, so nothing but the link guard can decide the loser:
+	// the later event would sail past the ordering guard.
+	changedAt := []time.Time{
+		time.Date(2026, 7, 1, 10, 0, 0, 0, time.UTC),
+		time.Date(2026, 7, 1, 11, 0, 0, 0, time.UTC),
+	}
+
+	outcomes := make([]model.WebhookApplyOutcome, len(activations))
+	errs := make([]error, len(activations))
+
+	var ready, done sync.WaitGroup
+	start := make(chan struct{})
+	for i, activation := range activations {
+		ready.Add(1)
+		done.Add(1)
+		go func() {
+			defer done.Done()
+			ready.Done()
+			<-start
+			outcomes[i], errs[i] = repo.ApplySubscriptionEvent(ctx, activation.eventID, "subscription.activated",
+				eventState(userID, activation.subID, nil, "active", "pro", changedAt[i]))
+		}()
+	}
+	ready.Wait()
+	close(start)
+	done.Wait()
+
+	for i, activation := range activations {
+		require.NoError(t, errs[i], "delivery %s failed", activation.eventID)
+	}
+
+	applied, conflicted := 0, 0
+	for _, outcome := range outcomes {
+		switch outcome {
+		case model.WebhookApplied:
+			applied++
+		case model.WebhookLinkConflict:
+			conflicted++
+		}
+	}
+	assert.Equal(t, 1, applied, "exactly one activation may link, got outcomes %v", outcomes)
+	assert.Equal(t, 1, conflicted,
+		"the loser must be reported as a link conflict, not as a routine supersede: got %v", outcomes)
+
+	linked := linkedSubscriptionID(t, repo, userID)
+	assert.Contains(t, []string{subA, subB}, linked)
+
+	// The whole point: the winner is still the one the row names. Neither
+	// activation may have overwritten the other.
+	winner := activations[0]
+	if linked == subB {
+		winner = activations[1]
+	}
+	assert.ElementsMatch(t, []string{winner.eventID}, recordedEventIDs(t, pool),
+		"only the activation that linked may be claimed — the refused one wrote nothing at all")
+}

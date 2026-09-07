@@ -232,6 +232,74 @@ func TestParseSubscriptionReadsChangedTimestamp(t *testing.T) {
 	})
 }
 
+func TestParseSubscriptionReadsOrderTags(t *testing.T) {
+	// `tags` is the merchant-owned object Jobber sets as the session's
+	// `orderTags`. It is what identifies the buyer of a first purchase, whose
+	// FastSpring account did not exist when the session was created — so the
+	// account arrives as a bare ID string and carries no lookup key of ours.
+	t.Run("a first purchase carries the buyer tag alongside a bare account ID", func(t *testing.T) {
+		sub, err := ParseSubscription([]byte(`{
+			"id":"sub-1","subscription":"sub-1","state":"active","active":true,
+			"account":"0_8wJT4fTyC_WpROHjJYQw",
+			"product":{"product":"jobber-enterprise"},
+			"tags":{"jobber_user_id":"550e8400-e29b-41d4-a716-446655440000"}
+		}`))
+
+		require.NoError(t, err)
+		assert.Equal(t, "0_8wJT4fTyC_WpROHjJYQw", sub.AccountID)
+		assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", sub.Tags["jobber_user_id"])
+	})
+
+	t.Run("a charge event keeps the order tags from its outer object", func(t *testing.T) {
+		sub, err := ParseSubscription([]byte(`{
+			"reason":"Payment declined",
+			"account":{"id":"acct-1"},
+			"tags":{"jobber_user_id":"550e8400-e29b-41d4-a716-446655440000"},
+			"subscription":{"id":"sub-1","state":"active","account":"acct-1","product":"jobber-pro"}
+		}`))
+
+		require.NoError(t, err)
+		assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", sub.Tags["jobber_user_id"],
+			"the nested subscription has no tags of its own, so the order's must survive")
+	})
+
+	t.Run("the nested subscription's own tags win over the outer ones", func(t *testing.T) {
+		sub, err := ParseSubscription([]byte(`{
+			"account":{"id":"acct-1"},
+			"tags":{"jobber_user_id":"outer"},
+			"subscription":{"id":"sub-1","state":"active","product":"jobber-pro","tags":{"jobber_user_id":"inner"}}
+		}`))
+
+		require.NoError(t, err)
+		assert.Equal(t, "inner", sub.Tags["jobber_user_id"])
+	})
+
+	t.Run("a non-string tag value costs that tag, not the event", func(t *testing.T) {
+		sub, err := ParseSubscription([]byte(`{
+			"id":"sub-1","state":"active","product":"jobber-pro",
+			"tags":{"jobber_user_id":42,"campaign":"spring"}
+		}`))
+
+		require.NoError(t, err)
+		assert.Empty(t, sub.Tags["jobber_user_id"])
+		assert.Equal(t, "spring", sub.Tags["campaign"])
+	})
+
+	t.Run("a tags field of the wrong shape leaves no tags at all", func(t *testing.T) {
+		sub, err := ParseSubscription([]byte(`{"id":"sub-1","state":"active","product":"jobber-pro","tags":"nope"}`))
+
+		require.NoError(t, err)
+		assert.Empty(t, sub.Tags)
+	})
+
+	t.Run("a payload with no tags reads as no tags", func(t *testing.T) {
+		sub, err := ParseSubscription([]byte(`{"id":"sub-1","state":"active","product":"jobber-pro"}`))
+
+		require.NoError(t, err)
+		assert.Empty(t, sub.Tags, "an absent object must not read as a tag with an empty value")
+	})
+}
+
 func TestPauseAndResumeEventTypes(t *testing.T) {
 	// FastSpring's webhook list includes pause and resume; both must be named
 	// here or the dashboard could be subscribed to events nothing acts on.
