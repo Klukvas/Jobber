@@ -7,11 +7,14 @@ import (
 	"time"
 
 	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
+	"github.com/andreypavlenko/jobber/modules/subscriptions/service"
 	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func ptr[T any](v T) *T { return &v }
 
 func subscriptionRowColumns() []string {
 	return []string{
@@ -299,8 +302,8 @@ func TestSubscriptionRepository_GetAllCounts(t *testing.T) {
 	})
 }
 
-// applyArgs is the argument list ApplySubscriptionEvent sends: the event claim
-// followed by the subscription state it carries.
+// applyArgs is the argument list the claim-and-write statement sends: the event
+// claim followed by the subscription state it carries.
 func applyArgs(sub *model.Subscription) []any {
 	return []any{
 		"evt-1", "subscription.activated",
@@ -322,6 +325,20 @@ func eventSubscription() *model.Subscription {
 		Plan:                   "pro",
 		LastEventAt:            &changedAt,
 	}
+}
+
+// linkRow is what the apply transaction locks and reads before it writes: the
+// provider subscription this user is linked to, and the status that says
+// whether it still bills.
+func linkRow(linkedID *string, status string) *pgxmock.Rows {
+	return pgxmock.NewRows([]string{"external_subscription_id", "status"}).AddRow(linkedID, status)
+}
+
+// expectLinkRead queues the locking read the transaction opens with. Its
+// argument is the user ID, never the event, because the row it protects belongs
+// to the user rather than to any one delivery.
+func expectLinkRead(mock pgxmock.PgxPoolIface, userID string, linkedID *string, status string) {
+	mock.ExpectQuery("FOR UPDATE").WithArgs(userID).WillReturnRows(linkRow(linkedID, status))
 }
 
 func TestSubscriptionRepository_ApplySubscriptionEvent(t *testing.T) {
@@ -362,9 +379,12 @@ func TestSubscriptionRepository_ApplySubscriptionEvent(t *testing.T) {
 			defer mock.Close()
 
 			sub := eventSubscription()
+			mock.ExpectBegin()
+			expectLinkRead(mock, sub.UserID, sub.ExternalSubscriptionID, "active")
 			mock.ExpectQuery("WITH claim AS").
 				WithArgs(applyArgs(sub)...).
 				WillReturnRows(pgxmock.NewRows([]string{"claimed", "applied"}).AddRow(tc.claimed, tc.applied))
+			mock.ExpectCommit()
 
 			repo := NewSubscriptionRepository(mock)
 			outcome, err := repo.ApplySubscriptionEvent(context.Background(), "evt-1", "subscription.activated", sub)
@@ -375,15 +395,39 @@ func TestSubscriptionRepository_ApplySubscriptionEvent(t *testing.T) {
 		})
 	}
 
+	t.Run("a user with no row yet is written without a link check to make", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		sub := eventSubscription()
+		mock.ExpectBegin()
+		mock.ExpectQuery("FOR UPDATE").WithArgs(sub.UserID).WillReturnError(pgx.ErrNoRows)
+		mock.ExpectQuery("WITH claim AS").
+			WithArgs(applyArgs(sub)...).
+			WillReturnRows(pgxmock.NewRows([]string{"claimed", "applied"}).AddRow(true, true))
+		mock.ExpectCommit()
+
+		repo := NewSubscriptionRepository(mock)
+		outcome, err := repo.ApplySubscriptionEvent(context.Background(), "evt-1", "subscription.activated", sub)
+
+		require.NoError(t, err)
+		assert.Equal(t, model.WebhookApplied, outcome)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
 	t.Run("propagates db error without claiming anything", func(t *testing.T) {
 		mock, err := pgxmock.NewPool()
 		require.NoError(t, err)
 		defer mock.Close()
 
 		sub := eventSubscription()
+		mock.ExpectBegin()
+		expectLinkRead(mock, sub.UserID, sub.ExternalSubscriptionID, "active")
 		mock.ExpectQuery("WITH claim AS").
 			WithArgs(applyArgs(sub)...).
 			WillReturnError(errors.New("boom"))
+		mock.ExpectRollback()
 
 		repo := NewSubscriptionRepository(mock)
 		outcome, err := repo.ApplySubscriptionEvent(context.Background(), "evt-1", "subscription.activated", sub)
@@ -392,15 +436,194 @@ func TestSubscriptionRepository_ApplySubscriptionEvent(t *testing.T) {
 		assert.Empty(t, string(outcome), "a failed statement has no outcome to report")
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
+
+	t.Run("an unreadable link is an error, never a silent overwrite", func(t *testing.T) {
+		// The read is the guard. If it cannot be answered the event must be
+		// retried, not applied on the assumption that there was nothing to
+		// protect.
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		sub := eventSubscription()
+		mock.ExpectBegin()
+		mock.ExpectQuery("FOR UPDATE").WithArgs(sub.UserID).WillReturnError(errors.New("boom"))
+		mock.ExpectRollback()
+
+		repo := NewSubscriptionRepository(mock)
+		outcome, err := repo.ApplySubscriptionEvent(context.Background(), "evt-1", "subscription.activated", sub)
+
+		require.Error(t, err)
+		assert.Empty(t, string(outcome))
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("a failed commit is reported rather than counted as applied", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		sub := eventSubscription()
+		mock.ExpectBegin()
+		expectLinkRead(mock, sub.UserID, sub.ExternalSubscriptionID, "active")
+		mock.ExpectQuery("WITH claim AS").
+			WithArgs(applyArgs(sub)...).
+			WillReturnRows(pgxmock.NewRows([]string{"claimed", "applied"}).AddRow(true, true))
+		mock.ExpectCommit().WillReturnError(errors.New("connection lost"))
+
+		repo := NewSubscriptionRepository(mock)
+		outcome, err := repo.ApplySubscriptionEvent(context.Background(), "evt-1", "subscription.activated", sub)
+
+		require.Error(t, err)
+		assert.Empty(t, string(outcome), "an uncommitted transaction claimed nothing")
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("a transaction that cannot be opened is an error", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		mock.ExpectBegin().WillReturnError(errors.New("no connection"))
+
+		repo := NewSubscriptionRepository(mock)
+		outcome, err := repo.ApplySubscriptionEvent(context.Background(), "evt-1", "subscription.activated", eventSubscription())
+
+		require.Error(t, err)
+		assert.Empty(t, string(outcome))
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+// TestApplySubscriptionEventLinkGuard covers the invariant that a user's single
+// external_subscription_id is never replaced while the subscription it names is
+// still billing.
+//
+// Without it, a user who starts two checkouts while free and pays for both ends
+// up with the second activation overwriting the first identifier: subscription
+// one keeps charging at FastSpring with nothing in Jobber pointing at it, so
+// neither the user nor the app can cancel it.
+func TestApplySubscriptionEventLinkGuard(t *testing.T) {
+	const incomingID = "psub-1"
+	other := "psub-other"
+	empty := ""
+
+	tests := []struct {
+		name     string
+		linkedID *string
+		status   string
+		refuse   bool
+	}{
+		{
+			name:     "nothing linked yet, so the first activation links",
+			linkedID: nil,
+			status:   "free",
+		},
+		{
+			name:     "an empty stored id is no link either",
+			linkedID: &empty,
+			status:   "free",
+		},
+		{
+			name:     "the same subscription moving through its lifecycle",
+			linkedID: ptr(incomingID),
+			status:   "active",
+		},
+		{
+			name:     "a second subscription while the first is active",
+			linkedID: &other,
+			status:   "active",
+			refuse:   true,
+		},
+		{
+			// past_due is a dunning period: FastSpring is still trying to charge.
+			name:     "a second subscription while the first is past due",
+			linkedID: &other,
+			status:   "past_due",
+			refuse:   true,
+		},
+		{
+			// A paused subscription resumes into billing; its id must survive.
+			name:     "a second subscription while the first is paused",
+			linkedID: &other,
+			status:   "paused",
+			refuse:   true,
+		},
+		{
+			// A scheduled cancellation is stored as active with cancel_at, so the
+			// status the guard sees is the one that still bills.
+			name:     "a second subscription while the first is winding down",
+			linkedID: &other,
+			status:   "active",
+			refuse:   true,
+		},
+		{
+			name:     "a replacement once the provider has ended the old one",
+			linkedID: &other,
+			status:   "cancelled",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mock, err := pgxmock.NewPool()
+			require.NoError(t, err)
+			defer mock.Close()
+
+			sub := eventSubscription()
+			mock.ExpectBegin()
+			expectLinkRead(mock, sub.UserID, tc.linkedID, tc.status)
+			if tc.refuse {
+				mock.ExpectRollback()
+			} else {
+				mock.ExpectQuery("WITH claim AS").
+					WithArgs(applyArgs(sub)...).
+					WillReturnRows(pgxmock.NewRows([]string{"claimed", "applied"}).AddRow(true, true))
+				mock.ExpectCommit()
+			}
+
+			repo := NewSubscriptionRepository(mock)
+			outcome, err := repo.ApplySubscriptionEvent(context.Background(), "evt-1", "subscription.activated", sub)
+
+			require.NoError(t, err)
+			if tc.refuse {
+				assert.Equal(t, model.WebhookLinkConflict, outcome)
+			} else {
+				assert.Equal(t, model.WebhookApplied, outcome)
+			}
+			// The expectations are the assertion that a refusal wrote nothing:
+			// no claim statement was queued, so running one would fail the mock.
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+
+	t.Run("an event that carries no subscription id cannot erase a live link", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		sub := eventSubscription()
+		sub.ExternalSubscriptionID = nil
+		mock.ExpectBegin()
+		expectLinkRead(mock, sub.UserID, &other, "active")
+		mock.ExpectRollback()
+
+		repo := NewSubscriptionRepository(mock)
+		outcome, err := repo.ApplySubscriptionEvent(context.Background(), "evt-1", "subscription.activated", sub)
+
+		require.NoError(t, err)
+		assert.Equal(t, model.WebhookLinkConflict, outcome)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
 }
 
 func TestApplySubscriptionEventKeepsItsGuardsInOneStatement(t *testing.T) {
-	// The claim gate and the ordering guard are what make this write safe. A
-	// refactor could drop either — or split the statement in two — and still
-	// compile, so the SQL itself is asserted.
-	var executed string
+	// The claim gate, the ordering guard and the link guard are what make this
+	// write safe. A refactor could drop any of them — or split the statement in
+	// two — and still compile, so the SQL itself is asserted.
+	var statements []string
 	capture := pgxmock.QueryMatcherFunc(func(_, actualSQL string) error {
-		executed = actualSQL
+		statements = append(statements, actualSQL)
 		return nil
 	})
 	mock, err := pgxmock.NewPool(pgxmock.QueryMatcherOption(capture))
@@ -408,13 +631,25 @@ func TestApplySubscriptionEventKeepsItsGuardsInOneStatement(t *testing.T) {
 	defer mock.Close()
 
 	sub := eventSubscription()
+	mock.ExpectBegin()
+	mock.ExpectQuery("").
+		WithArgs(sub.UserID).
+		WillReturnRows(linkRow(sub.ExternalSubscriptionID, "active"))
 	mock.ExpectQuery("").
 		WithArgs(applyArgs(sub)...).
 		WillReturnRows(pgxmock.NewRows([]string{"claimed", "applied"}).AddRow(true, true))
+	mock.ExpectCommit()
 
 	repo := NewSubscriptionRepository(mock)
 	_, err = repo.ApplySubscriptionEvent(context.Background(), "evt-1", "subscription.activated", sub)
 	require.NoError(t, err)
+
+	require.Len(t, statements, 2, "expected the locking read and the claim-and-write")
+	read, executed := statements[0], statements[1]
+
+	assert.Contains(t, read, "FOR UPDATE",
+		"the link must be read under a row lock, or a concurrent activation could pass the check "+
+			"and still overwrite it")
 
 	assert.Contains(t, executed, "INSERT INTO webhook_events")
 	assert.Contains(t, executed, "INSERT INTO subscriptions")
@@ -425,9 +660,21 @@ func TestApplySubscriptionEventKeepsItsGuardsInOneStatement(t *testing.T) {
 	assert.NotContains(t, executed, "EXCLUDED.last_event_at >= subscriptions.last_event_at",
 		"the guard must be strict: an event carrying the same `changed` describes a change "+
 			"already accounted for, so replaying it could only undo a correct write")
+	assert.Contains(t, executed, "subscriptions.external_subscription_id = EXCLUDED.external_subscription_id",
+		"the link guard must be re-evaluated by the write itself against the row version a "+
+			"concurrent writer committed, not only by the read that precedes it")
+	assert.Contains(t, executed, "subscriptions.status = 'cancelled'",
+		"a replacement is allowed only once the provider has ended the old subscription")
 	assert.NotContains(t, executed, ";",
 		"one statement only — separate statements would not roll back together")
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestStoredCancelledStatusMatchesTheService pins the one string the SQL guard
+// and the service's status vocabulary have to agree on. The repository cannot
+// import the service package, so nothing but this test would notice a rename.
+func TestStoredCancelledStatusMatchesTheService(t *testing.T) {
+	assert.Equal(t, service.StatusCancelled, statusCancelled)
 }
 
 func TestSubscriptionRepository_GetByExternalAccountID(t *testing.T) {
@@ -581,9 +828,12 @@ func TestApplySubscriptionEventPreservesLinkedAccount(t *testing.T) {
 
 	now := time.Now()
 	sub := &model.Subscription{UserID: "user-1", Status: "active", Plan: "pro", LastEventAt: &now}
+	mock.ExpectBegin()
+	expectLinkRead(mock, sub.UserID, nil, "free")
 	mock.ExpectQuery(`external_account_id = COALESCE\(EXCLUDED\.external_account_id, subscriptions\.external_account_id\)`).
 		WithArgs(applyArgs(sub)...).
 		WillReturnRows(pgxmock.NewRows([]string{"claimed", "applied"}).AddRow(true, true))
+	mock.ExpectCommit()
 
 	repo := NewSubscriptionRepository(mock)
 	outcome, err := repo.ApplySubscriptionEvent(context.Background(), "evt-1", "subscription.activated", sub)

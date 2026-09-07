@@ -201,33 +201,38 @@ func (r *SubscriptionRepository) GetAllCounts(ctx context.Context, userID string
 	return
 }
 
-// ApplySubscriptionEvent claims the webhook event and writes the subscription
-// state it carries in a single statement.
+// statusCancelled is the one stored status that means the provider has ended a
+// subscription, so its identifier is safe to replace. It mirrors
+// service.StatusCancelled, which this package cannot import; the two are pinned
+// together by TestStoredCancelledStatusMatchesTheService.
+const statusCancelled = "cancelled"
+
+// applySubscriptionEventSQL claims the webhook event and writes the state it
+// carries.
 //
 // The claim (`webhook_events`) and the entitlement write (`subscriptions`) sit
 // in one CTE so PostgreSQL rolls both back together: a failure can never leave
 // an event claimed with its state unapplied, which would make the provider's
 // retry look like a duplicate and strand the subscriber on the old plan.
 //
-// The lifecycle-ordering guard lives in the UPDATE's WHERE clause rather than
-// in a prior read, so two deliveries racing on the same row cannot interleave
-// into the older state: ON CONFLICT DO UPDATE re-evaluates the condition
-// against the row version the other writer just committed.
+// Both guards live in the UPDATE's WHERE clause rather than in a prior read, so
+// two deliveries racing on the same row cannot interleave: ON CONFLICT DO UPDATE
+// re-evaluates the condition against the row version the other writer just
+// committed.
 //
-// The comparison is strictly greater-than, so an event bearing the *same*
-// `data.changed` as the applied state is superseded rather than replayed. Two
-// events describing one change (a charge and the subscription update it
-// triggers) normalise to the same state, so re-applying the second can only
-// undo a correct write when it arrives out of order — first writer wins, and
-// the loser is still recorded as processed.
-//
-// The outcome distinguishes the three cases the caller must treat differently:
-// applied, an already-seen duplicate, and a claimed-but-superseded event (which
-// is still recorded as processed so the provider stops redelivering it).
-func (r *SubscriptionRepository) ApplySubscriptionEvent(
-	ctx context.Context, eventID, eventType string, sub *model.Subscription,
-) (model.WebhookApplyOutcome, error) {
-	const query = `
+//   - Lifecycle ordering is strictly greater-than, so an event bearing the
+//     *same* `data.changed` as the applied state is superseded rather than
+//     replayed. Two events describing one change (a charge and the subscription
+//     update it triggers) normalise to the same state, so re-applying the second
+//     can only undo a correct write when it arrives out of order — first writer
+//     wins, and the loser is still recorded as processed.
+//   - The link guard refuses to overwrite a *different*, still-live
+//     external_subscription_id. The row holds exactly one, so replacing it would
+//     leave a subscription billing at FastSpring with nothing in Jobber pointing
+//     at it. A first link (nothing stored), the same subscription moving through
+//     its lifecycle, and a replacement after the provider ended the old one are
+//     all allowed.
+const applySubscriptionEventSQL = `
 		WITH claim AS (
 			INSERT INTO webhook_events (event_id, event_type)
 			VALUES ($1, $2)
@@ -254,14 +259,70 @@ func (r *SubscriptionRepository) ApplySubscriptionEvent(
 				cancel_at = EXCLUDED.cancel_at,
 				last_event_at = EXCLUDED.last_event_at,
 				updated_at = NOW()
-			WHERE subscriptions.last_event_at IS NULL
-			   OR EXCLUDED.last_event_at > subscriptions.last_event_at
+			WHERE (subscriptions.last_event_at IS NULL
+			       OR EXCLUDED.last_event_at > subscriptions.last_event_at)
+			  AND (COALESCE(subscriptions.external_subscription_id, '') = ''
+			       OR subscriptions.external_subscription_id = EXCLUDED.external_subscription_id
+			       OR subscriptions.status = '` + statusCancelled + `')
 			RETURNING user_id
 		)
 		SELECT EXISTS (SELECT 1 FROM claim), EXISTS (SELECT 1 FROM applied)`
 
+// lockLinkedSubscriptionSQL reads the provider subscription a user's row is
+// currently linked to and locks that row for the rest of the transaction, so the
+// link cannot change between the decision and the write.
+const lockLinkedSubscriptionSQL = `
+		SELECT external_subscription_id, status
+		FROM subscriptions
+		WHERE user_id = $1::uuid
+		FOR UPDATE`
+
+// ApplySubscriptionEvent claims the webhook event and writes the subscription
+// state it carries, in one transaction.
+//
+// Two invariants have to hold together, which is why this is a transaction and
+// not a bare statement:
+//
+//  1. an event is claimed if and only if its state was written. Claiming
+//     separately would let a crash record an event as processed with its state
+//     lost, and the provider's retry would then be dismissed as a duplicate.
+//  2. a user's single external_subscription_id is never replaced while the
+//     subscription it names is still billing. Two checkouts started while free
+//     and both paid would otherwise leave the second activation overwriting the
+//     first identifier, stranding a live subscription neither the user nor the
+//     app can cancel.
+//
+// The second invariant is decided here, under the row lock the opening read
+// takes, so it holds for *every* way the owning row was resolved — the order tag
+// and the provider account ID alike. A conflict returns before anything is
+// claimed or written, leaving the event free to land later if the stale link is
+// genuinely ended; the same condition is repeated in the write's WHERE clause as
+// the backstop for the one case the lock cannot cover, a row that did not exist
+// when the read ran.
+//
+// The outcome distinguishes the four cases the caller must treat differently:
+// applied, an already-seen duplicate, a claimed-but-superseded event (still
+// recorded as processed so the provider stops redelivering it), and a link
+// conflict.
+func (r *SubscriptionRepository) ApplySubscriptionEvent(
+	ctx context.Context, eventID, eventType string, sub *model.Subscription,
+) (model.WebhookApplyOutcome, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to begin apply of subscription event %q: %w", eventID, err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback is a no-op after commit
+
+	conflict, err := linkConflicts(ctx, tx, sub)
+	if err != nil {
+		return "", fmt.Errorf("failed to read the subscription linked to user %q: %w", sub.UserID, err)
+	}
+	if conflict {
+		return model.WebhookLinkConflict, nil
+	}
+
 	var claimed, applied bool
-	err := r.pool.QueryRow(ctx, query,
+	err = tx.QueryRow(ctx, applySubscriptionEventSQL,
 		eventID, eventType,
 		sub.UserID, sub.ExternalSubscriptionID, sub.ExternalAccountID,
 		sub.Status, sub.Plan, sub.CurrentPeriodStart, sub.CurrentPeriodEnd,
@@ -269,6 +330,9 @@ func (r *SubscriptionRepository) ApplySubscriptionEvent(
 	).Scan(&claimed, &applied)
 	if err != nil {
 		return "", fmt.Errorf("failed to apply subscription event %q: %w", eventID, err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return "", fmt.Errorf("failed to commit subscription event %q: %w", eventID, err)
 	}
 
 	switch {
@@ -279,4 +343,36 @@ func (r *SubscriptionRepository) ApplySubscriptionEvent(
 	default:
 		return model.WebhookApplied, nil
 	}
+}
+
+// linkConflicts locks the user's subscription row and reports whether the
+// incoming event would replace a provider subscription that is still alive.
+//
+// A missing row is not a conflict: there is no identifier to strand, and the
+// write's own WHERE clause still refuses a replacement if a row appears in the
+// meantime.
+func linkConflicts(ctx context.Context, tx pgx.Tx, sub *model.Subscription) (bool, error) {
+	var linkedID *string
+	var status string
+	err := tx.QueryRow(ctx, lockLinkedSubscriptionSQL, sub.UserID).Scan(&linkedID, &status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return replacesLiveSubscription(linkedID, status, sub.ExternalSubscriptionID), nil
+}
+
+// replacesLiveSubscription mirrors the write's link guard: the stored
+// identifier may be replaced only when there is none, when the event carries
+// that very subscription, or when the provider has already ended it.
+func replacesLiveSubscription(linkedID *string, status string, incomingID *string) bool {
+	if linkedID == nil || *linkedID == "" {
+		return false
+	}
+	if incomingID != nil && *incomingID == *linkedID {
+		return false
+	}
+	return status != statusCancelled
 }

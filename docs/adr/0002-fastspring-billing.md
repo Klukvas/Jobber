@@ -34,6 +34,11 @@ that identifies the buyer travels server-to-server:
    `subscriptions.external_account_id` for the user *before* returning — plan and
    status are untouched, so an abandoned checkout grants nothing.
 
+   **A first-time buyer has no account yet.** FastSpring mints it *during*
+   checkout, so `customer.accountId` comes back empty and there is nothing to
+   link. That is the normal case for every new subscriber, not an error — step 4
+   is what covers it.
+
    The response's `checkoutUrls.webcheckoutUrl` is **not decoded and not
    returned**. It addresses the full-page hosted Web Checkout, which this
    integration no longer uses; keeping it in the DTO would only invite a
@@ -47,26 +52,101 @@ that identifies the buyer travels server-to-server:
    `READY_FOR_CHECKOUT`; an absent or empty status list is not ready, and a
    session that never claimed to be payable is not opened.
 4. [`subscription.activated`](https://developer.fastspring.com/reference/subscriptionactivated)
-   arrives carrying `data.account.id`. The backend resolves the owner by, in
-   order: the provider subscription ID, then that account ID, then — only if
-   both miss — [`GET /accounts/{id}`](https://developer.fastspring.com/reference/retrieve-an-account)
-   to read back `lookup.custom` and decode the user UUID from it.
+   arrives carrying the account (`data.account`, an object on most events and a
+   bare ID string on others) and the order's `data.tags`. The backend resolves
+   the owner by, in order: the provider subscription ID, then that account ID,
+   then the **proven `jobber_user_id` order tag** (see *The order tag is a claim,
+   not an identifier* below), then —
+   only if all three miss — [`GET /accounts/{id}`](https://developer.fastspring.com/reference/retrieve-an-account)
+   to read back `lookup.custom` and decode the user UUID from it. Whichever hop
+   wins, the event's account ID *and* subscription ID are written to the row, so
+   every later event resolves on the first hop.
 
-   > ⚠️ **Unverified assumption — must be confirmed with a real test-mode
-   > purchase.** Step 4's last hop assumes the session's
-   > `customer.externalAccountId` is what FastSpring stores as the account's
-   > `lookup.custom`. The two fields are documented separately and nothing in the
-   > reference states that the first populates the second; the code was written
-   > against that reading, not against an observed payload. Until a test-mode
-   > purchase confirms it (see the go-live checklist below), treat this path as
-   > *unproven*. It is only a third-line fallback — the subscription ID and the
-   > account ID recorded at session creation resolve the normal case — so if the
-   > assumption turns out to be wrong, an unresolvable event fails and is retried
-   > rather than granting access to the wrong user.
+   > ✅ **Settled by a test-mode purchase (order for `jobber-enterprise`,
+   > `subscription.activated` `EVWBPALB…`).** The assumption the first version of
+   > this design rested on — that a session's `customer.externalAccountId`
+   > becomes the account's `lookup.custom` — is **false for this store**.
+   > `GET /accounts/{id}` for the account that purchase created returns a
+   > `lookup` holding only `global`; there is no `custom` key. Combined with the
+   > empty `customer.accountId` in step 2, that left a first purchase with *no*
+   > resolvable identifier at all: the event was classified as another product's
+   > and acknowledged away, and the buyer stayed on the free plan.
+   >
+   > The same signed payload did carry `data.tags.jobber_user_id`, which is why
+   > the order tag is now a resolution hop rather than a breadcrumb. The
+   > `lookup.custom` hop is kept below it: it costs nothing when the tag already
+   > resolved, and it still works if FastSpring populates the field later.
 
-Every link in that chain is a value Jobber itself wrote through an authenticated
-server-to-server call. A `user_id` posted from client JavaScript is never read;
-the request DTO carries a plan and nothing else.
+Three of those four hops read a value Jobber itself wrote through an
+authenticated server-to-server call and then stored: the subscription ID, the
+account ID, and the account's custom lookup key. The fourth — the order tag — is
+the one value that arrives *inside* the event, and it is trusted only because of
+the proof described below. A `user_id` posted from client JavaScript is never
+read; the request DTO carries a plan and nothing else.
+
+## The order tag is a claim, not an identifier
+
+**Order tags are not a server-only channel.** The Store Builder Library exposes
+[`fastspring.builder.tag()`](https://developer.fastspring.com/docs/store-builder-library-sbl),
+so any visitor to the shared FluxLab storefront can attach arbitrary tags to
+their *own* order, and FastSpring echoes them into the webhook payload exactly
+like the ones Jobber's session-creation call wrote. The webhook HMAC proves that
+**FastSpring sent the event** — it says nothing about **who authored a tag inside
+it**.
+
+Reading `jobber_user_id` on its own would therefore be a privilege-escalation
+path: load the storefront directly, tag the order with a known victim's UUID, buy
+`jobber-enterprise`, and the victim's row is repointed at the attacker's
+subscription — the victim loses their own checkout (one subscription per user)
+and the account-management portal authenticates them into the attacker's billing
+account. A product allowlist and a UUID format check bound that attack; they do
+not remove it.
+
+So the ID travels with a **proof**: `jobber_user_proof`, an HMAC-SHA256 over a
+domain- and version-separated message containing that same canonical UUID,
+minted at session creation and verified in constant time when the event comes
+back. An unauthenticated storefront visitor can write the ID; they cannot write a
+MAC they have no key for, and moving a proof onto a different UUID invalidates it.
+
+The MAC key is the **FastSpring webhook secret**, deliberately:
+
+- it is already the root of trust for this path. Forging a proof needs the same
+  secret that would let an attacker forge an entire signed event, so reusing it
+  hands an attacker nothing they did not already have;
+- it exists in exactly the deployments where the proof matters — the secret is
+  required whenever webhook ingestion is enabled, and with it absent no event is
+  accepted at all, so there is no window where a claim is read but unprovable by
+  configuration;
+- it needs no new environment variable, no new secret to leak, and no migration.
+
+Domain separation (`jobber.fastspring.order-tag`, version `v1`, NUL-separated)
+keeps the two uses of that key apart in the direction that matters: FastSpring
+signs only its own event batches, and a JSON object is never a message beginning
+with that domain string — so no captured body signature is also a valid proof.
+
+The reverse is not a property of the construction, and saying so is cheaper than
+pretending otherwise. A user's own proof is a MAC under the same secret, so its
+owner can re-encode it as an `X-FS-Signature` and POST the one body it matches:
+the raw domain message. That request passes signature verification and then dies
+in parsing — the body is not a JSON event batch, so no event ever exists to
+apply. It buys an attacker a 400 on their own request, and no other body, because
+signing one would still need the secret.
+
+Two consequences worth stating plainly:
+
+- **Rotation.** A proof minted before the webhook secret changes will not verify
+  after it, so a checkout in flight across a rotation loses its tag hop. That
+  window is one checkout-session lifetime — the same window in which in-flight
+  deliveries already fail their signature — and it fails loudly
+  (`ErrUnprovenOrderTag`, logged at `warn`), never by resolving the wrong user.
+- **No expiry, no nonce.** The proof is deterministic per user on purpose. It
+  authorises exactly one thing — "this order belongs to user X" — and the only
+  party who can obtain a proof for X is X, through an authenticated call. Replay
+  by its owner attributes their own purchase to themselves, which is what the tag
+  is *for*; the one-subscription guard below is what stops that from repointing a
+  subscription they are already paying for. An expiry would buy nothing against
+  that and would start rejecting legitimate late deliveries — a webhook retried
+  for hours, or an activation that lands long after checkout.
 
 ## One subscriber, one subscription
 
@@ -85,6 +165,32 @@ that one, so buying again is the only way back to a paid plan. A database error
 is never swallowed into "go ahead": an unreadable subscription fails the
 checkout rather than bypassing the guard.
 
+That check is the first line of the rule, not the rule itself. It runs before
+FastSpring is called, so nothing stops a user from opening two checkouts while
+they are still free — both reads see a row with nothing to protect — and then
+paying for both. The second activation resolves through the provider account ID,
+a hop no order tag is involved in, and would overwrite the identifier the first
+one wrote.
+
+So the invariant is enforced where the write happens. `ApplySubscriptionEvent`
+opens a transaction, locks the user's row (`SELECT … FOR UPDATE`), and refuses
+any event that would replace a non-null `external_subscription_id` with a
+different one while the stored status is not `cancelled` — reporting
+`WebhookLinkConflict` → `ErrSubscriptionLinkConflict`, logged at `warn`. Three
+things stay allowed: the first link, when nothing is stored; any number of
+lifecycle events for the subscription the row already names; and a replacement
+once the provider has ended the old one. The same condition is repeated in the
+write's own `WHERE` clause, so it is re-evaluated against the row version a
+concurrent writer committed rather than against the read that preceded it.
+
+A refused event claims nothing and writes nothing — the transaction rolls back
+whole — so once the stale link is genuinely ended, a resend from the dashboard
+can still land. It is acknowledged rather than retried, because no redelivery
+makes a second subscription fit one row, and it is reported as its own outcome
+rather than as a routine supersede. That distinction is the point of the `warn`:
+somebody may be paying for two subscriptions with only one of them cancellable
+from Jobber, and a human has to decide which one to end.
+
 The UI enforces the same rule one step earlier, so a subscriber never sees the
 409: the pricing and upgrade modals route a paying user to
 `POST /subscription/change-plan` instead of a checkout. Going *back* to free is
@@ -94,9 +200,18 @@ defence in depth for any other client.
 
 `order.completed` is acknowledged but deliberately **not** acted on. Entitlement
 comes from the subscription lifecycle events alone, which avoids a second grant
-racing `subscription.activated`. An `orderTags` value is still sent at session
-creation as a diagnostic breadcrumb, but no code reads it: tags are not part of
-the documented subscription event payload, so relying on them would be guessing.
+racing `subscription.activated`. The `orderTags` sent at session creation are
+read from the *subscription* events instead, where FastSpring echoes them back as
+`data.tags` — so nothing has to act on the order to know whose purchase it was.
+
+The tag path carries the same guard one step earlier, and keeps it for the
+diagnosis rather than for the invariant: a buyer can replay their own proof onto
+a storefront purchase Jobber never brokered, and a tag naming a user who already
+holds a live provider subscription is refused as `ErrTaggedOwnerConflict` — which
+names the suspicious input, an order tag, instead of leaving it to look like
+Jobber's own flows colliding. It is a read taken before a separate write, so it
+cannot be the last word; the atomic guard above is, on that hop as on every
+other.
 
 ## One config value governs both halves of the checkout
 
@@ -189,16 +304,47 @@ used by any user-facing path.
 - **Environment guard.** Each event carries `live`. An event from the other mode
   is acknowledged (retrying could never make it processable) but never applied.
   Acknowledging *loses* it, and the only cause is a deployment pointed at the
-  wrong environment, so this one skip is logged at `warn` while every other skip
+  wrong environment, so it is logged at `warn`. Two other skips are — the
+  unproven order tag and the tagged-owner conflict below; every routine skip
   stays at `info`.
 - **Someone else's customer is skipped, not retried.** The FluxLab store sells
   more than Jobber, so the other products' subscription lifecycle events arrive
-  on this endpoint too. When neither local ID resolves an event, the account's
-  `lookup.custom` decides: no `jobber-` key means the account is not ours, and
-  the event is acknowledged and dropped — no retry could ever make it
-  resolvable. The two neighbouring failures stay retryable on purpose: an
-  unreachable account API says nothing about ownership, and a `jobber-` key
-  whose user row is missing is a link to repair, not a foreign purchase.
+  on this endpoint too. When neither local ID resolves an event, the order tag
+  and then the account's `lookup.custom` decide: no `jobber_user_id` tag at all
+  *and* no `jobber-` key means the purchase is not ours, and the event is
+  acknowledged and dropped — no retry could ever make it resolvable. The two
+  neighbouring failures stay retryable on purpose: an unreachable account API
+  says nothing about ownership, and a Jobber identifier whose user row is missing
+  is a link to repair, not a foreign purchase.
+- **The order tag is trusted under three conditions, and only three.** It arrives
+  inside the HMAC-verified body, but that proves only that FastSpring sent the
+  event — the storefront's own `fastspring.builder.tag()` lets a visitor write
+  tags too, so on its own it authorises nothing:
+  1. **The product must be Jobber's.** A purchase of another FluxLab product can
+     never claim a Jobber user, however its order is tagged — that is what keeps
+     a shared store from being a privilege-escalation path. Checked first, so a
+     foreign product's tags are not read at all.
+  2. **The claim must carry a valid `jobber_user_proof`** for the canonical UUID
+     it names — the MAC described above, compared in constant time. A missing,
+     malformed, truncated, wrong-version, wrong-user or wrong-secret proof
+     resolves nothing. Because the product is one of ours, this is an integrity
+     anomaly rather than a routine miss: it is reported as `ErrUnprovenOrderTag`,
+     acknowledged (no redelivery could make an unprovable claim provable) and
+     logged at `warn`. It does **not** fall through to another hop — a payload
+     Jobber has reason to distrust is not resolved by other means.
+     An order carrying *no* user tag makes no claim at all and is a different
+     thing: it simply falls through to the lookup key, which is where every
+     foreign order in the shared store ends up.
+  3. **The user it names must not already hold a live provider subscription.** A
+     tag is written once per checkout and a paying user cannot start a second
+     one, so a tag that contradicts the row is refused rather than applied:
+     honouring it would overwrite the single `external_subscription_id` and
+     strand the subscription that user actually pays for. This guard survives the
+     proof — its owner can replay it onto a storefront purchase Jobber never
+     brokered — so it is what keeps a proven tag from repointing a paying row.
+     The event is acknowledged (no retry can resolve a contradiction) and logged
+     at `warn`, next to the environment mismatch, because it is a skip that
+     should never happen on its own.
 - **Unknown product never pays.** A `product` path that matches neither
   configured plan fails the event, so it is retried after the catalog is fixed
   rather than silently granting or silently dropping a paid subscription.
@@ -265,12 +411,22 @@ values for this field.
 These are the places where the code encodes a reading of the docs or a dashboard
 setting that no unit test can prove. Each needs one real **test-mode purchase**:
 
-- [ ] **`externalAccountId` → `lookup.custom`.** Create a session, complete a
-  test purchase, then `GET /accounts/{id}` and check `lookup.custom` really
-  holds the `jobber-<uuid>` key the session sent. This is the assumption behind
-  the third-line webhook fallback (step 4 above) and it is **not** stated in the
-  reference. If it does not hold, that fallback is dead code and the resolution
-  chain must rely on the subscription/account IDs alone.
+- [x] **`externalAccountId` → `lookup.custom` — checked, and it does not hold.**
+  A test-mode purchase of `jobber-enterprise` produced an account whose
+  `GET /accounts/{id}` returns a `lookup` with `global` only. The session's
+  `externalAccountId` does **not** become `lookup.custom` for this store, so that
+  hop resolves nothing in practice and the `jobber_user_id` order tag carries the
+  first purchase instead (step 4). The hop is kept below the tag rather than
+  deleted: it costs nothing once the tag has resolved, and it is the fallback if
+  FastSpring ever does populate the field.
+- [ ] **The order-tag proof survives a real round trip.** Complete one test-mode
+  purchase through the app's own checkout and confirm the
+  `subscription.activated` payload carries **both** `data.tags.jobber_user_id`
+  and `data.tags.jobber_user_proof`, and that the buyer lands on the paid plan.
+  FastSpring's tag length/charset limits are not stated in the reference, and a
+  silently truncated proof would look exactly like a forged one: `warn`
+  "order tag names a user it cannot prove", plan unchanged. The tag hop is what
+  links every first purchase, so this one needs the real payload.
 - [ ] **Default checkout language for Ukraine.** Open a checkout with
   `locale: "ru"` from a Ukrainian context and confirm the storefront renders as
   expected — FastSpring's per-country default language is a store setting.
@@ -314,6 +470,15 @@ is what keeps a local billing-off stack booting with no FastSpring config at all
 Two more things fail the boot rather than a real buyer's click: missing API
 credentials when payments are on, and a `FASTSPRING_CHECKOUT_PATH` that does not
 pass the same `EscapeCheckoutPath` whitelist the API client applies.
+
+`FASTSPRING_WEBHOOK_SECRET` also keys the order-tag proof, so the two flags stay
+consistent there too: with ingestion off there is no secret to mint a proof with,
+and the checkout sends no user tag at all rather than an unverifiable one — a bare
+ID on the wire would look like provenance without being any. Nothing is lost by
+that, because with ingestion off no event would ever read it. Rotating the secret
+is still a coordinated dashboard-plus-deploy change: checkouts in flight across
+the rotation lose their tag hop and are reported at `warn`, never resolved to the
+wrong user.
 
 ## Consequences
 

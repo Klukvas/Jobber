@@ -61,7 +61,7 @@ func activeSubscriptionRepo(externalSubID, externalAccountID string) *MockSubscr
 }
 
 func TestSubscriptionHandler_CreateCheckoutSession_Success(t *testing.T) {
-	userID := "user-123"
+	userID := testUserID
 	var linkedAccount string
 	repo := &MockSubscriptionRepository{
 		LinkExternalAccountFunc: func(_ context.Context, _, accountID string) error {
@@ -103,7 +103,7 @@ func TestSubscriptionHandler_ChangePlan_Success(t *testing.T) {
 	})
 
 	router := setupTestRouter()
-	router.POST("/subscription/change-plan", mockAuthMiddleware("user-123"), handler.ChangePlan)
+	router.POST("/subscription/change-plan", mockAuthMiddleware(testUserID), handler.ChangePlan)
 
 	req, _ := http.NewRequest(http.MethodPost, "/subscription/change-plan", bytes.NewBufferString(`{"plan":"enterprise"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -122,7 +122,7 @@ func TestSubscriptionHandler_CancelSubscription_Success(t *testing.T) {
 	})
 
 	router := setupTestRouter()
-	router.POST("/subscription/cancel", mockAuthMiddleware("user-123"), handler.CancelSubscription)
+	router.POST("/subscription/cancel", mockAuthMiddleware(testUserID), handler.CancelSubscription)
 
 	req, _ := http.NewRequest(http.MethodPost, "/subscription/cancel", nil)
 	w := httptest.NewRecorder()
@@ -139,7 +139,7 @@ func TestSubscriptionHandler_CreatePortalSession_Success(t *testing.T) {
 	})
 
 	router := setupTestRouter()
-	router.POST("/subscription/portal", mockAuthMiddleware("user-123"), handler.CreatePortalSession)
+	router.POST("/subscription/portal", mockAuthMiddleware(testUserID), handler.CreatePortalSession)
 
 	req, _ := http.NewRequest(http.MethodPost, "/subscription/portal", nil)
 	w := httptest.NewRecorder()
@@ -213,19 +213,19 @@ func TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber
 
 	subscribed := map[string]*model.Subscription{
 		"active": {
-			UserID: "user-123", ExternalSubscriptionID: ptr("sub-ext-1"),
+			UserID: testUserID, ExternalSubscriptionID: ptr("sub-ext-1"),
 			Status: "active", Plan: "pro",
 		},
 		"past_due": {
-			UserID: "user-123", ExternalSubscriptionID: ptr("sub-ext-1"),
+			UserID: testUserID, ExternalSubscriptionID: ptr("sub-ext-1"),
 			Status: "past_due", Plan: "pro",
 		},
 		"paused": {
-			UserID: "user-123", ExternalSubscriptionID: ptr("sub-ext-1"),
+			UserID: testUserID, ExternalSubscriptionID: ptr("sub-ext-1"),
 			Status: "paused", Plan: "pro",
 		},
 		"cancellation scheduled": {
-			UserID: "user-123", ExternalSubscriptionID: ptr("sub-ext-1"),
+			UserID: testUserID, ExternalSubscriptionID: ptr("sub-ext-1"),
 			Status: "active", Plan: "pro", CancelAt: &cancelAt,
 		},
 	}
@@ -240,7 +240,7 @@ func TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber
 			})
 
 			router := setupTestRouter()
-			router.POST("/subscription/checkout-session", mockAuthMiddleware("user-123"), handler.CreateCheckoutSession)
+			router.POST("/subscription/checkout-session", mockAuthMiddleware(testUserID), handler.CreateCheckoutSession)
 
 			req, _ := http.NewRequest(http.MethodPost, "/subscription/checkout-session", bytes.NewBufferString(`{"plan":"enterprise"}`))
 			req.Header.Set("Content-Type", "application/json")
@@ -256,7 +256,7 @@ func TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber
 		repo := &MockSubscriptionRepository{
 			GetByUserIDFunc: func(context.Context, string) (*model.Subscription, error) {
 				return &model.Subscription{
-					UserID: "user-123", ExternalSubscriptionID: ptr("sub-ext-old"),
+					UserID: testUserID, ExternalSubscriptionID: ptr("sub-ext-old"),
 					Status: "cancelled", Plan: "free",
 				}, nil
 			},
@@ -269,7 +269,7 @@ func TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber
 		})
 
 		router := setupTestRouter()
-		router.POST("/subscription/checkout-session", mockAuthMiddleware("user-123"), handler.CreateCheckoutSession)
+		router.POST("/subscription/checkout-session", mockAuthMiddleware(testUserID), handler.CreateCheckoutSession)
 
 		req, _ := http.NewRequest(http.MethodPost, "/subscription/checkout-session", bytes.NewBufferString(`{"plan":"pro"}`))
 		req.Header.Set("Content-Type", "application/json")

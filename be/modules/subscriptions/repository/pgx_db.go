@@ -9,8 +9,10 @@ import (
 
 // PgxDB is the subset of *pgxpool.Pool the subscription repository uses. Both
 // *pgxpool.Pool and pgxmock.PgxPoolIface satisfy it, enabling unit tests with
-// a mock DB.
+// a mock DB. Begin is included because ApplySubscriptionEvent runs a
+// transaction.
 type PgxDB interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Begin(ctx context.Context) (pgx.Tx, error)
 }

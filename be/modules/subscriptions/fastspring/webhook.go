@@ -136,6 +136,18 @@ type Subscription struct {
 	Next      *time.Time
 	// Deactivation is the date access ends once a cancellation is scheduled.
 	Deactivation *time.Time
+	// Tags carries the payload's merchant-owned `tags` object — whatever the
+	// order was tagged with, echoed back on that order's subscription events.
+	// Jobber sets its own as the `orderTags` of the server-to-server session
+	// that creates the checkout, which is what lets a first purchase be linked
+	// to a buyer whose provider account did not exist yet at session creation.
+	//
+	// The parser makes no claim about *who* wrote a tag, and neither does the
+	// event signature: the storefront's Store Builder Library exposes
+	// `fastspring.builder.tag()`, so a visitor can tag their own order too.
+	// Anything read from here is a claim to be verified by the caller, never an
+	// identifier — see the subscriptions service's order-tag proof.
+	Tags map[string]string
 }
 
 // ParseSubscription extracts the normalised subscription from an event payload,
@@ -154,6 +166,7 @@ func ParseSubscription(data []byte) (*Subscription, error) {
 		Active           *bool           `json:"active"`
 		Account          json.RawMessage `json:"account"`
 		Product          json.RawMessage `json:"product"`
+		Tags             json.RawMessage `json:"tags"`
 		Changed          *int64          `json:"changed"`
 		Begin            *int64          `json:"begin"`
 		Next             *int64          `json:"next"`
@@ -165,7 +178,16 @@ func ParseSubscription(data []byte) (*Subscription, error) {
 
 	// A charge event nests the whole subscription object under "subscription".
 	if len(flat.Subscription) > 0 && flat.Subscription[0] == '{' {
-		return ParseSubscription(flat.Subscription)
+		nested, err := ParseSubscription(flat.Subscription)
+		if err != nil {
+			return nil, err
+		}
+		// The order's tags sit on the charge's own object, so the subscription
+		// nested inside it would otherwise arrive with none.
+		if len(nested.Tags) == 0 {
+			nested.Tags = decodeTags(flat.Tags)
+		}
+		return nested, nil
 	}
 
 	sub := &Subscription{
@@ -174,6 +196,7 @@ func ParseSubscription(data []byte) (*Subscription, error) {
 		Active:       flat.Active,
 		AccountID:    decodeAccountID(flat.Account),
 		ProductPath:  decodeProductPath(flat.Product),
+		Tags:         decodeTags(flat.Tags),
 		ChangedAt:    millisToTime(flat.Changed),
 		Begin:        millisToTime(flat.Begin),
 		Next:         millisToTime(flat.Next),
@@ -212,6 +235,27 @@ func decodeAccountID(raw json.RawMessage) string {
 		return object.ID
 	}
 	return object.Account
+}
+
+// decodeTags reads the merchant-owned `tags` object. Only string values are
+// kept: the object is decoded leniently so a tag with an unexpected value type
+// costs that one entry rather than failing an otherwise valid event.
+func decodeTags(raw json.RawMessage) map[string]string {
+	if len(raw) == 0 {
+		return nil
+	}
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &object); err != nil {
+		return nil
+	}
+	tags := make(map[string]string, len(object))
+	for key, value := range object {
+		var text string
+		if err := json.Unmarshal(value, &text); err == nil {
+			tags[key] = text
+		}
+	}
+	return tags
 }
 
 // decodeProductPath reads the catalog product path whether `product` is an

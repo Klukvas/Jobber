@@ -66,6 +66,54 @@ func (r *WebhookResult) skip(outcome EventOutcome) {
 // HTTP layer reports it louder than an ordinary skip.
 var ErrEnvironmentMismatch = errors.New("event environment does not match the configured billing environment")
 
+// ErrTaggedOwnerConflict marks an event whose order tag names a user who
+// already holds a *different*, still-billing provider subscription.
+//
+// Jobber writes the tag only for a first checkout, and refuses to open one for a
+// user who already pays — so a proven tag naming such a user did not come from
+// that flow. Its owner can replay their own proof onto a storefront purchase
+// Jobber never brokered, which is exactly what this refuses: the row carries a
+// single external_subscription_id, and overwriting it would leave the
+// subscription that user actually pays for billing at FastSpring with nothing in
+// Jobber pointing at it. The event is acknowledged rather than retried — no
+// redelivery could make it safe — and it is exported because a tag that
+// contradicts the row is worth looking at, not routine.
+var ErrTaggedOwnerConflict = errors.New("order tag names a user who already holds another provider subscription")
+
+// ErrSubscriptionLinkConflict marks an event that would repoint a user's row at
+// a provider subscription other than the still-billing one it already names.
+//
+// The row carries a single external_subscription_id. Replacing it while the old
+// subscription is alive would leave that subscription billing at FastSpring with
+// nothing in Jobber able to cancel it, so the write refuses — atomically, under
+// the row lock, whichever hop resolved the owner. ErrTaggedOwnerConflict is the
+// same invariant caught one step earlier and with a sharper diagnosis, on the
+// one hop whose input a buyer can influence; this is the guard that covers the
+// rest, including two checkouts a user started while free and then both paid.
+//
+// The event is acknowledged rather than retried — redelivery cannot make the
+// second subscription fit a row that is already spoken for — and it is exported
+// because it means a subscriber may be paying twice, which is worth waking
+// someone up for.
+var ErrSubscriptionLinkConflict = errors.New("event describes a provider subscription other than the live one linked to this user")
+
+// ErrUnprovenOrderTag marks an event whose order tags name a Jobber user without
+// the proof Jobber's own server mints alongside that name.
+//
+// Order tags are not a server-only channel: the Store Builder Library exposes
+// `fastspring.builder.tag()`, so any visitor to the shared storefront can attach
+// arbitrary tags to their own order, and the webhook HMAC proves only that
+// FastSpring sent the event — never who authored a tag inside it. Without the
+// proof, a bare user ID is a request, not an identifier, and honouring it would
+// let a stranger's purchase claim someone else's account. See ordertag.go.
+//
+// The event is acknowledged rather than retried: redelivering the same
+// unprovable claim would only ask the same question again. It is exported
+// because on one of Jobber's own products this should never happen by accident —
+// it is either a forged tag or a proof minted under a secret this deployment no
+// longer holds, and both are worth waking someone up for.
+var ErrUnprovenOrderTag = errors.New("order tag names a user without a valid Jobber proof")
+
 var (
 	// errEventNotActionable marks an event type Jobber subscribes to but does
 	// not act on.
@@ -73,9 +121,9 @@ var (
 	// errForeignBillingAccount marks an event about a FastSpring account that is
 	// not Jobber's. The FluxLab store is shared with the other products sold
 	// from it, and their subscription lifecycle events reach this endpoint too.
-	// Such an account carries no Jobber lookup key, and no retry could ever make
-	// one appear, so the event is acknowledged and dropped rather than
-	// redelivered forever.
+	// Such an event makes no order-tag claim of its own and its account carries
+	// no Jobber lookup key, and no retry could ever make one appear, so it is
+	// acknowledged and dropped rather than redelivered forever.
 	errForeignBillingAccount = errors.New("billing account belongs to another product in the shared store")
 	// errEventSuperseded marks a replayed or out-of-order event that does not
 	// describe a change newer than the state already applied. An event carrying
@@ -155,6 +203,13 @@ func (s *SubscriptionService) processEvent(ctx context.Context, event fastspring
 	case errors.Is(err, errEventSuperseded):
 		// The newer state already stands and the event is recorded as processed
 		// by the same statement, so acknowledging stops pointless retries.
+		outcome.Err = err
+		result.skip(outcome)
+	case errors.Is(err, ErrTaggedOwnerConflict), errors.Is(err, ErrUnprovenOrderTag),
+		errors.Is(err, ErrSubscriptionLinkConflict):
+		// The event either cannot be shown to be ours or contradicts the row it
+		// names. A retry would only ask the same question again, so
+		// acknowledging drops the event; the handler logs all three loudly.
 		outcome.Err = err
 		result.skip(outcome)
 	case errors.Is(err, errForeignBillingAccount):
@@ -260,6 +315,12 @@ func (s *SubscriptionService) applySubscriptionEvent(ctx context.Context, event 
 		return errEventDuplicate
 	case model.WebhookSuperseded:
 		return fmt.Errorf("%w (event changed at %s)", errEventSuperseded, eventAt.Format(time.RFC3339))
+	case model.WebhookLinkConflict:
+		// Deliberately not the subscription the row holds: that value was read
+		// before the write refused, so reporting it could name state that has
+		// since moved on. What is certain is the user and the event.
+		return fmt.Errorf("%w: user %q, event carries %q",
+			ErrSubscriptionLinkConflict, existing.UserID, incoming.ID)
 	default:
 		return nil
 	}
@@ -281,10 +342,26 @@ func lifecycleTime(event fastspring.Event, sub *fastspring.Subscription) time.Ti
 
 // resolveOwner finds the local subscription row a provider event belongs to.
 //
-// Every path is server-side: the provider subscription ID and account ID were
-// both recorded by Jobber (at checkout-session creation, then at activation),
-// and the custom lookup key is the one Jobber set on the session. Nothing here
-// trusts a value supplied by the browser.
+// Three of the four hops read a value Jobber itself recorded: the provider
+// subscription ID and account ID on the local row (written at checkout-session
+// creation, then at activation), and the custom lookup key Jobber set on the
+// FastSpring account.
+//
+// The fourth — the order tag — is the one hop whose value arrives *inside* the
+// event, and the payload alone does not say who put it there. The signature
+// proves FastSpring sent the body; it does not prove that Jobber, rather than a
+// visitor using the storefront's own `fastspring.builder.tag()`, wrote the tag.
+// So the tag is accepted only with the MAC that Jobber mints for it, which no
+// unauthenticated buyer can produce. That check, not the position of the hop, is
+// what makes it safe — see provenTaggedUserID and ordertag.go.
+//
+// The tag is tried before the account read-back because it is the hop that
+// actually links a new buyer. FastSpring creates the customer account *during*
+// checkout, so a first session answers with no `customer.accountId` to record,
+// and the account it then creates carries only `lookup.global` — both local IDs
+// miss on the very first lifecycle event, and the read-back has nothing to say.
+// Resolving off the signed payload also keeps the grant independent of a second
+// API call that could be down when the purchase lands.
 func (s *SubscriptionService) resolveOwner(ctx context.Context, incoming *fastspring.Subscription) (*model.Subscription, error) {
 	if incoming.ID != "" {
 		sub, err := s.repo.GetByExternalSubscriptionID(ctx, incoming.ID)
@@ -308,21 +385,94 @@ func (s *SubscriptionService) resolveOwner(ctx context.Context, incoming *fastsp
 		return nil, err
 	}
 
+	userID, err := s.provenTaggedUserID(incoming)
+	if err != nil {
+		return nil, err
+	}
+	if userID != "" {
+		return s.resolveOwnerByOrderTag(ctx, incoming, userID)
+	}
+
 	return s.resolveOwnerByLookupKey(ctx, incoming.AccountID)
 }
 
-// resolveOwnerByLookupKey is the fallback for a purchase whose account was not
-// captured when the checkout session was created. It reads back the custom
-// lookup key FastSpring stored from the session's external account ID and
-// decodes the user ID from it.
+// provenTaggedUserID reads the owning user out of the event's own order tags,
+// but only where the claim is both ours to act on and provably ours to begin
+// with. Two gates, and the order matters:
 //
-// It is also where a foreign purchase is recognised. The store is shared with
-// the other products sold from the FluxLab account, so their subscription
-// events arrive here as well; an account with no Jobber lookup key is one of
-// theirs and is reported as errForeignBillingAccount, which is acknowledged
-// rather than retried. The two failure modes around it stay retryable on
-// purpose: a GetAccount error is transient, and a Jobber key whose user row is
-// missing is a link to repair, not someone else's customer.
+//   - the event must be for one of Jobber's own catalog products. The FluxLab
+//     store sells more than Jobber, and a purchase of someone else's product must
+//     never claim a Jobber user however its order is tagged. Checked first, so a
+//     foreign product's tags are not read at all.
+//   - the claim must carry a proof that verifies against this deployment's
+//     secret for exactly the user ID it names. Anyone can write the ID —
+//     `fastspring.builder.tag()` is part of the storefront's own client library —
+//     but only Jobber's server can write the MAC over it.
+//
+// An event that makes no claim (no user tag) returns "" and falls through to the
+// account lookup key, which is where every foreign order in the shared store
+// ends up. A claim that fails the proof does not fall through: it returns
+// ErrUnprovenOrderTag, because an event for a Jobber product naming a Jobber user
+// that Jobber cannot show it wrote is an integrity anomaly, not a routine miss.
+func (s *SubscriptionService) provenTaggedUserID(incoming *fastspring.Subscription) (string, error) {
+	if _, err := s.planForProductPath(incoming.ProductPath); err != nil {
+		return "", nil
+	}
+	return provenOrderTagUserID(s.cfg.WebhookSecret, incoming.Tags)
+}
+
+// resolveOwnerByOrderTag loads the row a proven order tag names, refusing to
+// hand the event to a user who is already paying for a different subscription.
+//
+// The tag is written once per checkout and a user holding a live subscription
+// cannot start another one, so a row that already has one contradicts the tag.
+// Applying the event anyway would overwrite the row's single
+// external_subscription_id and strand the one that user actually pays for, so
+// the conflict is reported instead — acknowledged, never applied.
+//
+// This guard survives the proof: a buyer can replay their own proof onto a
+// storefront purchase Jobber never brokered, and this is what stops that
+// purchase from repointing a subscription they are already paying for.
+//
+// It is a diagnosis, not the invariant. The invariant itself lives in the
+// atomic write, which refuses the same replacement under a row lock for every
+// hop — this read cannot, because the row it checks could change before the
+// write lands. What the hop adds is the name of the suspicious input: an order
+// tag contradicting the row it names is an integrity signal about the tag
+// channel, and it is worth telling apart from a link conflict Jobber's own
+// flows produced.
+//
+// A tag naming a user with no row at all stays retryable, exactly like a Jobber
+// lookup key whose user row is missing: that is a link to repair, not somebody
+// else's customer.
+func (s *SubscriptionService) resolveOwnerByOrderTag(
+	ctx context.Context, incoming *fastspring.Subscription, userID string,
+) (*model.Subscription, error) {
+	sub, err := s.repo.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if holdsLiveProviderSubscription(sub) {
+		return nil, fmt.Errorf("%w: user %q holds %q, event carries %q",
+			ErrTaggedOwnerConflict, userID, *sub.ExternalSubscriptionID, incoming.ID)
+	}
+	return sub, nil
+}
+
+// resolveOwnerByLookupKey is the last hop: it reads back the custom lookup key
+// FastSpring stored from the session's external account ID and decodes the user
+// ID from it. For this store that key is absent — the observed account carries a
+// `lookup` holding only `global` — so in practice the hop resolves nothing and
+// exists for the day the field is populated.
+//
+// It is also the last word on whether a purchase is foreign. The store is shared
+// with the other products sold from the FluxLab account, so their subscription
+// events arrive here as well; an event that made no order-tag claim *and* whose
+// account carries no Jobber lookup key is one of theirs, and is reported
+// as errForeignBillingAccount — acknowledged rather than retried. The two
+// failure modes around it stay retryable on purpose: a GetAccount error is
+// transient, and a Jobber key whose user row is missing is a link to repair, not
+// someone else's customer.
 //
 // https://developer.fastspring.com/reference/retrieve-an-account
 func (s *SubscriptionService) resolveOwnerByLookupKey(ctx context.Context, accountID string) (*model.Subscription, error) {

@@ -20,22 +20,23 @@ import (
 // without its hyphens.
 const accountLookupPrefix = "jobber-"
 
-// userIDTagKey is the order tag carrying the local user ID. It is set
-// server-to-server and is diagnostic only: user resolution never trusts it,
-// because tags are not part of the documented subscription event payload.
-const userIDTagKey = "jobber_user_id"
-
 // CreateCheckoutSession creates a FastSpring checkout session for the
 // authenticated user and returns the session id the Store Builder Library popup
 // opens.
 //
 // Purchase-to-user linking is entirely server-side:
-//  1. this call sends the user's own contact details plus a merchant-owned
-//     external account ID derived from their UUID;
-//  2. FastSpring answers with the account ID the session is bound to;
-//  3. that account ID is stored on the user's subscription row (plan untouched);
-//  4. the subscription.activated webhook carries the same account ID, which
-//     resolves back to exactly one user.
+//  1. this call sends the user's own contact details, a merchant-owned external
+//     account ID derived from their UUID, and the same UUID as an order tag —
+//     carrying the proof that this server wrote it (see ordertag.go);
+//  2. FastSpring answers with the account ID the session is bound to — but only
+//     for a buyer who already has one. A first-time buyer's account is created
+//     during checkout, so this field comes back empty;
+//  3. whatever account ID did come back is stored on the user's subscription row
+//     (plan untouched), so an abandoned checkout grants nothing;
+//  4. the subscription.activated webhook then resolves the buyer through that
+//     account ID, or — for the first purchase, where there was none to store —
+//     through the order tag, whose proof is what separates the tag this call
+//     wrote from one a storefront visitor wrote for themselves.
 //
 // No user identifier is ever accepted from the browser, and no checkout URL
 // goes back to it: the browser receives an opaque session id and hands it to the
@@ -60,6 +61,11 @@ func (s *SubscriptionService) CreateCheckoutSession(ctx context.Context, userID,
 		return nil, fmt.Errorf("failed to load buyer contact: %w", err)
 	}
 
+	tags, err := orderTags(s.cfg.WebhookSecret, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare checkout session: %w", err)
+	}
+
 	first, last := contact.FirstLast()
 	session, err := s.billing.CreateSession(ctx, s.cfg.CheckoutPath, fastspring.SessionRequest{
 		// Sent explicitly rather than inherited from the store, so a test
@@ -74,7 +80,7 @@ func (s *SubscriptionService) CreateCheckoutSession(ctx context.Context, userID,
 				Email:     contact.Email,
 			},
 		},
-		OrderTags: map[string]string{userIDTagKey: userID},
+		OrderTags: tags,
 		Cart: fastspring.SessionCart{
 			LineItems: []fastspring.SessionLineItem{{ProductPath: productPath, Quantity: 1}},
 		},
@@ -88,7 +94,9 @@ func (s *SubscriptionService) CreateCheckoutSession(ctx context.Context, userID,
 			session.ID, session.CheckoutStatusString())
 	}
 	// Link before returning the session: the webhook can arrive before the popup
-	// even closes, and it resolves the user through this account ID.
+	// even closes, and it resolves the user through this account ID. A first-time
+	// buyer has no account yet, so there is simply nothing to link — the order
+	// tag covers that case on the webhook side.
 	if session.Customer.AccountID != "" {
 		if err := s.repo.LinkExternalAccount(ctx, userID, session.Customer.AccountID); err != nil {
 			return nil, fmt.Errorf("failed to link billing account: %w", err)
@@ -230,13 +238,24 @@ func (s *SubscriptionService) ensureNotAlreadySubscribed(ctx context.Context, us
 		}
 		return fmt.Errorf("failed to load subscription before checkout: %w", err)
 	}
-	if sub.ExternalSubscriptionID == nil || *sub.ExternalSubscriptionID == "" {
-		return nil
-	}
-	if sub.Status == StatusCancelled {
+	if !holdsLiveProviderSubscription(sub) {
 		return nil
 	}
 	return fmt.Errorf("%w: plan %q is %q", model.ErrAlreadySubscribed, sub.Plan, sub.Status)
+}
+
+// holdsLiveProviderSubscription reports whether a row already points at a
+// provider subscription that is still alive at FastSpring.
+//
+// `active`, `past_due`, `paused` and a scheduled cancellation (`active` with
+// `cancel_at`) all still bill, so all four count as live. Only two rows have
+// nothing to protect: one that never completed a checkout, and one the provider
+// has already ended.
+func holdsLiveProviderSubscription(sub *model.Subscription) bool {
+	if sub.ExternalSubscriptionID == nil || *sub.ExternalSubscriptionID == "" {
+		return false
+	}
+	return sub.Status != StatusCancelled
 }
 
 // externalSubscriptionID returns the provider subscription ID for a user, or

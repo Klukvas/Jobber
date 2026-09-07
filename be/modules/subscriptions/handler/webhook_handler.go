@@ -84,14 +84,32 @@ func (h *WebhookHandler) logOutcomes(result service.WebhookResult) {
 		}
 		// Most skips are routine: a duplicate, a replay, an event type Jobber
 		// does not act on, or another product's subscription in the shared
-		// store. An environment mismatch is not — it means this deployment is
-		// pointed at the wrong billing environment, and every event it drops is
-		// gone for good, so it is worth waking someone up for.
-		if errors.Is(skipped.Err, service.ErrEnvironmentMismatch) {
+		// store. Four are not, and all four drop the event for good:
+		//
+		//   - an environment mismatch means this deployment is pointed at the
+		//     wrong billing environment;
+		//   - an unproven order tag means an order named a Jobber user without
+		//     the proof this server mints, which is either a forged tag or a
+		//     rotated secret — never a normal purchase;
+		//   - a tagged-owner conflict means an order claimed a user who is
+		//     already paying for a different subscription, which a legitimate
+		//     first checkout cannot produce;
+		//   - a link conflict means the atomic write refused to repoint a user
+		//     at a second subscription while their first one still bills, so
+		//     somebody may be paying twice and only one of the two is cancellable
+		//     from Jobber.
+		switch {
+		case errors.Is(skipped.Err, service.ErrEnvironmentMismatch):
 			h.logger.Warn("FastSpring webhook event dropped: billing environment mismatch", fields...)
-			continue
+		case errors.Is(skipped.Err, service.ErrUnprovenOrderTag):
+			h.logger.Warn("FastSpring webhook event dropped: order tag names a user it cannot prove", fields...)
+		case errors.Is(skipped.Err, service.ErrTaggedOwnerConflict):
+			h.logger.Warn("FastSpring webhook event dropped: order tag contradicts the subscription it names", fields...)
+		case errors.Is(skipped.Err, service.ErrSubscriptionLinkConflict):
+			h.logger.Warn("FastSpring webhook event dropped: user is already linked to another live subscription", fields...)
+		default:
+			h.logger.Info("FastSpring webhook event acknowledged without changes", fields...)
 		}
-		h.logger.Info("FastSpring webhook event acknowledged without changes", fields...)
 	}
 	for _, failed := range result.Failed {
 		h.logger.Error("FastSpring webhook event failed, will be retried",

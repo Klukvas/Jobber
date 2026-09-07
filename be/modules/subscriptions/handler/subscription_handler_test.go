@@ -176,6 +176,11 @@ func mockAuthMiddleware(userID string) gin.HandlerFunc {
 }
 
 const (
+	// A real user ID is a UUID (`users.id` is a `uuid` column), and the checkout
+	// path now depends on that: the order tag it writes is a MAC over the
+	// canonical UUID, so a synthetic non-UUID id would fail the session it could
+	// never make resolvable.
+	testUserID         = "550e8400-e29b-41d4-a716-446655440000"
 	testWebhookSecret  = "test-webhook-secret"
 	testProPath        = "jobber-pro"
 	testEnterprisePath = "jobber-enterprise"
@@ -220,7 +225,7 @@ func newObservedWebhookHandler(repo *MockSubscriptionRepository) (*WebhookHandle
 // --- SubscriptionHandler Tests ---
 
 func TestSubscriptionHandler_GetSubscription(t *testing.T) {
-	userID := "user-123"
+	userID := testUserID
 
 	t.Run("returns subscription successfully", func(t *testing.T) {
 		mockRepo := &MockSubscriptionRepository{
@@ -395,7 +400,7 @@ func TestSubscriptionHandler_GetCheckoutConfig(t *testing.T) {
 }
 
 func TestSubscriptionHandler_CreateCheckoutSession(t *testing.T) {
-	userID := "user-123"
+	userID := testUserID
 
 	t.Run("returns 401 when not authenticated", func(t *testing.T) {
 		handler := newTestSubscriptionHandler(&MockSubscriptionRepository{})
@@ -454,7 +459,7 @@ func TestSubscriptionHandler_CreateCheckoutSession(t *testing.T) {
 }
 
 func TestSubscriptionHandler_CreatePortalSession(t *testing.T) {
-	userID := "user-123"
+	userID := testUserID
 
 	t.Run("returns 401 when not authenticated", func(t *testing.T) {
 		mockRepo := &MockSubscriptionRepository{}
@@ -505,7 +510,7 @@ func TestSubscriptionHandler_CreatePortalSession(t *testing.T) {
 }
 
 func TestSubscriptionHandler_ChangePlan(t *testing.T) {
-	userID := "user-123"
+	userID := testUserID
 
 	t.Run("returns 401 when not authenticated", func(t *testing.T) {
 		mockRepo := &MockSubscriptionRepository{}
@@ -631,7 +636,7 @@ func TestSubscriptionHandler_ChangePlan(t *testing.T) {
 }
 
 func TestSubscriptionHandler_CancelSubscription(t *testing.T) {
-	userID := "user-123"
+	userID := testUserID
 
 	t.Run("returns 401 when not authenticated", func(t *testing.T) {
 		mockRepo := &MockSubscriptionRepository{}
@@ -713,7 +718,7 @@ func TestSubscriptionHandler_RegisterRoutes(t *testing.T) {
 
 	router := setupTestRouter()
 	v1 := router.Group("/api/v1")
-	handler.RegisterRoutes(v1, mockAuthMiddleware("user-123"), true)
+	handler.RegisterRoutes(v1, mockAuthMiddleware(testUserID), true)
 
 	mounted := registeredRoutes(router)
 	for _, route := range []string{
@@ -741,7 +746,7 @@ func TestSubscriptionHandler_RegisterRoutes_PaymentsDisabled(t *testing.T) {
 
 	router := setupTestRouter()
 	v1 := router.Group("/api/v1")
-	handler.RegisterRoutes(v1, mockAuthMiddleware("user-123"), false)
+	handler.RegisterRoutes(v1, mockAuthMiddleware(testUserID), false)
 
 	t.Run("GET /subscription is registered", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodGet, "/api/v1/subscription", nil)
@@ -831,11 +836,12 @@ func TestWebhookHandler_AcknowledgesProcessedBatch(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestWebhookHandler_LogsEnvironmentMismatchLouderThanOrdinarySkips(t *testing.T) {
-	// Both are acknowledged and neither is retried, so the log is the only place
-	// they differ — and they must differ. A routine skip is noise; a mismatch
-	// means this deployment is reading the wrong billing environment and every
-	// event it drops is lost for good.
+func TestWebhookHandler_LogsPermanentDropsLouderThanOrdinarySkips(t *testing.T) {
+	// All of these are acknowledged and none is retried, so the log is the only
+	// place they differ — and they must differ. A routine skip is noise; a
+	// mismatch means this deployment is reading the wrong billing environment,
+	// and an unprovable order tag means someone tagged an order Jobber did not
+	// create. Both lose the event for good.
 	t.Run("an environment mismatch is a warning", func(t *testing.T) {
 		// live:true against a test-mode deployment.
 		body := `{"events":[
@@ -852,6 +858,56 @@ func TestWebhookHandler_LogsEnvironmentMismatchLouderThanOrdinarySkips(t *testin
 		require.Len(t, warnings, 1)
 		assert.Contains(t, warnings[0].Message, "billing environment mismatch")
 		assert.Equal(t, "evt-live", warnings[0].ContextMap()["event_id"])
+	})
+
+	t.Run("an order tag with no proof is a warning", func(t *testing.T) {
+		// The forgery the proof exists to stop: a storefront buyer tagging their
+		// own order with somebody else's Jobber user ID. It is acknowledged like
+		// any other permanent drop, so the log is the only place it surfaces.
+		body := `{"events":[
+			{"id":"evt-forged","live":false,"processed":false,"type":"subscription.activated","created":1751328000000,
+			 "data":{"id":"sub-x","subscription":"sub-x","state":"active","active":true,
+			         "account":{"id":"acct-x"},"product":{"product":"jobber-pro"},
+			         "tags":{"jobber_user_id":"550e8400-e29b-41d4-a716-446655440000"}}}
+		]}`
+		handler, logs := newObservedWebhookHandler(&MockSubscriptionRepository{})
+
+		w := postWebhook(handler, body, signWebhook(body))
+
+		assert.Equal(t, http.StatusOK, w.Code, "an unprovable claim is acknowledged, never retried")
+		warnings := logs.FilterLevelExact(zap.WarnLevel).All()
+		require.Len(t, warnings, 1)
+		assert.Contains(t, warnings[0].Message, "cannot prove")
+		assert.Equal(t, "evt-forged", warnings[0].ContextMap()["event_id"])
+	})
+
+	t.Run("a second live subscription for one user is a warning", func(t *testing.T) {
+		// The atomic write refused to repoint the user at a second subscription
+		// while the first still bills. Nobody is looking at the row, so this log
+		// line is the only thing that says a subscriber may be paying twice with
+		// only one of the two cancellable from Jobber.
+		body := `{"events":[
+			{"id":"evt-second-sub","live":false,"processed":false,"type":"subscription.activated","created":1751328000000,
+			 "data":{"id":"sub-second","subscription":"sub-second","state":"active","active":true,
+			         "account":{"id":"acct-x"},"product":{"product":"jobber-pro"}}}
+		]}`
+		mockRepo := &MockSubscriptionRepository{
+			GetByExternalAccountIDFunc: func(_ context.Context, accountID string) (*model.Subscription, error) {
+				return &model.Subscription{ID: "sub-row-1", UserID: "user-1", Status: "active", Plan: "pro"}, nil
+			},
+			ApplySubscriptionEventFunc: func(context.Context, string, string, *model.Subscription) (model.WebhookApplyOutcome, error) {
+				return model.WebhookLinkConflict, nil
+			},
+		}
+		handler, logs := newObservedWebhookHandler(mockRepo)
+
+		w := postWebhook(handler, body, signWebhook(body))
+
+		assert.Equal(t, http.StatusOK, w.Code, "a link conflict is acknowledged, never retried")
+		warnings := logs.FilterLevelExact(zap.WarnLevel).All()
+		require.Len(t, warnings, 1)
+		assert.Contains(t, warnings[0].Message, "already linked to another live subscription")
+		assert.Equal(t, "evt-second-sub", warnings[0].ContextMap()["event_id"])
 	})
 
 	t.Run("an event Jobber does not act on stays informational", func(t *testing.T) {
