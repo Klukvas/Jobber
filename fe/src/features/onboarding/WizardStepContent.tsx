@@ -35,9 +35,15 @@ const STEPS = [
 
 interface WizardStepContentProps {
   step: number;
+  /**
+   * Id for this step's heading, so the tour's dialog can name itself after
+   * whichever step is on screen instead of announcing the first one seven
+   * times.
+   */
+  headingId?: string;
 }
 
-export function WizardStepContent({ step }: WizardStepContentProps) {
+export function WizardStepContent({ step, headingId }: WizardStepContentProps) {
   const { t } = useTranslation();
   const { key, icon: Icon, color } = STEPS[step];
 
@@ -56,7 +62,9 @@ export function WizardStepContent({ step }: WizardStepContentProps) {
       <div className={`mb-6 rounded-full p-4 ${color}`}>
         <Icon className="h-10 w-10" />
       </div>
-      <h3 className="mb-3 text-xl font-semibold">{title}</h3>
+      <h3 id={headingId} className="mb-3 text-xl font-semibold">
+        {title}
+      </h3>
       <p className="max-w-sm text-sm text-muted-foreground">{description}</p>
     </div>
   );

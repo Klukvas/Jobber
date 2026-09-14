@@ -75,6 +75,70 @@ describe("Button", () => {
     render(<Button disabled>no</Button>);
     expect(screen.getByRole("button")).toBeDisabled();
   });
+
+  /**
+   * The size scale was drawn for a pointer — `default` 40px tall, `sm` 36,
+   * `icon` 40x40 — and every one of those is the same control a thumb gets on
+   * a phone. Measured on a real device: "Back to jobs" 137x40, "Add comment"
+   * 152x36, the header menu and theme toggles 40x40, the onboarding Skip/Next
+   * pair 36 tall. Asserted on the classes, because jsdom has no layout to
+   * measure and the whole point is that the rule is media-scoped.
+   */
+  describe("tap targets on phones", () => {
+    it.each(["default", "sm"] as const)(
+      "gives size=%s a 44px minimum below sm",
+      (size) => {
+        render(<Button size={size}>sz</Button>);
+        expect(screen.getByRole("button").className).toContain("max-sm:h-11");
+      },
+    );
+
+    it("gives the icon size a 44x44 box below sm", () => {
+      render(<Button size="icon">x</Button>);
+      const className = screen.getByRole("button").className;
+
+      expect(className).toContain("max-sm:h-11");
+      expect(className).toContain("max-sm:w-11");
+    });
+
+    it("leaves the pointer sizes exactly as they were", () => {
+      const { rerender } = render(<Button>sz</Button>);
+      expect(screen.getByRole("button").className).toContain("h-10");
+
+      rerender(<Button size="sm">sz</Button>);
+      expect(screen.getByRole("button").className).toContain("h-9");
+
+      rerender(<Button size="icon">sz</Button>);
+      expect(screen.getByRole("button").className).toContain("h-10 w-10");
+    });
+
+    // `lg` is already 44.
+    it("does not double up on a size that is already big enough", () => {
+      render(
+        <Button size="lg">sz</Button>,
+      );
+      const className = screen.getByRole("button").className;
+
+      expect(className).toContain("h-11");
+      expect(className).not.toContain("max-sm:h-11");
+    });
+
+    // A link-styled button is inline text inside a sentence; a 44px box there
+    // would open a hole in the paragraph.
+    it.each(["default", "sm", "icon"] as const)(
+      "leaves the link variant inline at size=%s",
+      (size) => {
+        render(
+          <Button variant="link" size={size}>
+            sz
+          </Button>,
+        );
+        expect(screen.getByRole("button").className).not.toContain(
+          "max-sm:h-11",
+        );
+      },
+    );
+  });
 });
 
 // ---------- Card ----------
@@ -164,6 +228,23 @@ describe("Input", () => {
   it("is disabled when disabled prop is set", () => {
     render(<Input disabled data-testid="inp" />);
     expect(screen.getByTestId("inp")).toBeDisabled();
+  });
+
+  /**
+   * 40px is a pointer height, and it was the height everywhere — the settings
+   * name and email fields measured 40 on a 390px screen, under the 44 WCAG
+   * 2.5.5 asks of a target a thumb has to hit. Phones only, so desktop forms
+   * keep the density they were drawn with; the button scale solves the same
+   * problem the same way. Asserted on classes: jsdom has no layout.
+   */
+  it("grows to a 44px target on phones", () => {
+    render(<Input data-testid="inp" />);
+    expect(screen.getByTestId("inp").className).toContain("max-sm:h-11");
+  });
+
+  it("keeps its drawn height on a pointer layout", () => {
+    render(<Input data-testid="inp" />);
+    expect(screen.getByTestId("inp").className).toMatch(/(^|\s)h-10(\s|$)/);
   });
 });
 

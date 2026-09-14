@@ -22,6 +22,33 @@ export const buttonVariants = cva(
         icon: "h-10 w-10",
       },
     },
+    /**
+     * Phone-sized tap targets.
+     *
+     * The size scale is drawn for a pointer: `default` is 40px tall, `sm` is
+     * 36 and `icon` is 40x40 — every one of them under the 44x44 WCAG 2.5.5
+     * and the Apple HIG ask for, and they are the same buttons a thumb gets on
+     * a phone. Growing them below `sm` fixes the whole set at once (the header
+     * menu and theme toggles, "Back to jobs", "Add comment", the onboarding
+     * Skip/Next pair) and leaves pointer layouts at exactly the density they
+     * were designed with.
+     *
+     * `link` is deliberately left out: it renders as inline text inside a
+     * sentence, where a 44px box would open a hole in the paragraph. Where a
+     * link-styled control is a primary action it should be a real button.
+     */
+    compoundVariants: [
+      {
+        variant: ["default", "destructive", "outline", "secondary", "ghost"],
+        size: ["default", "sm"],
+        class: "max-sm:h-11",
+      },
+      {
+        variant: ["default", "destructive", "outline", "secondary", "ghost"],
+        size: "icon",
+        class: "max-sm:h-11 max-sm:w-11",
+      },
+    ],
     defaultVariants: {
       variant: "default",
       size: "default",

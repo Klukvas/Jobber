@@ -2,6 +2,9 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock";
+import { useDialogFocus } from "@/shared/hooks/useDialogFocus";
+import { useTopmostEscape } from "@/shared/hooks/useTopmostEscape";
 
 interface SheetProps {
   readonly open: boolean;
@@ -10,8 +13,6 @@ interface SheetProps {
   readonly children: React.ReactNode;
   readonly className?: string;
 }
-
-const SHEET_HEADING_ID = "sheet-heading";
 
 /**
  * Mobile bottom sheet / drawer.
@@ -26,58 +27,27 @@ export function Sheet({
 }: SheetProps) {
   const { t } = useTranslation();
   const sheetRef = React.useRef<HTMLDivElement>(null);
-  const previousFocusRef = React.useRef<HTMLElement | null>(null);
+  // Per instance. A fixed "sheet-heading" put the same id on every sheet on the
+  // page, so two open sheets both pointed `aria-labelledby` at whichever
+  // heading the document happened to hold first — one sheet announced with the
+  // other's title.
+  const headingId = React.useId();
 
-  React.useEffect(() => {
-    if (!open) return;
+  // Same containment as Dialog: focus lands inside on open, Tab cannot walk
+  // out to the page behind, and the opener gets focus back on close.
+  useDialogFocus(sheetRef, { open });
 
-    previousFocusRef.current = document.activeElement as HTMLElement;
+  // Escape closes this sheet only while it is the topmost overlay — the same
+  // stack the dialogs use, so a sheet and a dialog over it cannot both answer
+  // one keypress.
+  const closeSheet = React.useCallback(
+    () => onOpenChange(false),
+    [onOpenChange],
+  );
+  useTopmostEscape(open, sheetRef, closeSheet);
 
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    requestAnimationFrame(() => {
-      sheetRef.current?.focus();
-    });
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onOpenChange(false);
-        return;
-      }
-
-      // Focus trap
-      if (e.key === "Tab" && sheetRef.current) {
-        const focusable = sheetRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-        );
-        if (focusable.length === 0) return;
-
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
-        if (e.shiftKey) {
-          if (document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-          }
-        } else {
-          if (document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-      previousFocusRef.current?.focus();
-    };
-  }, [open, onOpenChange]);
+  // Counted across every overlay on the page — see useBodyScrollLock.
+  useBodyScrollLock(open);
 
   if (!open) return null;
 
@@ -94,22 +64,25 @@ export function Sheet({
         ref={sheetRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={title ? SHEET_HEADING_ID : undefined}
+        aria-labelledby={title ? headingId : undefined}
         tabIndex={-1}
         className="fixed inset-x-0 bottom-0 z-50 flex max-h-[85vh] flex-col rounded-t-xl bg-background shadow-lg outline-none"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <h2 id={SHEET_HEADING_ID} className="text-sm font-semibold">
+        {/* Header. The sheet only ever renders on a touch layout, so the close
+            button is a full 44x44 box rather than the 24x24 that `p-1` around a
+            16px glyph gave it. The row's own padding shrinks by the same amount,
+            so the header keeps the 48px height it had. */}
+        <div className="flex items-center justify-between border-b px-4 py-0.5">
+          <h2 id={headingId} className="text-sm font-semibold">
             {title}
           </h2>
           <button
             onClick={() => onOpenChange(false)}
             aria-label={t("common.close")}
-            className="rounded-sm p-1 opacity-70 hover:opacity-100"
+            className="-mr-2 flex h-11 w-11 items-center justify-center rounded-sm opacity-70 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden />
           </button>
         </div>
 
