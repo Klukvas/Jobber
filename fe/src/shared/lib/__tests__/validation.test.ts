@@ -60,6 +60,49 @@ describe("validation schemas", () => {
       const result = passwordSchema.safeParse("1234567");
       expect(result.success).toBe(false);
     });
+
+    // The backend counts runes (`utf8.RuneCountInString`). Four emoji are
+    // eight UTF-16 units but only four code points, so a `.length >= 8` check
+    // would accept a password the server then rejects.
+    it("rejects four astral characters, which are eight UTF-16 units", () => {
+      expect("😀😀😀😀".length).toBe(8);
+      const result = passwordSchema.safeParse("😀😀😀😀");
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.map((i) => i.message)).toContain(
+          "errors.passwordTooShort",
+        );
+      }
+    });
+
+    it("accepts eight astral characters", () => {
+      const result = passwordSchema.safeParse("😀".repeat(8));
+      expect(result.success).toBe(true);
+    });
+
+    it("accepts eight non-ASCII code points", () => {
+      const result = passwordSchema.safeParse("пароль12");
+      expect(result.success).toBe(true);
+    });
+
+    it("still rejects an over-72-byte password made of astral characters", () => {
+      // 19 emoji = 19 code points but 76 UTF-8 bytes, over bcrypt's limit.
+      const result = passwordSchema.safeParse("😀".repeat(19));
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.map((i) => i.message)).toContain(
+          "errors.passwordTooLong",
+        );
+      }
+    });
+
+    it("reports the required error first for an empty password", () => {
+      const result = passwordSchema.safeParse("");
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0].message).toBe("errors.required");
+      }
+    });
   });
 
   describe("verificationCodeSchema", () => {
@@ -118,6 +161,14 @@ describe("validation schemas", () => {
       const result = loginSchema.safeParse({});
       expect(result.success).toBe(false);
     });
+
+    it("rejects a four-emoji password the backend would refuse", () => {
+      const result = loginSchema.safeParse({
+        email: "user@example.com",
+        password: "😀😀😀😀",
+      });
+      expect(result.success).toBe(false);
+    });
   });
 
   describe("registerSchema", () => {
@@ -150,6 +201,24 @@ describe("validation schemas", () => {
         confirmPassword: "",
       });
       expect(result.success).toBe(false);
+    });
+
+    it("rejects a four-emoji password the backend would refuse", () => {
+      const result = registerSchema.safeParse({
+        email: "user@example.com",
+        password: "😀😀😀😀",
+        confirmPassword: "😀😀😀😀",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("accepts an eight-code-point Unicode password", () => {
+      const result = registerSchema.safeParse({
+        email: "user@example.com",
+        password: "пароль12",
+        confirmPassword: "пароль12",
+      });
+      expect(result.success).toBe(true);
     });
 
     it("rejects invalid email in register form", () => {
@@ -187,6 +256,14 @@ describe("validation schemas", () => {
       const result = resetPasswordSchema.safeParse({
         password: "short",
         confirmPassword: "short",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("rejects a four-emoji password the backend would refuse", () => {
+      const result = resetPasswordSchema.safeParse({
+        password: "😀😀😀😀",
+        confirmPassword: "😀😀😀😀",
       });
       expect(result.success).toBe(false);
     });

@@ -6,10 +6,40 @@ export const emailSchema = z
   .min(1, "errors.required")
   .email("errors.invalidEmail");
 
+/**
+ * bcrypt hashes at most 72 bytes, so the backend rejects anything longer.
+ * The limit is in BYTES, not characters: 40 Cyrillic characters are 80 bytes
+ * and would be refused by a check that only counted `.length`.
+ */
+export const MAX_PASSWORD_BYTES = 72;
+
+export function passwordByteLength(value: string): number {
+  return new TextEncoder().encode(value).length;
+}
+
+/**
+ * The published rule — "at least 8 characters" — is counted in Unicode code
+ * points, matching the backend's `utf8.RuneCountInString`. `String.length`
+ * counts UTF-16 units, so it sees four emoji as eight characters and would
+ * wave through a password the server then rejects.
+ */
+export const MIN_PASSWORD_CHARS = 8;
+
+export function passwordCharLength(value: string): number {
+  return [...value].length;
+}
+
 export const passwordSchema = z
   .string()
   .min(1, "errors.required")
-  .min(8, "errors.passwordTooShort");
+  .refine(
+    (value) => passwordCharLength(value) >= MIN_PASSWORD_CHARS,
+    "errors.passwordTooShort",
+  )
+  .refine(
+    (value) => passwordByteLength(value) <= MAX_PASSWORD_BYTES,
+    "errors.passwordTooLong",
+  );
 
 export const verificationCodeSchema = z
   .string()

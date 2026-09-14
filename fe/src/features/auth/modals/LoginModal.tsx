@@ -19,6 +19,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/shared/ui/Dialog";
+import { AUTH_DIALOG_TITLE_IDS } from "@/features/auth/modals/authDialogTitleIds";
+import { authErrorMessageKey } from "@/features/auth/authErrorMessage";
 import { ApiError } from "@/services/api";
 import { Loader2, Mail } from "lucide-react";
 
@@ -61,9 +63,12 @@ function ModalContent({
     onError: (error: ApiError) => {
       if (error.code === "EMAIL_NOT_VERIFIED") {
         setEmailNotVerified(true);
-      } else {
-        setError("password", { message: error.message });
+        return;
       }
+      // A localisation key, not the API's sentence. The field renders its
+      // message through `t()`, and what the backend sends is English prose
+      // meant for logs — it went on screen untranslated in every language.
+      setError("password", { message: authErrorMessageKey(error) });
     },
   });
 
@@ -109,7 +114,10 @@ function ModalContent({
   return (
     <>
       <DialogHeader>
-        <DialogTitle className="text-2xl font-bold">
+        <DialogTitle
+          id={AUTH_DIALOG_TITLE_IDS.login}
+          className="text-2xl font-bold"
+        >
           {t("auth.login")}
         </DialogTitle>
         <DialogDescription>{t("auth.loginDescription")}</DialogDescription>
@@ -292,6 +300,7 @@ export function LoginModal({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
+      labelledBy={AUTH_DIALOG_TITLE_IDS.login}
       swipeToDismiss
       className="max-sm:h-full max-sm:max-w-none"
     >

@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { LoginModal } from "../LoginModal";
 import { RegisterModal } from "../RegisterModal";
 import { ForgotPasswordModal } from "../ForgotPasswordModal";
+import { AUTH_DIALOG_TITLE_IDS } from "../authDialogTitleIds";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -201,5 +202,55 @@ describe("ForgotPasswordModal", () => {
       />,
     );
     expect(screen.getByText("auth.email")).toBeInTheDocument();
+  });
+});
+
+/**
+ * All three used to render `role="dialog" aria-modal="true"` with no name at
+ * all: a screen reader announced "dialog" and left the user to work out which
+ * one had just taken over the page. The name is the heading already on screen,
+ * so it cannot drift from what everyone else reads.
+ */
+describe("auth dialog accessible names", () => {
+  it("names the login dialog after its heading", () => {
+    render(
+      <LoginModal
+        open
+        onOpenChange={vi.fn()}
+        onSwitchToRegister={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("dialog", { name: "auth.login" })).toHaveAttribute(
+      "aria-labelledby",
+      AUTH_DIALOG_TITLE_IDS.login,
+    );
+  });
+
+  it("names the register dialog after its heading", () => {
+    render(
+      <RegisterModal open onOpenChange={vi.fn()} onSwitchToLogin={vi.fn()} />,
+    );
+
+    expect(
+      screen.getByRole("dialog", { name: "auth.register" }),
+    ).toHaveAttribute("aria-labelledby", AUTH_DIALOG_TITLE_IDS.register);
+  });
+
+  it("names the forgot-password dialog after its heading", () => {
+    render(
+      <ForgotPasswordModal open onOpenChange={vi.fn()} onBackToLogin={vi.fn()} />,
+    );
+
+    expect(
+      screen.getByRole("dialog", { name: "auth.forgotPasswordTitle" }),
+    ).toHaveAttribute("aria-labelledby", AUTH_DIALOG_TITLE_IDS.forgotPassword);
+  });
+
+  // Three modals on one page: an id used twice would name the wrong heading.
+  it("gives each dialog an id of its own", () => {
+    const ids = Object.values(AUTH_DIALOG_TITLE_IDS);
+
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
