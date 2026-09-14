@@ -13,4 +13,7 @@ type PgxDB interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	// Begin is needed by the one write that has to count and insert without
+	// anything getting between the two — see CreateFinalizedUpload.
+	Begin(ctx context.Context) (pgx.Tx, error)
 }

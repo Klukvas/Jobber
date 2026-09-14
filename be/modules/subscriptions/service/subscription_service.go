@@ -263,6 +263,40 @@ func (s *SubscriptionService) CheckLimit(ctx context.Context, userID, resource s
 	return nil
 }
 
+// ResourceLimit reports how many of a countable resource the user's effective
+// plan allows. -1 means unlimited; an unrecognised resource is also unlimited,
+// matching CheckLimit's own default.
+//
+// Exists so a caller can enforce the ceiling where it can actually be enforced.
+// CheckLimit answers "is there room right now?", which stops being true the
+// moment it returns: two requests can both be told yes and both write. A caller
+// that does its counting and its writing in one transaction needs the number,
+// not the verdict.
+func (s *SubscriptionService) ResourceLimit(ctx context.Context, userID, resource string) (int, error) {
+	plan, err := s.effectivePlan(ctx, userID)
+	if err != nil {
+		return 0, err
+	}
+	limits := model.GetLimitsForPlan(plan)
+
+	switch resource {
+	case "jobs":
+		return limits.MaxJobs, nil
+	case "resumes":
+		return limits.MaxResumes, nil
+	case "ai":
+		return limits.MaxAIRequests, nil
+	case "job_parses":
+		return limits.MaxJobParses, nil
+	case "resume_builders":
+		return limits.MaxResumeBuilders, nil
+	case "cover_letters":
+		return limits.MaxCoverLetters, nil
+	default:
+		return -1, nil
+	}
+}
+
 // RecordAIUsage records an AI usage event for the user.
 func (s *SubscriptionService) RecordAIUsage(ctx context.Context, userID string) error {
 	return s.repo.RecordAIUsage(ctx, userID)

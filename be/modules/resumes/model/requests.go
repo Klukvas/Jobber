@@ -25,6 +25,13 @@ type GenerateUploadURLResponse struct {
 	ExpiresIn int    `json:"expires_in"`
 }
 
+// FinalizeUploadRequest completes a presigned upload: the server verifies the
+// object that actually landed in storage and, if it passes, activates the
+// resume under this title. Title is optional — omitted keeps the placeholder.
+type FinalizeUploadRequest struct {
+	Title *string `json:"title,omitempty" binding:"omitempty,max=255"`
+}
+
 // DownloadURLResponse represents response with presigned download URL
 type DownloadURLResponse struct {
 	DownloadURL string `json:"download_url"`

@@ -25,9 +25,9 @@ import (
 
 // MockMatchScoreCacheRepo implements ports.MatchScoreCacheRepository for testing.
 type MockMatchScoreCacheRepo struct {
-	GetFunc              func(ctx context.Context, userID, jobID, resumeID string) (*model.MatchScoreResponse, error)
-	UpsertFunc           func(ctx context.Context, userID, jobID, resumeID string, result *model.MatchScoreResponse) error
-	InvalidateByJobFunc  func(ctx context.Context, jobID string) error
+	GetFunc                func(ctx context.Context, userID, jobID, resumeID string) (*model.MatchScoreResponse, error)
+	UpsertFunc             func(ctx context.Context, userID, jobID, resumeID string, result *model.MatchScoreResponse) error
+	InvalidateByJobFunc    func(ctx context.Context, jobID string) error
 	InvalidateByResumeFunc func(ctx context.Context, resumeID string) error
 }
 
@@ -155,7 +155,7 @@ func TestCheckMatch_NilCacheRepo_DoesNotPanic(t *testing.T) {
 
 // MockLimitChecker implements LimitChecker for testing.
 type MockLimitChecker struct {
-	CheckLimitFunc   func(ctx context.Context, userID, resource string) error
+	CheckLimitFunc    func(ctx context.Context, userID, resource string) error
 	RecordAIUsageFunc func(ctx context.Context, userID string) error
 }
 
@@ -478,7 +478,15 @@ func (m *MockJobRepository) GetLastActivityAt(ctx context.Context, userID, jobID
 }
 
 type MockResumeRepository struct {
-	GetByIDFunc func(ctx context.Context, uid, rid string) (*resumeModel.Resume, error)
+	CreateFinalizedUploadFunc func(ctx context.Context, resume *resumeModel.Resume, maxResumes int) error
+	GetByIDFunc               func(ctx context.Context, uid, rid string) (*resumeModel.Resume, error)
+}
+
+func (m *MockResumeRepository) CreateFinalizedUpload(ctx context.Context, resume *resumeModel.Resume, maxResumes int) error {
+	if m.CreateFinalizedUploadFunc != nil {
+		return m.CreateFinalizedUploadFunc(ctx, resume, maxResumes)
+	}
+	return m.Create(ctx, resume)
 }
 
 func (m *MockResumeRepository) Create(ctx context.Context, resume *resumeModel.Resume) error {
@@ -609,7 +617,7 @@ func TestDownloadResumePDF_S3Path_NilStorageKey(t *testing.T) {
 	resume := &resumeModel.Resume{
 		ID:          "resume-1",
 		StorageType: resumeModel.StorageTypeS3,
-		StorageKey:  nil,  // nil key, won't try S3
+		StorageKey:  nil, // nil key, won't try S3
 		FileURL:     nil,
 	}
 
@@ -1079,4 +1087,3 @@ func TestIsPrivateIP_PublicIPs(t *testing.T) {
 		assert.False(t, isPrivateIP(ip), "expected %s to be public", ipStr)
 	}
 }
-
