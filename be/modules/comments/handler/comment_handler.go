@@ -92,6 +92,66 @@ func (h *CommentHandler) ListByJob(c *gin.Context) {
 	httpPlatform.RespondWithData(c, http.StatusOK, comments)
 }
 
+// Update godoc
+// @Summary Edit a comment
+// @Description Rewrite the body of a comment the authenticated user authored
+// @Tags comments
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path string true "Comment ID"
+// @Param request body model.UpdateCommentRequest true "New comment body"
+// @Success 200 {object} model.CommentDTO
+// @Failure 400 {object} httpPlatform.ErrorResponse
+// @Failure 401 {object} httpPlatform.ErrorResponse
+// @Failure 404 {object} httpPlatform.ErrorResponse "Comment not found"
+// @Failure 500 {object} httpPlatform.ErrorResponse
+// @Router /comments/{id} [patch]
+func (h *CommentHandler) Update(c *gin.Context) {
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
+	commentID := c.Param("id")
+
+	var req model.UpdateCommentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		// The same answer Create gives to the same mistake. Reporting a body
+		// that is not JSON at all as CONTENT_REQUIRED pointed the client at a
+		// field that was never the problem, and left the two write endpoints
+		// of one resource disagreeing about what a malformed request is.
+		// A body that *is* JSON but carries no content still reaches the
+		// service, which answers with CONTENT_REQUIRED.
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request payload")
+		return
+	}
+
+	comment, err := h.service.Update(c.Request.Context(), userID, commentID, &req)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		errorCode := string(model.CodeInternalError)
+		errorMessage := "Failed to update comment"
+
+		switch {
+		case errors.Is(err, model.ErrContentRequired):
+			statusCode = http.StatusBadRequest
+			errorCode = string(model.CodeContentRequired)
+			errorMessage = "Content is required"
+		case errors.Is(err, model.ErrCommentNotFound):
+			// Also the answer for another user's comment id: the update is
+			// scoped to the author, so a foreign id matches nothing — and the
+			// response must not confirm that the comment exists.
+			statusCode = http.StatusNotFound
+			errorCode = string(model.CodeCommentNotFound)
+			errorMessage = "Comment not found"
+		}
+
+		httpPlatform.RespondWithError(c, statusCode, errorCode, errorMessage)
+		return
+	}
+	httpPlatform.RespondWithData(c, http.StatusOK, comment)
+}
+
 // Delete godoc
 // @Summary Delete a comment
 // @Description Delete a specific comment by ID
@@ -133,6 +193,7 @@ func (h *CommentHandler) RegisterRoutes(router *gin.RouterGroup, authMiddleware 
 	comments.Use(authMiddleware)
 	{
 		comments.POST("", h.Create)
+		comments.PATCH("/:id", h.Update)
 		comments.DELETE("/:id", h.Delete)
 	}
 

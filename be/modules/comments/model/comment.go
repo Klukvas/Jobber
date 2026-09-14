@@ -16,10 +16,13 @@ type Comment struct {
 }
 
 type CommentDTO struct {
-	ID        string    `json:"id"`
-	JobID     string    `json:"job_id"`
-	StageID   *string   `json:"stage_id,omitempty"`
-	Content   string    `json:"content"`
+	ID      string  `json:"id"`
+	JobID   string  `json:"job_id"`
+	StageID *string `json:"stage_id,omitempty"`
+	Content string  `json:"content"`
+	// UpdatedAt lets the UI mark a comment that has been edited since it was
+	// written. Equal to CreatedAt for a comment that was never edited.
+	UpdatedAt time.Time `json:"updated_at"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -29,14 +32,27 @@ func (c *Comment) ToDTO() *CommentDTO {
 		JobID:     c.JobID,
 		StageID:   c.StageID,
 		Content:   c.Content,
+		UpdatedAt: c.UpdatedAt,
 		CreatedAt: c.CreatedAt,
 	}
 }
 
+// `content` carries no binding tag on either request below, deliberately. The
+// rule is the service's: it trims first and answers CONTENT_REQUIRED. A binding
+// tag would reject the same input a step earlier as a shapeless
+// VALIDATION_ERROR, so an empty comment and an unparseable body came back
+// indistinguishable — and the two write endpoints for one resource disagreed
+// about which was which.
+
 type CreateCommentRequest struct {
 	JobID   string  `json:"job_id" binding:"required"`
 	StageID *string `json:"stage_id,omitempty"`
-	Content string  `json:"content" binding:"required,min=1"`
+	Content string  `json:"content"`
+}
+
+// UpdateCommentRequest carries the new body of an existing comment.
+type UpdateCommentRequest struct {
+	Content string `json:"content"`
 }
 
 var (

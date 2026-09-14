@@ -67,6 +67,9 @@ func (r *commentListRepo) Create(ctx context.Context, comment *commentModel.Comm
 func (r *commentListRepo) ListByJob(ctx context.Context, jobID, userID string) ([]*commentModel.Comment, error) {
 	return r.comments, r.err
 }
+func (r *commentListRepo) Update(ctx context.Context, userID, commentID, content string) (*commentModel.Comment, error) {
+	return nil, nil
+}
 func (r *commentListRepo) Delete(ctx context.Context, userID, commentID string) error { return nil }
 
 func TestBuildJobDTO_Enrichment(t *testing.T) {

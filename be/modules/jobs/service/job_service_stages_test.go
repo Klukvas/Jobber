@@ -83,6 +83,9 @@ func (r *recordingCommentRepo) Create(ctx context.Context, comment *commentModel
 func (r *recordingCommentRepo) ListByJob(ctx context.Context, jobID, userID string) ([]*commentModel.Comment, error) {
 	return nil, nil
 }
+func (r *recordingCommentRepo) Update(ctx context.Context, userID, commentID, content string) (*commentModel.Comment, error) {
+	return nil, nil
+}
 func (r *recordingCommentRepo) Delete(ctx context.Context, userID, commentID string) error {
 	return nil
 }
@@ -135,6 +138,7 @@ func svcWith(pool txBeginner, jobRepo *MockJobRepository, stageRepo *MockJobStag
 type commentRepoIface interface {
 	Create(ctx context.Context, comment *commentModel.Comment) error
 	ListByJob(ctx context.Context, jobID, userID string) ([]*commentModel.Comment, error)
+	Update(ctx context.Context, userID, commentID, content string) (*commentModel.Comment, error)
 	Delete(ctx context.Context, userID, commentID string) error
 }
 
