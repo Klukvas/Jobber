@@ -6,10 +6,11 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
-import { AppLayout } from "../AppLayout";
+import { MemoryRouter, useLocation } from "react-router-dom";
+import { AppLayout, POLL_INTERVAL_MS } from "../AppLayout";
 import {
   PRE_CHECKOUT_PLAN_KEY,
+  PRE_CHECKOUT_TTL_MS,
   notifyCheckoutCompleted,
   rememberPreCheckoutPlan,
 } from "@/features/subscription/checkoutSignals";
@@ -56,12 +57,29 @@ vi.mock("@/features/subscription/components/SubscriptionSuccessModal", () => ({
     plan ? <div data-testid="upgrade-success">{plan}</div> : null,
 }));
 
+/**
+ * The router's idea of the query string.
+ *
+ * The layout's checkout-return handling has to read and rewrite *this*, not
+ * `window.location.search`: under MemoryRouter — and under any client-side
+ * navigation — the two disagree, and code reading the window would have been
+ * silently untested here while quietly failing to clean the URL in the app.
+ */
+function LocationSearch() {
+  return <div data-testid="location-search">{useLocation().search}</div>;
+}
+
 function renderLayout(search = "") {
   return render(
     <MemoryRouter initialEntries={[`/app/jobs${search}`]}>
       <AppLayout />
+      <LocationSearch />
     </MemoryRouter>,
   );
+}
+
+function locationSearch(): string {
+  return screen.getByTestId("location-search").textContent ?? "";
 }
 
 describe("AppLayout — returning from checkout", () => {
@@ -85,7 +103,7 @@ describe("AppLayout — returning from checkout", () => {
   it("polls after a checkout without showing success while the plan is unchanged", async () => {
     // A reload while the popup was open: the baseline is still on disk, but
     // the backend keeps reporting the free plan.
-    sessionStorage.setItem(PRE_CHECKOUT_PLAN_KEY, "free");
+    rememberPreCheckoutPlan("free");
 
     renderLayout();
 
@@ -98,7 +116,7 @@ describe("AppLayout — returning from checkout", () => {
   });
 
   it("shows success once the backend reports a higher plan", async () => {
-    sessionStorage.setItem(PRE_CHECKOUT_PLAN_KEY, "free");
+    rememberPreCheckoutPlan("free");
     plan.value = "pro";
 
     renderLayout();
@@ -109,7 +127,7 @@ describe("AppLayout — returning from checkout", () => {
   });
 
   it("does not celebrate a downgrade or a sideways move", () => {
-    sessionStorage.setItem(PRE_CHECKOUT_PLAN_KEY, "enterprise");
+    rememberPreCheckoutPlan("enterprise");
     plan.value = "pro";
 
     renderLayout();
@@ -118,7 +136,7 @@ describe("AppLayout — returning from checkout", () => {
   });
 
   it("clears the baseline so a later visit does not re-poll", async () => {
-    sessionStorage.setItem(PRE_CHECKOUT_PLAN_KEY, "free");
+    rememberPreCheckoutPlan("free");
 
     renderLayout();
 
@@ -130,7 +148,7 @@ describe("AppLayout — returning from checkout", () => {
   it("still works when the storefront redirects back with the success param", async () => {
     // The FastSpring storefront's post-order redirect is a dashboard setting we
     // do not control, so both entry paths must behave identically.
-    sessionStorage.setItem(PRE_CHECKOUT_PLAN_KEY, "free");
+    rememberPreCheckoutPlan("free");
     plan.value = "pro";
 
     renderLayout("?subscription=success");
@@ -138,6 +156,88 @@ describe("AppLayout — returning from checkout", () => {
     expect(await screen.findByTestId("upgrade-success")).toHaveTextContent(
       "pro",
     );
+  });
+});
+
+/**
+ * The `?subscription=success` parameter is the storefront's, appended by a
+ * dashboard redirect setting. It is a breadcrumb, never evidence — anyone can
+ * bookmark it, share it, or land on it twice — so the only thing it is allowed
+ * to do is get itself cleaned out of the address bar.
+ */
+describe("AppLayout — the subscription URL parameter", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sessionStorage.clear();
+    plan.value = "free";
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+  });
+
+  it("removes itself from the router's URL after a checkout return", async () => {
+    rememberPreCheckoutPlan("free");
+
+    renderLayout("?subscription=success");
+
+    await waitFor(() => expect(locationSearch()).not.toContain("subscription"));
+  });
+
+  it("keeps every other parameter on the page", async () => {
+    rememberPreCheckoutPlan("free");
+
+    renderLayout("?tab=billing&subscription=success&highlight=pro");
+
+    await waitFor(() => expect(locationSearch()).not.toContain("subscription"));
+    const params = new URLSearchParams(locationSearch());
+    expect(params.get("tab")).toBe("billing");
+    expect(params.get("highlight")).toBe("pro");
+  });
+
+  it("leaves a page that never came back from checkout untouched", () => {
+    renderLayout("?tab=billing");
+
+    expect(locationSearch()).toBe("?tab=billing");
+  });
+
+  // A bookmarked success URL, opened by somebody who is already a subscriber:
+  // no checkout happened, so there is no baseline, and "free -> pro" is just
+  // the plan they already had. Celebrating it claims a purchase that was
+  // never made.
+  it("never celebrates without a baseline the app itself armed", async () => {
+    plan.value = "pro";
+
+    renderLayout("?subscription=success");
+
+    await waitFor(() => expect(locationSearch()).not.toContain("subscription"));
+    expect(screen.queryByTestId("upgrade-success")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(invalidateQueries).not.toHaveBeenCalled();
+  });
+
+  it("does not block a bookmarked success URL behind the overlay", () => {
+    renderLayout("?subscription=success");
+
+    expect(
+      screen.queryByText("settings.subscription.activating"),
+    ).not.toBeInTheDocument();
+  });
+
+  // An expired baseline is no baseline: the parameter must not resurrect it.
+  it("ignores the parameter when the baseline has expired", () => {
+    vi.useFakeTimers();
+    try {
+      rememberPreCheckoutPlan("free");
+      vi.advanceTimersByTime(PRE_CHECKOUT_TTL_MS + 1);
+      plan.value = "pro";
+
+      renderLayout("?subscription=success");
+
+      expect(screen.queryByTestId("upgrade-success")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -153,7 +253,7 @@ describe("AppLayout — the activating overlay is escapable", () => {
   });
 
   it("shows the overlay while a checkout return is still pending", () => {
-    sessionStorage.setItem(PRE_CHECKOUT_PLAN_KEY, "free");
+    rememberPreCheckoutPlan("free");
 
     renderLayout();
 
@@ -164,7 +264,7 @@ describe("AppLayout — the activating overlay is escapable", () => {
   });
 
   it("puts focus on the escape hatch, the overlay's only control", () => {
-    sessionStorage.setItem(PRE_CHECKOUT_PLAN_KEY, "free");
+    rememberPreCheckoutPlan("free");
 
     renderLayout();
 
@@ -176,7 +276,7 @@ describe("AppLayout — the activating overlay is escapable", () => {
   it("closes the overlay the moment the user asks to continue", async () => {
     // The buyer reloaded mid-purchase and then gave up. Without this button
     // they would sit behind a spinner until the five-minute poll expired.
-    sessionStorage.setItem(PRE_CHECKOUT_PLAN_KEY, "free");
+    rememberPreCheckoutPlan("free");
 
     renderLayout();
 
@@ -191,26 +291,59 @@ describe("AppLayout — the activating overlay is escapable", () => {
     expect(screen.queryByTestId("upgrade-success")).not.toBeInTheDocument();
   });
 
-  it("does not reopen the overlay after it was dismissed", async () => {
-    sessionStorage.setItem(PRE_CHECKOUT_PLAN_KEY, "free");
+  it("does not reopen the overlay after it was dismissed", () => {
+    // Fake timers on purpose. The poll only fires every POLL_INTERVAL_MS, so
+    // under real timers "no further calls arrived" was true the instant it was
+    // asserted and would have stayed true with the teardown deleted entirely.
+    vi.useFakeTimers();
+    try {
+      rememberPreCheckoutPlan("free");
 
-    renderLayout();
-    fireEvent.click(
-      screen.getByText("settings.subscription.activatingDismiss"),
-    );
+      renderLayout();
+      const callsWhilePolling = invalidateQueries.mock.calls.length;
+      expect(callsWhilePolling).toBeGreaterThan(0);
 
-    // Polling has stopped, so nothing can put the overlay back.
-    const callsAfterDismiss = invalidateQueries.mock.calls.length;
-    await waitFor(() =>
+      fireEvent.click(
+        screen.getByText("settings.subscription.activatingDismiss"),
+      );
+
+      const callsAfterDismiss = invalidateQueries.mock.calls.length;
+      act(() => {
+        vi.advanceTimersByTime(POLL_INTERVAL_MS * 5);
+      });
+
+      expect(invalidateQueries.mock.calls.length).toBe(callsAfterDismiss);
       expect(
         screen.queryByText("settings.subscription.activating"),
-      ).not.toBeInTheDocument(),
-    );
-    expect(invalidateQueries.mock.calls.length).toBe(callsAfterDismiss);
+      ).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // The interval is what keeps the overlay honest: it is the only thing that
+  // can notice the backend granting the plan. A poll that never fired would
+  // leave a paying customer staring at the spinner.
+  it("keeps polling on the interval while it is still waiting", () => {
+    vi.useFakeTimers();
+    try {
+      rememberPreCheckoutPlan("free");
+
+      renderLayout();
+      const initialCalls = invalidateQueries.mock.calls.length;
+
+      act(() => {
+        vi.advanceTimersByTime(POLL_INTERVAL_MS * 3);
+      });
+
+      expect(invalidateQueries.mock.calls.length).toBe(initialCalls + 3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("dismissing never celebrates a purchase that did not happen", () => {
-    sessionStorage.setItem(PRE_CHECKOUT_PLAN_KEY, "pro");
+    rememberPreCheckoutPlan("pro");
     plan.value = "pro";
 
     renderLayout();
@@ -225,7 +358,7 @@ describe("AppLayout — the activating overlay is escapable", () => {
     // Back from the Account Management Portal can restore this page without a
     // remount, so nothing else clears the baseline and the next full load would
     // poll for a purchase that never happened.
-    sessionStorage.setItem(PRE_CHECKOUT_PLAN_KEY, "free");
+    rememberPreCheckoutPlan("free");
 
     renderLayout();
     expect(
@@ -245,7 +378,7 @@ describe("AppLayout — the activating overlay is escapable", () => {
   });
 
   it("a plain page load is not treated as a bfcache restore", () => {
-    sessionStorage.setItem(PRE_CHECKOUT_PLAN_KEY, "free");
+    rememberPreCheckoutPlan("free");
 
     renderLayout();
 
@@ -319,5 +452,51 @@ describe("AppLayout — the popup closes without navigating", () => {
     await waitFor(() =>
       expect(sessionStorage.getItem(PRE_CHECKOUT_PLAN_KEY)).toBeNull(),
     );
+  });
+});
+
+/**
+ * The provider does not always tell us the popup closed — its own X fires no
+ * callback — so a baseline can outlive the checkout that wrote it. A page load
+ * must not turn that leftover into a blocking "Activating your subscription…"
+ * for someone who declined to pay.
+ */
+describe("AppLayout — a stale checkout baseline", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    plan.value = "free";
+    vi.useRealTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("does not show the overlay for a baseline older than the window", () => {
+    vi.useFakeTimers();
+    rememberPreCheckoutPlan("free");
+    vi.advanceTimersByTime(PRE_CHECKOUT_TTL_MS + 1);
+
+    renderLayout();
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("still shows the overlay for a checkout that just started", () => {
+    rememberPreCheckoutPlan("free");
+
+    renderLayout();
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("clears the expired key so later navigations stay quiet", () => {
+    vi.useFakeTimers();
+    rememberPreCheckoutPlan("free");
+    vi.advanceTimersByTime(PRE_CHECKOUT_TTL_MS + 1);
+
+    renderLayout();
+
+    expect(sessionStorage.getItem(PRE_CHECKOUT_PLAN_KEY)).toBeNull();
   });
 });

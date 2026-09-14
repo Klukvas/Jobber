@@ -8,7 +8,7 @@ import {
   ArrowDownCircle,
   ExternalLink,
 } from "lucide-react";
-import { Dialog } from "@/shared/ui/Dialog";
+import { Dialog, DialogTitle } from "@/shared/ui/Dialog";
 import { Button } from "@/shared/ui/Button";
 import { subscriptionService } from "@/services/subscriptionService";
 import { useSubscription } from "@/shared/hooks/useSubscription";
@@ -24,11 +24,18 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-const PLAN_PRICE: Record<SubscriptionPlan, string> = {
-  free: "$0",
-  pro: "$7/mo",
-  enterprise: "$19/mo",
-};
+/**
+ * The i18n key holding a plan's price, so this modal quotes the same copy the
+ * pricing modal does.
+ *
+ * It used to be a literal table — "$7/mo", "$19/mo" — which was a second copy
+ * of the price *and* English-only: RU and UK translate the same strings as
+ * "$7/мес" and "$7/міс", so a Russian-speaking subscriber read "/mo" here and
+ * "/мес" one screen away, and every price change had two places to land in.
+ */
+function planPriceKey(plan: SubscriptionPlan): string {
+  return `settings.subscription.pricing.${plan}Price`;
+}
 
 export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
   const { t } = useTranslation();
@@ -93,9 +100,10 @@ export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <div className="w-full max-w-md space-y-5 bg-background rounded-lg border p-6 shadow-lg">
         <div>
-          <h2 className="text-lg font-semibold">
-            {t("settings.subscription.manage.title")}
-          </h2>
+          {/* The shared heading, not a bare `h2`: it is what tells the dialog
+              its own name, and this was the one modal in the app that had no
+              accessible name at all. */}
+          <DialogTitle>{t("settings.subscription.manage.title")}</DialogTitle>
           <p className="text-sm text-muted-foreground mt-0.5">
             {t("settings.subscription.manage.description")}
           </p>
@@ -111,7 +119,7 @@ export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
               {t(`settings.subscription.${plan}Plan`)}
             </span>
             <span className="text-sm text-muted-foreground">
-              {PLAN_PRICE[plan]}
+              {t(planPriceKey(plan))}
             </span>
           </div>
           {subscription?.current_period_end && !isCancelled && (
@@ -148,7 +156,7 @@ export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
                   {t(`settings.subscription.${targetPlan}Plan`)}
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  {PLAN_PRICE[targetPlan]}
+                  {t(planPriceKey(targetPlan))}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
