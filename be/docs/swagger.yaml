@@ -192,8 +192,6 @@ definitions:
       locale:
         type: string
       password:
-        maxLength: 72
-        minLength: 8
         type: string
     required:
     - email
@@ -216,19 +214,27 @@ definitions:
         type: string
       stage_id:
         type: string
+      updated_at:
+        description: |-
+          UpdatedAt lets the UI mark a comment that has been edited since it was
+          written. Equal to CreatedAt for a comment that was never edited.
+        type: string
     type: object
   github_com_andreypavlenko_jobber_modules_comments_model.CreateCommentRequest:
     properties:
       content:
-        minLength: 1
         type: string
       job_id:
         type: string
       stage_id:
         type: string
     required:
-    - content
     - job_id
+    type: object
+  github_com_andreypavlenko_jobber_modules_comments_model.UpdateCommentRequest:
+    properties:
+      content:
+        type: string
     type: object
   github_com_andreypavlenko_jobber_modules_companies_model.CompanyDTO:
     properties:
@@ -679,6 +685,12 @@ definitions:
       expires_in:
         type: integer
     type: object
+  github_com_andreypavlenko_jobber_modules_resumes_model.FinalizeUploadRequest:
+    properties:
+      title:
+        maxLength: 255
+        type: string
+    type: object
   github_com_andreypavlenko_jobber_modules_resumes_model.GenerateUploadURLRequest:
     properties:
       content_type:
@@ -887,8 +899,9 @@ definitions:
       email:
         type: string
       password:
-        maxLength: 72
-        minLength: 8
+        description: |-
+          Length is validated in the service (in bytes, with a specific error) —
+          see RegisterRequest for why it is not a binding tag.
         type: string
     required:
     - code
@@ -1359,6 +1372,50 @@ paths:
       summary: Delete a comment
       tags:
       - comments
+    patch:
+      consumes:
+      - application/json
+      description: Rewrite the body of a comment the authenticated user authored
+      parameters:
+      - description: Comment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New comment body
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_comments_model.UpdateCommentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_comments_model.CommentDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "404":
+          description: Comment not found
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Edit a comment
+      tags:
+      - comments
   /companies:
     get:
       description: Get a paginated list of companies for the authenticated user with
@@ -1701,6 +1758,10 @@ paths:
         in: query
         name: search
         type: string
+      - description: Only cards linked to this company (UUID)
+        in: query
+        name: company_id
+        type: string
       produces:
       - application/json
       responses:
@@ -1716,7 +1777,8 @@ paths:
                   type: array
               type: object
         "400":
-          description: Invalid pagination parameters
+          description: INVALID_PAGINATION_PARAMS, INVALID_SORT (unknown field or direction),
+            or INVALID_COMPANY_ID (company_id is not a UUID)
           schema:
             $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
         "401":
@@ -2315,6 +2377,34 @@ paths:
       summary: Ping
       tags:
       - system
+  /profile:
+    get:
+      description: Returns the caller's own account details. The user is taken from
+        the access token, so there is nothing to address but yourself.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_users_model.UserDTO'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get the signed-in user's profile
+      tags:
+      - users
   /public/shares/{token}:
     get:
       description: Get the frozen stats snapshot behind a share token. No authentication.
@@ -2802,6 +2892,55 @@ paths:
       summary: Download resume file
       tags:
       - resumes
+  /resumes/{id}/finalize:
+    post:
+      consumes:
+      - application/json
+      description: Verify the uploaded object is a real PDF within the size limit
+        and activate the resume. A rejected upload is deleted.
+      parameters:
+      - description: Resume ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Optional resume title
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.FinalizeUploadRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.ResumeDTO'
+        "400":
+          description: Uploaded file is not a valid PDF
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "403":
+          description: Plan resume limit reached
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "404":
+          description: Resume not found
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Finalize a resume upload
+      tags:
+      - resumes
   /resumes/upload-url:
     post:
       consumes:
@@ -2822,11 +2961,17 @@ paths:
           schema:
             $ref: '#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.GenerateUploadURLResponse'
         "400":
-          description: Bad Request
+          description: VALIDATION_ERROR — the body is missing a required field or
+            is not JSON
           schema:
             $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
         "401":
           description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "403":
+          description: PLAN_LIMIT_REACHED — the plan's resume allowance is already
+            used
           schema:
             $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
         "500":
@@ -3175,9 +3320,36 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+        "503":
+          description: SUPPORT_UNAVAILABLE — this deployment has no support channel
+            configured
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Submit a support request
+      tags:
+      - support
+  /support/status:
+    get:
+      description: Lets the UI hide or disable the support form when no support channel
+        is configured
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Report whether in-app support is available
       tags:
       - support
   /tags:

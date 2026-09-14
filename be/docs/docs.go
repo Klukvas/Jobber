@@ -704,6 +704,74 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Rewrite the body of a comment the authenticated user authored",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "comments"
+                ],
+                "summary": "Edit a comment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Comment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New comment body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_comments_model.UpdateCommentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_comments_model.CommentDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Comment not found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
             }
         },
         "/companies": {
@@ -1241,6 +1309,12 @@ const docTemplate = `{
                         "description": "Case-insensitive search matched against job title and company name (max 100 chars)",
                         "name": "search",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only cards linked to this company (UUID)",
+                        "name": "company_id",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1266,7 +1340,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Invalid pagination parameters",
+                        "description": "INVALID_PAGINATION_PARAMS, INVALID_SORT (unknown field or direction), or INVALID_COMPANY_ID (company_id is not a UUID)",
                         "schema": {
                             "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
                         }
@@ -2188,6 +2262,49 @@ const docTemplate = `{
                 }
             }
         },
+        "/profile": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the caller's own account details. The user is taken from the access token, so there is nothing to address but yourself.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Get the signed-in user's profile",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_users_model.UserDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/public/shares/{token}": {
             "get": {
                 "description": "Get the frozen stats snapshot behind a share token. No authentication.",
@@ -2687,13 +2804,19 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "VALIDATION_ERROR — the body is missing a required field or is not JSON",
                         "schema": {
                             "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "PLAN_LIMIT_REACHED — the plan's resume allowance is already used",
                         "schema": {
                             "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
                         }
@@ -2983,6 +3106,81 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Resume not found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/resumes/{id}/finalize": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Verify the uploaded object is a real PDF within the size limit and activate the resume. A rejected upload is deleted.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "resumes"
+                ],
+                "summary": "Finalize a resume upload",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Resume ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Optional resume title",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.FinalizeUploadRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_resumes_model.ResumeDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Uploaded file is not a valid PDF",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Plan resume limit reached",
                         "schema": {
                             "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
                         }
@@ -3531,6 +3729,46 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "SUPPORT_UNAVAILABLE — this deployment has no support channel configured",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/support/status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lets the UI hide or disable the support form when no support channel is configured",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "support"
+                ],
+                "summary": "Report whether in-app support is available",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/github_com_andreypavlenko_jobber_internal_platform_http.ErrorResponse"
                         }
@@ -4134,9 +4372,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "password": {
-                    "type": "string",
-                    "maxLength": 72,
-                    "minLength": 8
+                    "type": "string"
                 }
             }
         },
@@ -4165,24 +4401,34 @@ const docTemplate = `{
                 },
                 "stage_id": {
                     "type": "string"
+                },
+                "updated_at": {
+                    "description": "UpdatedAt lets the UI mark a comment that has been edited since it was\nwritten. Equal to CreatedAt for a comment that was never edited.",
+                    "type": "string"
                 }
             }
         },
         "github_com_andreypavlenko_jobber_modules_comments_model.CreateCommentRequest": {
             "type": "object",
             "required": [
-                "content",
                 "job_id"
             ],
             "properties": {
                 "content": {
-                    "type": "string",
-                    "minLength": 1
+                    "type": "string"
                 },
                 "job_id": {
                     "type": "string"
                 },
                 "stage_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_andreypavlenko_jobber_modules_comments_model.UpdateCommentRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
                     "type": "string"
                 }
             }
@@ -4860,6 +5106,15 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_andreypavlenko_jobber_modules_resumes_model.FinalizeUploadRequest": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "maxLength": 255
+                }
+            }
+        },
         "github_com_andreypavlenko_jobber_modules_resumes_model.GenerateUploadURLRequest": {
             "type": "object",
             "required": [
@@ -5179,9 +5434,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "password": {
-                    "type": "string",
-                    "maxLength": 72,
-                    "minLength": 8
+                    "description": "Length is validated in the service (in bytes, with a specific error) —\nsee RegisterRequest for why it is not a binding tag.",
+                    "type": "string"
                 }
             }
         },
