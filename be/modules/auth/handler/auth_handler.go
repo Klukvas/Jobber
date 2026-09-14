@@ -63,7 +63,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		statusCode := http.StatusInternalServerError
 		if errorCode == userModel.CodeUserAlreadyExists {
 			statusCode = http.StatusConflict
-		} else if errorCode == userModel.CodeInvalidEmail || errorCode == userModel.CodeInvalidPassword {
+		} else if errorCode == userModel.CodeInvalidEmail ||
+			errorCode == userModel.CodeInvalidPassword ||
+			errorCode == userModel.CodePasswordTooLong {
 			statusCode = http.StatusBadRequest
 		}
 
@@ -296,10 +298,10 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 // AuthRouteConfig holds middleware for auth route registration.
 type AuthRouteConfig struct {
-	AuthMiddleware    gin.HandlerFunc
-	RateLimiter       gin.HandlerFunc
-	EmailRateLimiter  gin.HandlerFunc // stricter limiter for email-sending endpoints
-	CodeRateLimiter   gin.HandlerFunc // stricter limiter for code verification endpoints
+	AuthMiddleware   gin.HandlerFunc
+	RateLimiter      gin.HandlerFunc
+	EmailRateLimiter gin.HandlerFunc // stricter limiter for email-sending endpoints
+	CodeRateLimiter  gin.HandlerFunc // stricter limiter for code verification endpoints
 }
 
 // RegisterRoutes registers auth routes.
@@ -361,7 +363,9 @@ type forgotPasswordRequest struct {
 }
 
 type resetPasswordRequest struct {
-	Email    string `json:"email"     binding:"required,email"`
-	Code     string `json:"code"      binding:"required,len=6"`
-	Password string `json:"password"  binding:"required,min=8,max=72"`
+	Email string `json:"email"     binding:"required,email"`
+	Code  string `json:"code"      binding:"required,len=6"`
+	// Length is validated in the service (in bytes, with a specific error) —
+	// see RegisterRequest for why it is not a binding tag.
+	Password string `json:"password"  binding:"required"`
 }

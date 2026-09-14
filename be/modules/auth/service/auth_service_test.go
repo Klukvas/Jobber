@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -64,6 +65,12 @@ func (m *MockUserRepository) SetEmailVerified(ctx context.Context, userID string
 	if m.SetEmailVerifiedFunc != nil {
 		return m.SetEmailVerifiedFunc(ctx, userID)
 	}
+	return nil
+}
+
+// UpdateName is part of the port but never used by auth; a profile rename is
+// the users module's business.
+func (m *MockUserRepository) UpdateName(context.Context, string, string) error {
 	return nil
 }
 
@@ -1063,7 +1070,7 @@ func TestAuthService_ResetPassword_Additional(t *testing.T) {
 		}
 
 		err := svc.ResetPassword(context.Background(), "test@example.com", "654321", string(longPassword))
-		assert.Equal(t, userModel.ErrInvalidPassword, err)
+		assert.ErrorIs(t, err, userModel.ErrPasswordTooLong)
 	})
 
 	t.Run("returns error when no active token exists", func(t *testing.T) {
@@ -1390,7 +1397,59 @@ func TestAuthService_Register_Additional(t *testing.T) {
 		resp, err := svc.Register(context.Background(), req)
 
 		assert.Nil(t, resp)
-		assert.Equal(t, userModel.ErrInvalidPassword, err)
+		assert.ErrorIs(t, err, userModel.ErrPasswordTooLong)
+	})
+
+	// The two limits are defined in different units and must be enforced in the
+	// unit each one actually uses: the published minimum is 8 CHARACTERS, and
+	// bcrypt's maximum is 72 BYTES.
+	t.Run("enforces the character minimum and the bcrypt byte maximum", func(t *testing.T) {
+		svc := createTestService(&MockUserRepository{}, &MockRefreshTokenRepository{})
+
+		tests := []struct {
+			name     string
+			password string
+			wantErr  error
+		}{
+			{name: "7 ascii characters is too short", password: strings.Repeat("a", 7), wantErr: userModel.ErrInvalidPassword},
+			{name: "8 ascii characters is the minimum", password: strings.Repeat("a", 8)},
+			{
+				// 5 characters, but 10 bytes: a byte-based minimum would have
+				// accepted this even though it breaks the published rule.
+				name:     "5 cyrillic characters is 10 bytes and still too short",
+				password: strings.Repeat("я", 5),
+				wantErr:  userModel.ErrInvalidPassword,
+			},
+			{name: "8 cyrillic characters meets the minimum", password: strings.Repeat("я", 8)},
+			{name: "72 ascii characters is accepted", password: strings.Repeat("a", 72)},
+			{name: "73 ascii characters is too long", password: strings.Repeat("a", 73), wantErr: userModel.ErrPasswordTooLong},
+			{
+				// 37 characters — comfortably under any character cap, but 74
+				// bytes, which bcrypt refuses.
+				name:     "37 cyrillic characters is 74 bytes and too long",
+				password: strings.Repeat("я", 37),
+				wantErr:  userModel.ErrPasswordTooLong,
+			},
+			{name: "36 cyrillic characters is 72 bytes and accepted", password: strings.Repeat("я", 36)},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				_, err := svc.Register(context.Background(), &authModel.RegisterRequest{
+					Email:    "test@example.com",
+					Password: tt.password,
+				})
+
+				if tt.wantErr == nil {
+					// Accepted lengths get past validation; whatever happens
+					// after that is a different code path.
+					assert.NotErrorIs(t, err, userModel.ErrInvalidPassword)
+					assert.NotErrorIs(t, err, userModel.ErrPasswordTooLong)
+					return
+				}
+				assert.ErrorIs(t, err, tt.wantErr)
+			})
+		}
 	})
 
 	t.Run("returns error when user create fails", func(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	"github.com/andreypavlenko/jobber/internal/platform/email"
@@ -97,9 +98,8 @@ func (s *AuthService) Register(ctx context.Context, req *authModel.RegisterReque
 		return nil, userModel.ErrInvalidEmail
 	}
 
-	// Validate password (min 8, max 72 — bcrypt silently truncates beyond 72 bytes)
-	if len(req.Password) < 8 || len(req.Password) > 72 {
-		return nil, userModel.ErrInvalidPassword
+	if err := validatePassword(req.Password); err != nil {
+		return nil, err
 	}
 
 	// Normalize email
@@ -306,8 +306,8 @@ func (s *AuthService) ForgotPassword(ctx context.Context, emailAddr string) erro
 
 // ResetPassword resets a user's password using email, code, and new password.
 func (s *AuthService) ResetPassword(ctx context.Context, emailAddr, code, newPassword string) error {
-	if len(newPassword) < 8 || len(newPassword) > 72 {
-		return userModel.ErrInvalidPassword
+	if err := validatePassword(newPassword); err != nil {
+		return err
 	}
 
 	emailAddr = strings.ToLower(strings.TrimSpace(emailAddr))
@@ -465,4 +465,29 @@ var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]
 // isValidEmail validates email format
 func isValidEmail(email string) bool {
 	return emailRegex.MatchString(email)
+}
+
+const (
+	// MinPasswordChars is the product rule we publish and the client enforces:
+	// "at least 8 characters". Counted in characters, not bytes, so a short
+	// Cyrillic password is not quietly accepted because its encoding is long.
+	MinPasswordChars = 8
+	// MaxPasswordBytes is bcrypt's hard input limit, and bcrypt counts BYTES.
+	// Checking characters here would let a 72-character Cyrillic password
+	// (144 bytes) reach the hasher, which then refuses it as a 500.
+	MaxPasswordBytes = 72
+)
+
+// validatePassword applies the two limits in the unit each one is actually
+// defined in: the minimum in characters (the published rule), the maximum in
+// bytes (bcrypt's).
+func validatePassword(password string) error {
+	switch {
+	case utf8.RuneCountInString(password) < MinPasswordChars:
+		return userModel.ErrInvalidPassword
+	case len(password) > MaxPasswordBytes:
+		return userModel.ErrPasswordTooLong
+	default:
+		return nil
+	}
 }

@@ -18,6 +18,12 @@ var (
 	// ErrInvalidPassword is returned when password is invalid
 	ErrInvalidPassword = errors.New("invalid password")
 
+	// ErrPasswordTooLong is returned when a password exceeds bcrypt's 72-byte
+	// input limit. Kept separate from ErrInvalidPassword so the client can say
+	// which end of the range was missed — and so a multi-byte password that is
+	// well under 72 characters but over 72 bytes gets an explanation.
+	ErrPasswordTooLong = errors.New("password is too long")
+
 	// ErrEmailNotVerified is returned when user tries to login without verified email
 	ErrEmailNotVerified = errors.New("email not verified")
 
@@ -35,18 +41,19 @@ var (
 type ErrorCode string
 
 const (
-	CodeUserNotFound              ErrorCode = "USER_NOT_FOUND"
-	CodeUserAlreadyExists         ErrorCode = "USER_ALREADY_EXISTS"
-	CodeInvalidCredentials        ErrorCode = "INVALID_CREDENTIALS"
-	CodeInvalidEmail              ErrorCode = "INVALID_EMAIL"
-	CodeInvalidPassword           ErrorCode = "INVALID_PASSWORD"
-	CodeInternalError             ErrorCode = "INTERNAL_ERROR"
-	CodeUnauthorized              ErrorCode = "UNAUTHORIZED"
-	CodeValidationError           ErrorCode = "VALIDATION_ERROR"
-	CodeEmailNotVerified          ErrorCode = "EMAIL_NOT_VERIFIED"
-	CodeInvalidVerificationToken  ErrorCode = "INVALID_VERIFICATION_TOKEN"
-	CodeInvalidResetToken         ErrorCode = "INVALID_RESET_TOKEN"
-	CodeTooManyAttempts           ErrorCode = "TOO_MANY_ATTEMPTS"
+	CodeUserNotFound             ErrorCode = "USER_NOT_FOUND"
+	CodeUserAlreadyExists        ErrorCode = "USER_ALREADY_EXISTS"
+	CodeInvalidCredentials       ErrorCode = "INVALID_CREDENTIALS"
+	CodeInvalidEmail             ErrorCode = "INVALID_EMAIL"
+	CodeInvalidPassword          ErrorCode = "INVALID_PASSWORD"
+	CodePasswordTooLong          ErrorCode = "PASSWORD_TOO_LONG"
+	CodeInternalError            ErrorCode = "INTERNAL_ERROR"
+	CodeUnauthorized             ErrorCode = "UNAUTHORIZED"
+	CodeValidationError          ErrorCode = "VALIDATION_ERROR"
+	CodeEmailNotVerified         ErrorCode = "EMAIL_NOT_VERIFIED"
+	CodeInvalidVerificationToken ErrorCode = "INVALID_VERIFICATION_TOKEN"
+	CodeInvalidResetToken        ErrorCode = "INVALID_RESET_TOKEN"
+	CodeTooManyAttempts          ErrorCode = "TOO_MANY_ATTEMPTS"
 )
 
 // GetErrorCode maps errors to error codes
@@ -60,6 +67,8 @@ func GetErrorCode(err error) ErrorCode {
 		return CodeInvalidCredentials
 	case errors.Is(err, ErrInvalidEmail):
 		return CodeInvalidEmail
+	case errors.Is(err, ErrPasswordTooLong):
+		return CodePasswordTooLong
 	case errors.Is(err, ErrInvalidPassword):
 		return CodeInvalidPassword
 	case errors.Is(err, ErrEmailNotVerified):
@@ -86,6 +95,8 @@ func GetErrorMessage(err error) string {
 		return "Invalid email or password"
 	case errors.Is(err, ErrInvalidEmail):
 		return "Invalid email format"
+	case errors.Is(err, ErrPasswordTooLong):
+		return "Password must be 72 bytes or fewer (about 72 Latin characters, fewer for other alphabets)"
 	case errors.Is(err, ErrInvalidPassword):
 		return "Password must be at least 8 characters"
 	case errors.Is(err, ErrEmailNotVerified):
