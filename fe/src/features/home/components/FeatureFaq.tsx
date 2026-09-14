@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
+import { serializeJsonLd } from "@/shared/lib/jsonLd";
+
 const SITE_URL = "https://jobber-app.com";
 const SCRIPT_ID = "feature-page-jsonld";
 const FAQ_KEYS = ["1", "2", "3", "4", "5"] as const;
@@ -62,7 +64,7 @@ export function FeatureFaq({ ns, path }: FeatureFaqProps) {
     const script = document.createElement("script");
     script.id = SCRIPT_ID;
     script.type = "application/ld+json";
-    script.text = JSON.stringify(jsonLd);
+    script.text = serializeJsonLd(jsonLd);
     document.head.appendChild(script);
 
     return () => {

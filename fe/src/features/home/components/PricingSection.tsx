@@ -8,14 +8,19 @@ interface PricingSectionProps {
   readonly onGoPlatform: () => void;
 }
 
+/**
+ * Free-plan bullets. `included: false` marks a limitation — it must not read
+ * as a feature, so it carries a cross and muted text instead of the same green
+ * check every included line uses.
+ */
 const FREE_FEATURES = [
-  "freeFeature1",
-  "freeFeature2",
-  "freeFeature3",
-  "freeFeature4",
-  "freeFeature5",
-  "freeFeature6",
-  "freeFeature7",
+  { key: "freeFeature1", included: true },
+  { key: "freeFeature2", included: true },
+  { key: "freeFeature3", included: true },
+  { key: "freeFeature4", included: true },
+  { key: "freeFeature5", included: true },
+  { key: "freeFeature6", included: true },
+  { key: "freeFeature7", included: false },
 ] as const;
 
 const PRO_FEATURES = [
@@ -37,6 +42,13 @@ const ENTERPRISE_FEATURES = [
   "enterpriseFeature6",
   "enterpriseFeature7",
 ] as const;
+
+/**
+ * The plan CTAs are the point of the section, and the Button default is 40px —
+ * just under the 44px a thumb needs. Raised on phones only, so pointer-driven
+ * layouts keep their density.
+ */
+const PLAN_CTA_HEIGHT = "h-11 sm:h-10";
 
 export function PricingSection({
   isAuthenticated,
@@ -76,13 +88,20 @@ export function PricingSection({
               </div>
               <hr className="mb-5 border-white/[0.07]" />
               <div className="space-y-2.5">
-                {FREE_FEATURES.map((key) => (
+                {FREE_FEATURES.map(({ key, included }) => (
                   <div
                     key={key}
-                    className="flex items-start gap-2.5 text-[13px] text-slate-400"
+                    className={`flex items-start gap-2.5 text-[13px] ${
+                      included ? "text-slate-400" : "text-slate-500"
+                    }`}
                   >
-                    <span className="mt-0.5 shrink-0 text-xs text-lime-400">
-                      &#10003;
+                    <span
+                      aria-hidden="true"
+                      className={`mt-0.5 shrink-0 text-xs ${
+                        included ? "text-lime-400" : "text-slate-600"
+                      }`}
+                    >
+                      {included ? "✓" : "✗"}
                     </span>
                     <span>{t(`home.pricing.${key}`)}</span>
                   </div>
@@ -90,7 +109,7 @@ export function PricingSection({
               </div>
               <Button
                 variant="outline"
-                className="mt-6 w-full justify-center border-white/[0.07] bg-transparent text-slate-300 hover:border-white/[0.14] hover:text-white"
+                className={`mt-6 w-full justify-center border-white/[0.07] bg-transparent text-slate-300 hover:border-white/[0.14] hover:text-white ${PLAN_CTA_HEIGHT}`}
                 onClick={handleCta}
               >
                 {t("home.pricing.freeCta")}
@@ -131,7 +150,7 @@ export function PricingSection({
                 ))}
               </div>
               <Button
-                className="mt-6 w-full justify-center"
+                className={`mt-6 w-full justify-center ${PLAN_CTA_HEIGHT}`}
                 onClick={handleCta}
               >
                 {t("home.pricing.proCta")} &rarr;
@@ -170,7 +189,7 @@ export function PricingSection({
               </div>
               <Button
                 variant="outline"
-                className="mt-6 w-full justify-center border-white/[0.07] bg-transparent text-slate-300 hover:border-white/[0.14] hover:text-white"
+                className={`mt-6 w-full justify-center border-white/[0.07] bg-transparent text-slate-300 hover:border-white/[0.14] hover:text-white ${PLAN_CTA_HEIGHT}`}
                 onClick={handleCta}
               >
                 {t("home.pricing.enterpriseCta")}

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import type { BlogPost } from "../lib/blogLoader";
+import { serializeJsonLd } from "@/shared/lib/jsonLd";
+import { postLanguageTag, type BlogPost } from "../lib/blogLoader";
 
 const SCRIPT_ID = "blog-post-jsonld";
 const SITE_URL = "https://jobber-app.com";
@@ -38,7 +39,7 @@ export function BlogPostJsonLd({ post }: BlogPostJsonLdProps) {
         "@type": "WebPage",
         "@id": canonicalUrl,
       },
-      inLanguage: post.lang === "ua" ? "uk" : post.lang,
+      inLanguage: postLanguageTag(post),
       keywords: post.tags.join(", "),
       author: {
         "@type": "Organization",
@@ -84,7 +85,7 @@ export function BlogPostJsonLd({ post }: BlogPostJsonLdProps) {
     const script = document.createElement("script");
     script.id = SCRIPT_ID;
     script.type = "application/ld+json";
-    script.text = JSON.stringify([blogPosting, breadcrumb]);
+    script.text = serializeJsonLd([blogPosting, breadcrumb]);
     document.head.appendChild(script);
 
     return () => {

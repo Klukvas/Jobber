@@ -15,9 +15,21 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+// className is forwarded: the footer's tap-target sizing lives on it, and a
+// mock that swallowed it would make those assertions vacuous.
 vi.mock("react-router-dom", () => ({
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
-    <a href={to}>{children}</a>
+  Link: ({
+    children,
+    to,
+    className,
+  }: {
+    children: React.ReactNode;
+    to: string;
+    className?: string;
+  }) => (
+    <a href={to} className={className}>
+      {children}
+    </a>
   ),
 }));
 
@@ -117,6 +129,90 @@ describe("FooterSection", () => {
       "href",
       "/refund",
     );
+  });
+
+  it("carries the FluxLab attribution as a safe external link", () => {
+    render(<FooterSection />);
+    const link = screen.getByText("Powered by FluxLab").closest("a");
+
+    expect(link).toHaveAttribute("href", "https://flux-lab.dev/en");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link?.getAttribute("rel")).toContain("noopener");
+    expect(link?.getAttribute("rel")).toContain("noreferrer");
+  });
+
+  // The FAQ lives at /#faq on the landing page; the footer is one of the two
+  // places that makes it findable without scrolling the whole page.
+  it("links to the FAQ anchor", () => {
+    render(<FooterSection />);
+    expect(screen.getByText("home.nav.faq").closest("a")).toHaveAttribute(
+      "href",
+      "/#faq",
+    );
+  });
+
+  /**
+   * 13px text with no padding is an 18px tap target, well under the 44px WCAG
+   * 2.5.5 asks for — and these sit directly above the consent banner, where a
+   * mis-tap is easiest.
+   */
+  it.each([
+    "home.nav.faq",
+    "home.footer.privacy",
+    "home.footer.terms",
+    "home.footer.refund",
+    "cookieConsent.settings",
+  ])("gives %s a 44px minimum on phones", (label) => {
+    render(<FooterSection />);
+
+    expect(screen.getByText(label).className).toContain("min-h-11");
+  });
+
+  it("drops back to plain inline text from sm up", () => {
+    render(<FooterSection />);
+
+    expect(screen.getByText("home.footer.privacy").className).toContain(
+      "sm:min-h-0",
+    );
+  });
+
+  /**
+   * Height alone was not enough. The earlier pass gave these links `min-h-11`
+   * and left the width at whatever the word happened to be: "FAQ" measured
+   * 24x44 and "Terms" 36x44, both short in the axis nobody checked.
+   */
+  it.each([
+    "home.nav.faq",
+    "home.footer.privacy",
+    "home.footer.terms",
+    "home.footer.refund",
+    "cookieConsent.settings",
+  ])("gives %s 44px of width as well as height on phones", (label) => {
+    render(<FooterSection />);
+    const link = screen.getByText(label);
+
+    expect(link.className).toContain("min-w-11");
+    expect(link.className).toContain("justify-center");
+    expect(link.className).toContain("sm:min-w-0");
+  });
+
+  // 119x20 as measured: wide enough already, half the height a thumb needs.
+  it("gives the FluxLab attribution a 44px minimum on phones", () => {
+    render(<FooterSection />);
+    const link = screen.getByText("Powered by FluxLab");
+
+    expect(link.className).toContain("min-h-11");
+    expect(link.className).toContain("sm:min-h-0");
+  });
+
+  // A tighter horizontal gap below `sm` is what keeps five 44px rows wrapping
+  // inside a 375px viewport instead of overflowing it.
+  it("tightens the row gap on the narrowest screens", () => {
+    render(<FooterSection />);
+    const row = screen.getByText("home.footer.privacy").parentElement;
+
+    expect(row?.className).toContain("gap-x-4");
+    expect(row?.className).toContain("sm:gap-x-5");
   });
 });
 

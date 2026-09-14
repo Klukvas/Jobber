@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { serializeJsonLd } from "@/shared/lib/jsonLd";
 import type { BlogPost } from "../lib/blogLoader";
 
 const SCRIPT_ID = "blog-index-jsonld";
@@ -58,7 +59,7 @@ export function BlogIndexJsonLd({ posts }: BlogIndexJsonLdProps) {
     const script = document.createElement("script");
     script.id = SCRIPT_ID;
     script.type = "application/ld+json";
-    script.text = JSON.stringify([collection, breadcrumb]);
+    script.text = serializeJsonLd([collection, breadcrumb]);
     document.head.appendChild(script);
 
     return () => {

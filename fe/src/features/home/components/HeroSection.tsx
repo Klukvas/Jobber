@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { scrollToSection } from "@/shared/lib/scrollToSection";
 import { Button } from "@/shared/ui/Button";
 import { HeroShowcase } from "./HeroShowcase";
 
@@ -16,9 +17,7 @@ export function HeroSection({
   const { t } = useTranslation();
 
   const scrollToHow = () => {
-    document
-      .getElementById("how-it-works")
-      ?.scrollIntoView({ behavior: "smooth" });
+    scrollToSection("how-it-works");
   };
 
   // The accent ends with a decorative "_" in every locale — replace it

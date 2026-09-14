@@ -13,6 +13,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  PRERENDER_CONSENT_KEY,
+  PRERENDER_CONSENT_RECORD,
+} from "./prerenderConsent.mjs";
+import { stripRuntimeBodyClasses } from "./shellHtml.mjs";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const DIST = path.join(ROOT, "dist");
@@ -123,17 +129,19 @@ async function main() {
   });
 
   // Pre-seed cookie consent so the banner is not baked into every prerendered
-  // snapshot (and nothing analytics-shaped runs during builds).
-  await page.addInitScript(() => {
-    try {
-      localStorage.setItem(
-        "cookie-consent",
-        JSON.stringify({ choice: "essential", at: "prerender" }),
-      );
-    } catch {
-      // localStorage unavailable — the banner in snapshots is cosmetic only.
-    }
-  });
+  // snapshot (and nothing analytics-shaped runs during builds). The record
+  // itself comes from ./prerenderConsent.mjs, which the app's own consent
+  // tests read back — see the note there.
+  await page.addInitScript(
+    ([key, record]) => {
+      try {
+        localStorage.setItem(key, JSON.stringify(record));
+      } catch {
+        // localStorage unavailable — the banner in snapshots is cosmetic only.
+      }
+    },
+    [PRERENDER_CONSENT_KEY, PRERENDER_CONSENT_RECORD],
+  );
 
   // Render every route against the pristine SPA shell first, only then
   // write to disk. Otherwise vite preview would serve a freshly written
@@ -166,7 +174,10 @@ async function main() {
   for (const { route, html } of rendered) {
     const outPath = outPathFor(route);
     await fs.mkdir(path.dirname(outPath), { recursive: true });
-    await fs.writeFile(outPath, html, "utf8");
+    // `dist/index.html` is both the prerendered landing page and the SPA
+    // fallback every other route is served from, so no class the landing page
+    // put on <body> may survive into the file.
+    await fs.writeFile(outPath, stripRuntimeBodyClasses(html), "utf8");
     console.log(`\x1b[32m✓\x1b[0m wrote ${path.relative(ROOT, outPath)}`);
   }
 

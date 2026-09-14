@@ -1,27 +1,47 @@
-import { Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { format, parseISO } from 'date-fns';
-import { uk, enUS } from 'date-fns/locale';
-import { Calendar, ArrowRight } from 'lucide-react';
-import type { BlogPost } from '../lib/blogLoader';
+import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { Calendar, ArrowRight } from "lucide-react";
+import { useDateLocale } from "@/shared/lib/dateFnsLocale";
+import { formatPostDate } from "../lib/formatPostDate";
+import type { BlogPost } from "../lib/blogLoader";
 
 interface BlogPostCardProps {
   readonly post: BlogPost;
 }
 
+/**
+ * One card, one link.
+ *
+ * The whole card is clickable, and it used to get there by laying a second
+ * `<a>` over it — an empty one, so it had no accessible name, and there were
+ * as many of them on `/blog` as there were posts. Every one duplicated the
+ * title link right above it and announced itself as nothing at all.
+ *
+ * The title link covers the card instead, through a pseudo-element stretched
+ * to the card's own bounds. Same target area, one destination, and the only
+ * thing in the accessibility tree is the link that carries the post's title.
+ */
 export function BlogPostCard({ post }: BlogPostCardProps) {
-  const { t, i18n } = useTranslation();
-  const dateLocale = i18n.language === 'ua' ? uk : enUS;
-  const formattedDate = format(parseISO(post.date), 'MMMM d, yyyy', {
-    locale: dateLocale,
-  });
+  const { t } = useTranslation();
+  // The shared map, not a local two-way branch: the local one knew about
+  // Ukrainian and English only, so every Russian post was dated in English.
+  const dateLocale = useDateLocale();
+  const formattedDate = formatPostDate(post.date, dateLocale);
 
   return (
     <article className="group relative overflow-hidden rounded-xl border bg-card transition-all hover:shadow-lg hover:border-primary/30">
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary/60 to-primary/20 opacity-0 transition-opacity group-hover:opacity-100" />
       <div className="p-6">
         <h2 className="text-xl font-semibold tracking-tight group-hover:text-primary transition-colors">
-          <Link to={`/blog/${post.slug}`}>{post.title}</Link>
+          <Link
+            to={`/blog/${post.slug}`}
+            // `after:` is what makes the card clickable: an absolutely
+            // positioned box on the link, stretched to the nearest positioned
+            // ancestor — the <article> above.
+            className="rounded after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            {post.title}
+          </Link>
         </h2>
         <p className="mt-2 text-muted-foreground leading-relaxed line-clamp-2">
           {post.description}
@@ -46,17 +66,11 @@ export function BlogPostCard({ post }: BlogPostCardProps) {
             )}
           </div>
           <span className="flex items-center gap-1 text-sm font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
-            {t('blog.readMore')}
+            {t("blog.readMore")}
             <ArrowRight className="h-3.5 w-3.5" />
           </span>
         </div>
       </div>
-      <Link
-        to={`/blog/${post.slug}`}
-        className="absolute inset-0"
-        aria-hidden="true"
-        tabIndex={-1}
-      />
     </article>
   );
 }

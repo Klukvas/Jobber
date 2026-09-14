@@ -147,96 +147,126 @@ function buildSitemapXml(entries: readonly SitemapEntry[]): string {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${urls}\n</urlset>\n`;
 }
 
+function buildEntries(
+  siteUrl: string,
+  posts: readonly BlogEntry[],
+  buildDate: string,
+): SitemapEntry[] {
+  const latestPostDate =
+    posts.reduce<string>((acc, p) => (p.lastmod > acc ? p.lastmod : acc), "") ||
+    buildDate;
+
+  return [
+    {
+      loc: `${siteUrl}/`,
+      changefreq: "weekly",
+      priority: "1.0",
+      lastmod: buildDate,
+    },
+    {
+      loc: `${siteUrl}/features/applications`,
+      changefreq: "monthly",
+      priority: "0.8",
+      lastmod: buildDate,
+    },
+    {
+      loc: `${siteUrl}/features/resume-builder`,
+      changefreq: "monthly",
+      priority: "0.8",
+      lastmod: buildDate,
+    },
+    {
+      loc: `${siteUrl}/features/cover-letters`,
+      changefreq: "monthly",
+      priority: "0.8",
+      lastmod: buildDate,
+    },
+    {
+      loc: `${siteUrl}/blog`,
+      changefreq: "weekly",
+      priority: "0.8",
+      lastmod: latestPostDate,
+    },
+    ...posts.map((p) => ({
+      loc: `${siteUrl}/blog/${p.slug}`,
+      changefreq: "monthly" as const,
+      priority: "0.7",
+      lastmod: p.lastmod || buildDate,
+      alternates: blogAlternates(p, posts, siteUrl),
+    })),
+    {
+      loc: `${siteUrl}/privacy`,
+      changefreq: "yearly",
+      priority: "0.3",
+      lastmod: buildDate,
+    },
+    {
+      loc: `${siteUrl}/terms`,
+      changefreq: "yearly",
+      priority: "0.3",
+      lastmod: buildDate,
+    },
+    {
+      loc: `${siteUrl}/refund`,
+      changefreq: "yearly",
+      priority: "0.3",
+      lastmod: buildDate,
+    },
+  ];
+}
+
+/**
+ * Writes `<outDir>/sitemap.xml` for the frontend app rooted at `root`,
+ * returning whether it wrote anything.
+ *
+ * The blog content directory is the marker for "this root is the frontend
+ * app". Without it there is nothing truthful to emit, so we skip rather than
+ * drop a silently blogless sitemap into whatever directory was resolved.
+ * Exported so the behaviour is testable without driving a real Vite build.
+ */
+export function writeSitemap(root: string, outDir: string): boolean {
+  const blogDir = path.join(root, "src/content/blog");
+  if (!fs.existsSync(blogDir)) {
+    console.warn(
+      `\x1b[33m!\x1b[0m sitemap.xml skipped: no blog content at ${blogDir}`,
+    );
+    return false;
+  }
+
+  const siteUrl = process.env.VITE_SITE_URL ?? "https://jobber-app.com";
+  const buildDate = new Date().toISOString().slice(0, 10);
+  const entries = buildEntries(siteUrl, collectBlogEntries(blogDir), buildDate);
+  const xml = buildSitemapXml(entries);
+
+  if (!fs.existsSync(outDir)) {
+    fs.mkdirSync(outDir, { recursive: true });
+  }
+
+  fs.writeFileSync(path.join(outDir, "sitemap.xml"), xml, "utf-8");
+  console.log(
+    `\x1b[32m✓\x1b[0m sitemap.xml generated with ${entries.length} URLs`,
+  );
+  return true;
+}
+
 export default function sitemapPlugin(): Plugin {
   let resolvedRoot: string;
   let resolvedOutDir: string;
 
   return {
     name: "vite-plugin-sitemap",
+    // A sitemap is a build output, and `closeBundle` also fires in serve mode
+    // — including under Vitest, which points `build.outDir` at the sentinel
+    // "dummy-non-existing-folder" precisely so outDir writers stay harmless.
+    // Creating that directory defeated the sentinel and littered the tree on
+    // every test run, so restrict the plugin to real builds.
+    apply: "build",
     configResolved(config: ResolvedConfig) {
       resolvedRoot = config.root;
       resolvedOutDir = path.resolve(config.root, config.build.outDir);
     },
     closeBundle() {
-      const siteUrl = process.env.VITE_SITE_URL ?? "https://jobber-app.com";
-      const blogDir = path.join(resolvedRoot, "src/content/blog");
-      const posts = collectBlogEntries(blogDir);
-      const buildDate = new Date().toISOString().slice(0, 10);
-      const latestPostDate =
-        posts.reduce<string>(
-          (acc, p) => (p.lastmod > acc ? p.lastmod : acc),
-          "",
-        ) || buildDate;
-
-      const entries: SitemapEntry[] = [
-        {
-          loc: `${siteUrl}/`,
-          changefreq: "weekly",
-          priority: "1.0",
-          lastmod: buildDate,
-        },
-        {
-          loc: `${siteUrl}/features/applications`,
-          changefreq: "monthly",
-          priority: "0.8",
-          lastmod: buildDate,
-        },
-        {
-          loc: `${siteUrl}/features/resume-builder`,
-          changefreq: "monthly",
-          priority: "0.8",
-          lastmod: buildDate,
-        },
-        {
-          loc: `${siteUrl}/features/cover-letters`,
-          changefreq: "monthly",
-          priority: "0.8",
-          lastmod: buildDate,
-        },
-        {
-          loc: `${siteUrl}/blog`,
-          changefreq: "weekly",
-          priority: "0.8",
-          lastmod: latestPostDate,
-        },
-        ...posts.map((p) => ({
-          loc: `${siteUrl}/blog/${p.slug}`,
-          changefreq: "monthly" as const,
-          priority: "0.7",
-          lastmod: p.lastmod || buildDate,
-          alternates: blogAlternates(p, posts, siteUrl),
-        })),
-        {
-          loc: `${siteUrl}/privacy`,
-          changefreq: "yearly",
-          priority: "0.3",
-          lastmod: buildDate,
-        },
-        {
-          loc: `${siteUrl}/terms`,
-          changefreq: "yearly",
-          priority: "0.3",
-          lastmod: buildDate,
-        },
-        {
-          loc: `${siteUrl}/refund`,
-          changefreq: "yearly",
-          priority: "0.3",
-          lastmod: buildDate,
-        },
-      ];
-
-      const xml = buildSitemapXml(entries);
-
-      if (!fs.existsSync(resolvedOutDir)) {
-        fs.mkdirSync(resolvedOutDir, { recursive: true });
-      }
-
-      const outPath = path.join(resolvedOutDir, "sitemap.xml");
-      fs.writeFileSync(outPath, xml, "utf-8");
-      console.log(
-        `\x1b[32m✓\x1b[0m sitemap.xml generated with ${entries.length} URLs`,
-      );
+      writeSitemap(resolvedRoot, resolvedOutDir);
     },
   };
 }

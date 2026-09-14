@@ -91,7 +91,16 @@ const ruModules = import.meta.glob("/src/content/blog/ru/*.md", {
   import: "default",
 }) as Record<string, string>;
 
-function loadPosts(modules: Record<string, string>): readonly BlogPost[] {
+/**
+ * Turns a directory of raw markdown into posts, newest first.
+ *
+ * Exported so the frontmatter mapping can be tested against markdown the tests
+ * write themselves. The three calls below feed it `import.meta.glob` results,
+ * which is a build-time construct and not something a test can substitute.
+ */
+export function loadPosts(
+  modules: Record<string, string>,
+): readonly BlogPost[] {
   return Object.values(modules)
     .map((raw) => {
       const { data, content } = parseFrontmatter(raw);
@@ -99,9 +108,15 @@ function loadPosts(modules: Record<string, string>): readonly BlogPost[] {
         title: data.title ?? "",
         slug: data.slug ?? "",
         date: data.date ?? "",
+        // Both optional and both read from the frontmatter rather than
+        // dropped: the article JSON-LD advertises `dateModified` and a
+        // per-post `image`, and a post that declared either used to have it
+        // silently replaced by the publication date and the site-wide OG card.
+        dateModified: data.dateModified,
         description: data.description ?? "",
         tags: data.tags ?? [],
         lang: data.lang ?? "en",
+        image: data.image,
         content,
         translationKey: data.translationKey,
       } satisfies BlogPost;
@@ -119,12 +134,21 @@ const enPosts = loadPosts(enModules);
 const uaPosts = loadPosts(uaModules);
 const ruPosts = loadPosts(ruModules);
 
+/**
+ * Posts for a language.
+ *
+ * Accepts either spelling of Ukrainian: the *content directory* is "ua"
+ * (`src/content/blog/ua`, and the posts' own frontmatter says so), while the
+ * interface language is the BCP 47 "uk". Callers pass whichever they hold, and
+ * neither has to know about the other.
+ */
 export function getAllPosts(lang: string): readonly BlogPost[] {
-  if (lang === "ua") return uaPosts;
+  if (lang === "ua" || lang === "uk") return uaPosts;
   if (lang === "ru") return ruPosts;
   return enPosts;
 }
 
+/** Content directories, in the order hreflang alternates are emitted. */
 const ALL_LANGS = ["en", "ua", "ru"] as const;
 
 export interface HreflangAlternate {
@@ -136,13 +160,31 @@ export interface HreflangAlternate {
 
 const HREFLANG_BY_DIR = { en: "en", ua: "uk", ru: "ru" } as const;
 
+/**
+ * BCP 47 code for a post's own language. The content directory for Ukrainian
+ * is "ua", but the language code is "uk" — never emit "ua" into markup.
+ */
+export function postLanguageTag(post: BlogPost): string {
+  return (
+    HREFLANG_BY_DIR[post.lang as keyof typeof HREFLANG_BY_DIR] ?? post.lang
+  );
+}
+
 // Translations of `post` across languages (including the post itself),
-// ordered en → uk → ru. Returns [] when the post has no translationKey or
-// no counterpart in another language — a single-entry cluster is meaningless.
+// ordered en → uk → ru.
+//
+// A post with no counterpart still gets a single self-referencing entry: the
+// URL does target one specific language, and saying so is the whole point of
+// the annotation. Without it a Russian-only article served under an English UI
+// emitted no language signal at all.
 export function getHreflangAlternates(
   post: BlogPost,
 ): readonly HreflangAlternate[] {
-  if (!post.translationKey) return [];
+  const selfOnly: readonly HreflangAlternate[] = [
+    { hreflang: postLanguageTag(post), slug: post.slug },
+  ];
+  if (!post.translationKey) return selfOnly;
+
   const alternates: HreflangAlternate[] = [];
   for (const dir of ALL_LANGS) {
     const match = getAllPosts(dir).find(
@@ -152,7 +194,7 @@ export function getHreflangAlternates(
       alternates.push({ hreflang: HREFLANG_BY_DIR[dir], slug: match.slug });
     }
   }
-  return alternates.length > 1 ? alternates : [];
+  return alternates.length > 1 ? alternates : selfOnly;
 }
 
 export function getPostBySlug(
