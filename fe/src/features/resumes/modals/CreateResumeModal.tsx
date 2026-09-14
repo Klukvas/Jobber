@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { resumesService } from "@/services/resumesService";
+import { looksLikePdf, resumesService } from "@/services/resumesService";
 import type { ResumeDTO } from "@/shared/types/api";
 import {
   Dialog,
@@ -27,6 +27,9 @@ interface CreateResumeModalProps {
 }
 
 type UploadMode = "url" | "file";
+
+/** Mirrors the server's MaxUploadedResumeBytes. */
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 export function CreateResumeModal({
   open,
@@ -56,16 +59,15 @@ export function CreateResumeModal({
     },
   });
 
-  // File upload mutation
+  // File upload mutation. The server verifies the stored object and activates
+  // the resume in one step, so a spoofed file never leaves a half-created row.
   const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const resume = await resumesService.uploadResume(file, setUploadProgress);
-      // Update title if provided
-      if (title && title !== "Untitled Resume") {
-        return resumesService.update(resume.id, { title, is_active: true });
-      }
-      return resumesService.update(resume.id, { is_active: true });
-    },
+    mutationFn: (file: File) =>
+      resumesService.uploadResume(
+        file,
+        setUploadProgress,
+        title && title !== "Untitled Resume" ? title : undefined,
+      ),
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ["resumes"] });
       showSuccessNotification(t("resumes.uploadSuccess"));
@@ -89,27 +91,52 @@ export function CreateResumeModal({
     }, 300);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file type
-      if (file.type !== "application/pdf") {
-        showErrorNotification(t("resumes.onlyPdfAllowed"));
-        e.target.value = "";
-        return;
-      }
-      // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        showErrorNotification(t("resumes.fileSizeLimit"));
-        e.target.value = "";
-        return;
-      }
-      setSelectedFile(file);
-      // Auto-fill title from filename if empty
-      if (!title) {
-        const fileName = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
-        setTitle(fileName);
-      }
+  // Fast feedback before a pointless round-trip. None of this is a security
+  // boundary — the extension and the MIME type both come from the client, and
+  // even the magic-byte read below runs here. The server re-checks the stored
+  // object in resumes/{id}/finalize, and that check is the one that decides.
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    const reject = (messageKey: string) => {
+      showErrorNotification(t(messageKey));
+      input.value = "";
+      setSelectedFile(null);
+      setUploadProgress(0);
+    };
+
+    if (file.type !== "application/pdf") {
+      reject("resumes.onlyPdfAllowed");
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      reject("resumes.fileSizeLimit");
+      return;
+    }
+    // `looksLikePdf` reads the file, and a read can fail outright: a file that
+    // was moved or unmounted between picking and reading rejects with a
+    // NotReadableError. Unhandled, that escaped this handler as a rejected
+    // promise, left the selection half-applied and told the customer nothing.
+    // Unreadable and not-a-PDF land in the same place, because from here they
+    // are the same thing: this file cannot be uploaded.
+    let isPdf = false;
+    try {
+      isPdf = await looksLikePdf(file);
+    } catch {
+      isPdf = false;
+    }
+    if (!isPdf) {
+      reject("resumes.notARealPdf");
+      return;
+    }
+
+    setSelectedFile(file);
+    // Auto-fill title from filename if empty
+    if (!title) {
+      const fileName = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
+      setTitle(fileName);
     }
   };
 
@@ -219,7 +246,7 @@ export function CreateResumeModal({
                   id="file"
                   type="file"
                   accept="application/pdf,.pdf"
-                  onChange={handleFileChange}
+                  onChange={(e) => void handleFileChange(e)}
                   required
                   disabled={isLoading}
                   className="cursor-pointer"

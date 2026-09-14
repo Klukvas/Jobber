@@ -2,11 +2,11 @@ import {
   useState,
   useRef,
   useCallback,
-  useEffect,
   type CSSProperties,
   type KeyboardEvent,
 } from "react";
 import { cn } from "@/shared/lib/utils";
+import { useInlineEditFocus } from "./useInlineEditFocus";
 
 type TagType = "span" | "p" | "h1" | "h2" | "h3";
 type InputType = "text" | "date" | "email" | "url" | "tel";
@@ -44,12 +44,7 @@ export function EditableField({
     setIsEditing(true);
   }, [editable, value]);
 
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      const el = inputRef.current;
-      requestAnimationFrame(() => el.focus());
-    }
-  }, [isEditing]);
+  useInlineEditFocus(inputRef, isEditing);
 
   const commit = useCallback(() => {
     setIsEditing(false);

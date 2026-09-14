@@ -65,7 +65,7 @@ export default function JobDetail() {
     refetch,
   } = useQuery({
     queryKey: ["job", id],
-    queryFn: () => jobsService.getById(id!),
+    queryFn: ({ signal }) => jobsService.getById(id!, { signal }),
     enabled: !!id,
   });
 
@@ -134,6 +134,8 @@ export default function JobDetail() {
     deleteMutation,
     completeCurrentStageMutation,
     addCommentMutation,
+    updateCommentMutation,
+    deleteCommentMutation,
     checkMatchMutation,
   } = useJobDetailMutations({
     id,
@@ -275,6 +277,17 @@ export default function JobDetail() {
         onChangeComment={(value) => setNewComment(value)}
         onAddComment={handleAddComment}
         isAdding={addCommentMutation.isPending}
+        // mutateAsync, not mutate: the section keeps the editor and the delete
+        // confirm open until the server has actually accepted, so it needs the
+        // promise to settle on.
+        onUpdateComment={(commentId, content) =>
+          updateCommentMutation.mutateAsync({ commentId, content })
+        }
+        isUpdating={updateCommentMutation.isPending}
+        onDeleteComment={(commentId) =>
+          deleteCommentMutation.mutateAsync(commentId)
+        }
+        isDeleting={deleteCommentMutation.isPending}
       />
 
       {/* Reminders */}
@@ -309,7 +322,9 @@ export default function JobDetail() {
         <DialogContent onClose={() => setIsDeleteConfirmOpen(false)}>
           <DialogHeader>
             <DialogTitle>{t("jobs.delete")}</DialogTitle>
-            <DialogDescription>{t("jobs.deleteConfirm")}</DialogDescription>
+            <DialogDescription>
+              {t("jobs.deleteConfirm", { title: job.title })}
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-6">
             <Button

@@ -75,7 +75,9 @@ describe("SharedStats", () => {
     renderPage();
 
     await waitFor(() => {
-      // appears in the overview card and on the funnel bar
+      // The overview card. The funnel bar beside it no longer prints a bare
+      // number — it asks for a counted message, so "1" cannot read
+      // "1 applications" in English or "1 заявки" in Russian.
       expect(screen.getAllByText("127").length).toBeGreaterThan(0);
     });
     expect(mockGetPublic).toHaveBeenCalledWith("tok-1");

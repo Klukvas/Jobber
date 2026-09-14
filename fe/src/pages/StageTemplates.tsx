@@ -132,7 +132,7 @@ export default function StageTemplates() {
   };
 
   const getAllTranslations = (nameKey: string) => {
-    const languages = ["en", "ua", "ru"];
+    const languages = ["en", "uk", "ru"];
     return languages.map((lang) => i18n.getFixedT(lang)(nameKey).toLowerCase());
   };
 

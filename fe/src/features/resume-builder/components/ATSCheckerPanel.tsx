@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ShieldCheck,
@@ -8,10 +9,15 @@ import {
 } from "lucide-react";
 import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
 import { useATSCheck } from "../hooks/useATSCheck";
-import type { ATSIssue } from "../hooks/useATSCheck";
+import type { ATSCheckResult, ATSIssue } from "../hooks/useATSCheck";
 import { Button } from "@/shared/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
 import { cn } from "@/shared/lib/utils";
+import { ApiError } from "@/services/api";
+import { FEATURES } from "@/shared/lib/features";
+import { UpgradeModal } from "@/features/subscription/components/UpgradeModal";
+import { useMonthlyResetDate } from "@/features/subscription/useMonthlyResetDate";
+import { useSubscription } from "@/shared/hooks/useSubscription";
 
 const SEVERITY_STYLES: Record<ATSIssue["severity"], string> = {
   critical: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
@@ -42,13 +48,28 @@ export function ATSCheckerPanel() {
   const { t } = useTranslation();
   const resume = useResumeBuilderStore((s) => s.resume);
   const atsCheck = useATSCheck();
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  // A failed re-check used to wipe the score that was already on screen, so a
+  // customer who hit the monthly limit lost the report they had just read.
+  const [lastResult, setLastResult] = useState<ATSCheckResult | null>(null);
+  const resetDate = useMonthlyResetDate();
+  // The ATS check spends the same monthly AI allowance as match scoring and
+  // resume assistance, so the message has to name the allowance — and its size
+  // — rather than a single feature the customer may not even have used.
+  const { limits } = useSubscription();
 
   const handleCheck = () => {
     if (!resume) return;
-    atsCheck.mutate(resume.id);
+    atsCheck.mutate(resume.id, {
+      onSuccess: (data) => setLastResult(data),
+    });
   };
 
-  const result = atsCheck.data;
+  const result = atsCheck.data ?? lastResult;
+
+  const isQuotaError =
+    atsCheck.error instanceof ApiError &&
+    atsCheck.error.code === "PLAN_LIMIT_REACHED";
 
   return (
     <div className="space-y-6">
@@ -67,20 +88,48 @@ export function ATSCheckerPanel() {
       >
         {atsCheck.isPending ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
             {t("resumeBuilder.ats.checking")}
           </>
         ) : (
           <>
-            <ShieldCheck className="h-4 w-4" />
+            <ShieldCheck className="h-4 w-4" aria-hidden />
             {t("resumeBuilder.ats.check")}
           </>
         )}
       </Button>
 
-      {atsCheck.isError && (
-        <p className="text-sm text-destructive">{t("common.error")}</p>
-      )}
+      {atsCheck.isError &&
+        (isQuotaError ? (
+          // A quota is not a failure — it needs the reason, the reset date and
+          // a way forward, not a red "an error occurred".
+          <div
+            role="status"
+            className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950"
+          >
+            <p className="text-amber-800 dark:text-amber-200">
+              {t("settings.subscription.limitReachedAIMonthly", {
+                count: limits.max_ai_requests,
+              })}
+            </p>
+            <p className="text-amber-700 dark:text-amber-300">
+              {t("settings.subscription.resetsOn", { date: resetDate })}
+            </p>
+            {FEATURES.PAYMENTS && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setUpgradeOpen(true)}
+              >
+                {t("settings.subscription.upgradeForMore")}
+              </Button>
+            )}
+          </div>
+        ) : (
+          <p role="alert" className="text-sm text-destructive">
+            {t("resumeBuilder.ats.error")}
+          </p>
+        ))}
 
       {result && (
         <div className="space-y-4">
@@ -190,6 +239,8 @@ export function ATSCheckerPanel() {
           )}
         </div>
       )}
+
+      {upgradeOpen && <UpgradeModal open onOpenChange={setUpgradeOpen} />}
     </div>
   );
 }

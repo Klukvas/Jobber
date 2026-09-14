@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import Companies from "../Companies";
 import Jobs from "../Jobs";
@@ -18,11 +18,16 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+const mockSearchParams = vi.hoisted(() => ({
+  value: new URLSearchParams(),
+  set: vi.fn(),
+}));
+
 vi.mock("react-router-dom", () => ({
   useNavigate: () => vi.fn(),
   useParams: () => ({ id: "test-id" }),
   useLocation: () => ({ pathname: "/", search: "" }),
-  useSearchParams: () => [new URLSearchParams(), vi.fn()],
+  useSearchParams: () => [mockSearchParams.value, mockSearchParams.set],
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),
@@ -37,23 +42,28 @@ vi.mock("@/shared/lib/dateFnsLocale", () => ({
   useDateLocale: () => undefined,
 }));
 
-vi.mock("@/shared/lib/notifications", () => ({
+const mockNotify = vi.hoisted(() => ({
   showSuccessNotification: vi.fn(),
   showErrorNotification: vi.fn(),
+  showInfoNotification: vi.fn(),
 }));
+vi.mock("@/shared/lib/notifications", () => mockNotify);
 
 vi.mock("@/shared/lib/utils", () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
 }));
 
-vi.mock("@/shared/lib/features", () => ({
-  FEATURES: {
+/** Mutable so a test can switch payments on for the upgrade call to action. */
+const mockFeatures = vi.hoisted(() => ({
+  value: {
     GOOGLE_CALENDAR: false,
     SENTRY: false,
     EMAIL_NOTIFICATIONS: false,
     PAYMENTS: false,
   },
 }));
+
+vi.mock("@/shared/lib/features", () => ({ FEATURES: mockFeatures.value }));
 
 vi.mock("@tanstack/react-query", () => ({
   keepPreviousData: (prev: unknown) => prev,
@@ -103,21 +113,36 @@ vi.mock("@/stores/themeStore", () => {
   };
 });
 
-vi.mock("@/shared/hooks/useSubscription", () => ({
-  useSubscription: () => ({
-    subscription: null,
+const mockSubscription = vi.hoisted(() => ({
+  value: {
+    subscription: null as unknown,
     isPro: false,
     isEnterprise: false,
-    nextPlan: null,
+    nextPlan: null as string | null,
     canCreate: () => true,
-    usage: { jobs: 0, resumes: 0, applications: 0, ai_requests: 0 },
+    usage: {
+      jobs: 2,
+      resumes: 1,
+      applications: 0,
+      ai_requests: 1,
+      job_parses: 0,
+      resume_builders: 1,
+      cover_letters: 0,
+    },
     limits: {
       max_jobs: 10,
       max_resumes: 3,
       max_applications: 20,
       max_ai_requests: 5,
+      max_job_parses: 5,
+      max_resume_builders: 3,
+      max_cover_letters: 0,
     },
-  }),
+  },
+}));
+
+vi.mock("@/shared/hooks/useSubscription", () => ({
+  useSubscription: () => mockSubscription.value,
 }));
 
 vi.mock("@/services/applicationsService", () => ({
@@ -308,6 +333,16 @@ describe("JobDetail", () => {
     render(<JobDetail />);
     expect(screen.getByText("jobs.notFound")).toBeInTheDocument();
   });
+
+  // Measured 137x40 on a phone. It is the shared Button at its default size,
+  // so this asserts the call site actually gets the size scale's phone floor
+  // rather than a hand-rolled element that would miss it.
+  it("gives the back button a 44px minimum on phones", () => {
+    render(<JobDetail />);
+    const back = screen.getAllByText("jobs.backToJobs")[0].closest("button");
+
+    expect(back?.className).toContain("max-sm:h-11");
+  });
 });
 
 describe("Analytics", () => {
@@ -348,6 +383,113 @@ describe("Settings", () => {
     render(<Settings />);
     expect(screen.getByText("settings.account")).toBeInTheDocument();
     expect(screen.getByText("auth.logout")).toBeInTheDocument();
+  });
+
+  // The usage grid used to list only jobs, resumes and AI requests, so two
+  // allowances that can block the customer were invisible.
+  describe("plan usage", () => {
+    it("lists every allowance the plan limits", () => {
+      render(<Settings />);
+
+      expect(
+        screen.getByText("settings.subscription.jobs"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("settings.subscription.resumes"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("settings.subscription.aiRequests"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("settings.subscription.resumeBuilders"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("settings.subscription.coverLetters"),
+      ).toBeInTheDocument();
+    });
+
+    it("marks a zero allowance as not included rather than as 0 of 0", () => {
+      render(<Settings />);
+      expect(
+        screen.getByText("settings.subscription.notIncluded"),
+      ).toBeInTheDocument();
+    });
+
+    it("labels the AI allowance as the monthly one", () => {
+      render(<Settings />);
+      expect(
+        screen.getByText("settings.subscription.perMonth"),
+      ).toBeInTheDocument();
+    });
+
+    it("marks the active theme and language for assistive tech", () => {
+      render(<Settings />);
+
+      expect(screen.getByText("settings.light")).toHaveAttribute(
+        "aria-pressed",
+      );
+      expect(screen.getByText("settings.english")).toHaveAttribute(
+        "aria-pressed",
+      );
+    });
+  });
+
+  // The upgrade CTA is a hand-rolled button rather than the shared one, so it
+  // never got the 44px phone floor the button scale applies: `py-2` around
+  // 14px text measured 36px on a 390px screen.
+  describe("upgrade call to action", () => {
+    beforeEach(() => {
+      mockFeatures.value.PAYMENTS = true;
+      mockSubscription.value.nextPlan = "pro";
+    });
+
+    afterEach(() => {
+      mockFeatures.value.PAYMENTS = false;
+      mockSubscription.value.nextPlan = null;
+    });
+
+    it("gives it a 44px target on phones", () => {
+      render(<Settings />);
+      const upgrade = screen.getByText("settings.subscription.upgrade");
+
+      expect(upgrade.className).toContain("max-sm:min-h-11");
+    });
+  });
+
+  // Returning from checkout with ?subscription=success used to strip the
+  // parameter and say nothing at all.
+  describe("returning from checkout", () => {
+    beforeEach(() => {
+      mockNotify.showInfoNotification.mockClear();
+      mockNotify.showSuccessNotification.mockClear();
+      mockSearchParams.set.mockClear();
+    });
+
+    afterEach(() => {
+      mockSearchParams.value = new URLSearchParams();
+    });
+
+    it("acknowledges the return without claiming the plan already changed", () => {
+      mockSearchParams.value = new URLSearchParams("subscription=success");
+      render(<Settings />);
+
+      expect(mockNotify.showInfoNotification).toHaveBeenCalledWith(
+        "settings.subscription.checkoutReceived",
+      );
+      expect(mockNotify.showSuccessNotification).not.toHaveBeenCalled();
+    });
+
+    it("clears the parameter out of the URL", () => {
+      mockSearchParams.value = new URLSearchParams("subscription=success");
+      render(<Settings />);
+
+      expect(mockSearchParams.set).toHaveBeenCalledWith({});
+    });
+
+    it("says nothing on an ordinary visit", () => {
+      render(<Settings />);
+      expect(mockNotify.showInfoNotification).not.toHaveBeenCalled();
+    });
   });
 });
 

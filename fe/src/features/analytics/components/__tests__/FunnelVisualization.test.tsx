@@ -3,9 +3,13 @@ import { render, screen } from "@testing-library/react";
 import type { FunnelAnalytics } from "@/services/analyticsService";
 import { FunnelVisualization } from "../FunnelVisualization";
 
+// Counted messages are echoed back with their count, so a test can see which
+// key was asked for and with what — the real forms are pinned against the real
+// bundles in shared/locales/__tests__/applicationCount.test.ts.
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, options?: { count?: number }) =>
+      options?.count === undefined ? key : `${key}:${options.count}`,
     i18n: { language: "en", changeLanguage: vi.fn() },
   }),
 }));
@@ -99,5 +103,38 @@ describe("FunnelVisualization", () => {
     expect(
       screen.queryByText("analytics.funnel.rejected"),
     ).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The bar labels used to be a raw number next to an invariant noun, which read
+ * "1 applications" the moment a stage held exactly one.
+ */
+describe("FunnelVisualization — counted totals", () => {
+  it("asks for a counted message rather than gluing a number to a noun", () => {
+    render(<FunnelVisualization data={{ stages }} isLoading={false} />);
+
+    expect(
+      screen.getByText("analytics.applicationsCount:25"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("analytics.applicationsCount:2"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("analytics.applications"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("counts the terminal rejections the same way", () => {
+    render(
+      <FunnelVisualization
+        data={{ stages, rejected: { total: 1, by_stage: [] } }}
+        isLoading={false}
+      />,
+    );
+
+    expect(
+      screen.getByText("analytics.applicationsCount:1"),
+    ).toBeInTheDocument();
   });
 });

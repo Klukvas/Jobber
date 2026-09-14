@@ -91,3 +91,37 @@ describe("JobCardBase — actions menu", () => {
     expect(onDelete).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Measured on a 390px viewport: the title button was 242x18 and the actions
+ * button 32x32, both well under the 44x44 WCAG 2.5.5 and the Apple HIG ask
+ * for. Asserted on classes because jsdom has no layout, and the classes are
+ * what decide the size; the floor is scoped to `max-sm` so the board keeps its
+ * pointer density.
+ */
+describe("JobCardBase — touch targets", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("gives the title button a 44px height on phones", () => {
+    renderCard();
+    const title = screen.getByText("Backend Engineer").closest("button");
+
+    expect(title?.className).toMatch(/max-sm:min-h-11/);
+  });
+
+  it("gives the actions button a 44x44 target on phones", () => {
+    renderCard();
+    const actions = screen.getByLabelText("jobs.actionsMenu");
+
+    expect(actions.className).toMatch(/max-sm:h-11/);
+    expect(actions.className).toMatch(/max-sm:w-11/);
+  });
+
+  it("keeps the actions button at its drawn 32x32 on a pointer", () => {
+    renderCard();
+    const actions = screen.getByLabelText("jobs.actionsMenu");
+
+    expect(actions.className).toMatch(/(^|\s)h-8(\s|$)/);
+    expect(actions.className).toMatch(/(^|\s)w-8(\s|$)/);
+  });
+});

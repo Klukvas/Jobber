@@ -40,7 +40,10 @@ let mockIsLoading = false;
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    // Interpolations are echoed back so a test can see what was substituted —
+    // an empty title in a "delete X?" prompt is the whole point of one below.
+    t: (key: string, options?: Record<string, unknown>) =>
+      options?.title === undefined ? key : `${key}:${String(options.title)}`,
     i18n: { language: "en" },
   }),
   getI18n: () => ({ language: "en" }),
@@ -203,6 +206,21 @@ describe("CoverLettersPage", () => {
 
     expect(
       screen.getByText("coverLetter.deleteConfirmTitle"),
+    ).toBeInTheDocument();
+  });
+
+  // A cover letter can be saved with its title cleared. The prompt then asked
+  // whether to delete "" — which names nothing at the one moment the customer
+  // has to be certain what they are destroying.
+  it("names an untitled letter in the delete prompt", async () => {
+    const user = userEvent.setup();
+    mockCoverLetters = [createMockCoverLetter({ id: "cl-1", title: "" })];
+
+    render(<CoverLettersPage />);
+    await user.click(screen.getByLabelText("common.delete"));
+
+    expect(
+      screen.getByText("coverLetter.deleteConfirmDescription:common.untitled"),
     ).toBeInTheDocument();
   });
 

@@ -1,4 +1,4 @@
-import { apiClient } from "./api";
+import { apiClient, type RequestOptions } from "./api";
 import type {
   MoveJobRequest,
   JobDTO,
@@ -24,10 +24,23 @@ export interface ListJobsParams {
   sort?: string; // Format: "field:dir" (e.g., "last_activity:desc", "title:asc")
   /** Case-insensitive search matched against job title and company name. */
   search?: string;
+  /** Restrict the list to cards linked to one company (UUID). */
+  company_id?: string;
 }
 
 export const jobsService = {
-  async list(params: ListJobsParams): Promise<PaginatedResponse<JobDTO>> {
+  /**
+   * The list behind the search box and the board.
+   *
+   * `options.signal` is React Query's: a keystroke changes the key and the
+   * request for the previous one is abandoned, so it may as well be cancelled
+   * on the wire too. Superseded searches otherwise ran to completion and, on a
+   * slow connection, queued behind the one whose answer is actually wanted.
+   */
+  async list(
+    params: ListJobsParams,
+    options?: RequestOptions,
+  ): Promise<PaginatedResponse<JobDTO>> {
     const searchParams = new URLSearchParams();
     if (params.limit !== undefined)
       searchParams.set("limit", params.limit.toString());
@@ -36,14 +49,16 @@ export const jobsService = {
     if (params.status) searchParams.set("status", params.status);
     if (params.sort) searchParams.set("sort", params.sort);
     if (params.search) searchParams.set("search", params.search);
+    if (params.company_id) searchParams.set("company_id", params.company_id);
 
     return apiClient.get<PaginatedResponse<JobDTO>>(
       `jobs?${searchParams.toString()}`,
+      options,
     );
   },
 
-  async getById(id: string): Promise<JobDTO> {
-    return apiClient.get<JobDTO>(`jobs/${id}`);
+  async getById(id: string, options?: RequestOptions): Promise<JobDTO> {
+    return apiClient.get<JobDTO>(`jobs/${id}`, options);
   },
 
   async create(data: CreateJobRequest): Promise<JobDTO> {

@@ -4,6 +4,7 @@ import { Plus, X } from "lucide-react";
 import { EditableField } from "@/features/resume-builder/components/inline/EditableField";
 import { EditableTextarea } from "@/features/resume-builder/components/inline/EditableTextarea";
 import { useCoverLetterStore } from "@/stores/coverLetterStore";
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock";
 
 const A4_WIDTH_PX = 793; // 210mm at 96dpi
 const A4_HEIGHT_PX = 1122; // 297mm at 96dpi
@@ -1045,20 +1046,17 @@ export function CoverLetterFullscreenPreview({
     return () => observer.disconnect();
   }, [open]);
 
+  useBodyScrollLock(open);
+
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
 
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", handleKey);
 
-    return () => {
-      document.body.style.overflow = prev;
-      document.removeEventListener("keydown", handleKey);
-    };
+    return () => document.removeEventListener("keydown", handleKey);
   }, [open, onClose]);
 
   if (!open || !coverLetter) return null;

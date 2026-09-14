@@ -63,3 +63,46 @@ describe("SaveIndicator", () => {
     expect(indicator?.className).toContain("text-destructive");
   });
 });
+
+describe("SaveIndicator — unsaved changes", () => {
+  beforeEach(() => {
+    Object.assign(mockState, createMockStoreState());
+  });
+
+  it("shows an unsaved marker as soon as the document is dirty", () => {
+    Object.assign(mockState, { isDirty: true, saveStatus: "idle" });
+    render(<SaveIndicator />);
+    expect(
+      screen.getByText("resumeBuilder.unsavedChanges"),
+    ).toBeInTheDocument();
+  });
+
+  // The window between a keystroke and the debounced save is exactly where a
+  // reload used to lose work while the indicator still read "Saved".
+  it("replaces a stale 'saved' with the unsaved marker", () => {
+    Object.assign(mockState, { isDirty: true, saveStatus: "saved" });
+    render(<SaveIndicator />);
+    expect(
+      screen.getByText("resumeBuilder.unsavedChanges"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("resumeBuilder.saved")).not.toBeInTheDocument();
+  });
+
+  it("lets an in-flight save show through", () => {
+    Object.assign(mockState, { isDirty: true, saveStatus: "saving" });
+    render(<SaveIndicator />);
+    expect(screen.getByText("resumeBuilder.saving")).toBeInTheDocument();
+  });
+
+  it("lets a failure show through", () => {
+    Object.assign(mockState, { isDirty: true, saveStatus: "error" });
+    render(<SaveIndicator />);
+    expect(screen.getByText("resumeBuilder.saveFailed")).toBeInTheDocument();
+  });
+
+  it("shows the saved state once the document is clean", () => {
+    Object.assign(mockState, { isDirty: false, saveStatus: "saved" });
+    render(<SaveIndicator />);
+    expect(screen.getByText("resumeBuilder.saved")).toBeInTheDocument();
+  });
+});

@@ -236,7 +236,11 @@ export default function CoverLettersPage() {
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             {t("coverLetter.deleteConfirmDescription", {
-              title: deleteTarget?.title,
+              // A cover letter can be saved with its title cleared, and the
+              // confirmation then asked whether to delete "" — which names
+              // nothing and reads like a bug at the one moment the customer
+              // has to be sure what they are destroying.
+              title: deleteTarget?.title || t("common.untitled"),
             })}
           </p>
           <DialogFooter>

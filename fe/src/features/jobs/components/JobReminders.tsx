@@ -146,6 +146,12 @@ export function JobReminders({ jobId }: JobRemindersProps) {
           </p>
         )}
 
+        {/* Reminders are dates the app tracks, nothing more — there is no email
+            or push delivery behind them, and the copy must not imply one. */}
+        <p className="mb-3 text-xs text-muted-foreground">
+          {t("jobs.reminderNoDeliveryHint")}
+        </p>
+
         <form onSubmit={handleSubmit} className="space-y-2">
           <Textarea
             value={message}

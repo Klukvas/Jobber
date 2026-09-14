@@ -114,7 +114,14 @@ export const JobCardBase = memo(function JobCardBase({
       {...dragProps}
     >
       <div className="flex items-start justify-between gap-1">
-        <button className="text-left flex-1 min-w-0" onClick={onTitleClick}>
+        {/* The card's primary action, and on a phone it was an 18px-tall
+            strip: the height came from a single line of 14px type. The floor
+            is added below `sm` only, so the board's dense pointer layout is
+            untouched. */}
+        <button
+          className="flex min-w-0 flex-1 items-center text-left max-sm:min-h-11"
+          onClick={onTitleClick}
+        >
           <h4 className="text-sm font-medium leading-tight line-clamp-2">
             {job.title}
           </h4>
@@ -133,7 +140,8 @@ export const JobCardBase = memo(function JobCardBase({
             }}
             // Prevent drag sensor from triggering on menu button press
             onPointerDown={(e) => e.stopPropagation()}
-            className="p-2 rounded-md hover:bg-accent transition-colors text-muted-foreground"
+            // 32x32 as drawn, the 44x44 a thumb needs below `sm`.
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent max-sm:h-11 max-sm:w-11"
           >
             <MoreVertical className="h-4 w-4" />
           </button>
