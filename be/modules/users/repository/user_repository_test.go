@@ -179,6 +179,28 @@ func TestUserRepository_GetByEmail(t *testing.T) {
 }
 
 func TestUserRepository_Update(t *testing.T) {
+	// A profile edit must not become a way to move an identity or a
+	// credential: the statement writes name and locale, and is keyed by id.
+	t.Run("writes only the profile columns, scoped to one id", func(t *testing.T) {
+		repo, mock := newUserRepo(t)
+		user := &model.User{
+			ID:           "user-123",
+			Email:        "someone@example.com",
+			Name:         "Updated",
+			Locale:       "ua",
+			PasswordHash: "should-not-be-written",
+		}
+
+		mock.ExpectExec("UPDATE users SET name = \\$2, locale = \\$3, updated_at = now\\(\\) WHERE id = \\$1").
+			WithArgs(user.ID, user.Name, user.Locale).
+			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+
+		err := repo.Update(context.Background(), user)
+
+		require.NoError(t, err)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
 	t.Run("updates user successfully", func(t *testing.T) {
 		repo, mock := newUserRepo(t)
 		user := &model.User{ID: "user-123", Name: "Updated", Locale: "ua"}
@@ -222,6 +244,10 @@ func TestUserRepository_Update(t *testing.T) {
 	})
 }
 
+// UpdateName is the statement a profile save actually runs: one column, one
+// row, and a stamped updated_at. The locale is deliberately absent — carrying
+// it through the application is what let a save revert a language change made
+// somewhere else.
 func TestUserRepository_Delete(t *testing.T) {
 	t.Run("deletes user successfully", func(t *testing.T) {
 		repo, mock := newUserRepo(t)

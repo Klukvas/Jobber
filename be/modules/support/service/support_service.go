@@ -6,6 +6,7 @@ import (
 	"html"
 
 	"github.com/andreypavlenko/jobber/internal/platform/telegram"
+	"github.com/andreypavlenko/jobber/modules/support/model"
 	userRepo "github.com/andreypavlenko/jobber/modules/users/repository"
 )
 
@@ -15,13 +16,22 @@ type SupportService struct {
 	userRepo *userRepo.UserRepository
 }
 
-// NewSupportService creates a new support service.
+// NewSupportService creates a new support service. A nil tg means no support
+// channel is configured for this deployment; Submit then reports
+// model.ErrSupportUnavailable instead of pretending the message was sent.
 func NewSupportService(tg *telegram.Client, userRepo *userRepo.UserRepository) *SupportService {
 	return &SupportService{tg: tg, userRepo: userRepo}
 }
 
+// Available reports whether a support channel is configured.
+func (s *SupportService) Available() bool { return s.tg != nil }
+
 // Submit looks up the user by ID, formats and sends a support message to Telegram.
 func (s *SupportService) Submit(ctx context.Context, userID, subject, message, page string) error {
+	if s.tg == nil {
+		return model.ErrSupportUnavailable
+	}
+
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("support: find user: %w", err)

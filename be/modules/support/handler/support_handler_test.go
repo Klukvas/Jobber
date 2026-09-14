@@ -186,6 +186,70 @@ func TestSupportHandler_Create_ServiceError(t *testing.T) {
 	assert.Equal(t, string(model.CodeTelegramError), decodeError(t, w).ErrorCode)
 }
 
+// Without a Telegram channel the route still exists and answers with a
+// specific, explainable state — the alternative was leaving the route
+// unregistered, so a submission returned 404 and the client surfaced the raw
+// API URL to the customer.
+func TestSupportHandler_Create_WithoutChannel(t *testing.T) {
+	svc := service.NewSupportService(nil, nil)
+	handler := NewSupportHandler(svc, zap.NewNop())
+
+	router := setupRouter()
+	router.POST("/support", authMiddleware("user-1"), handler.Create)
+
+	w := doPost(router, `{"subject":"Login broken","message":"I cannot log in at all"}`)
+
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	body := decodeError(t, w)
+	assert.Equal(t, string(model.CodeSupportUnavailable), body.ErrorCode)
+	assert.NotEmpty(t, body.ErrorMessage)
+	assert.NotContains(t, body.ErrorMessage, "http")
+}
+
+func TestSupportHandler_Status(t *testing.T) {
+	t.Run("reports available when a channel is configured", func(t *testing.T) {
+		handler, fpg := newWorkingHandler(t)
+		defer fpg.Close()
+
+		router := setupRouter()
+		router.GET("/support/status", authMiddleware("user-1"), handler.Status)
+
+		req, _ := http.NewRequest(http.MethodGet, "/support/status", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), `"available":true`)
+	})
+
+	t.Run("reports unavailable without a channel", func(t *testing.T) {
+		handler := NewSupportHandler(service.NewSupportService(nil, nil), zap.NewNop())
+
+		router := setupRouter()
+		router.GET("/support/status", authMiddleware("user-1"), handler.Status)
+
+		req, _ := http.NewRequest(http.MethodGet, "/support/status", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), `"available":false`)
+	})
+
+	t.Run("requires authentication", func(t *testing.T) {
+		handler := NewSupportHandler(service.NewSupportService(nil, nil), zap.NewNop())
+
+		router := setupRouter()
+		router.GET("/support/status", handler.Status)
+
+		req, _ := http.NewRequest(http.MethodGet, "/support/status", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+}
+
 func TestSupportHandler_RegisterRoutes(t *testing.T) {
 	handler, fpg := newWorkingHandler(t)
 	defer fpg.Close()

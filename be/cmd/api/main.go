@@ -30,7 +30,9 @@ import (
 	authHandler "github.com/andreypavlenko/jobber/modules/auth/handler"
 	authRepo "github.com/andreypavlenko/jobber/modules/auth/repository"
 	authService "github.com/andreypavlenko/jobber/modules/auth/service"
+	userHandler "github.com/andreypavlenko/jobber/modules/users/handler"
 	userRepo "github.com/andreypavlenko/jobber/modules/users/repository"
+	userService "github.com/andreypavlenko/jobber/modules/users/service"
 
 	companyHandler "github.com/andreypavlenko/jobber/modules/companies/handler"
 	companyRepo "github.com/andreypavlenko/jobber/modules/companies/repository"
@@ -258,7 +260,7 @@ func main() {
 		emailSender = &email.NoopSender{Logger: logger.Logger}
 		logger.Info("Email disabled via FEATURE_EMAIL_ENABLED=false, using no-op sender")
 	} else if cfg.Resend.APIKey != "" {
-		resendSender := email.NewResendSender(cfg.Resend.APIKey, cfg.Resend.FromAddress)
+		resendSender := email.NewResendSender(cfg.Resend.APIKey, cfg.Resend.FromAddress, cfg.Server.PublicBaseURL)
 		emailSender = email.NewAsyncSender(resendSender, logger.Logger, 0)
 		logger.Info("Resend email sender initialized (async)")
 	} else {
@@ -377,11 +379,20 @@ func main() {
 	subscriptionHdl := subHandler.NewSubscriptionHandler(subscriptionSvc, logger.Logger)
 	webhookHdl := subHandler.NewWebhookHandler(subscriptionSvc, logger.Logger)
 
-	// Initialize support module (optional — only if Telegram is configured)
-	var supportHdl *supportHandler.SupportHandler
-	if tgClient != nil {
-		supportSvc := supportService.NewSupportService(tgClient, userRepository)
-		supportHdl = supportHandler.NewSupportHandler(supportSvc, logger.Logger)
+	// The caller's own account. Read-only and always behind auth: the settings
+	// screen needs the stored row rather than the copy the browser cached at
+	// sign-in, which can be months out of date.
+	userHdl := userHandler.NewUserHandler(userService.NewUserService(userRepository))
+
+	// The support module is always wired: the route has to exist even without a
+	// Telegram channel, or a submission answers 404 and the customer sees a raw
+	// URL instead of an explanation. Without a channel the handler reports
+	// SUPPORT_UNAVAILABLE and the UI hides the form.
+	supportSvc := supportService.NewSupportService(tgClient, userRepository)
+	supportHdl := supportHandler.NewSupportHandler(supportSvc, logger.Logger)
+	if tgClient == nil {
+		logger.Info("Support module registered without a delivery channel, submissions will report SUPPORT_UNAVAILABLE")
+	} else {
 		logger.Info("Support module enabled")
 	}
 
@@ -591,6 +602,7 @@ func main() {
 			EmailRateLimiter: emailRateLimiter,
 			CodeRateLimiter:  codeRateLimiter,
 		})
+		userHdl.RegisterRoutes(v1, authMiddleware)
 		companyHdl.RegisterRoutes(v1, authMiddleware)
 		jobHdl.RegisterRoutes(v1, authMiddleware)
 		resumeHdl.RegisterRoutes(v1, authMiddleware)
@@ -613,9 +625,7 @@ func main() {
 		} else {
 			logger.Warn("Billing webhook disabled via FEATURE_BILLING_WEBHOOK_ENABLED=false, subscription lifecycle events will not be recorded")
 		}
-		if supportHdl != nil {
-			supportHdl.RegisterRoutes(v1, authMiddleware, supportRateLimiter)
-		}
+		supportHdl.RegisterRoutes(v1, authMiddleware, supportRateLimiter)
 		if calendarHdl != nil {
 			calendarHdl.RegisterRoutes(v1, authMiddleware)
 		}

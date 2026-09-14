@@ -112,11 +112,11 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.U
 	return user, nil
 }
 
-// Update updates a user
+// Update updates a user's profile columns.
 func (r *UserRepository) Update(ctx context.Context, user *model.User) error {
 	query := `
 		UPDATE users
-		SET name = $2, locale = $3
+		SET name = $2, locale = $3, updated_at = now()
 		WHERE id = $1
 	`
 
