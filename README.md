@@ -215,7 +215,46 @@ make test         # Run tests
 make swagger      # Generate Swagger docs
 make docker-up    # Start PostgreSQL + Redis
 make docker-down  # Stop infrastructure
+
+make prune-orphan-resumes        # List uploaded objects no resume points at
+make prune-orphan-resumes-apply  # ...and delete them
 ```
+
+#### Reclaiming abandoned resume uploads
+
+A resume is uploaded straight to object storage with a presigned URL and then
+finalized through the API. Two kinds of failure leave an object behind, and only
+one of them is cleaned up in the request.
+
+Finalize deletes the object when it has just proved the object itself is no
+good — not a PDF, empty, or over the 10 MB cap — and when the write loses a race
+for the customer's last plan slot, because the winner's object is the live one
+and this one is referenced by nothing.
+
+It deliberately does **not** delete on a blank title. The file is perfectly
+good; a client that sent `{"title": ""}` is a client bug, and losing somebody's
+upload over it is not finalize's call. Nor does it delete when the failure is
+ours — object storage timing out, the plan limit unreadable — because nothing
+has been proved about the upload at all. Those objects stay, unreferenced,
+alongside the case nothing server-side can see: the PUT succeeded and the
+finalize call never arrived, because the tab was closed.
+
+**A bucket lifecycle rule cannot clean those up.** Uploaded and finalized objects
+share the `users/<user>/resumes/<resume>.pdf` prefix, because that key is the
+resume's permanent home from the moment it is presigned; an age-based expiry on
+that prefix would delete customers' actual resumes. The reference set has to
+come from the database, which is the only thing that knows which objects are
+real — that is what `make prune-orphan-resumes` does. It is a dry run by
+default, lists what it would remove, and only deletes objects that are both
+unreferenced and older than 24h (`-older-than` to widen), so an upload being
+finalized right now is never in scope.
+
+Run it occasionally, or after an incident that interrupted uploads. The one
+lifecycle rule that *is* worth configuring on the bucket itself is
+**abort incomplete multipart uploads after 1 day** — those are never referenced
+by anything, but they also never appear in a normal object listing, so this tool
+cannot see them. That rule has to be applied to the bucket by hand; nothing in
+this repository does it for you.
 
 ### Frontend (run from `fe/` directory)
 
