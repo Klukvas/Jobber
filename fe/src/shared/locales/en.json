@@ -21,6 +21,7 @@
     "sortBy": "Sort by:",
     "name": "Name",
     "title": "Title",
+    "untitled": "Untitled",
     "tryAgain": "Try Again",
     "active": "Active",
     "inactive": "Inactive",
@@ -34,7 +35,8 @@
     "closeSidebar": "Close sidebar",
     "deleting": "Deleting...",
     "accessDenied": "Access denied",
-    "serverError": "Server error"
+    "serverError": "Server error",
+    "duplicate": "Duplicate"
   },
   "auth": {
     "login": "Login",
@@ -165,7 +167,8 @@
     "filterBuilt": "Built",
     "sortLastModified": "Last Modified",
     "noResumesForFilter": "No resumes of this type",
-    "tryOtherFilter": "Try selecting a different filter or create a new resume"
+    "tryOtherFilter": "Try selecting a different filter or create a new resume",
+    "notARealPdf": "That file isn't a PDF. Please choose a real PDF resume."
   },
   "companies": {
     "title": "Companies",
@@ -392,13 +395,28 @@
     "filterAll": "All",
     "noJobsForFilter": "No jobs match this filter",
     "tryAnotherFilter": "Try a different status filter or create a new job",
-    "deleteConfirm": "Are you sure you want to delete this job? All its stages and comments will be deleted too. This action cannot be undone.",
+    "deleteConfirm": "Delete “{{title}}”? All its stages and comments will be deleted too. This can't be undone.",
     "deleteSuccess": "Job deleted successfully",
     "deleteError": "Failed to delete job",
     "alreadyAppliedHint": "Log a job you've already applied to — sets it to Applied with a date and resume",
     "currentStage": "Current stage",
     "completeCurrentStage": "Complete current stage",
-    "stageCompletedSuccess": "Stage completed"
+    "stageCompletedSuccess": "Stage completed",
+    "clearCompanyFilter": "Clear filter",
+    "filterCompanyFallback": "this company",
+    "filteredByCompany": "Showing jobs at {{company}}",
+    "commentDeleteError": "Couldn't delete the comment. Please try again.",
+    "commentDeleted": "Comment deleted",
+    "commentEdited": "edited",
+    "commentUpdateError": "Couldn't save the comment. Please try again.",
+    "commentUpdated": "Comment updated",
+    "deleteComment": "Delete comment",
+    "deleteCommentConfirm": "Delete the comment “{{preview}}”? This can't be undone.",
+    "editComment": "Edit comment",
+    "fieldsNeedSaveHint": "Changes here are applied when you press Save.",
+    "resumeSavesInstantly": "Saved as soon as you choose.",
+    "resumeSaving": "Saving…",
+    "reminderNoDeliveryHint": "Reminders are dates tracked here in Jobber — we don't send emails or push notifications."
   },
   "settings": {
     "title": "Settings",
@@ -456,11 +474,11 @@
       "unlimited": "Unlimited",
       "of": "of",
       "limitReached": "You've reached your plan limit. Upgrade for more access.",
-      "limitReachedJobs": "You've reached your plan limit of {{limit}} tracked jobs. Upgrade to track more.",
-      "limitReachedResumes": "You've reached your plan limit of {{limit}} resumes. Upgrade for more resumes.",
-      "limitReachedAI": "AI match scoring is not available on your current plan. Upgrade to unlock AI-powered resume matching.",
-      "limitReachedResumeBuilders": "You've reached your plan limit of {{limit}} resume builders. Upgrade for more.",
+      "limitReachedAIMonthly_one": "You've used your {{count}} AI request for this month. It is shared by AI match scoring, resume assistance and resume imports.",
+      "limitReachedAIMonthly_other": "You've used all {{count}} AI requests for this month. They are shared by AI match scoring, resume assistance and resume imports.",
       "limitReachedCoverLetters": "Cover letters are not available on your current plan. Upgrade to unlock cover letters.",
+      "limitReachedCoverLettersUsed_one": "You've used your plan's {{count}} cover letter. Upgrade for more.",
+      "limitReachedCoverLettersUsed_other": "You've used all {{count}} cover letters your plan includes. Upgrade for more.",
       "renewsOn": "Renews on {{date}}",
       "cancelledOn": "Cancelled, access until {{date}}",
       "pastDue": "Payment past due",
@@ -501,7 +519,7 @@
         "enterprisePrice": "$19/mo",
         "freeJobs": "25 tracked jobs",
         "freeResumes": "1 resume",
-        "freeAI": "1 AI match score / month",
+        "freeAI": "1 AI request / month (match score, resume help, import)",
         "freeJobParses": "5 AI job parses / month",
         "freeResumeBuilders": "1 resume builder",
         "freeCoverLetters": "Cover letters not included",
@@ -510,7 +528,7 @@
         "proAI": "Unlimited AI match scores",
         "proJobParses": "Unlimited AI job parses",
         "proResumeBuilders": "10 resume builders",
-        "proCoverLetters": "10 cover letters / month",
+        "proCoverLetters": "10 cover letters in total",
         "enterpriseJobs": "Unlimited tracked jobs",
         "enterpriseResumes": "Unlimited resumes",
         "enterpriseAI": "Unlimited AI match scores",
@@ -519,7 +537,28 @@
         "enterpriseCoverLetters": "Unlimited cover letters",
         "switchPlan": "Switch to this plan",
         "downgradeViaCancel": "Cancel your subscription to return to Free."
-      }
+      },
+      "checkoutReceived": "Thanks! We're confirming your payment — your plan updates automatically once it clears.",
+      "coverLetters": "Cover Letters",
+      "resumeBuilders": "Resume Builders",
+      "notIncluded": "Not included",
+      "perMonth": "this month",
+      "resetsOn": "Your monthly allowance resets on {{date}}.",
+      "limitReachedJobs_one": "You've reached your plan limit of {{count}} tracked job. Upgrade to track more.",
+      "limitReachedJobs_other": "You've reached your plan limit of {{count}} tracked jobs. Upgrade to track more.",
+      "limitReachedResumes_one": "You've reached your plan limit of {{count}} resume. Upgrade for more resumes.",
+      "limitReachedResumes_other": "You've reached your plan limit of {{count}} resumes. Upgrade for more resumes.",
+      "limitReachedResumeBuilders_one": "You've reached your plan limit of {{count}} resume builder. Upgrade for more.",
+      "limitReachedResumeBuilders_other": "You've reached your plan limit of {{count}} resume builders. Upgrade for more."
+    },
+    "profile": {
+      "title": "Profile",
+      "description": "The name Jobber uses for you across the app",
+      "name": "Display name",
+      "nameHint": "Shown in the sidebar. Only you can see it.",
+      "email": "Email",
+      "emailReadOnly": "Your email is your sign-in and cannot be changed here.",
+      "refreshFailed": "Couldn't refresh your profile just now — showing the last known details."
     }
   },
   "seo": {
@@ -571,7 +610,8 @@
     "reloadPage": "Reload page",
     "notFound": "Not found",
     "unauthorized": "Unauthorized",
-    "forbidden": "Forbidden"
+    "forbidden": "Forbidden",
+    "passwordTooLong": "Password must be 72 bytes or fewer (about 72 Latin letters, fewer for other alphabets)"
   },
   "notFound": {
     "title": "Page not found",
@@ -629,7 +669,8 @@
     "nav": {
       "features": "Features",
       "howItWorks": "How It Works",
-      "pricing": "Pricing"
+      "pricing": "Pricing",
+      "faq": "FAQ"
     },
     "hero": {
       "badge": "Job tracker with AI match scores",
@@ -752,7 +793,7 @@
       "freeFeature3": "1 resume",
       "freeFeature4": "1 resume builder",
       "freeFeature5": "5 AI job parses / month",
-      "freeFeature6": "1 AI match score / month",
+      "freeFeature6": "1 AI request / month (match score, resume help, import)",
       "freeFeature7": "Cover letters not included",
       "freeCta": "Get started free",
       "proFeature1": "100 tracked jobs",
@@ -761,8 +802,8 @@
       "proFeature4": "10 resume builders",
       "proFeature5": "Unlimited AI job parses",
       "proFeature6": "Unlimited AI match scores",
-      "proFeature7": "10 cover letters / month",
-      "proCta": "Start Pro trial",
+      "proFeature7": "10 cover letters in total",
+      "proCta": "Choose Pro",
       "enterpriseFeature1": "Unlimited tracked jobs",
       "enterpriseFeature2": "Kanban pipeline board",
       "enterpriseFeature3": "Unlimited resumes",
@@ -780,7 +821,7 @@
       "items": {
         "free": {
           "q": "Is Jobber free?",
-          "a": "Yes. Jobber has a free plan that includes 5 jobs, 5 applications, 1 resume, and basic AI features — no credit card required. Pro starts at a few dollars per month for unlimited tracking and AI."
+          "a": "Yes. The free plan tracks up to 25 active applications with 1 resume, 1 resume builder and 1 AI request per month — that single request covers match scoring, resume help and resume imports, and no credit card is required. Pro ($7/mo) raises the limit to 100 applications, 10 resumes and 10 builders, and makes AI match scoring and job parsing unlimited; cover letters stay capped at 10 in total. Enterprise ($19/mo) removes the limits entirely."
         },
         "what": {
           "q": "What is Jobber and who is it for?",
@@ -867,7 +908,15 @@
     "back": "Back",
     "skip": "Skip",
     "finish": "Finish",
-    "letsGo": "Let's Go!"
+    "letsGo": "Let's Go!",
+    "exit": {
+      "title": "Leave the tour?",
+      "description": "You can pick it up later, or hide it for good.",
+      "keepGoing": "Continue the tour",
+      "notNow": "Not now",
+      "neverAgain": "Don't show this again",
+      "restartHint": "You can restart the tour any time from Settings."
+    }
   },
   "analytics": {
     "title": "Analytics",
@@ -876,7 +925,8 @@
     "noDataDescription": "Add your first application to see analytics",
     "error": "Failed to load analytics",
     "days": "days",
-    "applications": "applications",
+    "applicationsCount_one": "{{count}} application",
+    "applicationsCount_other": "{{count}} applications",
     "overview": {
       "totalApplications": "Total Applications",
       "activeApplications": "Active",
@@ -1229,7 +1279,8 @@
       "critical": "Critical",
       "warning": "Warning",
       "info": "Info",
-      "noIssues": "No issues found"
+      "noIssues": "No issues found",
+      "error": "Couldn't run the ATS check. Please try again."
     },
     "export": {
       "pdf": "Export PDF",
@@ -1321,7 +1372,8 @@
     },
     "preview": {
       "renderError": "Failed to render preview. Try changing the template or content."
-    }
+    },
+    "unsavedChanges": "Unsaved changes"
   },
   "coverLetter": {
     "title": "Cover Letters",
@@ -1615,7 +1667,8 @@
     "minChars": "{{count}} more char(s)",
     "send": "Send",
     "success": "Your message has been sent. We'll get back to you soon!",
-    "error": "Failed to send message. Please try again later."
+    "error": "Failed to send message. Please try again later.",
+    "unavailable": "In-app support is unavailable right now. Please email us instead."
   },
   "cookieConsent": {
     "message": "We use essential cookies to sign you in and to process secure payments via FastSpring. With your consent, we also use analytics cookies (Google Analytics, PostHog) to improve the product.",
@@ -1623,6 +1676,7 @@
     "acceptAll": "Accept all",
     "essentialOnly": "Essential only",
     "settings": "Cookie settings",
-    "ariaLabel": "Cookie consent"
+    "ariaLabel": "Cookie consent",
+    "messageEssentialOnly": "We use essential cookies to sign you in and to process secure payments via FastSpring. No analytics or advertising cookies are in use on this site."
   }
 }
