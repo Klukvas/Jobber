@@ -95,4 +95,6 @@ files/
 files 2/
 files 3/
 screenshots/
-fe/dummy-non-existing-folder/
+# Vitest's sentinel `build.outDir`. Unanchored on purpose: it is resolved
+# against whatever root the run uses, so it can land in more than one place.
+dummy-non-existing-folder/

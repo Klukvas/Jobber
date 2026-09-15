@@ -104,6 +104,7 @@ export function JobPipelineCard({
           <Label htmlFor="attached-resume">{t("jobs.resumeLabel")}</Label>
           <select
             id="attached-resume"
+            aria-describedby="attached-resume-hint"
             value={resumeSelectValue(job)}
             onChange={(e) => onChangeResume(e.target.value)}
             disabled={isChangingResume}
@@ -132,6 +133,13 @@ export function JobPipelineCard({
               </optgroup>
             )}
           </select>
+          {/* This one writes as soon as it changes, unlike the Save/Cancel
+              fields above it — the difference has to be visible. */}
+          <p id="attached-resume-hint" className="text-xs text-muted-foreground">
+            {isChangingResume
+              ? t("jobs.resumeSaving")
+              : t("jobs.resumeSavesInstantly")}
+          </p>
         </div>
       </CardContent>
     </Card>

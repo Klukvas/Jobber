@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"regexp"
 	"testing"
 	"time"
 
@@ -42,6 +43,47 @@ func TestResumeRepository_Create(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.NotEmpty(t, resume.ID)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	// The upload-finalization path retries with a fixed id, so the caller has to
+	// be able to tell "this id is already stored" from a real write failure.
+	t.Run("reports a duplicate id as ErrResumeAlreadyExists", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		resume := &model.Resume{
+			ID:          "3f2a6c1e-0000-4000-8000-00000000abcd",
+			UserID:      "user-123",
+			Title:       "SWE Resume",
+			StorageType: model.StorageTypeS3,
+		}
+
+		mock.ExpectExec("INSERT INTO resumes").
+			WithArgs(resume.ID, resume.UserID, resume.Title, resume.FileURL, resume.StorageType, resume.StorageKey, resume.IsActive, pgxmock.AnyArg(), pgxmock.AnyArg()).
+			WillReturnError(&pgconn.PgError{Code: "23505"})
+
+		err := repo.Create(context.Background(), resume)
+
+		assert.ErrorIs(t, err, model.ErrResumeAlreadyExists)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("passes any other write failure through untouched", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		resume := &model.Resume{
+			ID:          "3f2a6c1e-0000-4000-8000-00000000abcd",
+			UserID:      "user-123",
+			Title:       "SWE Resume",
+			StorageType: model.StorageTypeS3,
+		}
+
+		mock.ExpectExec("INSERT INTO resumes").
+			WithArgs(resume.ID, resume.UserID, resume.Title, resume.FileURL, resume.StorageType, resume.StorageKey, resume.IsActive, pgxmock.AnyArg(), pgxmock.AnyArg()).
+			WillReturnError(&pgconn.PgError{Code: "40001"})
+
+		err := repo.Create(context.Background(), resume)
+
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, model.ErrResumeAlreadyExists)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
@@ -337,4 +379,259 @@ func TestResumeRepository_Delete(t *testing.T) {
 		assert.ErrorIs(t, err, errDB)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
+}
+
+/*
+The plan's resume allowance, enforced where it can actually hold.
+
+`CheckLimit` and the INSERT used to be separate statements on separate
+connections with a storage round-trip between them: two finalizations racing for
+a free plan's last slot both read "two of three used" and both wrote. Counting
+and writing in one transaction, behind a per-user advisory lock, is what makes
+the second one see the first.
+*/
+func TestResumeRepository_CreateFinalizedUpload(t *testing.T) {
+	newUpload := func() *model.Resume {
+		key := "users/user-123/resumes/r1.pdf"
+		return &model.Resume{
+			ID:          "3f2a6c1e-0000-4000-8000-00000000abcd",
+			UserID:      "user-123",
+			Title:       "Backend Engineer",
+			StorageType: model.StorageTypeS3,
+			StorageKey:  &key,
+			IsActive:    true,
+		}
+	}
+
+	t.Run("locks, counts and inserts in one transaction", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		resume := newUpload()
+
+		mock.ExpectBegin()
+		// The lock comes first: counting before it would read a total another
+		// transaction is still about to add to.
+		mock.ExpectExec("pg_advisory_xact_lock").
+			WithArgs(resume.UserID).
+			WillReturnResult(pgxmock.NewResult("SELECT", 1))
+		mock.ExpectQuery("SELECT COUNT").
+			WithArgs(resume.UserID).
+			WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(2))
+		expectNothingToClaim(mock, resume)
+		mock.ExpectExec("INSERT INTO resumes").
+			WithArgs(resume.ID, resume.UserID, resume.Title, resume.FileURL, resume.StorageType, resume.StorageKey, resume.IsActive, pgxmock.AnyArg(), pgxmock.AnyArg()).
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		mock.ExpectCommit()
+
+		err := repo.CreateFinalizedUpload(context.Background(), resume, 3)
+
+		require.NoError(t, err)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("refuses the write when the allowance is already full", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		resume := newUpload()
+
+		mock.ExpectBegin()
+		mock.ExpectExec("pg_advisory_xact_lock").
+			WithArgs(resume.UserID).
+			WillReturnResult(pgxmock.NewResult("SELECT", 1))
+		mock.ExpectQuery("SELECT COUNT").
+			WithArgs(resume.UserID).
+			WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(3))
+		// No INSERT: the transaction is rolled back instead.
+		mock.ExpectRollback()
+
+		err := repo.CreateFinalizedUpload(context.Background(), resume, 3)
+
+		assert.ErrorIs(t, err, model.ErrResumeLimitReached)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	// Placeholder rows the presign-era upload flow left behind are not resumes
+	// and must not fill a slot — the condition that excludes them is shared
+	// with the subscription service's own count so the two cannot disagree.
+	t.Run("counts only the rows that consume a slot", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		resume := newUpload()
+
+		mock.ExpectBegin()
+		mock.ExpectExec("pg_advisory_xact_lock").WithArgs(resume.UserID).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+		mock.ExpectQuery(regexp.QuoteMeta(model.CountableResumeCondition)).
+			WithArgs(resume.UserID).
+			WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
+		expectNothingToClaim(mock, resume)
+		mock.ExpectExec("INSERT INTO resumes").WithArgs(resume.ID, resume.UserID, resume.Title, resume.FileURL, resume.StorageType, resume.StorageKey, resume.IsActive, pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		mock.ExpectCommit()
+
+		require.NoError(t, repo.CreateFinalizedUpload(context.Background(), resume, 3))
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("skips the count entirely on an unlimited plan", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		resume := newUpload()
+
+		mock.ExpectBegin()
+		mock.ExpectExec("pg_advisory_xact_lock").WithArgs(resume.UserID).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+		expectNothingToClaim(mock, resume)
+		mock.ExpectExec("INSERT INTO resumes").WithArgs(resume.ID, resume.UserID, resume.Title, resume.FileURL, resume.StorageType, resume.StorageKey, resume.IsActive, pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		mock.ExpectCommit()
+
+		require.NoError(t, repo.CreateFinalizedUpload(context.Background(), resume, -1))
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	// A repeated finalization of the same upload has to stay recognisable, so
+	// the caller can answer it with the row that already exists.
+	t.Run("reports a duplicate id as ErrResumeAlreadyExists", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		resume := newUpload()
+
+		mock.ExpectBegin()
+		mock.ExpectExec("pg_advisory_xact_lock").WithArgs(resume.UserID).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+		mock.ExpectQuery("SELECT COUNT").WithArgs(resume.UserID).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
+		expectNothingToClaim(mock, resume)
+		mock.ExpectExec("INSERT INTO resumes").
+			WithArgs(resume.ID, resume.UserID, resume.Title, resume.FileURL, resume.StorageType, resume.StorageKey, resume.IsActive, pgxmock.AnyArg(), pgxmock.AnyArg()).
+			WillReturnError(&pgconn.PgError{Code: "23505"})
+		mock.ExpectRollback()
+
+		err := repo.CreateFinalizedUpload(context.Background(), resume, 3)
+
+		assert.ErrorIs(t, err, model.ErrResumeAlreadyExists)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("writes nothing when the count cannot be read", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		resume := newUpload()
+
+		mock.ExpectBegin()
+		mock.ExpectExec("pg_advisory_xact_lock").WithArgs(resume.UserID).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+		mock.ExpectQuery("SELECT COUNT").WithArgs(resume.UserID).WillReturnError(errDB)
+		mock.ExpectRollback()
+
+		err := repo.CreateFinalizedUpload(context.Background(), resume, 3)
+
+		assert.ErrorIs(t, err, errDB)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("reports a failure to open the transaction", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+
+		mock.ExpectBegin().WillReturnError(errDB)
+
+		err := repo.CreateFinalizedUpload(context.Background(), newUpload(), 3)
+
+		assert.ErrorIs(t, err, errDB)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	/*
+		A row written by the presign-era upload flow — `storage_type = 's3'`,
+		inactive, no file_url, never updated — still sits under the id the
+		client is finalizing, and the object it names really was uploaded.
+
+		The INSERT could only collide with it, and the caller's re-lookup saw a
+		placeholder again and answered 404. Every retry did the same, forever,
+		with a perfectly good PDF sitting in the bucket. The row is this
+		upload's own, so it is claimed in place instead.
+	*/
+	t.Run("claims a presign-era placeholder instead of colliding with it", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		resume := newUpload()
+		created := time.Date(2026, 3, 1, 9, 0, 0, 0, time.UTC)
+
+		mock.ExpectBegin()
+		mock.ExpectExec("pg_advisory_xact_lock").WithArgs(resume.UserID).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+		mock.ExpectQuery("SELECT COUNT").WithArgs(resume.UserID).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
+		mock.ExpectQuery("UPDATE resumes").
+			WithArgs(resume.ID, resume.UserID, resume.Title, resume.FileURL, resume.StorageType, resume.StorageKey, resume.IsActive, pgxmock.AnyArg()).
+			WillReturnRows(pgxmock.NewRows([]string{"created_at", "updated_at"}).AddRow(created, created.Add(time.Hour)))
+		// No INSERT at all: there is nothing left to insert.
+		mock.ExpectCommit()
+
+		err := repo.CreateFinalizedUpload(context.Background(), resume, 3)
+
+		require.NoError(t, err)
+		require.NoError(t, mock.ExpectationsWereMet())
+		assert.Equal(t, created, resume.CreatedAt,
+			"the row keeps the moment it was first written")
+		assert.True(t, resume.UpdatedAt.After(resume.CreatedAt),
+			"a claimed row must no longer look like an untouched placeholder")
+	})
+
+	// The claim is scoped to the caller and to rows that are still
+	// placeholders, so a different owner's row — or a real resume under the
+	// same id — matches nothing and the INSERT reports the collision as
+	// before. The caller answers that with a 404, never with someone's resume.
+	t.Run("does not claim a row that is not this upload's to claim", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		resume := newUpload()
+
+		mock.ExpectBegin()
+		mock.ExpectExec("pg_advisory_xact_lock").WithArgs(resume.UserID).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+		mock.ExpectQuery("SELECT COUNT").WithArgs(resume.UserID).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
+		expectNothingToClaim(mock, resume)
+		mock.ExpectExec("INSERT INTO resumes").
+			WithArgs(resume.ID, resume.UserID, resume.Title, resume.FileURL, resume.StorageType, resume.StorageKey, resume.IsActive, pgxmock.AnyArg(), pgxmock.AnyArg()).
+			WillReturnError(&pgconn.PgError{Code: "23505"})
+		mock.ExpectRollback()
+
+		err := repo.CreateFinalizedUpload(context.Background(), resume, 3)
+
+		assert.ErrorIs(t, err, model.ErrResumeAlreadyExists)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	// A placeholder does not consume a slot, so claiming one adds a resume the
+	// plan has to have room for. The limit is decided before anything is
+	// written, inside the same locked transaction as the count.
+	t.Run("refuses to claim a placeholder when the plan is already full", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		resume := newUpload()
+
+		mock.ExpectBegin()
+		mock.ExpectExec("pg_advisory_xact_lock").WithArgs(resume.UserID).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+		mock.ExpectQuery("SELECT COUNT").WithArgs(resume.UserID).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(3))
+		// Neither the claim nor the insert is attempted.
+		mock.ExpectRollback()
+
+		err := repo.CreateFinalizedUpload(context.Background(), resume, 3)
+
+		assert.ErrorIs(t, err, model.ErrResumeLimitReached)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	// An UPDATE that fails for a reason of its own is a write failure, not
+	// "nothing to claim": falling through to the INSERT would turn it into a
+	// duplicate-key error and mislead the caller into a 404.
+	t.Run("reports a failed claim rather than falling through to the insert", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+		resume := newUpload()
+
+		mock.ExpectBegin()
+		mock.ExpectExec("pg_advisory_xact_lock").WithArgs(resume.UserID).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+		mock.ExpectQuery("SELECT COUNT").WithArgs(resume.UserID).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
+		mock.ExpectQuery("UPDATE resumes").
+			WithArgs(resume.ID, resume.UserID, resume.Title, resume.FileURL, resume.StorageType, resume.StorageKey, resume.IsActive, pgxmock.AnyArg()).
+			WillReturnError(errDB)
+		mock.ExpectRollback()
+
+		err := repo.CreateFinalizedUpload(context.Background(), resume, 3)
+
+		assert.ErrorIs(t, err, errDB)
+		assert.NotErrorIs(t, err, model.ErrResumeAlreadyExists)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+// expectNothingToClaim sets up the claim attempt finding no placeholder, which
+// is the ordinary case: nothing has written one since the presign era.
+func expectNothingToClaim(mock pgxmock.PgxPoolIface, resume *model.Resume) {
+	mock.ExpectQuery("UPDATE resumes").
+		WithArgs(resume.ID, resume.UserID, resume.Title, resume.FileURL, resume.StorageType, resume.StorageKey, resume.IsActive, pgxmock.AnyArg()).
+		WillReturnError(pgx.ErrNoRows)
 }

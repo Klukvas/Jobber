@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	resumeModel "github.com/andreypavlenko/jobber/modules/resumes/model"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/jackc/pgx/v5"
 )
@@ -108,13 +109,22 @@ func (r *SubscriptionRepository) CountUserJobs(ctx context.Context, userID strin
 	return count, err
 }
 
-// CountUserResumes counts all resumes for a user.
-// Resumes have no archive concept, so all are counted against the limit.
+// countableResumes is the WHERE clause both resume counts share.
+//
+// Resumes have no archive concept, so every real one is counted against the
+// limit. What is left out is the placeholder row the pre-finalize upload flow
+// wrote before there was a file: those were never resumes, and counting them
+// let abandoned uploads fill a plan permanently. See
+// resumeModel.CountableResumeCondition — the resume repository re-counts with
+// the same condition inside the transaction that inserts, and the two must
+// agree or an upload the count allowed would be refused by the write.
+const countableResumes = `SELECT COUNT(*) FROM resumes WHERE user_id = $1 AND ` +
+	resumeModel.CountableResumeCondition
+
+// CountUserResumes counts the resumes that consume a plan slot.
 func (r *SubscriptionRepository) CountUserResumes(ctx context.Context, userID string) (int, error) {
 	var count int
-	err := r.pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM resumes WHERE user_id = $1`, userID,
-	).Scan(&count)
+	err := r.pool.QueryRow(ctx, countableResumes, userID).Scan(&count)
 	return count, err
 }
 
@@ -191,7 +201,7 @@ func (r *SubscriptionRepository) GetAllCounts(ctx context.Context, userID string
 	query := `
 		SELECT
 			(SELECT COUNT(*) FROM jobs WHERE user_id = $1 AND is_archived = false),
-			(SELECT COUNT(*) FROM resumes WHERE user_id = $1),
+			(` + countableResumes + `),
 			(SELECT COUNT(*) FROM ai_usage WHERE user_id = $1 AND usage_type IN ('match_score', 'resume_autofill_parse') AND created_at >= date_trunc('month', NOW())),
 			(SELECT COUNT(*) FROM ai_usage WHERE user_id = $1 AND usage_type = 'job_parse' AND created_at >= date_trunc('month', NOW())),
 			(SELECT COUNT(*) FROM resume_builders WHERE user_id = $1),

@@ -74,11 +74,9 @@ const notifications = vi.hoisted(() => ({
 
 vi.mock("@/shared/lib/notifications", () => notifications);
 
-vi.mock("@/shared/ui/Dialog", () => ({
-  Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
-    open ? <div data-testid="dialog">{children}</div> : null,
-}));
-
+// `@/shared/ui/Dialog` is deliberately not mocked: it is what gives this modal
+// its accessible name, and a stub would quietly take that back.
+//
 // A real query client rather than a hand-rolled useMutation stub: these flows
 // live in onSuccess/onError, which a stub that just calls mutationFn never runs.
 function renderModal(ui: ReactElement) {
@@ -163,6 +161,45 @@ describe("ManageSubscriptionModal", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText("settings.subscription.proPlan"),
+    ).toBeInTheDocument();
+  });
+
+  /**
+   * The prices used to be a second, English-only copy of the pricing table:
+   * "$7/mo" hard-coded here while the pricing modal read
+   * `settings.subscription.pricing.proPrice` — which RU and UK translate as
+   * "$7/мес" and "$7/міс". A Russian-speaking subscriber saw "/mo" in this
+   * modal and "/мес" one screen away, and a price change had two places to
+   * land in.
+   */
+  it("quotes prices from the localised pricing copy, not a second English table", () => {
+    renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
+
+    expect(
+      screen.getByText("settings.subscription.pricing.proPrice"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("settings.subscription.pricing.enterprisePrice"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/\$\d+\/mo/)).not.toBeInTheDocument();
+  });
+
+  it("quotes the free price from the same source when a plan lapses to free", () => {
+    mockSubscriptionRef.current = {
+      ...mockSubscriptionRef.current,
+      plan: "enterprise",
+      subscription: {
+        ...mockSubscriptionRef.current.subscription,
+        plan: "enterprise",
+      },
+    };
+    renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
+
+    expect(
+      screen.getByText("settings.subscription.pricing.enterprisePrice"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("settings.subscription.pricing.proPrice"),
     ).toBeInTheDocument();
   });
 
@@ -343,5 +380,24 @@ describe("ManageSubscriptionModal — billing portal", () => {
     );
 
     releasePortal({ url: "https://store.onfastspring.com/account/abc" });
+  });
+});
+
+/**
+ * The one modal in the app with no heading component at all, so `role="dialog"`
+ * was announced as an unnamed dialog.
+ */
+describe("ManageSubscriptionModal — accessible name", () => {
+  it("is named by its own heading", () => {
+    renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
+
+    const labelledBy = screen
+      .getByRole("dialog")
+      .getAttribute("aria-labelledby");
+
+    expect(labelledBy).toBeTruthy();
+    expect(document.getElementById(labelledBy ?? "")?.textContent).toBe(
+      "settings.subscription.manage.title",
+    );
   });
 });

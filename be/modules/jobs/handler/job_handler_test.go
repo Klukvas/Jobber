@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
 	commentModel "github.com/andreypavlenko/jobber/modules/comments/model"
 	companyModel "github.com/andreypavlenko/jobber/modules/companies/model"
 	companyPorts "github.com/andreypavlenko/jobber/modules/companies/ports"
@@ -57,6 +58,9 @@ func (m *MockCommentRepository) Create(ctx context.Context, comment *commentMode
 	return nil
 }
 func (m *MockCommentRepository) ListByJob(ctx context.Context, jobID, userID string) ([]*commentModel.Comment, error) {
+	return nil, nil
+}
+func (m *MockCommentRepository) Update(ctx context.Context, userID, commentID, content string) (*commentModel.Comment, error) {
 	return nil, nil
 }
 func (m *MockCommentRepository) Delete(ctx context.Context, userID, commentID string) error {
@@ -336,6 +340,101 @@ func TestJobHandler_List(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("passes a valid company filter through to the repository", func(t *testing.T) {
+		const companyID = "0149b69a-0000-4000-8000-000000000001"
+		var seen string
+
+		mockRepo := &MockJobRepository{
+			ListFunc: func(ctx context.Context, uid string, opts *ports.ListOptions) ([]*model.JobDTO, int, error) {
+				seen = opts.CompanyID
+				return []*model.JobDTO{}, 0, nil
+			},
+		}
+
+		router := setupTestRouter()
+		router.GET("/jobs", mockAuthMiddleware(userID), NewJobHandler(newTestJobService(mockRepo)).List)
+
+		req, _ := http.NewRequest(http.MethodGet, "/jobs?company_id="+companyID, nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, companyID, seen)
+	})
+
+	t.Run("rejects a malformed company filter instead of failing in the database", func(t *testing.T) {
+		called := false
+		mockRepo := &MockJobRepository{
+			ListFunc: func(ctx context.Context, uid string, opts *ports.ListOptions) ([]*model.JobDTO, int, error) {
+				called = true
+				return nil, 0, nil
+			},
+		}
+
+		router := setupTestRouter()
+		router.GET("/jobs", mockAuthMiddleware(userID), NewJobHandler(newTestJobService(mockRepo)).List)
+
+		req, _ := http.NewRequest(http.MethodGet, "/jobs?company_id=not-a-uuid", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.False(t, called)
+
+		// The code is part of the contract the API docs publish, so it is
+		// asserted rather than left to whatever string the call site happens
+		// to carry.
+		var body httpPlatform.ErrorResponse
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, string(model.CodeInvalidCompanyID), body.ErrorCode)
+	})
+
+	t.Run("names the sort and pagination rejections with the same codes", func(t *testing.T) {
+		mockRepo := &MockJobRepository{
+			ListFunc: func(ctx context.Context, uid string, opts *ports.ListOptions) ([]*model.JobDTO, int, error) {
+				return []*model.JobDTO{}, 0, nil
+			},
+		}
+
+		router := setupTestRouter()
+		router.GET("/jobs", mockAuthMiddleware(userID), NewJobHandler(newTestJobService(mockRepo)).List)
+
+		for query, want := range map[string]model.ErrorCode{
+			"sort=nonsense":   model.CodeInvalidSort,
+			"limit=-1":        model.CodeInvalidPaginationParams,
+			"company_id=nope": model.CodeInvalidCompanyID,
+		} {
+			req, _ := http.NewRequest(http.MethodGet, "/jobs?"+query, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusBadRequest, w.Code, query)
+			var body httpPlatform.ErrorResponse
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body), query)
+			assert.Equal(t, string(want), body.ErrorCode, query)
+		}
+	})
+
+	t.Run("an absent company filter stays empty", func(t *testing.T) {
+		var seen = "sentinel"
+		mockRepo := &MockJobRepository{
+			ListFunc: func(ctx context.Context, uid string, opts *ports.ListOptions) ([]*model.JobDTO, int, error) {
+				seen = opts.CompanyID
+				return []*model.JobDTO{}, 0, nil
+			},
+		}
+
+		router := setupTestRouter()
+		router.GET("/jobs", mockAuthMiddleware(userID), NewJobHandler(newTestJobService(mockRepo)).List)
+
+		req, _ := http.NewRequest(http.MethodGet, "/jobs", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Empty(t, seen)
 	})
 
 	t.Run("parses sort parameter correctly", func(t *testing.T) {

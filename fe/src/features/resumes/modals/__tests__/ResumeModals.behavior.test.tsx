@@ -13,6 +13,9 @@ const mockCreate = vi.hoisted(() => vi.fn());
 const mockUpdate = vi.hoisted(() => vi.fn());
 const mockDelete = vi.hoisted(() => vi.fn());
 const mockUploadResume = vi.hoisted(() => vi.fn());
+const mockLooksLikePdf = vi.hoisted(() =>
+  vi.fn((file: File) => Promise.resolve(Boolean(file))),
+);
 const mockBuilderUpdate = vi.hoisted(() => vi.fn());
 const mockShowSuccess = vi.hoisted(() => vi.fn());
 const mockShowError = vi.hoisted(() => vi.fn());
@@ -24,6 +27,7 @@ vi.mock("@/services/resumesService", () => ({
     delete: mockDelete,
     uploadResume: mockUploadResume,
   },
+  looksLikePdf: (file: File) => mockLooksLikePdf(file),
 }));
 
 vi.mock("@/services/resumeBuilderService", () => ({
@@ -197,8 +201,11 @@ describe("CreateResumeModal — file mode", () => {
     });
     fireEvent.change(input, { target: { files: [pdf] } });
 
-    // filename shown (auto-filled title / selected file line)
-    expect(screen.getByText(/resumes\.selectedFile/)).toBeInTheDocument();
+    // The content pre-check is async, so the selection lands a tick later.
+    await waitFor(() =>
+      expect(screen.getByText(/resumes\.selectedFile/)).toBeInTheDocument(),
+    );
+    expect(mockLooksLikePdf).toHaveBeenCalledWith(pdf);
     expect(
       screen.getByRole("button", { name: "resumes.upload" }),
     ).toBeEnabled();
@@ -209,8 +216,118 @@ describe("CreateResumeModal — file mode", () => {
 
     await waitFor(() => expect(mockUploadResume).toHaveBeenCalledTimes(1));
     expect(mockUploadResume.mock.calls[0][0]).toBe(pdf);
+    // The title travels with the upload so the server can apply it while
+    // finalizing — no follow-up update call.
+    expect(mockUploadResume.mock.calls[0][2]).toBe("resume");
+    expect(mockUpdate).not.toHaveBeenCalled();
     await waitFor(() =>
       expect(mockShowSuccess).toHaveBeenCalledWith("resumes.uploadSuccess"),
+    );
+  });
+
+  it("rejects a file whose bytes are not a PDF, without uploading", async () => {
+    const user = userEvent.setup();
+    mockLooksLikePdf.mockResolvedValueOnce(false);
+    renderWithClient(<CreateResumeModal open={true} onOpenChange={vi.fn()} />);
+    await user.click(
+      screen.getByRole("button", { name: "resumes.uploadPdfOption" }),
+    );
+
+    const input = screen.getByLabelText(/resumes\.pdfFileLabel/);
+    const spoofed = new File(["totally not a pdf"], "resume.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(input, { target: { files: [spoofed] } });
+
+    await waitFor(() =>
+      expect(mockShowError).toHaveBeenCalledWith("resumes.notARealPdf"),
+    );
+    expect(screen.queryByText(/resumes\.selectedFile/)).not.toBeInTheDocument();
+    expect(mockUploadResume).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Reading the picked file can fail outright — it was moved, the volume was
+   * unmounted, the browser refused. That rejection used to escape the change
+   * handler as an unhandled promise rejection, leaving the selection
+   * half-applied and the customer with no idea why nothing happened.
+   */
+  it("rejects a file that cannot be read, the same way as a spoofed one", async () => {
+    const user = userEvent.setup();
+    mockLooksLikePdf.mockRejectedValueOnce(
+      new DOMException("The requested file could not be read", "NotReadableError"),
+    );
+    renderWithClient(<CreateResumeModal open={true} onOpenChange={vi.fn()} />);
+    await user.click(
+      screen.getByRole("button", { name: "resumes.uploadPdfOption" }),
+    );
+
+    const input = screen.getByLabelText(/resumes\.pdfFileLabel/);
+    const unreadable = new File(["%PDF-1.4"], "resume.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(input, { target: { files: [unreadable] } });
+
+    await waitFor(() =>
+      expect(mockShowError).toHaveBeenCalledWith("resumes.notARealPdf"),
+    );
+    expect(screen.queryByText(/resumes\.selectedFile/)).not.toBeInTheDocument();
+    expect(mockUploadResume).not.toHaveBeenCalled();
+  });
+
+  it("clears the selection so the failed file cannot be submitted", async () => {
+    const user = userEvent.setup();
+    mockLooksLikePdf.mockRejectedValueOnce(new Error("read failed"));
+    const { container } = renderWithClient(
+      <CreateResumeModal open={true} onOpenChange={vi.fn()} />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "resumes.uploadPdfOption" }),
+    );
+
+    const input = screen.getByLabelText(/resumes\.pdfFileLabel/);
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File(["%PDF-1.4"], "resume.pdf", { type: "application/pdf" }),
+        ],
+      },
+    });
+    await waitFor(() => expect(mockShowError).toHaveBeenCalled());
+
+    fireEvent.submit(container.querySelector("form")!);
+
+    expect(mockUploadResume).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "resumes.upload" }),
+    ).toBeDisabled();
+  });
+
+  // A file picked again after a failure has to be accepted normally.
+  it("accepts the next file after a read failure", async () => {
+    const user = userEvent.setup();
+    mockLooksLikePdf.mockRejectedValueOnce(new Error("read failed"));
+    renderWithClient(<CreateResumeModal open={true} onOpenChange={vi.fn()} />);
+    await user.click(
+      screen.getByRole("button", { name: "resumes.uploadPdfOption" }),
+    );
+
+    const input = screen.getByLabelText(/resumes\.pdfFileLabel/);
+    fireEvent.change(input, {
+      target: {
+        files: [new File(["%PDF"], "bad.pdf", { type: "application/pdf" })],
+      },
+    });
+    await waitFor(() => expect(mockShowError).toHaveBeenCalled());
+
+    fireEvent.change(input, {
+      target: {
+        files: [new File(["%PDF-1.4"], "good.pdf", { type: "application/pdf" })],
+      },
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText(/resumes\.selectedFile/)).toBeInTheDocument(),
     );
   });
 });

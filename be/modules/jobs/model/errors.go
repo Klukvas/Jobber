@@ -62,6 +62,15 @@ const (
 	CodeBothResumeTypesSet      ErrorCode = "BOTH_RESUME_TYPES_SET"
 	CodeResumeNotFound          ErrorCode = "RESUME_NOT_FOUND"
 	CodeInternalError           ErrorCode = "INTERNAL_ERROR"
+
+	// Query-string rejections. They have no sentinel error behind them —
+	// nothing reaches the service — but they are answers this module gives a
+	// client, so they are declared here with the rest rather than written out
+	// as loose strings at the call site where a typo is a silent contract
+	// change.
+	CodeInvalidPaginationParams ErrorCode = "INVALID_PAGINATION_PARAMS"
+	CodeInvalidSort             ErrorCode = "INVALID_SORT"
+	CodeInvalidCompanyID        ErrorCode = "INVALID_COMPANY_ID"
 )
 
 // GetErrorCode maps errors to error codes

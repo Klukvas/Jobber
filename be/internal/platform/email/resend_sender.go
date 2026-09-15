@@ -13,15 +13,20 @@ import (
 type ResendSender struct {
 	client      *resend.Client
 	fromAddress string
-	breaker     *circuitbreaker.Breaker
+	// publicBaseURL is the origin a customer's browser can reach, used to build
+	// the reset email's deep link. Empty — or anything that is not an absolute
+	// http(s) URL — simply leaves the button out; see resetPasswordURL.
+	publicBaseURL string
+	breaker       *circuitbreaker.Breaker
 }
 
 // NewResendSender creates a new Resend email sender.
-func NewResendSender(apiKey, fromAddress string) *ResendSender {
+func NewResendSender(apiKey, fromAddress, publicBaseURL string) *ResendSender {
 	return &ResendSender{
-		client:      resend.NewClient(apiKey),
-		fromAddress: fromAddress,
-		breaker:     circuitbreaker.New("resend", 3, 60*time.Second),
+		client:        resend.NewClient(apiKey),
+		fromAddress:   fromAddress,
+		publicBaseURL: publicBaseURL,
+		breaker:       circuitbreaker.New("resend", 3, 60*time.Second),
 	}
 }
 
@@ -42,7 +47,9 @@ func (s *ResendSender) SendVerificationEmail(_ context.Context, to, code, locale
 }
 
 func (s *ResendSender) SendPasswordResetEmail(_ context.Context, to, code, locale string) error {
-	content := passwordResetEmail(code, locale)
+	// `to` is the address the reset is for, which is also the half of the
+	// credential the reset page needs alongside the code.
+	content := passwordResetEmail(code, locale, resetPasswordURL(s.publicBaseURL, to, code))
 	return s.breaker.Execute(func() error {
 		_, err := s.client.Emails.Send(&resend.SendEmailRequest{
 			From:    s.fromAddress,

@@ -3,6 +3,7 @@ package email
 import (
 	"fmt"
 	"html"
+	"net/url"
 )
 
 type emailContent struct {
@@ -103,6 +104,9 @@ func codeBlockHTML(code string) string {
 </table>`, html.EscapeString(code))
 }
 
+// Ukrainian arrives under two tags: the interface now stores the BCP 47 "uk",
+// and accounts registered before that carry the app's older "ua". Both mean the
+// same language, and matching only one would send half of them English.
 func verificationEmail(code, locale string) emailContent {
 	switch locale {
 	case "ru":
@@ -116,7 +120,7 @@ func verificationEmail(code, locale string) emailContent {
 				codeBlockHTML(code),
 			)),
 		}
-	case "ua":
+	case "ua", "uk":
 		return emailContent{
 			Subject: "Підтвердження email — Jobber",
 			HTML: baseLayout("Підтвердження email", fmt.Sprintf(
@@ -141,27 +145,92 @@ func verificationEmail(code, locale string) emailContent {
 	}
 }
 
-func passwordResetEmail(code, locale string) emailContent {
+// resetPasswordPath is the SPA route that completes a reset. It takes both
+// halves of the credential from the query string and renders a "broken link"
+// page without either — see fe/src/pages/ResetPassword.tsx.
+const resetPasswordPath = "reset-password"
+
+// resetPasswordURL builds the deep link the reset email's button points at, or
+// "" when there is nothing trustworthy to point it at.
+//
+// The email used to carry only the code, so the one thing the customer had in
+// front of them could not be followed: they had to find the app themselves,
+// open the forgot-password screen and retype six digits from another window.
+//
+// Assembled with net/url rather than by formatting a string. The address is
+// the customer's own input, and pasting it into a query would let an "@" or an
+// "&" in it rewrite the rest of the link — `Values.Encode` percent-encodes it
+// instead. Anything about the base URL this cannot vouch for — a relative
+// path, a scheme that is not http(s), no host, an unparseable value — produces
+// no link at all rather than a guess, and the email falls back to the code on
+// its own.
+func resetPasswordURL(baseURL, email, code string) string {
+	if baseURL == "" || email == "" || code == "" {
+		return ""
+	}
+	base, err := url.Parse(baseURL)
+	if err != nil || base.Host == "" {
+		return ""
+	}
+	if base.Scheme != "https" && base.Scheme != "http" {
+		return ""
+	}
+
+	link := base.JoinPath(resetPasswordPath)
+	// Replaced, not merged: a stray query or fragment on the configured origin
+	// must not survive into a link whose whole meaning is its query string.
+	link.RawQuery = url.Values{"email": {email}, "code": {code}}.Encode()
+	link.Fragment = ""
+	return link.String()
+}
+
+// resetButtonHTML renders the "Reset password" button, or nothing at all when
+// there is no link to put behind it.
+//
+// The href is HTML-escaped even though `resetPasswordURL` already
+// percent-encoded it: `&` between the two query parameters is a character
+// reference to an HTML parser, and an unescaped one truncates the link at the
+// first parameter in some mail clients — arriving without the code.
+func resetButtonHTML(link, label string) string {
+	if link == "" {
+		return ""
+	}
+	return fmt.Sprintf(
+		`<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 24px"><tr><td style="border-radius:8px;background-color:#2563eb"><a href="%s" style="display:inline-block;padding:12px 28px;font-size:16px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px">%s</a></td></tr></table>`,
+		html.EscapeString(link), html.EscapeString(label),
+	)
+}
+
+// Both Ukrainian tags, for the reason given on verificationEmail.
+//
+// `resetLink` is optional: without a trustworthy public origin configured the
+// button is left out and the code stands on its own, which is what this email
+// has always been able to fall back to.
+func passwordResetEmail(code, locale, resetLink string) emailContent {
 	switch locale {
 	case "ru":
 		return emailContent{
 			Subject: "Сброс пароля — Jobber",
 			HTML: baseLayout("Сброс пароля", fmt.Sprintf(
 				`<h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#1e293b">Сброс пароля</h1>
-<p style="margin:0 0 8px;font-size:16px;color:#475569;line-height:26px">Введите этот код в приложении, чтобы сбросить пароль:</p>
+<p style="margin:0 0 8px;font-size:16px;color:#475569;line-height:26px">Нажмите кнопку, чтобы задать новый пароль, или введите этот код в приложении:</p>
+%s
 %s
 <p style="margin:0;font-size:14px;color:#94a3b8;line-height:22px">Код действителен 10 минут. Если вы не запрашивали сброс пароля, проигнорируйте это письмо.</p>`,
+				resetButtonHTML(resetLink, "Задать новый пароль"),
 				codeBlockHTML(code),
 			)),
 		}
-	case "ua":
+	case "ua", "uk":
 		return emailContent{
 			Subject: "Скидання пароля — Jobber",
 			HTML: baseLayout("Скидання пароля", fmt.Sprintf(
 				`<h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#1e293b">Скидання пароля</h1>
-<p style="margin:0 0 8px;font-size:16px;color:#475569;line-height:26px">Введіть цей код у додатку, щоб скинути пароль:</p>
+<p style="margin:0 0 8px;font-size:16px;color:#475569;line-height:26px">Натисніть кнопку, щоб задати новий пароль, або введіть цей код у додатку:</p>
+%s
 %s
 <p style="margin:0;font-size:14px;color:#94a3b8;line-height:22px">Код дійсний 10 хвилин. Якщо ви не запитували скидання пароля, проігноруйте цей лист.</p>`,
+				resetButtonHTML(resetLink, "Задати новий пароль"),
 				codeBlockHTML(code),
 			)),
 		}
@@ -170,9 +239,11 @@ func passwordResetEmail(code, locale string) emailContent {
 			Subject: "Reset your password — Jobber",
 			HTML: baseLayout("Reset your password", fmt.Sprintf(
 				`<h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#1e293b">Reset your password</h1>
-<p style="margin:0 0 8px;font-size:16px;color:#475569;line-height:26px">Enter this code in the app to reset your password:</p>
+<p style="margin:0 0 8px;font-size:16px;color:#475569;line-height:26px">Use the button to set a new password, or enter this code in the app:</p>
+%s
 %s
 <p style="margin:0;font-size:14px;color:#94a3b8;line-height:22px">This code expires in 10 minutes. If you didn't request a password reset, please ignore this email.</p>`,
+				resetButtonHTML(resetLink, "Set a new password"),
 				codeBlockHTML(code),
 			)),
 		}

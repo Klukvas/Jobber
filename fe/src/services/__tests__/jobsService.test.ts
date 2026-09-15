@@ -32,6 +32,7 @@ describe("jobsService", () => {
 
       expect(mockApiClient.get).toHaveBeenCalledWith(
         expect.stringContaining("jobs?"),
+        undefined,
       );
       const url = mockApiClient.get.mock.calls[0][0] as string;
       expect(url).toContain("limit=10");
@@ -59,6 +60,19 @@ describe("jobsService", () => {
       expect(url).toContain("search=acme+corp");
     });
 
+    // A superseded search should stop on the wire, not just be ignored when
+    // it lands. React Query supplies the signal; this is the hand-off.
+    it("forwards the caller's cancellation signal", async () => {
+      const { signal } = new AbortController();
+      mockApiClient.get.mockResolvedValue({ items: [], total: 0 });
+
+      await jobsService.list({ search: "acme" }, { signal });
+
+      expect(mockApiClient.get).toHaveBeenCalledWith(expect.any(String), {
+        signal,
+      });
+    });
+
     it("omits an empty search param", async () => {
       mockApiClient.get.mockResolvedValue({ items: [], total: 0 });
 
@@ -76,7 +90,7 @@ describe("jobsService", () => {
 
       const result = await jobsService.getById("j1");
 
-      expect(mockApiClient.get).toHaveBeenCalledWith("jobs/j1");
+      expect(mockApiClient.get).toHaveBeenCalledWith("jobs/j1", undefined);
       expect(result).toEqual(mockJob);
     });
   });

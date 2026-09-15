@@ -1,7 +1,9 @@
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/stores/authStore";
+import { getAuthModalRoute } from "@/features/auth/authModalRoutes";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
+import { scrollToSection } from "@/shared/lib/scrollToSection";
 import { LoginModal } from "@/features/auth/modals/LoginModal";
 import { RegisterModal } from "@/features/auth/modals/RegisterModal";
 import { ForgotPasswordModal } from "@/features/auth/modals/ForgotPasswordModal";
@@ -17,8 +19,6 @@ import { FaqSection } from "@/features/home/components/FaqSection";
 import { FooterCtaSection } from "@/features/home/components/FooterCtaSection";
 import { FooterSection } from "@/features/home/components/FooterSection";
 
-type AuthModal = "login" | "register" | "forgot-password" | null;
-
 export default function Home() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -28,23 +28,28 @@ export default function Home() {
     descriptionKey: "seo.home.description",
   });
 
+  // The `landing-page` body class this page needs is not added here. It is
+  // owned by RootLayout, keyed on the route — see `app/landingBodyClass.ts`.
+  // Mounting is the wrong signal for it: the prerendered home page is also the
+  // SPA fallback, so every direct load of `/app/*` arrived with the class
+  // already set and no landing page to remove it.
+
+  // Keyed on `location.key`, not on the hash alone. The footer's "FAQ" link
+  // points at `/#faq` from the landing page itself, so the second click
+  // navigates to the hash the URL already carries: with only the hash in the
+  // deps the effect never re-ran, and the link did nothing at all for anyone
+  // who had scrolled away since the first one. Every navigation gets a fresh
+  // key, so the same anchor works however many times it is used.
   useEffect(() => {
     if (!location.hash) return;
     const id = location.hash.slice(1);
     const timer = setTimeout(() => {
-      document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+      scrollToSection(id);
     }, 100);
     return () => clearTimeout(timer);
-  }, [location.hash]);
+  }, [location.hash, location.key]);
 
-  const activeModal: AuthModal =
-    location.pathname === "/login"
-      ? "login"
-      : location.pathname === "/register"
-        ? "register"
-        : location.pathname === "/forgot-password"
-          ? "forgot-password"
-          : null;
+  const activeModal = getAuthModalRoute(location.pathname);
 
   const openLogin = () => navigate("/login");
   const openRegister = () => navigate("/register");

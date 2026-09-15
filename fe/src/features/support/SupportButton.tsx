@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { MessageCircleQuestion, Loader2 } from "lucide-react";
 import { supportService } from "@/services/supportService";
+import { ApiError } from "@/services/api";
 import {
   showSuccessNotification,
   showErrorNotification,
@@ -24,6 +25,19 @@ import { Label } from "@/shared/ui/Label";
 export function SupportButton() {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+
+  // Deployments without a support channel get no button at all: an entry point
+  // that always ends in "unavailable" is worse than no entry point. Assumed
+  // available until proven otherwise so a slow or failed probe never hides a
+  // working form.
+  const { data: status } = useQuery({
+    queryKey: ["support-status"],
+    queryFn: supportService.status,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  if (status && !status.available) return null;
 
   return (
     <>
@@ -57,7 +71,12 @@ function SupportForm({ onClose }: { onClose: () => void }) {
       onClose();
     },
     onError: (error: Error) => {
-      showErrorNotification(error.message || t("support.error"));
+      const code = error instanceof ApiError ? error.code : "";
+      showErrorNotification(
+        code === "SUPPORT_UNAVAILABLE"
+          ? t("support.unavailable")
+          : error.message || t("support.error"),
+      );
     },
   });
 

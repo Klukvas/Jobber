@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ATSCheckerPanel } from "./ATSCheckerPanel";
+import { ApiError } from "@/services/api";
 
 const mockMutate = vi.fn();
 
@@ -10,6 +11,7 @@ const mockATSCheckRef = {
     mutate: mockMutate,
     isPending: false,
     isError: false,
+    error: null as unknown,
     data: null as null | {
       score: number;
       issues: Array<{
@@ -26,10 +28,26 @@ const mockResumeRef = {
   current: null as { id: string } | null,
 };
 
+// Interpolation values are appended to the key so a test can assert not just
+// which message is shown but the number it was given.
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, options?: Record<string, unknown>) =>
+      options && "count" in options ? `${key}:${options.count}` : key,
     i18n: { language: "en" },
+  }),
+}));
+
+vi.mock("@/shared/hooks/useSubscription", () => ({
+  useSubscription: () => ({
+    limits: {
+      max_jobs: 25,
+      max_resumes: 1,
+      max_ai_requests: 1,
+      max_job_parses: 5,
+      max_resume_builders: 1,
+      max_cover_letters: 0,
+    },
   }),
 }));
 
@@ -50,6 +68,7 @@ describe("ATSCheckerPanel", () => {
       mutate: mockMutate,
       isPending: false,
       isError: false,
+      error: null,
       data: null,
     };
   });
@@ -76,7 +95,11 @@ describe("ATSCheckerPanel", () => {
     render(<ATSCheckerPanel />);
 
     await user.click(screen.getByText("resumeBuilder.ats.check"));
-    expect(mockMutate).toHaveBeenCalledWith("resume-1");
+    // The success callback is how the panel keeps the last good report around.
+    expect(mockMutate).toHaveBeenCalledWith(
+      "resume-1",
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
   });
 
   it("shows loading state when isPending is true", () => {
@@ -96,7 +119,7 @@ describe("ATSCheckerPanel", () => {
       isError: true,
     };
     render(<ATSCheckerPanel />);
-    expect(screen.getByText("common.error")).toBeInTheDocument();
+    expect(screen.getByText("resumeBuilder.ats.error")).toBeInTheDocument();
   });
 
   it("renders the score when result data is available", () => {
@@ -177,5 +200,107 @@ describe("ATSCheckerPanel", () => {
     expect(screen.getByText("React")).toBeInTheDocument();
     expect(screen.getByText("TypeScript")).toBeInTheDocument();
     expect(screen.getByText("Node.js")).toBeInTheDocument();
+  });
+});
+
+// Running out of the free monthly AI allowance is a quota, not a fault: the
+// panel has to say which limit was hit, when it returns, and offer the upgrade
+// — and it must not throw away the report already on screen.
+describe("ATSCheckerPanel — monthly AI limit", () => {
+  const RESULT = {
+    score: 72,
+    issues: [],
+    suggestions: [],
+    keywords_found: ["golang"],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockResumeRef.current = { id: "resume-1" };
+    mockATSCheckRef.current = {
+      mutate: mockMutate,
+      isPending: false,
+      isError: false,
+      error: null,
+      data: null,
+    };
+  });
+
+  function quotaRejected() {
+    mockATSCheckRef.current = {
+      ...mockATSCheckRef.current,
+      isError: true,
+      error: new ApiError("limit", "PLAN_LIMIT_REACHED", 403),
+      data: null,
+    };
+  }
+
+  // The old copy said AI match scoring was "not available on your plan" — next
+  // to a reset date, and about a feature this panel does not even run. The
+  // message names the shared monthly allowance and how big it is.
+  it("names the monthly AI allowance instead of showing a bare error", () => {
+    quotaRejected();
+    render(<ATSCheckerPanel />);
+
+    expect(
+      screen.getByText("settings.subscription.limitReachedAIMonthly:1"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("resumeBuilder.ats.error"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("says when the allowance comes back", () => {
+    quotaRejected();
+    render(<ATSCheckerPanel />);
+
+    expect(
+      screen.getByText(/settings\.subscription\.resetsOn/),
+    ).toBeInTheDocument();
+  });
+
+  it("offers a way to upgrade", () => {
+    quotaRejected();
+    render(<ATSCheckerPanel />);
+
+    expect(
+      screen.getByText("settings.subscription.upgradeForMore"),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the previous report visible when a re-check is refused", async () => {
+    const user = userEvent.setup();
+
+    // First run succeeds and the panel records the result.
+    mockMutate.mockImplementation(
+      (_id: string, opts?: { onSuccess?: (d: typeof RESULT) => void }) =>
+        opts?.onSuccess?.(RESULT),
+    );
+    const { rerender } = render(<ATSCheckerPanel />);
+    await user.click(screen.getByText("resumeBuilder.ats.check"));
+
+    // Second run is refused: react-query clears `data`, but the last good
+    // report must survive.
+    quotaRejected();
+    rerender(<ATSCheckerPanel />);
+
+    expect(screen.getByText("72")).toBeInTheDocument();
+    expect(
+      screen.getByText("settings.subscription.limitReachedAIMonthly:1"),
+    ).toBeInTheDocument();
+  });
+
+  it("still shows a plain error for a non-quota failure", () => {
+    mockATSCheckRef.current = {
+      ...mockATSCheckRef.current,
+      isError: true,
+      error: new ApiError("boom", "INTERNAL_ERROR", 500),
+    };
+    render(<ATSCheckerPanel />);
+
+    expect(screen.getByText("resumeBuilder.ats.error")).toBeInTheDocument();
+    expect(
+      screen.queryByText("settings.subscription.limitReachedAIMonthly:1"),
+    ).not.toBeInTheDocument();
   });
 });

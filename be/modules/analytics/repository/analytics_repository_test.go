@@ -29,19 +29,56 @@ func TestAnalyticsRepository_GetOverview(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("returns overview analytics successfully", func(t *testing.T) {
-		rows := pgxmock.NewRows([]string{
-			"total_applications",
-			"active_applications",
-			"closed_applications",
-			"rejected_applications",
-			"response_rate",
-			"avg_days_to_first_response",
-		}).AddRow(10, 5, 5, 3, 50.0, 3.5)
+	overviewColumns := []string{
+		"active_applications",
+		"closed_applications",
+		"rejected_applications",
+		"response_rate",
+		"avg_days_to_first_response",
+	}
 
+	// Total is derived from the other two buckets, so the identity holds for
+	// every shape of data — including the mixed active/archived mix that used
+	// to print Total 23 next to Active 23 and Closed 3.
+	t.Run("total always equals active plus closed", func(t *testing.T) {
+		tests := []struct {
+			name      string
+			active    int
+			closed    int
+			wantTotal int
+		}{
+			{name: "no cards at all", active: 0, closed: 0, wantTotal: 0},
+			{name: "only active cards", active: 23, closed: 0, wantTotal: 23},
+			{name: "only archived cards", active: 0, closed: 3, wantTotal: 3},
+			{name: "mixed active and archived", active: 23, closed: 3, wantTotal: 26},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				mock.ExpectQuery("WITH first_template AS").
+					WithArgs(userID).
+					WillReturnRows(pgxmock.NewRows(overviewColumns).
+						AddRow(tt.active, tt.closed, 0, 50.0, 3.5))
+
+				result, err := repo.GetOverview(context.Background(), userID)
+
+				require.NoError(t, err)
+				assert.Equal(t, tt.active, result.ActiveApplications)
+				assert.Equal(t, tt.closed, result.ClosedApplications)
+				assert.Equal(t, tt.wantTotal, result.TotalApplications)
+				assert.Equal(t,
+					result.ActiveApplications+result.ClosedApplications,
+					result.TotalApplications,
+				)
+				require.NoError(t, mock.ExpectationsWereMet())
+			})
+		}
+	})
+
+	t.Run("returns overview analytics successfully", func(t *testing.T) {
 		mock.ExpectQuery("WITH first_template AS").
 			WithArgs(userID).
-			WillReturnRows(rows)
+			WillReturnRows(pgxmock.NewRows(overviewColumns).AddRow(5, 5, 0, 50.0, 3.5))
 
 		result, err := repo.GetOverview(context.Background(), userID)
 
@@ -49,7 +86,7 @@ func TestAnalyticsRepository_GetOverview(t *testing.T) {
 		assert.Equal(t, 10, result.TotalApplications)
 		assert.Equal(t, 5, result.ActiveApplications)
 		assert.Equal(t, 5, result.ClosedApplications)
-		assert.Equal(t, 3, result.RejectedApplications)
+		assert.Equal(t, 0, result.RejectedApplications)
 		assert.Equal(t, 50.0, result.ResponseRate)
 		assert.Equal(t, 3.5, result.AvgDaysToFirstResponse)
 
@@ -57,18 +94,9 @@ func TestAnalyticsRepository_GetOverview(t *testing.T) {
 	})
 
 	t.Run("returns zero values for empty data", func(t *testing.T) {
-		rows := pgxmock.NewRows([]string{
-			"total_applications",
-			"active_applications",
-			"closed_applications",
-			"rejected_applications",
-			"response_rate",
-			"avg_days_to_first_response",
-		}).AddRow(0, 0, 0, 0, 0.0, 0.0)
-
 		mock.ExpectQuery("WITH first_template AS").
 			WithArgs(userID).
-			WillReturnRows(rows)
+			WillReturnRows(pgxmock.NewRows(overviewColumns).AddRow(0, 0, 0, 0.0, 0.0))
 
 		result, err := repo.GetOverview(context.Background(), userID)
 
@@ -90,7 +118,7 @@ func TestAnalyticsRepository_GetFunnel(t *testing.T) {
 	userID := "user-123"
 
 	t.Run("returns error when the stage query fails", func(t *testing.T) {
-		mock.ExpectQuery("FROM stage_templates st").
+		mock.ExpectQuery("WITH templates AS").
 			WithArgs(userID).
 			WillReturnError(assert.AnError)
 
@@ -103,7 +131,7 @@ func TestAnalyticsRepository_GetFunnel(t *testing.T) {
 
 	t.Run("builds a positional stage funnel over the user's stage templates", func(t *testing.T) {
 		// The user's own columns, in order, with reached counts.
-		mock.ExpectQuery("FROM stage_templates st").
+		mock.ExpectQuery("WITH templates AS").
 			WithArgs(userID).
 			WillReturnRows(pgxmock.NewRows([]string{"stage_name", "stage_order", "reached_count"}).
 				AddRow("Applied", 1, 100).
@@ -137,7 +165,7 @@ func TestAnalyticsRepository_GetFunnel(t *testing.T) {
 	})
 
 	t.Run("returns an empty funnel when the user has no stage templates", func(t *testing.T) {
-		mock.ExpectQuery("FROM stage_templates st").
+		mock.ExpectQuery("WITH templates AS").
 			WithArgs(userID).
 			WillReturnRows(pgxmock.NewRows([]string{"stage_name", "stage_order", "reached_count"}))
 
@@ -152,37 +180,102 @@ func TestAnalyticsRepository_GetFunnel(t *testing.T) {
 }
 
 func TestBuildStageFunnel(t *testing.T) {
-	t.Run("computes conversion and drop-off between consecutive stages", func(t *testing.T) {
-		stages := buildStageFunnel([]stageCount{
-			{name: "Applied", order: 1, count: 100},
-			{name: "Interview", order: 2, count: 40},
-			{name: "Offer", order: 3, count: 10},
+	type rates struct {
+		conversion float64
+		dropOff    float64
+	}
+
+	tests := []struct {
+		name   string
+		counts []stageCount
+		want   []rates
+	}{
+		{
+			name: "conversion and drop-off are relative to the previous column",
+			counts: []stageCount{
+				{name: "Applied", order: 1, count: 100},
+				{name: "Interview", order: 2, count: 40},
+				{name: "Offer", order: 3, count: 10},
+			},
+			want: []rates{{100, 0}, {40, 60}, {25, 75}},
+		},
+		{
+			name: "an empty pipeline reports nothing rather than a perfect 100%",
+			counts: []stageCount{
+				{name: "Applied", order: 1, count: 0},
+				{name: "Interview", order: 2, count: 0},
+				{name: "Offer", order: 3, count: 0},
+			},
+			want: []rates{{0, 0}, {0, 0}, {0, 0}},
+		},
+		{
+			name: "a zero denominator mid-funnel does not divide by zero",
+			counts: []stageCount{
+				{name: "Applied", order: 1, count: 5},
+				{name: "Interview", order: 2, count: 0},
+				{name: "Offer", order: 3, count: 0},
+			},
+			want: []rates{{100, 0}, {0, 100}, {0, 0}},
+		},
+		{
+			name: "a non-monotonic count can never produce >100% or a negative drop-off",
+			counts: []stageCount{
+				{name: "Wishlist", order: 1, count: 5},
+				{name: "Applied", order: 2, count: 17},
+				{name: "Interview", order: 3, count: 3},
+			},
+			want: []rates{{100, 0}, {100, 0}, {17.65, 82.35}},
+		},
+		{
+			name: "no columns yields no buckets",
+			// A brand new account has no stage templates at all.
+			counts: nil,
+			want:   nil,
+		},
+		{
+			name:   "a single column is its own base",
+			counts: []stageCount{{name: "Applied", order: 1, count: 3}},
+			want:   []rates{{100, 0}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stages := buildStageFunnel(tt.counts)
+
+			require.Len(t, stages, len(tt.want))
+			for i, want := range tt.want {
+				assert.Equal(t, tt.counts[i].name, stages[i].StageName)
+				assert.Equal(t, tt.counts[i].count, stages[i].Count)
+				assert.Equal(t, want.conversion, stages[i].ConversionRate, "conversion at %d", i)
+				assert.Equal(t, want.dropOff, stages[i].DropOffRate, "drop-off at %d", i)
+				assert.GreaterOrEqual(t, stages[i].ConversionRate, 0.0)
+				assert.LessOrEqual(t, stages[i].ConversionRate, 100.0)
+				assert.GreaterOrEqual(t, stages[i].DropOffRate, 0.0)
+				assert.LessOrEqual(t, stages[i].DropOffRate, 100.0)
+			}
 		})
+	}
+}
 
-		require.Len(t, stages, 3)
-		assert.Equal(t, "Applied", stages[0].StageName)
-		assert.Equal(t, 100.0, stages[0].ConversionRate)
+func TestClampPercent(t *testing.T) {
+	tests := []struct {
+		name string
+		in   float64
+		want float64
+	}{
+		{name: "below range", in: -240, want: 0},
+		{name: "lower bound", in: 0, want: 0},
+		{name: "inside range", in: 42.5, want: 42.5},
+		{name: "upper bound", in: 100, want: 100},
+		{name: "above range", in: 340, want: 100},
+	}
 
-		assert.Equal(t, "Interview", stages[1].StageName)
-		assert.Equal(t, 40.0, stages[1].ConversionRate) // 40/100
-		assert.Equal(t, 60.0, stages[1].DropOffRate)    // 60/100
-
-		assert.Equal(t, "Offer", stages[2].StageName)
-		assert.Equal(t, 25.0, stages[2].ConversionRate) // 10/40
-		assert.Equal(t, 75.0, stages[2].DropOffRate)    // 30/40
-	})
-
-	t.Run("avoids divide-by-zero when the previous stage is empty", func(t *testing.T) {
-		stages := buildStageFunnel([]stageCount{
-			{name: "Applied", order: 1, count: 0},
-			{name: "Interview", order: 2, count: 0},
-			{name: "Offer", order: 3, count: 0},
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, clampPercent(tt.in))
 		})
-		for _, s := range stages {
-			assert.Equal(t, 100.0, s.ConversionRate)
-			assert.Equal(t, 0.0, s.DropOffRate)
-		}
-	})
+	}
 }
 
 func TestAnalyticsRepository_GetStageTime(t *testing.T) {

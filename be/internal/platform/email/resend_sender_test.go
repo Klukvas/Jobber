@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -18,7 +19,7 @@ type resendEmailRequest struct {
 }
 
 func newTestResendSender(serverURL string) *ResendSender {
-	sender := NewResendSender("test-api-key", "Jobber <noreply@example.com>")
+	sender := NewResendSender("test-api-key", "Jobber <noreply@example.com>", "https://jobber-app.com")
 	parsed, _ := url.Parse(serverURL + "/")
 	sender.client.BaseURL = parsed
 	return sender
@@ -81,6 +82,39 @@ func TestResendSender_SendPasswordResetEmail_Success(t *testing.T) {
 	}
 	if received.Subject == "" {
 		t.Error("Subject should not be empty")
+	}
+
+	// The reset page needs the address as well as the code, and the address it
+	// needs is the one this email was sent to.
+	if !strings.Contains(received.HTML, "reset-password?code=reset-tok&amp;email=user%40test.com") {
+		t.Errorf("reset link missing from the email body: %s", received.HTML)
+	}
+}
+
+// Nothing to point a link at is a configuration state, not a failure: the
+// email still goes out, carrying the code on its own.
+func TestResendSender_SendPasswordResetEmail_WithoutPublicOrigin(t *testing.T) {
+	var received resendEmailRequest
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&received)
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"id": "email-789"})
+	}))
+	defer server.Close()
+
+	sender := newTestResendSender(server.URL)
+	sender.publicBaseURL = ""
+
+	if err := sender.SendPasswordResetEmail(context.Background(), "user@test.com", "reset-tok", "en"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if strings.Contains(received.HTML, "reset-password?") {
+		t.Error("emitted a link with nothing to point at")
+	}
+	if !strings.Contains(received.HTML, "reset-tok") {
+		t.Error("code missing from the fallback")
 	}
 }
 

@@ -11,7 +11,7 @@ vi.mock("@/services/api", () => ({
   apiClient: mockApiClient,
 }));
 
-import { resumesService } from "../resumesService";
+import { looksLikePdf, resumesService } from "../resumesService";
 
 describe("resumesService", () => {
   beforeEach(() => {
@@ -132,10 +132,7 @@ describe("resumesService", () => {
         type: "application/pdf",
       });
 
-      await resumesService.uploadToS3(
-        "https://s3.example.com/upload",
-        file,
-      );
+      await resumesService.uploadToS3("https://s3.example.com/upload", file);
 
       expect(mockFetch).toHaveBeenCalledWith("https://s3.example.com/upload", {
         method: "PUT",
@@ -145,9 +142,7 @@ describe("resumesService", () => {
     });
 
     it("throws when upload fails", async () => {
-      const mockFetch = vi
-        .fn()
-        .mockResolvedValue({ ok: false, status: 500 });
+      const mockFetch = vi.fn().mockResolvedValue({ ok: false, status: 500 });
       globalThis.fetch = mockFetch;
 
       const file = new File(["content"], "resume.pdf", {
@@ -173,43 +168,55 @@ describe("resumesService", () => {
   });
 
   describe("uploadResume", () => {
-    it("orchestrates the full upload flow", async () => {
-      mockApiClient.post.mockResolvedValue({
-        upload_url: "https://s3.example.com/upload",
-        resume_id: "r5",
-      });
+    it("orchestrates the full upload flow and finalizes server-side", async () => {
+      const mockResume = { id: "r5", title: "Backend Engineer" };
+      mockApiClient.post
+        .mockResolvedValueOnce({
+          upload_url: "https://s3.example.com/upload",
+          resume_id: "r5",
+        })
+        .mockResolvedValueOnce(mockResume);
 
       const mockFetch = vi.fn().mockResolvedValue({ ok: true });
       globalThis.fetch = mockFetch;
-
-      const mockResume = { id: "r5", title: "resume.pdf" };
-      mockApiClient.get.mockResolvedValue(mockResume);
 
       const file = new File(["content"], "resume.pdf", {
         type: "application/pdf",
       });
       const onProgress = vi.fn();
 
-      const result = await resumesService.uploadResume(file, onProgress);
+      const result = await resumesService.uploadResume(
+        file,
+        onProgress,
+        "Backend Engineer",
+      );
 
-      expect(mockApiClient.post).toHaveBeenCalledWith("resumes/upload-url", {
-        filename: "resume.pdf",
-        content_type: "application/pdf",
-      });
+      expect(mockApiClient.post).toHaveBeenNthCalledWith(
+        1,
+        "resumes/upload-url",
+        { filename: "resume.pdf", content_type: "application/pdf" },
+      );
       expect(mockFetch).toHaveBeenCalled();
-      expect(mockApiClient.get).toHaveBeenCalledWith("resumes/r5");
+      // Verification happens server-side; the client never activates a resume.
+      expect(mockApiClient.post).toHaveBeenNthCalledWith(
+        2,
+        "resumes/r5/finalize",
+        { title: "Backend Engineer" },
+      );
+      expect(mockApiClient.get).not.toHaveBeenCalled();
       expect(onProgress).toHaveBeenCalledWith(50);
       expect(onProgress).toHaveBeenCalledWith(100);
       expect(result).toEqual(mockResume);
     });
 
-    it("works without onProgress callback", async () => {
-      mockApiClient.post.mockResolvedValue({
-        upload_url: "https://s3.example.com/upload",
-        resume_id: "r6",
-      });
+    it("works without onProgress callback or title", async () => {
+      mockApiClient.post
+        .mockResolvedValueOnce({
+          upload_url: "https://s3.example.com/upload",
+          resume_id: "r6",
+        })
+        .mockResolvedValueOnce({ id: "r6" });
       globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
-      mockApiClient.get.mockResolvedValue({ id: "r6" });
 
       const file = new File(["content"], "test.pdf", {
         type: "application/pdf",
@@ -217,7 +224,55 @@ describe("resumesService", () => {
 
       const result = await resumesService.uploadResume(file);
 
+      expect(mockApiClient.post).toHaveBeenNthCalledWith(
+        2,
+        "resumes/r6/finalize",
+        {},
+      );
       expect(result).toEqual({ id: "r6" });
+    });
+
+    it("does not finalize when the storage upload fails", async () => {
+      mockApiClient.post.mockResolvedValueOnce({
+        upload_url: "https://s3.example.com/upload",
+        resume_id: "r7",
+      });
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: false });
+
+      const file = new File(["content"], "test.pdf", {
+        type: "application/pdf",
+      });
+
+      await expect(resumesService.uploadResume(file)).rejects.toThrow();
+      expect(mockApiClient.post).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("looksLikePdf", () => {
+    it("accepts a file whose first bytes are the PDF magic number", async () => {
+      const file = new File(["%PDF-1.7\nreal content"], "cv.pdf", {
+        type: "application/pdf",
+      });
+      await expect(looksLikePdf(file)).resolves.toBe(true);
+    });
+
+    it("rejects a text file renamed to .pdf", async () => {
+      const file = new File(["hello, I am not a pdf"], "cv.pdf", {
+        type: "application/pdf",
+      });
+      await expect(looksLikePdf(file)).resolves.toBe(false);
+    });
+
+    it("rejects a file with the magic number somewhere other than the start", async () => {
+      const file = new File(["GIF89a%PDF-1.7"], "cv.pdf", {
+        type: "application/pdf",
+      });
+      await expect(looksLikePdf(file)).resolves.toBe(false);
+    });
+
+    it("rejects an empty file", async () => {
+      const file = new File([], "cv.pdf", { type: "application/pdf" });
+      await expect(looksLikePdf(file)).resolves.toBe(false);
     });
   });
 });

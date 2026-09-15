@@ -20,7 +20,15 @@ import (
 type MockCommentRepository struct {
 	CreateFunc    func(ctx context.Context, comment *model.Comment) error
 	ListByJobFunc func(ctx context.Context, jobID string, userID ...string) ([]*model.Comment, error)
+	UpdateFunc    func(ctx context.Context, userID, commentID, content string) (*model.Comment, error)
 	DeleteFunc    func(ctx context.Context, userID, commentID string) error
+}
+
+func (m *MockCommentRepository) Update(ctx context.Context, userID, commentID, content string) (*model.Comment, error) {
+	if m.UpdateFunc != nil {
+		return m.UpdateFunc(ctx, userID, commentID, content)
+	}
+	return nil, nil
 }
 
 func (m *MockCommentRepository) Create(ctx context.Context, comment *model.Comment) error {
@@ -191,9 +199,116 @@ func TestCommentHandler_ListByJob(t *testing.T) {
 	})
 }
 
+// Comment ids are uuids in the database, and the service refuses anything else
+// before it reaches storage — so the tests have to use real ones.
+const (
+	validCommentID   = "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+	missingCommentID = "11111111-2222-3333-4444-555555555555"
+)
+
+func TestCommentHandler_Update(t *testing.T) {
+	const (
+		userID    = "user-123"
+		commentID = validCommentID
+	)
+
+	newRouter := func(repo *MockCommentRepository, withAuth bool) *gin.Engine {
+		handler := NewCommentHandler(service.NewCommentService(repo))
+		router := setupTestRouter()
+		if withAuth {
+			router.PATCH("/comments/:id", mockAuthMiddleware(userID), handler.Update)
+		} else {
+			router.PATCH("/comments/:id", handler.Update)
+		}
+		return router
+	}
+
+	patch := func(router *gin.Engine, id, body string) *httptest.ResponseRecorder {
+		req, _ := http.NewRequest(http.MethodPatch, "/comments/"+id, bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		return w
+	}
+
+	t.Run("updates the comment and returns it", func(t *testing.T) {
+		var sawUserID string
+		repo := &MockCommentRepository{
+			UpdateFunc: func(_ context.Context, uid, cid, content string) (*model.Comment, error) {
+				sawUserID = uid
+				return &model.Comment{ID: cid, UserID: uid, JobID: "job-1", Content: content}, nil
+			},
+		}
+
+		w := patch(newRouter(repo, true), commentID, `{"content":"Edited body"}`)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "Edited body")
+		assert.Equal(t, userID, sawUserID)
+	})
+
+	t.Run("returns 404 for another user's comment", func(t *testing.T) {
+		repo := &MockCommentRepository{
+			UpdateFunc: func(context.Context, string, string, string) (*model.Comment, error) {
+				// The UPDATE is scoped to the author, so a foreign id matches
+				// no row — indistinguishable from a comment that never existed.
+				return nil, model.ErrCommentNotFound
+			},
+		}
+
+		w := patch(newRouter(repo, true), "someone-elses-comment", `{"content":"Edited"}`)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.NotContains(t, w.Body.String(), "Edited")
+	})
+
+	// One resource, two write endpoints, one taxonomy: an unparseable body is a
+	// VALIDATION_ERROR and an empty comment is CONTENT_REQUIRED, on both. This
+	// endpoint used to answer both with CONTENT_REQUIRED, which pointed the
+	// client at a field that was never the problem.
+	t.Run("returns 400 CONTENT_REQUIRED for an empty comment", func(t *testing.T) {
+		called := false
+		repo := &MockCommentRepository{
+			UpdateFunc: func(context.Context, string, string, string) (*model.Comment, error) {
+				called = true
+				return nil, nil
+			},
+		}
+
+		w := patch(newRouter(repo, true), commentID, `{"content":"   "}`)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "CONTENT_REQUIRED")
+		assert.False(t, called)
+	})
+
+	t.Run("returns 400 VALIDATION_ERROR for a body that is not JSON", func(t *testing.T) {
+		called := false
+		repo := &MockCommentRepository{
+			UpdateFunc: func(context.Context, string, string, string) (*model.Comment, error) {
+				called = true
+				return nil, nil
+			},
+		}
+
+		w := patch(newRouter(repo, true), commentID, `not json at all`)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "VALIDATION_ERROR")
+		assert.NotContains(t, w.Body.String(), "CONTENT_REQUIRED")
+		assert.False(t, called)
+	})
+
+	t.Run("returns 401 when not authenticated", func(t *testing.T) {
+		w := patch(newRouter(&MockCommentRepository{}, false), commentID, `{"content":"Edited"}`)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+}
+
 func TestCommentHandler_Delete(t *testing.T) {
 	userID := "user-123"
-	commentID := "comment-1"
+	commentID := validCommentID
 
 	t.Run("deletes comment successfully", func(t *testing.T) {
 		mockRepo := &MockCommentRepository{
@@ -228,7 +343,7 @@ func TestCommentHandler_Delete(t *testing.T) {
 		router := setupTestRouter()
 		router.DELETE("/comments/:id", mockAuthMiddleware(userID), handler.Delete)
 
-		req, _ := http.NewRequest(http.MethodDelete, "/comments/nonexistent", nil)
+		req, _ := http.NewRequest(http.MethodDelete, "/comments/"+missingCommentID, nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -249,6 +364,45 @@ func TestCommentHandler_Delete(t *testing.T) {
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
+}
+
+// A path parameter that is not a uuid used to reach Postgres as a cast error
+// and come back as a 500. It is a 404: there is no such comment.
+func TestCommentHandler_MalformedID(t *testing.T) {
+	const userID = "user-123"
+
+	for _, id := range []string{"comment-1", "not-a-uuid", "7c9e6679-7425"} {
+		t.Run(id, func(t *testing.T) {
+			touched := false
+			handler := NewCommentHandler(service.NewCommentService(&MockCommentRepository{
+				UpdateFunc: func(context.Context, string, string, string) (*model.Comment, error) {
+					touched = true
+					return nil, nil
+				},
+				DeleteFunc: func(context.Context, string, string) error {
+					touched = true
+					return nil
+				},
+			}))
+			router := setupTestRouter()
+			router.PATCH("/comments/:id", mockAuthMiddleware(userID), handler.Update)
+			router.DELETE("/comments/:id", mockAuthMiddleware(userID), handler.Delete)
+
+			patch, _ := http.NewRequest(http.MethodPatch, "/comments/"+id,
+				bytes.NewBufferString(`{"content":"Edited"}`))
+			patch.Header.Set("Content-Type", "application/json")
+			patchRec := httptest.NewRecorder()
+			router.ServeHTTP(patchRec, patch)
+
+			del, _ := http.NewRequest(http.MethodDelete, "/comments/"+id, nil)
+			delRec := httptest.NewRecorder()
+			router.ServeHTTP(delRec, del)
+
+			assert.Equal(t, http.StatusNotFound, patchRec.Code)
+			assert.Equal(t, http.StatusNotFound, delRec.Code)
+			assert.False(t, touched, "storage must not be asked about an impossible id")
+		})
+	}
 }
 
 func TestCommentHandler_RegisterRoutes(t *testing.T) {
@@ -277,7 +431,7 @@ func TestCommentHandler_RegisterRoutes(t *testing.T) {
 		path   string
 	}{
 		{http.MethodPost, "/api/v1/comments"},
-		{http.MethodDelete, "/api/v1/comments/test-id"},
+		{http.MethodDelete, "/api/v1/comments/" + validCommentID},
 		{http.MethodGet, "/api/v1/jobs/test-id/comments"},
 	}
 

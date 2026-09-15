@@ -4,6 +4,10 @@
 
 @layer base {
   :root {
+    /* The landing page's own background, named once so the wrapper below and
+       the body class above cannot drift apart. */
+    --landing-background: 220 35% 7%;
+
     --background: 0 0% 99%;
     --foreground: 220 35% 7%;
     --card: 0 0% 100%;
@@ -53,10 +57,35 @@
   * {
     @apply border-border;
   }
+  /* --app-bottom-inset and --app-top-inset are the heights of whatever is fixed
+     over each edge of the viewport (today: the cookie-consent banner and the
+     landing navbar). Declaring them here with a zero default means every
+     consumer can read them unconditionally.
+
+     The scroll-padding pair keeps the browser's own scrolling — native #hash
+     jumps, focus moves, scroll-into-view — from parking a target underneath
+     either bar. Programmatic anchor scrolling goes through scrollToSection,
+     which reads the same two variables. */
+  html {
+    --app-bottom-inset: 0px;
+    --app-top-inset: 0px;
+    scroll-padding-bottom: var(--app-bottom-inset);
+    scroll-padding-top: var(--app-top-inset);
+  }
   body {
     @apply bg-background text-foreground;
     font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
+  }
+  /* The landing page forces its own dark palette on a wrapper *inside* <body>,
+     so anything <body> paints outside that wrapper keeps the app's light
+     background. The consent banner reserves its height as body padding, and
+     that strip is painted by <body> — which put a pale band across the bottom
+     of a forced-dark page once you scrolled to the end. Mirroring the landing
+     background onto <body> while (and only while) the landing page is mounted
+     makes the reserved strip the same colour as the page above it. */
+  body.landing-page {
+    background-color: hsl(var(--landing-background));
   }
 }
 
@@ -64,7 +93,7 @@
    KEEP IN SYNC with .dark block above — same values intentional.
    Forces dark theme on the landing page regardless of user preference. */
 .landing-override {
-  --background: 220 35% 7%;
+  --background: var(--landing-background);
   --foreground: 210 40% 96%;
   --card: 221 39% 11%;
   --card-foreground: 210 40% 96%;

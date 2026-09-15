@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SupportButton } from "../SupportButton";
+import { ApiError } from "@/services/api";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -18,7 +19,14 @@ vi.mock("react-router-dom", () => ({
 const mockMutate = vi.hoisted(() => vi.fn());
 const mockMutationState = vi.hoisted(() => ({ isPending: false }));
 
+// The button probes /support/status on mount; default to "configured" so the
+// existing cases exercise the normal path.
+const mockSupportStatus = vi.hoisted(() => ({
+  data: { available: true } as { available: boolean } | undefined,
+}));
+
 vi.mock("@tanstack/react-query", () => ({
+  useQuery: () => ({ data: mockSupportStatus.data }),
   useMutation: (opts: {
     mutationFn: (v: unknown) => Promise<unknown>;
     onSuccess?: () => void;
@@ -132,5 +140,77 @@ describe("SupportButton", () => {
         "rate limited",
       ),
     );
+  });
+
+  describe("when no support channel is configured", () => {
+    it("hides the button entirely rather than offering a dead end", () => {
+      mockSupportStatus.data = { available: false };
+      render(<SupportButton />);
+
+      expect(
+        screen.queryByRole("button", { name: "support.title" }),
+      ).not.toBeInTheDocument();
+
+      mockSupportStatus.data = { available: true };
+    });
+
+    it("still shows the button while the probe is in flight", () => {
+      mockSupportStatus.data = undefined;
+      render(<SupportButton />);
+
+      expect(
+        screen.getByRole("button", { name: "support.title" }),
+      ).toBeInTheDocument();
+
+      mockSupportStatus.data = { available: true };
+    });
+
+    it("explains a SUPPORT_UNAVAILABLE rejection instead of echoing it", async () => {
+      const user = userEvent.setup();
+      mockSupportService.submit.mockRejectedValue(
+        new ApiError("Service Unavailable", "SUPPORT_UNAVAILABLE", 503),
+      );
+      render(<SupportButton />);
+      await openDialog(user);
+
+      await user.type(screen.getByLabelText("support.subject"), "Need help");
+      await user.type(
+        screen.getByLabelText("support.message"),
+        "My detailed problem here",
+      );
+      await user.click(screen.getByRole("button", { name: "support.send" }));
+
+      await waitFor(() =>
+        expect(mockNotifications.showErrorNotification).toHaveBeenCalledWith(
+          "support.unavailable",
+        ),
+      );
+    });
+  });
+});
+
+/**
+ * A dialog with no accessible name is announced as just "dialog". Every one of
+ * these draws a heading; the shared `Dialog`/`DialogTitle` pair is what turns
+ * that heading into the name, and this is the consumer-side half of that
+ * contract.
+ */
+function expectDialogNamedBy(headingText: string) {
+  const dialog = screen.getByRole("dialog");
+  const labelledBy = dialog.getAttribute("aria-labelledby");
+
+  expect(labelledBy).toBeTruthy();
+  expect(document.getElementById(labelledBy ?? "")?.textContent).toBe(
+    headingText,
+  );
+}
+
+describe("SupportButton — accessible name", () => {
+  it("names the contact-support dialog by its own heading", async () => {
+    const user = userEvent.setup();
+    render(<SupportButton />);
+    await openDialog(user);
+
+    expectDialogNamedBy("support.title");
   });
 });

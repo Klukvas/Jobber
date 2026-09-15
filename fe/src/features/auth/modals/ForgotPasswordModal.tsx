@@ -14,7 +14,14 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/shared/ui/Dialog";
+import { AUTH_DIALOG_TITLE_IDS } from "@/features/auth/modals/authDialogTitleIds";
 import { ApiError } from "@/services/api";
+import {
+  MAX_PASSWORD_BYTES,
+  MIN_PASSWORD_CHARS,
+  passwordByteLength,
+  passwordCharLength,
+} from "@/shared/lib/validation";
 import { Loader2, CheckCircle2 } from "lucide-react";
 
 interface ForgotPasswordModalProps {
@@ -52,6 +59,10 @@ function ModalContent({
     onError: (err: ApiError) => {
       if (err.code === "TOO_MANY_ATTEMPTS") {
         setError(t("auth.tooManyAttempts"));
+      } else if (err.code === "PASSWORD_TOO_LONG") {
+        // The client check below normally catches this first; the mapping is
+        // here so a rejected password never reads as a bad code.
+        setError(t("errors.passwordTooLong"));
       } else {
         setError(t("auth.invalidCode"));
       }
@@ -79,8 +90,17 @@ function ModalContent({
       return;
     }
 
-    if (newPassword.length < 8) {
+    // Code points, like the server: `.length` counts UTF-16 units and reads
+    // four emoji as eight characters.
+    if (passwordCharLength(newPassword) < MIN_PASSWORD_CHARS) {
       setError(t("errors.passwordTooShort"));
+      return;
+    }
+
+    // bcrypt's limit is in bytes: 40 Cyrillic characters are 80 bytes and
+    // would be refused by the server after a pointless round-trip.
+    if (passwordByteLength(newPassword) > MAX_PASSWORD_BYTES) {
+      setError(t("errors.passwordTooLong"));
       return;
     }
 
@@ -91,7 +111,10 @@ function ModalContent({
     return (
       <>
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">
+          <DialogTitle
+            id={AUTH_DIALOG_TITLE_IDS.forgotPassword}
+            className="text-2xl font-bold"
+          >
             {t("auth.passwordResetDone")}
           </DialogTitle>
         </DialogHeader>
@@ -110,7 +133,10 @@ function ModalContent({
     return (
       <>
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">
+          <DialogTitle
+            id={AUTH_DIALOG_TITLE_IDS.forgotPassword}
+            className="text-2xl font-bold"
+          >
             {t("auth.resetPasswordTitle")}
           </DialogTitle>
           <DialogDescription>
@@ -212,7 +238,10 @@ function ModalContent({
   return (
     <>
       <DialogHeader>
-        <DialogTitle className="text-2xl font-bold">
+        <DialogTitle
+          id={AUTH_DIALOG_TITLE_IDS.forgotPassword}
+          className="text-2xl font-bold"
+        >
           {t("auth.forgotPasswordTitle")}
         </DialogTitle>
         <DialogDescription>
@@ -274,6 +303,7 @@ export function ForgotPasswordModal({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
+      labelledBy={AUTH_DIALOG_TITLE_IDS.forgotPassword}
       swipeToDismiss
       className="max-sm:h-full max-sm:max-w-none"
     >

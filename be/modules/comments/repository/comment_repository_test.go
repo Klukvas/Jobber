@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/andreypavlenko/jobber/modules/comments/model"
+	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -145,6 +146,56 @@ func TestCommentRepository_ListByJob(t *testing.T) {
 
 		assert.Nil(t, comments)
 		assert.Error(t, err)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestCommentRepository_Update(t *testing.T) {
+	columns := []string{"id", "user_id", "job_id", "stage_id", "content", "created_at", "updated_at"}
+
+	t.Run("scopes the write to the author and returns the updated row", func(t *testing.T) {
+		repo, mock := newCommentRepo(t)
+		now := time.Now().UTC()
+
+		mock.ExpectQuery("UPDATE comments").
+			WithArgs("Edited body", pgxmock.AnyArg(), "comment-1", "user-123").
+			WillReturnRows(pgxmock.NewRows(columns).
+				AddRow("comment-1", "user-123", "job-1", nil, "Edited body", now, now))
+
+		comment, err := repo.Update(context.Background(), "user-123", "comment-1", "Edited body")
+
+		require.NoError(t, err)
+		assert.Equal(t, "Edited body", comment.Content)
+		assert.Equal(t, "user-123", comment.UserID)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("reports not found when the row belongs to another user", func(t *testing.T) {
+		repo, mock := newCommentRepo(t)
+
+		// user_id is part of the WHERE clause, so another user's comment id
+		// simply matches no row.
+		mock.ExpectQuery("UPDATE comments").
+			WithArgs("Edited body", pgxmock.AnyArg(), "comment-1", "other-user").
+			WillReturnError(pgx.ErrNoRows)
+
+		comment, err := repo.Update(context.Background(), "other-user", "comment-1", "Edited body")
+
+		assert.ErrorIs(t, err, model.ErrCommentNotFound)
+		assert.Nil(t, comment)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("propagates db error", func(t *testing.T) {
+		repo, mock := newCommentRepo(t)
+
+		mock.ExpectQuery("UPDATE comments").
+			WithArgs("Edited body", pgxmock.AnyArg(), "comment-1", "user-123").
+			WillReturnError(errDB)
+
+		_, err := repo.Update(context.Background(), "user-123", "comment-1", "Edited body")
+
+		assert.ErrorIs(t, err, errDB)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }

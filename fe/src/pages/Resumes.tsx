@@ -383,7 +383,7 @@ export default function Resumes() {
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             {t("resumeBuilder.deleteConfirmDescription", {
-              title: deleteBuilderTarget?.title,
+              title: deleteBuilderTarget?.title || t("common.untitled"),
             })}
           </p>
           <DialogFooter>

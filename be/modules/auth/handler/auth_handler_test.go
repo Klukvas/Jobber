@@ -73,6 +73,12 @@ func (m *MockUserRepository) SetEmailVerified(ctx context.Context, userID string
 	return nil
 }
 
+// UpdateName is part of the port but never used by auth; a profile rename is
+// the users module's business.
+func (m *MockUserRepository) UpdateName(context.Context, string, string) error {
+	return nil
+}
+
 func (m *MockUserRepository) UpdatePasswordHash(ctx context.Context, userID, hash string) error {
 	if m.UpdatePasswordHashFunc != nil {
 		return m.UpdatePasswordHashFunc(ctx, userID, hash)

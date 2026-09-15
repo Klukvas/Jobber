@@ -30,9 +30,7 @@ vi.mock("@/shared/lib/notifications", () => ({
 
 describe("CreateCompanyModal", () => {
   it("renders when open", () => {
-    render(
-      <CreateCompanyModal open={true} onOpenChange={vi.fn()} />,
-    );
+    render(<CreateCompanyModal open={true} onOpenChange={vi.fn()} />);
     expect(screen.getByText("companies.create")).toBeInTheDocument();
   });
 
@@ -44,10 +42,32 @@ describe("CreateCompanyModal", () => {
   });
 
   it("renders form fields", () => {
-    render(
-      <CreateCompanyModal open={true} onOpenChange={vi.fn()} />,
-    );
+    render(<CreateCompanyModal open={true} onOpenChange={vi.fn()} />);
     expect(screen.getByText(/companies.name/)).toBeInTheDocument();
     expect(screen.getByText("common.cancel")).toBeInTheDocument();
+  });
+});
+
+/**
+ * A dialog with no accessible name is announced as just "dialog". Every one of
+ * these draws a heading; the shared `Dialog`/`DialogTitle` pair is what turns
+ * that heading into the name, and this is the consumer-side half of that
+ * contract.
+ */
+function expectDialogNamedBy(headingText: string) {
+  const dialog = screen.getByRole("dialog");
+  const labelledBy = dialog.getAttribute("aria-labelledby");
+
+  expect(labelledBy).toBeTruthy();
+  expect(document.getElementById(labelledBy ?? "")?.textContent).toBe(
+    headingText,
+  );
+}
+
+describe("CreateCompanyModal — accessible name", () => {
+  it("is named by its own heading", () => {
+    render(<CreateCompanyModal open={true} onOpenChange={vi.fn()} />);
+
+    expectDialogNamedBy("companies.create");
   });
 });

@@ -399,3 +399,27 @@ describe("an existing subscriber changes plan instead of buying again", () => {
     expect(api.changePlan).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * A dialog with no accessible name is announced as just "dialog". Every one of
+ * these draws a heading; the shared `Dialog`/`DialogTitle` pair is what turns
+ * that heading into the name, and this is the consumer-side half of that
+ * contract.
+ */
+function expectDialogNamedBy(headingText: string) {
+  const dialog = screen.getByRole("dialog");
+  const labelledBy = dialog.getAttribute("aria-labelledby");
+
+  expect(labelledBy).toBeTruthy();
+  expect(document.getElementById(labelledBy ?? "")?.textContent).toBe(
+    headingText,
+  );
+}
+
+describe("PricingModal — accessible name", () => {
+  it("names the plan chooser by its own heading", () => {
+    renderWithClient(<PricingModal open onOpenChange={vi.fn()} />);
+
+    expectDialogNamedBy("settings.subscription.pricing.modalTitle");
+  });
+});

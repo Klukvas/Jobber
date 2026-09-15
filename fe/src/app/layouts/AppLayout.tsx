@@ -13,10 +13,12 @@ import { SupportButton } from "@/features/support/SupportButton";
 import {
   forgetPreCheckoutPlan,
   onCheckoutCompleted,
+  readFreshPreCheckoutPlan,
   readPreCheckoutPlan,
-  PRE_CHECKOUT_PLAN_KEY,
 } from "@/features/subscription/checkoutSignals";
 import { resetConsent } from "@/shared/lib/consent";
+import { PoweredByFluxLab } from "@/shared/ui/PoweredByFluxLab";
+import { TAP_TARGET_INLINE } from "@/shared/ui/tapTarget";
 import type { SubscriptionPlan } from "@/shared/types/api";
 
 const PLAN_RANK: Record<SubscriptionPlan, number> = {
@@ -25,46 +27,63 @@ const PLAN_RANK: Record<SubscriptionPlan, number> = {
   enterprise: 2,
 };
 
-const POLL_INTERVAL_MS = 3_000;
+/** How often the backend is re-read while a checkout return is pending. */
+export const POLL_INTERVAL_MS = 3_000;
 const POLL_TIMEOUT_MS = 5 * 60_000;
+
+/**
+ * The storefront's post-order redirect parameter.
+ *
+ * A breadcrumb, never evidence. It is appended by a dashboard setting we do
+ * not control, it survives bookmarking and sharing, and anybody can type it —
+ * so the only thing it is allowed to do here is get itself removed from the
+ * address bar. What a checkout actually happened is decided by the baseline
+ * this app wrote before opening the popup.
+ */
+const SUBSCRIPTION_PARAM = "subscription";
+
+const FOOTER_LINK = `${TAP_TARGET_INLINE} transition-colors hover:text-foreground`;
 
 export function AppLayout() {
   const { t } = useTranslation();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const { shouldShow, complete } = useOnboarding();
-  const [, setSearchParams] = useSearchParams();
+  const { shouldShow, complete, dismissForSession } = useOnboarding();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { plan } = useSubscription();
 
-  // Read checkout return state once on mount (pure read — no side effects).
+  // Read the checkout return state once, on mount.
+  //
+  // Not a pure read, despite living in a `useState` initialiser: an expired or
+  // unusable baseline is *deleted* as it is read, which is the whole point —
+  // leaving it would let the same stale entry re-arm this overlay on every
+  // later navigation. The initialiser runs once per mount and the removal is
+  // idempotent, so a double-invoked initialiser in StrictMode changes nothing.
   //
   // Checkout itself is a popup on this very page, so the normal path is the
   // same-page event below, not this. What this covers is a *reload* while the
   // popup was open: that destroys the popup along with the page, and the
   // baseline left in sessionStorage is the only surviving trace of a purchase
-  // that may well have gone through. The ?subscription=success parameter is
-  // still honoured for the same reason — it costs nothing and the storefront
-  // may append it. Polling is harmless either way: the success modal only
-  // appears once the backend actually reports a higher plan.
-  const [initialRedirect] = useState(() => {
-    const stored = sessionStorage.getItem(
-      PRE_CHECKOUT_PLAN_KEY,
-    ) as SubscriptionPlan | null;
-    const params = new URLSearchParams(window.location.search);
-    const hasSuccessParam = params.get("subscription") === "success";
-    if (!stored && !hasSuccessParam) return null;
-    return {
-      baseline: (stored ?? "free") as SubscriptionPlan,
-      hasSuccessParam,
-    };
-  });
+  // that may well have gone through.
+  //
+  // The baseline is the *whole* arming condition. `?subscription=success` used
+  // to arm it too, standing in a "free" baseline when none was stored — which
+  // meant a bookmarked or shared success URL, opened by somebody who was
+  // already on pro, read as an upgrade from free and congratulated them on a
+  // purchase that never happened. Only a baseline this app wrote, minutes ago,
+  // before opening a popup, correlates a page load to a checkout.
+  const [initialBaseline] = useState<SubscriptionPlan | null>(() =>
+    readFreshPreCheckoutPlan(),
+  );
 
   const [preCheckoutPlan, setPreCheckoutPlan] =
-    useState<SubscriptionPlan | null>(initialRedirect?.baseline ?? null);
+    useState<SubscriptionPlan | null>(initialBaseline);
   const [upgradedPlan, setUpgradedPlan] = useState<SubscriptionPlan | null>(
     null,
   );
-  const [isAwaitingUpgrade, setIsAwaitingUpgrade] = useState(!!initialRedirect);
+  const [isAwaitingUpgrade, setIsAwaitingUpgrade] = useState(
+    initialBaseline !== null,
+  );
 
   // Detect upgrade during render (avoids setState-in-effect).
   // Self-terminating: once triggered, isAwaitingUpgrade becomes false.
@@ -143,14 +162,28 @@ export function AppLayout() {
     };
   }, [isAwaitingUpgrade, queryClient]);
 
-  // Clean up URL params and sessionStorage after the checkout return
+  // The baseline has been lifted into state above; leaving the copy on disk
+  // would make the next page load poll all over again.
   useEffect(() => {
-    if (!initialRedirect) return;
-    if (initialRedirect.hasSuccessParam) {
-      setSearchParams({}, { replace: true });
-    }
+    if (initialBaseline === null) return;
     forgetPreCheckoutPlan();
-  }, [initialRedirect, setSearchParams]);
+  }, [initialBaseline]);
+
+  // Take the storefront's parameter back out of the address bar, whether or not
+  // it correlated to anything.
+  //
+  // Read from the router rather than from `window.location`: the two disagree
+  // after any client-side navigation, and a `setSearchParams` driven by the
+  // window's copy would rewrite the wrong query string. Only this one key is
+  // removed — the old `setSearchParams({})` threw away every other parameter
+  // the page was carrying, so returning from checkout onto, say, a filtered
+  // list silently reset the filters.
+  useEffect(() => {
+    if (!searchParams.has(SUBSCRIPTION_PARAM)) return;
+    const remaining = new URLSearchParams(searchParams);
+    remaining.delete(SUBSCRIPTION_PARAM);
+    setSearchParams(remaining, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -166,40 +199,37 @@ export function AppLayout() {
         </main>
         <footer className="border-t px-4 py-3">
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            <Link
-              to="/terms"
-              className="transition-colors hover:text-foreground"
-            >
+            {/* The same links as the landing footer, and the same 12px-text
+                tap area — shared so the two rows cannot drift apart again. */}
+            <Link to="/#faq" className={FOOTER_LINK}>
+              {t("home.nav.faq")}
+            </Link>
+            <Link to="/terms" className={FOOTER_LINK}>
               {t("home.footer.terms")}
             </Link>
-            <Link
-              to="/privacy"
-              className="transition-colors hover:text-foreground"
-            >
+            <Link to="/privacy" className={FOOTER_LINK}>
               {t("home.footer.privacy")}
             </Link>
-            <Link
-              to="/refund"
-              className="transition-colors hover:text-foreground"
-            >
+            <Link to="/refund" className={FOOTER_LINK}>
               {t("home.footer.refund")}
             </Link>
-            <button
-              type="button"
-              onClick={resetConsent}
-              className="cursor-pointer transition-colors hover:text-foreground"
-            >
+            <button type="button" onClick={resetConsent} className={FOOTER_LINK}>
               {t("cookieConsent.settings")}
             </button>
             <span>
               &copy; {new Date().getFullYear()} {t("home.footer.copyright")}
             </span>
+            <PoweredByFluxLab className="hover:text-foreground" />
           </div>
         </footer>
       </div>
 
       <SupportButton />
-      <WelcomeWizard open={shouldShow} onComplete={complete} />
+      <WelcomeWizard
+        open={shouldShow}
+        onComplete={complete}
+        onDismissForSession={dismissForSession}
+      />
 
       <SubscriptionSuccessModal
         plan={upgradedPlan}

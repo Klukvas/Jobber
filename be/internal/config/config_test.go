@@ -524,6 +524,62 @@ func TestResolvePublicBaseURL(t *testing.T) {
 	})
 }
 
+// The public origin is not only in og: tags any more — the password-reset email
+// puts it in front of a customer as the one link they can follow. A value that
+// is not an absolute http(s) URL produces a link that goes nowhere, and the
+// customer has no way to tell that from a broken account. It fails the boot
+// instead.
+func TestLoad_PublicBaseURLGuard(t *testing.T) {
+	t.Run("accepts an absolute https origin", func(t *testing.T) {
+		setMinimalEnv(t)
+		t.Setenv("PUBLIC_BASE_URL", "https://jobber-app.com")
+
+		cfg, err := Load()
+
+		require.NoError(t, err)
+		assert.Equal(t, "https://jobber-app.com", cfg.Server.PublicBaseURL)
+	})
+
+	t.Run("accepts a local http origin for development", func(t *testing.T) {
+		setMinimalEnv(t)
+		t.Setenv("PUBLIC_BASE_URL", "http://localhost:3000")
+
+		_, err := Load()
+
+		require.NoError(t, err)
+	})
+
+	t.Run("refuses anything a browser could not open", func(t *testing.T) {
+		for _, bad := range []string{
+			"jobber-app.com",
+			"/relative",
+			"ftp://files.example.test",
+			"https://",
+			"://nonsense",
+		} {
+			setMinimalEnv(t)
+			t.Setenv("PUBLIC_BASE_URL", bad)
+
+			_, err := Load()
+
+			require.Error(t, err, bad)
+			assert.Contains(t, err.Error(), "PUBLIC_BASE_URL", bad)
+		}
+	})
+
+	// An empty value is not a misconfiguration: it means "derive it", and the
+	// derivation is already covered above.
+	t.Run("leaves the derived default alone", func(t *testing.T) {
+		setMinimalEnv(t)
+		t.Setenv("PUBLIC_BASE_URL", "")
+
+		cfg, err := Load()
+
+		require.NoError(t, err)
+		assert.Equal(t, defaultPublicBaseURL, cfg.Server.PublicBaseURL)
+	})
+}
+
 // setPaymentsEnv turns the checkout on with every credential a valid billing
 // setup needs, so each test below can knock out exactly one of them.
 func setPaymentsEnv(t *testing.T) {

@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 
+import { serializeJsonLd } from "@/shared/lib/jsonLd";
+
 const SCRIPT_ID = "jobber-faq-jsonld";
 
 interface FaqItem {
@@ -35,7 +37,7 @@ export function FaqJsonLd({ items }: FaqJsonLdProps) {
     const script = document.createElement("script");
     script.id = SCRIPT_ID;
     script.type = "application/ld+json";
-    script.text = JSON.stringify(schema);
+    script.text = serializeJsonLd(schema);
     document.head.appendChild(script);
 
     return () => {

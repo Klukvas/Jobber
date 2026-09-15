@@ -12,6 +12,7 @@ import (
 	"github.com/andreypavlenko/jobber/modules/jobs/service"
 	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // JobHandler handles job HTTP requests
@@ -127,8 +128,9 @@ func (h *JobHandler) Get(c *gin.Context) {
 // @Param status query string false "Filter by status: saved, applied, on_hold, offer, rejected, archived, all. Empty and the legacy value 'active' mean everything except archived."
 // @Param sort query string false "Sort format: field:order (e.g., last_activity:desc, created_at:desc, title:asc, company_name:asc, status:asc, applied_at:desc)"
 // @Param search query string false "Case-insensitive search matched against job title and company name (max 100 chars)"
+// @Param company_id query string false "Only cards linked to this company (UUID)"
 // @Success 200 {object} httpPlatform.PaginatedResponse{items=[]model.JobDTO}
-// @Failure 400 {object} httpPlatform.ErrorResponse "Invalid pagination parameters"
+// @Failure 400 {object} httpPlatform.ErrorResponse "INVALID_PAGINATION_PARAMS, INVALID_SORT (unknown field or direction), or INVALID_COMPANY_ID (company_id is not a UUID)"
 // @Failure 401 {object} httpPlatform.ErrorResponse
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /jobs [get]
@@ -142,7 +144,8 @@ func (h *JobHandler) List(c *gin.Context) {
 	// Parse pagination parameters
 	pagination, err := httpPlatform.ParsePaginationParams(c)
 	if err != nil {
-		httpPlatform.RespondWithError(c, http.StatusBadRequest, "INVALID_PAGINATION_PARAMS", "Invalid pagination parameters")
+		httpPlatform.RespondWithError(c, http.StatusBadRequest,
+			string(model.CodeInvalidPaginationParams), "Invalid pagination parameters")
 		return
 	}
 
@@ -173,7 +176,8 @@ func (h *JobHandler) List(c *gin.Context) {
 			sortBy = parts[0]
 			sortOrder = parts[1]
 		} else {
-			httpPlatform.RespondWithError(c, http.StatusBadRequest, "INVALID_SORT", "Invalid sort parameter")
+			httpPlatform.RespondWithError(c, http.StatusBadRequest,
+				string(model.CodeInvalidSort), "Invalid sort parameter")
 			return
 		}
 	}
@@ -187,13 +191,26 @@ func (h *JobHandler) List(c *gin.Context) {
 		search = string(runes[:100])
 	}
 
+	// Optional company filter — the "View applications" link on a company card
+	// lands here. Validated as a UUID so a malformed id is a clear 400 rather
+	// than a Postgres cast failure surfacing as a 500.
+	companyID := strings.TrimSpace(c.Query("company_id"))
+	if companyID != "" {
+		if _, err := uuid.Parse(companyID); err != nil {
+			httpPlatform.RespondWithError(c, http.StatusBadRequest,
+				string(model.CodeInvalidCompanyID), "Invalid company filter")
+			return
+		}
+	}
+
 	opts := &ports.ListOptions{
-		Limit:   pagination.Limit,
-		Offset:  pagination.Offset,
-		SortBy:  sortBy,
-		SortDir: sortOrder,
-		Status:  status,
-		Search:  search,
+		Limit:     pagination.Limit,
+		Offset:    pagination.Offset,
+		SortBy:    sortBy,
+		SortDir:   sortOrder,
+		Status:    status,
+		Search:    search,
+		CompanyID: companyID,
 	}
 
 	jobs, total, err := h.service.List(c.Request.Context(), userID, opts)
@@ -581,7 +598,8 @@ func (h *JobHandler) ListStageTemplates(c *gin.Context) {
 
 	pagination, err := httpPlatform.ParsePaginationParams(c)
 	if err != nil {
-		httpPlatform.RespondWithError(c, http.StatusBadRequest, "INVALID_PAGINATION_PARAMS", "Invalid pagination parameters")
+		httpPlatform.RespondWithError(c, http.StatusBadRequest,
+			string(model.CodeInvalidPaginationParams), "Invalid pagination parameters")
 		return
 	}
 

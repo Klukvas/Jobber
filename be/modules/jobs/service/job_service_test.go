@@ -59,6 +59,9 @@ func (m *MockCommentRepository) Create(ctx context.Context, comment *commentMode
 func (m *MockCommentRepository) ListByJob(ctx context.Context, jobID, userID string) ([]*commentModel.Comment, error) {
 	return nil, nil
 }
+func (m *MockCommentRepository) Update(ctx context.Context, userID, commentID, content string) (*commentModel.Comment, error) {
+	return nil, nil
+}
 func (m *MockCommentRepository) Delete(ctx context.Context, userID, commentID string) error {
 	return nil
 }

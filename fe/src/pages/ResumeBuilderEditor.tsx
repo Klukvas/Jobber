@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { ApiError } from "@/services/api";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Loader2, Palette, X } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
@@ -108,8 +109,10 @@ export default function ResumeBuilderEditorPage() {
   }
 
   if (error) {
-    const status = (error as { response?: { status?: number } })?.response
-      ?.status;
+    // ApiError carries the status flat. Reaching for `error.response.status`
+    // always found undefined, so a 403 and a 500 both told the customer the
+    // resume did not exist.
+    const status = error instanceof ApiError ? error.status : undefined;
     let message = t("resumeBuilder.notFound");
     if (status === 403) {
       message = t("common.accessDenied", "Access denied");

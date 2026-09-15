@@ -27,10 +27,12 @@ func DownloadResumeFile(ctx context.Context, s3Client *S3Client, storageType str
 	if storageType == "s3" && storageKey != nil && s3Client != nil {
 		data, err := s3Client.GetObject(ctx, *storageKey)
 		if err != nil {
-			// A missing object usually means an abandoned presigned-upload
-			// slot: the resume row is created before the browser PUTs the
-			// file. Surface it as "no file" (callers map it to a friendly
-			// 4xx) rather than an internal failure.
+			// A resume row only exists once finalization has verified its
+			// object (presign -> browser PUT -> finalize creates the row), so a
+			// missing object here means the file was removed out from under a
+			// stored row rather than an upload that never completed. Either
+			// way there is nothing to download: surface it as "no file"
+			// (callers map it to a friendly 4xx), not an internal failure.
 			var noKey *types.NoSuchKey
 			if errors.As(err, &noKey) {
 				return nil, ErrResumeFileMissing

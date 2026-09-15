@@ -85,8 +85,9 @@ func TestIntegrationAnalyticsFunnel(t *testing.T) {
 	})
 }
 
-// Overview counts non-archived cards (total/active) and archived cards (closed),
-// with no reference to the dropped status column.
+// Overview partitions the user's cards: active = non-archived, closed =
+// archived, and total is their sum (GetOverview derives it that way). No
+// reference to the dropped status column.
 func TestIntegrationAnalyticsOverview(t *testing.T) {
 	cleanupAll(t)
 	userID := seedUser(t, "overview-stages@example.com", "password123")
@@ -103,7 +104,10 @@ func TestIntegrationAnalyticsOverview(t *testing.T) {
 	assertStatus(t, resp, http.StatusOK)
 	overview := parseJSON[overviewResponse](t, resp)
 
-	assert.Equal(t, 2, overview.TotalApplications, "two non-archived cards")
+	// Total is the whole partition — active + closed — not just the live cards.
+	assert.Equal(t, 3, overview.TotalApplications, "two non-archived cards plus the archived one")
 	assert.Equal(t, 2, overview.ActiveApplications, "both non-archived cards sit in a column")
 	assert.Equal(t, 1, overview.ClosedApplications, "one archived card")
+	assert.Equal(t, overview.ActiveApplications+overview.ClosedApplications, overview.TotalApplications,
+		"active and closed partition the user's cards, so they must add up to total")
 }

@@ -52,6 +52,13 @@ export function JobInfoCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* These fields are dirty-tracked and committed with Save in the header,
+            unlike the pipeline's resume selector, which writes immediately.
+            Saying so is cheaper than making a customer guess. */}
+        <p className="text-xs text-muted-foreground">
+          {t("jobs.fieldsNeedSaveHint")}
+        </p>
+
         <CompanySelectWithQuickAdd
           companies={companies}
           value={fields.company_id}

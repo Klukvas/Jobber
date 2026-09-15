@@ -30,7 +30,11 @@ export function ErrorState({
       <h3 className="mb-2 text-lg font-semibold">
         {title ?? t("errors.somethingWentWrong")}
       </h3>
-      <p className="mb-4 text-sm text-muted-foreground">{message}</p>
+      {/* An empty message is what the API client produces when the failure
+          carried nothing quotable — show the generic line instead of a gap. */}
+      <p className="mb-4 text-sm text-muted-foreground">
+        {message?.trim() ? message : t("errors.unexpectedError")}
+      </p>
       {onRetry && (
         <Button onClick={onRetry} variant="outline">
           {t("common.tryAgain")}

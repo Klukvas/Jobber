@@ -6,7 +6,11 @@ This document describes the complete architecture, features, and business logic 
 
 **Audience:** Engineers, product managers, architects, and stakeholders
 
-**Last Updated:** August 3, 2026 (Permanent Architectural Merge: Jobs and Applications unified into single Job entity with pipeline status. Migration 000034 completed.)
+**Last Updated:** September 8, 2026 (Account profile read endpoint, comment editing,
+the presign/finalize resume upload contract and its plan-limit enforcement,
+`company_id` job filtering, and in-app support availability. Previously: August
+3, 2026 — Permanent Architectural Merge, jobs and applications unified into a
+single Job entity with pipeline status, migration 000034.)
 
 ---
 
@@ -557,6 +561,60 @@ Allow users to register, log in, and maintain secure sessions via JWT tokens.
 - **State Read:** User ID from access token
 - **State Modified:** Marks all user's refresh tokens as revoked
 
+**POST /api/v1/auth/forgot-password**
+- **What:** Start a password reset. Body: `{ email }`. Answers the same way
+  whether or not the address has an account — the response must not say who is
+  registered.
+- **State Modified:** Issues a 6-digit reset code and emails it
+- **Rate limited:** per address, and again per code attempt on the endpoint below
+
+**POST /api/v1/auth/reset-password**
+- **What:** Complete a reset. Body: `{ email, code, password }` — the code alone
+  identifies nothing; both halves are required.
+- **State Modified:** Replaces the password hash, revokes the user's refresh tokens
+- **Errors:** `400 INVALID_PASSWORD` (under 8 characters) ·
+  `400 PASSWORD_TOO_LONG` (over bcrypt's 72-byte input limit) ·
+  `400 INVALID_RESET_TOKEN` · `429 TOO_MANY_ATTEMPTS`
+- **Client note:** both password rejections are answered in English by the API
+  and are re-stated by the frontend from its own locale files — the message the
+  server sends is not shown to the customer.
+
+##### The reset email carries a link, not only a code
+
+The completion page (`/reset-password`) takes **both** halves of the credential
+from the query string and renders a "broken link" page without either. The email
+therefore ships a `PUBLIC_BASE_URL`-rooted deep link —
+`/reset-password?code=<code>&email=<address>` — as its primary call to action.
+
+- The URL is assembled with the Go `net/url` package, so an address containing
+  `&` or `@` is percent-encoded rather than able to rewrite the link, and the
+  `href` is HTML-escaped so a mail client cannot truncate the query at the `&`.
+- `PUBLIC_BASE_URL` must be an absolute `http(s)` URL with a host; the server
+  refuses to start otherwise. Anything the link builder still cannot vouch for
+  produces **no** link rather than a guess.
+- **The code stays visible in the email either way** — a mail client that strips
+  links, or a customer reading on one device and typing on another, is still
+  served.
+
+**GET /api/v1/profile**
+- **What:** Read the signed-in account (`id`, `email`, `name`, `locale`, `created_at`)
+- **State Read:** The caller's own user row
+- **State Modified:** None
+- **Authorization:** The account is taken from the access token. There is no user
+  id anywhere in the request, so a client can only ever address itself.
+- **Errors:** `401` unauthenticated · `404 USER_NOT_FOUND` (a token for a deleted
+  account) · `500`
+- **Status:** ✅ IMPLEMENTED
+- **Why it exists:** the frontend caches the account in `localStorage` at
+  sign-in and never refreshes it, so anything reading only that copy shows the
+  account as it stood then. The Settings account card reads this instead, under
+  a cache key scoped to the user id — the previously account-independent key let
+  a second sign-in on the same tab render the first person's details.
+
+**The profile is read-only.** There is no write endpoint for it: the email is a
+login credential and changing it needs a verification flow of its own, and the
+display name is set at registration. A client cannot change either.
+
 #### Backend Logic
 
 **Registration:**
@@ -858,6 +916,10 @@ Track job postings and applications in unified pipeline. Manage saved wishlist c
   - `limit`, `offset` (pagination)
   - `status` (filter: empty/'active'=not archived, 'all', or exact status like 'applied')
   - `sort=field:dir` (field: created_at|title|company_name|last_activity|status|applied_at; dir: asc|desc)
+  - `search` (case-insensitive, matched against job title and company name, max 100 chars)
+  - `company_id` (UUID: only cards linked to that company). Filtering happens
+    server-side, so the list stays paginated and correct; a value that is not a
+    UUID is `400 INVALID_COMPANY_ID` rather than a silently empty page.
 - **Returns:** JobDTOs array with enriched fields (company_name, current_stage_id/name, last_activity_at, resume {id,name,type})
 - **Backward Compat:** Empty status or status='active' → status != 'archived' (compatible with Chrome extension)
 
@@ -1021,7 +1083,9 @@ Manage multiple resume versions, track which resume was used for each applicatio
 
 **Edge Cases:**
 - Multiple resumes can be active simultaneously
-- File URL is not validated (any string accepted)
+- An external `file_url` is validated at write time against SSRF (see
+  `internal/platform/netsafe`), so a private or internal address can never be
+  persisted and later fetched by the match-score flow
 - Resume title is free text
 
 #### API Endpoints
@@ -1049,7 +1113,105 @@ Manage multiple resume versions, track which resume was used for each applicatio
 **DELETE /api/v1/resumes/{id}**
 - **What:** Delete resume
 - **State Read:** Resume ownership check
-- **State Modified:** Deletes resume (if not referenced)
+- **State Modified:** Deletes resume (if not referenced), and the stored object
+
+**POST /api/v1/resumes/upload-url**
+- **What:** Issue a presigned PUT URL so the browser uploads straight to object
+  storage. Body: `{ filename, content_type }`; `content_type` must be
+  `application/pdf`. Returns `{ resume_id, upload_url, expires_in }` (5 minutes).
+- **State Read:** The plan's resume allowance (for immediate feedback only)
+- **State Modified:** **None.** Deliberately creates no database row — see
+  "Uploaded resumes" below.
+- **Errors:** `400 VALIDATION_ERROR` (the body is not JSON, or `filename` /
+  `content_type` is missing) · `401` · `403 PLAN_LIMIT_REACHED` · `500`
+- **Status:** ✅ IMPLEMENTED
+
+**POST /api/v1/resumes/{id}/finalize**
+- **What:** Verify the uploaded object and bring the resume into existence.
+  Body is optional: `{ title? }`; without one the resume is "Untitled Resume".
+- **State Read:** The stored object's first bytes and size; the plan allowance
+- **State Modified:** Creates the resume row, or deletes the object if it is
+  refused
+- **Errors:** `400 INVALID_FILE_CONTENT` · `400 FILE_TOO_LARGE` ·
+  `400 RESUME_FILE_MISSING` · `400 RESUME_TITLE_REQUIRED` ·
+  `400 VALIDATION_ERROR` (body present but not JSON) · `401` ·
+  `403 PLAN_LIMIT_REACHED` · `404 RESUME_NOT_FOUND` · `500`
+- **Status:** ✅ IMPLEMENTED
+
+**GET /api/v1/resumes/{id}/download**
+- **What:** Presigned GET URL for an uploaded resume (15 minutes)
+- **State Read:** Resume ownership and storage key
+- **State Modified:** None
+- **Status:** ✅ IMPLEMENTED
+
+##### Uploaded resumes: presign → PUT → finalize
+
+The browser PUTs the file straight to object storage, so nothing between the
+file picker and the bucket is under our control — the extension, the declared
+`Content-Type` and every client-side check are all attacker-supplied.
+`POST /resumes/{id}/finalize` is the trust boundary, and these are its rules:
+
+- **Authorization is structural, not a lookup.** The storage key is rebuilt from
+  the *authenticated* user id (`users/<user>/resumes/<resume>.pdf`), so a caller
+  can only ever address objects under its own prefix. Passing somebody else's
+  resume id simply names a path that does not exist for them. The id must also
+  parse as a UUID — it becomes part of a storage path.
+- **Content is verified server-side.** The object is accepted only if it is
+  non-empty, at most **10 MB**, and begins with the `%PDF-` magic number. Only
+  the first kilobyte is read back, and the size comes from the store's own
+  `Content-Range`/`Content-Length` (falling back to a `HeadObject`), never from
+  how many bytes happened to be read.
+- **A refused upload leaves nothing behind.** The object is deleted before
+  answering whenever it has been *proved* unusable (not a PDF, over the cap,
+  empty) or when no row for it can ever exist (the write refused it against the
+  plan allowance). No row is written, so a spoofed file can never be listed,
+  counted or served. Deliberately narrow: a failure on our side, an ambiguous
+  write, and a client sending a blank title all leave the object alone — the
+  file is fine in each case, and the reclamation pass below is what removes it.
+- **No row is created at presign time.** It used to be, inactive, and every
+  abandoned upload left one permanently: it showed in the list as a greyed-out
+  "Untitled Resume" and consumed a plan slot forever. The resume now comes into
+  existence at finalization, once there is a verified file to attach it to.
+  Rows left over from that era are recognisable — object-backed, still inactive,
+  no `file_url`, and never updated since creation — and are excluded from the
+  plan count and never reported as a finished upload.
+- **A leftover placeholder is claimed, not collided with.** Somebody who
+  presigned and uploaded in that era still has a row under the id they are
+  finalizing, with a real PDF behind it. Refusing to call the row a finished
+  upload is right, but the INSERT could then only collide with it and the
+  re-lookup saw the same placeholder again: the answer was `404`, on every
+  retry, forever. The write now takes the row over in place — `UPDATE … WHERE
+  id = $1 AND user_id = $2 AND <placeholder shape>`, inside the same
+  transaction and behind the same per-user advisory lock as the count, with
+  `created_at` left alone. A real resume under the same id, or anybody else's
+  row, matches nothing and still reports the collision, which the caller
+  answers with `404`. A placeholder does not consume a slot and the resume it
+  becomes does, so the limit is decided before either the claim or the insert.
+- **A placeholder's object is never deleted.** It is a row that names the key,
+  so a `403 PLAN_LIMIT_REACHED` leaves the file in place: the upload is blocked,
+  not refused, and it has to survive an upgrade.
+- **The call is idempotent.** A retry after a timeout or a double-tap gets the
+  resume it already created back, answered before the limit check so the row the
+  first attempt wrote cannot refuse the second. The only thing finalization ever
+  deletes is an object it has just proved unusable.
+- **The plan limit is enforced by the write, and only there.** Finalization asks
+  the subscription service for the *ceiling*, not for a verdict, and hands it to
+  the repository, which counts and inserts in one transaction serialised per
+  user by a PostgreSQL advisory lock. A "is there room right now?" check answers
+  for a moment that is over by the time the row is written — two finalizations
+  racing for the last slot both pass it — so only the transaction can refuse the
+  second, and it answers `403 PLAN_LIMIT_REACHED` like any other full plan.
+  `POST /resumes/upload-url` still pre-checks, which is where an early, friendly
+  refusal actually helps: before the customer uploads anything.
+- **Abandoned objects.** The one case nothing server-side sees is a PUT that
+  succeeded with a finalize call that never arrived. A bucket lifecycle rule
+  cannot clean those up — uploaded and finalized objects share one prefix, so an
+  age-based expiry would delete real resumes. `make prune-orphan-resumes`
+  (`be/scripts/prune-orphan-resumes`) reconciles storage against the `resumes`
+  table instead and deletes only objects that are both unreferenced and older
+  than a safety window. **Remaining external prerequisite:** an
+  "abort incomplete multipart uploads after 1 day" rule on the bucket, which no
+  object listing can see and nothing in this repository applies.
 
 #### Backend Logic
 
@@ -1378,11 +1540,37 @@ Add notes and context to jobs and stages, maintain conversation history.
 - **State Modified:** None
 - **Status:** ✅ IMPLEMENTED (Note: Job-level comments also embedded in GET /api/v1/jobs/{id} response)
 
+**PATCH /api/v1/comments/{id}**
+- **What:** Rewrite the body of a comment the caller wrote. Body: `{ content }`.
+- **State Read:** Comment ownership check
+- **State Modified:** `comments.content` and `updated_at`
+- **Authorization:** The update is scoped to the author, so another user's
+  comment id simply matches nothing. That is answered `404 COMMENT_NOT_FOUND`
+  rather than `403`: the response must not confirm that the comment exists.
+- **Errors:** `400 CONTENT_REQUIRED` (the body is JSON but the content is empty
+  or whitespace) · `400 VALIDATION_ERROR` (the body is not JSON at all) ·
+  `401` · `404 COMMENT_NOT_FOUND` · `500`
+- **Status:** ✅ IMPLEMENTED
+
 **DELETE /api/v1/comments/{id}**
 - **What:** Delete comment
 - **State Read:** Comment ownership check
 - **State Modified:** Deletes comment record
 - **Status:** ✅ IMPLEMENTED
+
+##### Error taxonomy for comment writes
+
+`POST /api/v1/comments` and `PATCH /api/v1/comments/{id}` answer the same
+mistake the same way, which they did not always do:
+
+| Request | Code |
+|---|---|
+| Body is not JSON | `VALIDATION_ERROR` |
+| Valid JSON, `content` empty or whitespace | `CONTENT_REQUIRED` |
+| Valid JSON, `job_id` missing (create only) | `VALIDATION_ERROR` |
+
+The content rule lives in the service rather than in request binding, so
+"the comment is empty" is never reported as a shapeless payload error.
 
 #### Backend Logic
 
@@ -1704,6 +1892,103 @@ Note: `rejected_applications` was added to the analytics overview (API + UI card
 **What Frontend Must NOT Compute:**
 - Snapshot contents (backend freezes them — frontend renders the returned snapshot verbatim)
 - Token generation
+
+---
+
+### 🔹 Feature: In-App Support (`modules/support`)
+
+#### Purpose
+Let a signed-in customer send a message from inside the app; it is forwarded to
+the support team over Telegram.
+
+#### Business Rules
+
+**Allowed:**
+- Send a subject (min 3 chars) and message (min 10 chars), plus the page it was
+  sent from
+- Send at most 3 messages per 5 minutes (rate limited)
+
+**Forbidden:**
+- Sending anonymously — every route sits behind the auth middleware
+
+**Edge Cases:**
+- **A deployment can have no support channel at all.** The Telegram credentials
+  are optional, and a self-hosted or preview environment usually has none.
+
+#### API Endpoints
+
+**GET /api/v1/support/status**
+- **What:** `{ available: bool }` — whether this deployment has a support channel
+- **State Read:** Configuration only
+- **State Modified:** None
+- **Why:** the UI calls it on mount to hide or disable the form, so the customer
+  never composes a message that cannot be sent. Deliberately outside the
+  submission rate limit — it is a cheap read.
+- **Status:** ✅ IMPLEMENTED
+
+**POST /api/v1/support**
+- **What:** Send a support message. Body: `{ subject, message, page? }`
+- **State Read:** User ID from the access token
+- **State Modified:** None in this system; forwards to Telegram
+- **Errors:** `400 VALIDATION_ERROR` · `401` ·
+  `500 TELEGRAM_ERROR` (the channel exists but the send failed) ·
+  **`503 SUPPORT_UNAVAILABLE`** (this deployment has no support channel)
+- **Why 503 and not 404 or 500:** "there is no support channel here" is a
+  first-class state, not a fault. It used to surface as a bare failure with the
+  API URL in it; as its own status the UI can say so and point at email instead.
+- **Status:** ✅ IMPLEMENTED
+
+#### Frontend Responsibilities
+
+**What Frontend Renders:**
+- Support button and modal, hidden or disabled when `available` is false
+- A localized "email us instead" message on `SUPPORT_UNAVAILABLE`
+
+**What Frontend Must NOT Compute:**
+- Whether support is configured (backend answers `/support/status`)
+
+---
+
+### 🔹 Feature: Cookie Consent (frontend only)
+
+#### Purpose
+Nothing analytics-shaped loads until the visitor has opted in. GA4 and PostHog
+are both started from one place (`fe/src/shared/lib/consent.ts`) and both are
+gated on a decision stored in `localStorage` under `cookie-consent`.
+
+#### Business Rules
+
+- **Two answers, not one switch.** "Accept" starts the trackers; "essential
+  only" is a *refusal* and starts nothing.
+- **A stored decision names the policy it was given against**
+  (`CONSENT_POLICY_VERSION`). Bumping it means the banner's description of what
+  is collected has changed.
+- **An acceptance does not carry over a policy change.** Consent has to be
+  informed, and a yes given to a document that has since been rewritten was a
+  yes to something else — so it is treated as undecided, the banner re-opens,
+  and anything the old acceptance started is stopped and its identifiers
+  cleared. The same applies to the two older storage formats (a bare
+  `"accepted"` string, and a versionless object), neither of which can say what
+  the visitor was shown.
+- **A refusal does carry over — always.** Nothing about a rewritten policy turns
+  "do not track me" back into an open question, so a stored `essential` is
+  honoured whatever version it names, including the older formats. Re-asking
+  everybody who had already declined, on every policy bump, is the nagging a
+  stored refusal exists to end.
+- **Withdrawal is as easy as consent** (GDPR art. 7(3)): the footer's "Cookie
+  settings" link drops the decision, stops both vendors, and expires their
+  first-party identifiers across every path and domain they could have been
+  scoped to.
+- **Unreadable or unrecognised values are treated as undecided.** That is the
+  only safe direction to be wrong in.
+
+#### Build-time note
+
+The prerenderer seeds a refusal before rendering each route, so no snapshot
+ships with the banner in it and nothing analytics-shaped runs during a build.
+The seeded record deliberately carries **no** version — it is a refusal, so it
+is honoured regardless — which removes the copy of `CONSENT_POLICY_VERSION` that
+used to live in `fe/scripts/prerender.mjs` and drift silently.
 
 ---
 
@@ -3263,6 +3548,10 @@ export const useAuthStore = create<AuthState>()(
 | POST | /api/v1/auth/login | No | Authenticate and get tokens |
 | POST | /api/v1/auth/refresh | No | Refresh access token |
 | POST | /api/v1/auth/logout | Yes | Revoke refresh tokens |
+| POST | /api/v1/auth/verify-email | No | Confirm an address with the emailed code |
+| POST | /api/v1/auth/resend-verification | No | Re-issue the verification code |
+| POST | /api/v1/auth/forgot-password | No | Email a password-reset code and deep link |
+| POST | /api/v1/auth/reset-password | No | Set a new password from `{ email, code }` |
 
 ---
 

@@ -1,9 +1,14 @@
 package model
 
-// RegisterRequest represents a registration request
+// RegisterRequest represents a registration request.
+//
+// Password length is deliberately NOT a binding tag: the validator counts
+// runes and answers with a generic "Invalid request payload", which used to
+// surface an over-long password as an unexplained error on the email field.
+// The service checks the real byte length and returns a specific error.
 type RegisterRequest struct {
 	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=8,max=72"`
+	Password string `json:"password" binding:"required"`
 	Locale   string `json:"locale"`
 }
 

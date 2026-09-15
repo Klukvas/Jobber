@@ -96,8 +96,13 @@ export function FunnelVisualization({
                       : stage.stage_name}
                   </span>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-muted-foreground">
+                    {/* One counted message, not a number glued to a noun:
+                        "1 applications" was the English reading of that, and
+                        Russian and Ukrainian need three forms, not two. */}
                     <span>
-                      {stage.count} {t("analytics.applications")}
+                      {t("analytics.applicationsCount", {
+                        count: stage.count,
+                      })}
                     </span>
                     {index > 0 && (
                       <>
@@ -164,7 +169,9 @@ export function FunnelVisualization({
                 {t("analytics.funnel.rejected")}
               </span>
               <span className="text-muted-foreground">
-                {data.rejected.total} {t("analytics.applications")}
+                {t("analytics.applicationsCount", {
+                  count: data.rejected.total,
+                })}
               </span>
             </div>
             <div className="h-8 bg-muted rounded-md overflow-hidden">

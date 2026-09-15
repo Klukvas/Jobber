@@ -23,8 +23,8 @@ describe("useDateLocale", () => {
     expect(result.current).toBe(enUS);
   });
 
-  it("returns uk locale for 'ua' language", () => {
-    mockLanguage.value = "ua";
+  it("returns uk locale for 'uk' language", () => {
+    mockLanguage.value = "uk";
     const { result } = renderHook(() => useDateLocale());
     expect(result.current).toBe(uk);
   });

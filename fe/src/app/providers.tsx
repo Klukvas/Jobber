@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "react-router-dom";
 import { router } from "./router";
 import { I18nextProvider } from "react-i18next";
@@ -9,16 +9,7 @@ import { AuthProvider } from "./providers/AuthProvider";
 import { GlobalErrorBoundary } from "@/shared/ui/GlobalErrorBoundary";
 import { CookieConsent } from "@/shared/ui/CookieConsent";
 import { Toaster } from "sonner";
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+import { getQueryClient } from "@/shared/lib/queryClient";
 
 export function Providers() {
   const theme = useThemeStore((state) => state.theme);
@@ -32,7 +23,7 @@ export function Providers() {
   return (
     <GlobalErrorBoundary>
       <I18nextProvider i18n={i18n}>
-        <QueryClientProvider client={queryClient}>
+        <QueryClientProvider client={getQueryClient()}>
           <AuthProvider>
             <RouterProvider router={router} />
             <Toaster position="top-right" richColors closeButton />

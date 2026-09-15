@@ -1,14 +1,16 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Calendar, Tag } from "lucide-react";
-import { format, parseISO } from "date-fns";
-import { uk, ru, enUS } from "date-fns/locale";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { useHreflangLinks } from "@/shared/lib/useHreflangLinks";
 import {
   getPostBySlug,
   getHreflangAlternates,
+  postLanguageTag,
 } from "@/features/blog/lib/blogLoader";
+import { formatPostDate } from "@/features/blog/lib/formatPostDate";
+import { useDocumentLanguage } from "@/shared/lib/useDocumentLanguage";
+import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { BlogArticle } from "@/features/blog/components/BlogArticle";
 import { BlogPostJsonLd } from "@/features/blog/components/BlogPostJsonLd";
 import { HomeNavbar } from "@/features/home/components/HomeNavbar";
@@ -33,8 +35,13 @@ export default function BlogPost() {
       : { titleKey: "blog.notFound", noindex: true },
   );
 
-  // Link translated versions of this article for search engines. Empty for
-  // posts without a translation cluster — the hook then renders nothing.
+  // A slug resolves across languages, so an RU or UA article can be rendered
+  // while the interface is in English. The document has to declare the language
+  // of the text it is actually showing — restored on unmount by the hook.
+  useDocumentLanguage(post ? postLanguageTag(post) : undefined);
+
+  // Link translated versions of this article for search engines; a post with no
+  // translations still emits its own language.
   useHreflangLinks(
     (post ? getHreflangAlternates(post) : []).map((a) => ({
       hreflang: a.hreflang,
@@ -42,11 +49,8 @@ export default function BlogPost() {
     })),
   );
 
-  const dateLocale =
-    i18n.language === "ua" ? uk : i18n.language === "ru" ? ru : enUS;
-  const formattedDate = post
-    ? format(parseISO(post.date), "MMMM d, yyyy", { locale: dateLocale })
-    : "";
+  const dateLocale = useDateLocale();
+  const formattedDate = post ? formatPostDate(post.date, dateLocale) : "";
 
   return (
     <div className="flex min-h-screen flex-col">

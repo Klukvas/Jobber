@@ -2,11 +2,12 @@ import {
   useState,
   useRef,
   useCallback,
-  useEffect,
+  useLayoutEffect,
   type CSSProperties,
   type KeyboardEvent,
 } from "react";
 import { cn } from "@/shared/lib/utils";
+import { useInlineEditFocus } from "./useInlineEditFocus";
 
 interface EditableTextareaProps {
   readonly value: string;
@@ -40,16 +41,14 @@ export function EditableTextarea({
     setIsEditing(true);
   }, [editable, value]);
 
-  useEffect(() => {
-    if (isEditing && textareaRef.current) {
-      const el = textareaRef.current;
-      // Use rAF to ensure the textarea is fully mounted and painted
-      // before focusing — prevents the "click to select, click again to type" issue
-      requestAnimationFrame(() => {
-        el.focus();
-        autoResize(el);
-      });
-    }
+  useInlineEditFocus(textareaRef, isEditing);
+
+  // Sized to its content as it opens, in the same commit as the focus above:
+  // a textarea that grows a frame later moves the text under the caret.
+  useLayoutEffect(() => {
+    if (!isEditing) return;
+    const el = textareaRef.current;
+    if (el) autoResize(el);
   }, [isEditing]);
 
   const commit = useCallback(() => {

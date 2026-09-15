@@ -1,13 +1,16 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { BlogHeader } from "../BlogHeader";
 import { BlogPostCard } from "../BlogPostCard";
 import { BlogArticle } from "../BlogArticle";
 
+/** The interface language, switched per test — the card dates from it. */
+const uiLanguage = vi.hoisted(() => ({ value: "en" }));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => key,
-    i18n: { language: "en" },
+    i18n: { language: uiLanguage.value },
   }),
 }));
 
@@ -72,6 +75,40 @@ describe("BlogPostCard", () => {
     render(<BlogPostCard post={mockPost} />);
     const link = screen.getByText("Test Post Title").closest("a");
     expect(link).toHaveAttribute("href", "/blog/test-post");
+  });
+
+  afterEach(() => {
+    uiLanguage.value = "en";
+  });
+
+  it("dates the card in English by default", () => {
+    render(<BlogPostCard post={mockPost} />);
+    expect(screen.getByText(/January 15th, 2025/)).toBeInTheDocument();
+  });
+
+  /**
+   * The month name was translated but the *pattern* was not: `MMMM d, yyyy` is
+   * the American order, so a Russian reader got "января 15, 2025" — a Russian
+   * word in an English sentence, which is not how either language writes a
+   * date. Nothing caught it, because asserting on the month name alone passes
+   * whichever order it lands in.
+   */
+  it("dates the card the way Russian writes a date, day first", () => {
+    uiLanguage.value = "ru";
+    render(<BlogPostCard post={mockPost} />);
+
+    expect(screen.getByText(/15 января 2025/)).toBeInTheDocument();
+    expect(screen.queryByText(/января 15/)).not.toBeInTheDocument();
+  });
+
+  // date-fns writes the Ukrainian day as an ordinal — "15-е січня 2025 р." —
+  // so the assertion is on the order, not on an exact spacing.
+  it("dates the card the way Ukrainian writes a date, day first", () => {
+    uiLanguage.value = "uk";
+    render(<BlogPostCard post={mockPost} />);
+
+    expect(screen.getByText(/15.{0,3} січня 2025/)).toBeInTheDocument();
+    expect(screen.queryByText(/січня 15/)).not.toBeInTheDocument();
   });
 });
 

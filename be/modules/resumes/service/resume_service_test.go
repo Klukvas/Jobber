@@ -14,11 +14,19 @@ import (
 
 // MockResumeRepository implements ports.ResumeRepository
 type MockResumeRepository struct {
-	CreateFunc  func(ctx context.Context, resume *model.Resume) error
-	GetByIDFunc func(ctx context.Context, userID, resumeID string) (*model.Resume, error)
-	ListFunc    func(ctx context.Context, userID string, limit, offset int, sortBy, sortDir string) ([]*ports.ResumeWithCount, int, error)
-	UpdateFunc  func(ctx context.Context, resume *model.Resume) error
-	DeleteFunc  func(ctx context.Context, userID, resumeID string) error
+	CreateFinalizedUploadFunc func(ctx context.Context, resume *model.Resume, maxResumes int) error
+	CreateFunc                func(ctx context.Context, resume *model.Resume) error
+	GetByIDFunc               func(ctx context.Context, userID, resumeID string) (*model.Resume, error)
+	ListFunc                  func(ctx context.Context, userID string, limit, offset int, sortBy, sortDir string) ([]*ports.ResumeWithCount, int, error)
+	UpdateFunc                func(ctx context.Context, resume *model.Resume) error
+	DeleteFunc                func(ctx context.Context, userID, resumeID string) error
+}
+
+func (m *MockResumeRepository) CreateFinalizedUpload(ctx context.Context, resume *model.Resume, maxResumes int) error {
+	if m.CreateFinalizedUploadFunc != nil {
+		return m.CreateFinalizedUploadFunc(ctx, resume, maxResumes)
+	}
+	return m.Create(ctx, resume)
 }
 
 func (m *MockResumeRepository) Create(ctx context.Context, resume *model.Resume) error {
@@ -726,7 +734,8 @@ func TestResumeService_Delete_ResumeInUse(t *testing.T) {
 
 // MockResumeLimitChecker implements LimitChecker for resumes
 type MockResumeLimitChecker struct {
-	CheckLimitFunc func(ctx context.Context, userID, resource string) error
+	CheckLimitFunc    func(ctx context.Context, userID, resource string) error
+	ResourceLimitFunc func(ctx context.Context, userID, resource string) (int, error)
 }
 
 func (m *MockResumeLimitChecker) CheckLimit(ctx context.Context, userID, resource string) error {
@@ -734,6 +743,13 @@ func (m *MockResumeLimitChecker) CheckLimit(ctx context.Context, userID, resourc
 		return m.CheckLimitFunc(ctx, userID, resource)
 	}
 	return nil
+}
+
+func (m *MockResumeLimitChecker) ResourceLimit(ctx context.Context, userID, resource string) (int, error) {
+	if m.ResourceLimitFunc != nil {
+		return m.ResourceLimitFunc(ctx, userID, resource)
+	}
+	return -1, nil
 }
 
 func TestResumeService_Create_LimitCheckerBlocks(t *testing.T) {

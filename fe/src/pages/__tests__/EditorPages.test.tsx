@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import ResumeBuilderEditor from "../ResumeBuilderEditor";
 import ResumeBuilderPrint from "../ResumeBuilderPrint";
+import { ApiError } from "@/services/api";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -40,6 +41,13 @@ vi.mock("@/shared/ui/Sheet", () => ({
 vi.mock("@/shared/ui/Tooltip", () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
+
+// Drives the editor's loading / error branches from the tests below.
+const mockQueryState = {
+  data: null as unknown,
+  isLoading: false,
+  error: null as unknown,
+};
 
 // Mock the zustand store with temporal middleware
 const mockResume = {
@@ -110,10 +118,10 @@ vi.mock("zustand", async () => {
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({
-    data: mockResume,
-    isLoading: false,
-    isError: false,
-    error: null,
+    data: mockQueryState.data,
+    isLoading: mockQueryState.isLoading,
+    isError: !!mockQueryState.error,
+    error: mockQueryState.error,
     refetch: vi.fn(),
   }),
   useMutation: () => ({
@@ -191,6 +199,12 @@ vi.mock(
 );
 
 describe("ResumeBuilderEditor", () => {
+  beforeEach(() => {
+    mockQueryState.data = mockResume;
+    mockQueryState.isLoading = false;
+    mockQueryState.error = null;
+  });
+
   it("renders without crash", () => {
     render(<ResumeBuilderEditor />);
     expect(screen.getByTestId("preview-panel")).toBeInTheDocument();
@@ -221,6 +235,47 @@ describe("ResumeBuilderEditor", () => {
     expect(
       screen.getByLabelText("resumeBuilder.backToList"),
     ).toBeInTheDocument();
+  });
+
+  // ApiError exposes the status flat; the editor used to look for
+  // error.response.status and so reported every failure as "not found".
+  describe("failure states", () => {
+    it("reports an unknown id as not found", () => {
+      mockQueryState.data = null;
+      mockQueryState.error = new ApiError("nope", "NOT_FOUND", 404);
+      render(<ResumeBuilderEditor />);
+
+      expect(screen.getByText("resumeBuilder.notFound")).toBeInTheDocument();
+    });
+
+    it("distinguishes a forbidden resume from a missing one", () => {
+      mockQueryState.data = null;
+      mockQueryState.error = new ApiError("nope", "FORBIDDEN", 403);
+      render(<ResumeBuilderEditor />);
+
+      expect(screen.getByText("Access denied")).toBeInTheDocument();
+      expect(
+        screen.queryByText("resumeBuilder.notFound"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("distinguishes a server failure from a missing resume", () => {
+      mockQueryState.data = null;
+      mockQueryState.error = new ApiError("boom", "INTERNAL_ERROR", 500);
+      render(<ResumeBuilderEditor />);
+
+      expect(screen.getByText("Server error")).toBeInTheDocument();
+    });
+
+    it("always offers a way back to the list", () => {
+      mockQueryState.data = null;
+      mockQueryState.error = new ApiError("nope", "NOT_FOUND", 404);
+      render(<ResumeBuilderEditor />);
+
+      expect(
+        screen.getByText("resumeBuilder.backToList"),
+      ).toBeInTheDocument();
+    });
   });
 });
 

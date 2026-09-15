@@ -56,7 +56,14 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: [
+      "src/**/*.test.{ts,tsx}",
+      "plugins/**/*.test.ts",
+      // Build scripts are plain ESM and outside tsc's program, but the
+      // contract they share with the app (the prerenderer's seeded cookie
+      // decision) still has to be checked against the app's own reader.
+      "scripts/**/*.test.mjs",
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "text-summary"],

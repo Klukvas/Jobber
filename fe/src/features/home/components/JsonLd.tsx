@@ -1,10 +1,12 @@
 import { useEffect } from "react";
 
+import { serializeJsonLd } from "@/shared/lib/jsonLd";
+
 const SCRIPT_ID = "jobber-jsonld";
 const SITE_URL = "https://jobber-app.com";
 
 function buildJsonLd() {
-  return JSON.stringify([
+  return serializeJsonLd([
     {
       "@context": "https://schema.org",
       "@type": "WebApplication",

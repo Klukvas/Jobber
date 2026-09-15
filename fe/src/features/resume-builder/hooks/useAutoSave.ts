@@ -166,6 +166,24 @@ export function useAutoSave() {
     }
   }, [resume]);
 
+  // A reload inside the debounce window used to drop whatever had been typed
+  // silently. There is no way to finish an async save during unload, so the
+  // browser is asked to confirm instead — and only while there is something to
+  // lose, so the prompt never appears for a saved document.
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      const { isDirty: dirty } = useResumeBuilderStore.getState();
+      if (!dirty && !savingRef.current) return;
+      event.preventDefault();
+      // Legacy browsers need a returnValue to show the prompt; the string is
+      // never displayed.
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
   // Save pending changes on SPA navigation (component unmount)
   useEffect(() => {
     cancelledRef.current = false;

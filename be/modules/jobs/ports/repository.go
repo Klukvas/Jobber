@@ -20,6 +20,9 @@ type ListOptions struct {
 	// Search is a case-insensitive substring matched against the job title and
 	// the linked company name. Empty means no search filter.
 	Search string
+	// CompanyID restricts the list to cards linked to one company. Empty means
+	// no company filter. Validated as a UUID by the handler.
+	CompanyID string
 }
 
 // JobRepository defines the interface for job data access

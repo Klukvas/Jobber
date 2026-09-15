@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { format } from "date-fns";
 import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { useThemeStore } from "@/stores/themeStore";
-import { useAuthStore } from "@/stores/authStore";
+import { endSession } from "@/shared/lib/session";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { authService } from "@/services/authService";
 import { calendarService } from "@/services/calendarService";
@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import {
   showSuccessNotification,
   showErrorNotification,
+  showInfoNotification,
 } from "@/shared/lib/notifications";
 import {
   Card,
@@ -25,6 +26,7 @@ import { Info } from "lucide-react";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { useOnboarding } from "@/features/onboarding/useOnboarding";
 import { useSubscription } from "@/shared/hooks/useSubscription";
+import { ProfileSection } from "@/features/settings/ProfileSection";
 import { PricingModal } from "@/features/subscription/components/PricingModal";
 import { ManageSubscriptionModal } from "@/features/subscription/components/ManageSubscriptionModal";
 
@@ -33,7 +35,6 @@ export default function Settings() {
   const dateLocale = useDateLocale();
   usePageMeta({ titleKey: "settings.title", noindex: true });
   const { theme, setTheme } = useThemeStore();
-  const clearAuth = useAuthStore((state) => state.clearAuth);
   const { restart } = useOnboarding();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -46,7 +47,10 @@ export default function Settings() {
   const logoutMutation = useMutation({
     mutationFn: authService.logout,
     onSettled: () => {
-      clearAuth();
+      // Not just the auth store: every cached query belongs to the account
+      // that is leaving, and the next sign-in on this tab would otherwise be
+      // served the previous one's rows.
+      endSession();
       navigate("/");
     },
   });
@@ -97,6 +101,10 @@ export default function Settings() {
       setSearchParams({});
     }
     if (subscriptionParam === "success") {
+      // Deliberately informational, not "you are upgraded": the plan only
+      // changes once the provider's webhook lands, and claiming success before
+      // that would be wrong for a payment that is still being confirmed.
+      showInfoNotification(t("settings.subscription.checkoutReceived"));
       queryClient.invalidateQueries({ queryKey: ["subscription"] });
       setSearchParams({});
     }
@@ -114,6 +122,8 @@ export default function Settings() {
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">{t("settings.title")}</h1>
 
+      <ProfileSection />
+
       <Card>
         <CardHeader>
           <CardTitle>{t("settings.theme")}</CardTitle>
@@ -123,12 +133,14 @@ export default function Settings() {
           <div className="flex gap-4">
             <Button
               variant={theme === "light" ? "default" : "outline"}
+              aria-pressed={theme === "light"}
               onClick={() => setTheme("light")}
             >
               {t("settings.light")}
             </Button>
             <Button
               variant={theme === "dark" ? "default" : "outline"}
+              aria-pressed={theme === "dark"}
               onClick={() => setTheme("dark")}
             >
               {t("settings.dark")}
@@ -146,18 +158,21 @@ export default function Settings() {
           <div className="flex gap-4">
             <Button
               variant={i18n.language === "en" ? "default" : "outline"}
+              aria-pressed={i18n.language === "en"}
               onClick={() => i18n.changeLanguage("en")}
             >
               {t("settings.english")}
             </Button>
             <Button
-              variant={i18n.language === "ua" ? "default" : "outline"}
-              onClick={() => i18n.changeLanguage("ua")}
+              variant={i18n.language === "uk" ? "default" : "outline"}
+              aria-pressed={i18n.language === "uk"}
+              onClick={() => i18n.changeLanguage("uk")}
             >
               {t("settings.ukrainian")}
             </Button>
             <Button
               variant={i18n.language === "ru" ? "default" : "outline"}
+              aria-pressed={i18n.language === "ru"}
               onClick={() => i18n.changeLanguage("ru")}
             >
               {t("settings.russian")}
@@ -220,7 +235,10 @@ export default function Settings() {
               )}
               {FEATURES.PAYMENTS && nextPlan && (
                 <button
-                  className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-semibold shadow-sm transition-all bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  // Hand-rolled rather than the shared Button, so it never got
+                  // the 44px phone floor the button scale applies: `py-2`
+                  // around 14px text measured 36px on a 390px screen.
+                  className="inline-flex items-center justify-center rounded-md px-4 py-2 max-sm:min-h-11 text-sm font-semibold shadow-sm transition-all bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => setPricingOpen(true)}
                 >
                   {t("settings.subscription.upgrade")}
@@ -275,6 +293,37 @@ export default function Settings() {
                     {limits.max_ai_requests < 0
                       ? t("settings.subscription.unlimited")
                       : limits.max_ai_requests}
+                  </p>
+                  {/* The only allowance the backend counts per calendar month
+                      (CountUserAIRequestsThisMonth) — everything else here is
+                      a lifetime total. */}
+                  <p className="text-xs text-muted-foreground">
+                    {t("settings.subscription.perMonth")}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">
+                    {t("settings.subscription.resumeBuilders")}
+                  </p>
+                  <p className="font-medium">
+                    {usage.resume_builders} {t("settings.subscription.of")}{" "}
+                    {limits.max_resume_builders < 0
+                      ? t("settings.subscription.unlimited")
+                      : limits.max_resume_builders}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">
+                    {t("settings.subscription.coverLetters")}
+                  </p>
+                  <p className="font-medium">
+                    {limits.max_cover_letters === 0
+                      ? t("settings.subscription.notIncluded")
+                      : `${usage.cover_letters} ${t("settings.subscription.of")} ${
+                          limits.max_cover_letters < 0
+                            ? t("settings.subscription.unlimited")
+                            : limits.max_cover_letters
+                        }`}
                   </p>
                 </div>
               </div>

@@ -303,6 +303,8 @@ export interface CommentDTO {
   stage_id?: string;
   content: string;
   created_at: string;
+  /** Equal to created_at until the comment is edited. */
+  updated_at?: string;
 }
 
 export interface CreateCommentRequest {

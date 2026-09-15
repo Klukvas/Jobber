@@ -325,6 +325,65 @@ func TestJobRepository_List(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
+	// The Companies page links to /app/jobs?company_id=… — the list has to
+	// actually narrow to that company instead of returning every card.
+	t.Run("company filter narrows the list to one company", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+		now := time.Now()
+		companyID := "0149b69a-0000-4000-8000-000000000001"
+		companyName := "TechNova"
+
+		rows := pgxmock.NewRows(listColumns).
+			AddRow("job-1", &companyID, "Software Engineer", nil, nil, nil, false, false, nil, nil, nil, now, now, now, &companyName, nil, nil, nil, nil, nil, 1)
+
+		mock.ExpectQuery("AND j.company_id = ").
+			WithArgs("user-123", companyID, 20, 0).
+			WillReturnRows(rows)
+
+		jobs, total, err := repo.List(context.Background(), "user-123", &ports.ListOptions{
+			Limit: 20, Offset: 0, CompanyID: companyID,
+		})
+
+		require.NoError(t, err)
+		require.Len(t, jobs, 1)
+		assert.Equal(t, 1, total)
+		assert.Equal(t, companyID, *jobs[0].CompanyID)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("company filter composes with search and the archived filter", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+		companyID := "0149b69a-0000-4000-8000-000000000001"
+
+		// Search binds $2, the company id $3 — order matters for the
+		// placeholder numbering.
+		mock.ExpectQuery("AND j.company_id = ").
+			WithArgs("user-123", "%eng%", companyID, 20, 0).
+			WillReturnRows(pgxmock.NewRows(listColumns))
+
+		_, _, err := repo.List(context.Background(), "user-123", &ports.ListOptions{
+			Limit: 20, Offset: 0, Status: "archived", Search: "eng", CompanyID: companyID,
+		})
+
+		require.NoError(t, err)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("an empty company filter binds no extra argument", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+
+		mock.ExpectQuery("FROM jobs j").
+			WithArgs("user-123", 20, 0).
+			WillReturnRows(pgxmock.NewRows(listColumns))
+
+		_, _, err := repo.List(context.Background(), "user-123", &ports.ListOptions{
+			Limit: 20, Offset: 0, CompanyID: "",
+		})
+
+		require.NoError(t, err)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
 	t.Run("attaches uploaded resume nested dto", func(t *testing.T) {
 		repo, mock := newJobRepo(t)
 		now := time.Now()

@@ -15,7 +15,15 @@ import (
 type MockCommentRepository struct {
 	CreateFunc    func(ctx context.Context, comment *model.Comment) error
 	ListByJobFunc func(ctx context.Context, jobID string, userID ...string) ([]*model.Comment, error)
+	UpdateFunc    func(ctx context.Context, userID, commentID, content string) (*model.Comment, error)
 	DeleteFunc    func(ctx context.Context, userID, commentID string) error
+}
+
+func (m *MockCommentRepository) Update(ctx context.Context, userID, commentID, content string) (*model.Comment, error) {
+	if m.UpdateFunc != nil {
+		return m.UpdateFunc(ctx, userID, commentID, content)
+	}
+	return nil, nil
 }
 
 func (m *MockCommentRepository) Create(ctx context.Context, comment *model.Comment) error {
@@ -219,9 +227,103 @@ func TestCommentService_ListByJob(t *testing.T) {
 	})
 }
 
+// The id column is a uuid, so the tests have to use one: a placeholder string
+// is now refused before it reaches storage, which is the point of validCommentID.
+const validCommentID = "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+
+func TestCommentService_Update(t *testing.T) {
+	const (
+		userID    = "user-123"
+		commentID = validCommentID
+	)
+
+	tests := []struct {
+		name        string
+		content     string
+		wantContent string
+		wantErr     error
+	}{
+		{name: "rewrites the body", content: "Edited body", wantContent: "Edited body"},
+		{name: "trims surrounding whitespace", content: "  Edited  ", wantContent: "Edited"},
+		{name: "keeps internal line breaks", content: "line 1\nline 2", wantContent: "line 1\nline 2"},
+		{name: "rejects empty content", content: "", wantErr: model.ErrContentRequired},
+		{name: "rejects whitespace-only content", content: "   \n\t ", wantErr: model.ErrContentRequired},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var sawUserID, sawCommentID, sawContent string
+			mockRepo := &MockCommentRepository{
+				UpdateFunc: func(_ context.Context, uid, cid, content string) (*model.Comment, error) {
+					sawUserID, sawCommentID, sawContent = uid, cid, content
+					return &model.Comment{ID: cid, UserID: uid, JobID: "job-1", Content: content}, nil
+				},
+			}
+
+			svc := NewCommentService(mockRepo)
+			dto, err := svc.Update(context.Background(), userID, commentID, &model.UpdateCommentRequest{Content: tt.content})
+
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+				assert.Nil(t, dto)
+				assert.Empty(t, sawContent, "the repository must not be called for invalid input")
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, dto)
+			assert.Equal(t, tt.wantContent, dto.Content)
+			assert.Equal(t, tt.wantContent, sawContent)
+			// The author is always part of the write, so the repository can
+			// scope the UPDATE to rows this user owns.
+			assert.Equal(t, userID, sawUserID)
+			assert.Equal(t, commentID, sawCommentID)
+		})
+	}
+
+	t.Run("propagates not-found from the ownership-scoped write", func(t *testing.T) {
+		mockRepo := &MockCommentRepository{
+			UpdateFunc: func(context.Context, string, string, string) (*model.Comment, error) {
+				return nil, model.ErrCommentNotFound
+			},
+		}
+
+		svc := NewCommentService(mockRepo)
+		dto, err := svc.Update(context.Background(), userID, commentID, &model.UpdateCommentRequest{Content: "hi there"})
+
+		assert.ErrorIs(t, err, model.ErrCommentNotFound)
+		assert.Nil(t, dto)
+	})
+}
+
+// Same rule on the update path: a malformed id is a 404, and the content check
+// still runs first so an empty body is reported as the empty body it is.
+func TestCommentService_UpdateRejectsMalformedID(t *testing.T) {
+	touched := false
+	svc := NewCommentService(&MockCommentRepository{
+		UpdateFunc: func(context.Context, string, string, string) (*model.Comment, error) {
+			touched = true
+			return nil, nil
+		},
+	})
+
+	for _, id := range []string{"", "comment-1", "../../etc/passwd"} {
+		dto, err := svc.Update(context.Background(), "user-123", id,
+			&model.UpdateCommentRequest{Content: "Edited body"})
+
+		assert.Nil(t, dto, "id %q", id)
+		assert.ErrorIs(t, err, model.ErrCommentNotFound, "id %q", id)
+	}
+	assert.False(t, touched)
+
+	_, err := svc.Update(context.Background(), "user-123", "comment-1",
+		&model.UpdateCommentRequest{Content: "   "})
+	assert.ErrorIs(t, err, model.ErrContentRequired)
+}
+
 func TestCommentService_Delete(t *testing.T) {
 	userID := "user-123"
-	commentID := "comment-1"
+	commentID := validCommentID
 
 	t.Run("deletes comment successfully", func(t *testing.T) {
 		var deletedCommentID string
@@ -251,6 +353,27 @@ func TestCommentService_Delete(t *testing.T) {
 		err := svc.Delete(context.Background(), userID, commentID)
 
 		assert.Equal(t, model.ErrCommentNotFound, err)
+	})
+
+	// A path parameter that is not a uuid used to reach Postgres as a cast
+	// error and come back as a 500 — our failure, for what is plainly a bad
+	// request. There is no such comment, which is the same 404 as any other id
+	// that matches nothing.
+	t.Run("answers a malformed id as not found, without touching storage", func(t *testing.T) {
+		for _, id := range []string{"", "comment-1", "../../etc/passwd", "7c9e6679-7425-40de-944b"} {
+			touched := false
+			svc := NewCommentService(&MockCommentRepository{
+				DeleteFunc: func(context.Context, string, string) error {
+					touched = true
+					return nil
+				},
+			})
+
+			err := svc.Delete(context.Background(), userID, id)
+
+			assert.ErrorIs(t, err, model.ErrCommentNotFound, "id %q", id)
+			assert.False(t, touched, "id %q", id)
+		}
 	})
 }
 

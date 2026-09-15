@@ -84,11 +84,19 @@ func (m *MockJobRepository) GetLastActivityAt(ctx context.Context, userID, jobID
 
 // MockResumeRepository implements resumePorts.ResumeRepository
 type MockResumeRepository struct {
-	CreateFunc  func(ctx context.Context, resume *resumeModel.Resume) error
-	GetByIDFunc func(ctx context.Context, userID, resumeID string) (*resumeModel.Resume, error)
-	ListFunc    func(ctx context.Context, userID string, limit, offset int, sortBy, sortDir string) ([]*resumePorts.ResumeWithCount, int, error)
-	UpdateFunc  func(ctx context.Context, resume *resumeModel.Resume) error
-	DeleteFunc  func(ctx context.Context, userID, resumeID string) error
+	CreateFinalizedUploadFunc func(ctx context.Context, resume *resumeModel.Resume, maxResumes int) error
+	CreateFunc                func(ctx context.Context, resume *resumeModel.Resume) error
+	GetByIDFunc               func(ctx context.Context, userID, resumeID string) (*resumeModel.Resume, error)
+	ListFunc                  func(ctx context.Context, userID string, limit, offset int, sortBy, sortDir string) ([]*resumePorts.ResumeWithCount, int, error)
+	UpdateFunc                func(ctx context.Context, resume *resumeModel.Resume) error
+	DeleteFunc                func(ctx context.Context, userID, resumeID string) error
+}
+
+func (m *MockResumeRepository) CreateFinalizedUpload(ctx context.Context, resume *resumeModel.Resume, maxResumes int) error {
+	if m.CreateFinalizedUploadFunc != nil {
+		return m.CreateFinalizedUploadFunc(ctx, resume, maxResumes)
+	}
+	return m.Create(ctx, resume)
 }
 
 func (m *MockResumeRepository) Create(ctx context.Context, resume *resumeModel.Resume) error {
@@ -128,7 +136,7 @@ func (m *MockResumeRepository) Delete(ctx context.Context, userID, resumeID stri
 
 // MockLimitChecker implements matchService.LimitChecker
 type MockLimitChecker struct {
-	CheckLimitFunc   func(ctx context.Context, userID, resource string) error
+	CheckLimitFunc    func(ctx context.Context, userID, resource string) error
 	RecordAIUsageFunc func(ctx context.Context, userID string) error
 }
 

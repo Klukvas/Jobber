@@ -68,6 +68,12 @@ migrate-force: ## Force migration version (usage: make migrate-force version=1)
 repair-dev-db: ## Repair a local dev DB stuck on migration 041 (see scripts/repair-dev-db-041.sql)
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -f scripts/repair-dev-db-041.sql
 
+prune-orphan-resumes: ## List uploaded resume objects no resume row points at (dry run)
+	go run ./scripts/prune-orphan-resumes
+
+prune-orphan-resumes-apply: ## Delete those objects. Read the dry run first.
+	go run ./scripts/prune-orphan-resumes -apply
+
 docker-up: ## Start Docker services (PostgreSQL + Redis)
 	docker-compose up -d
 

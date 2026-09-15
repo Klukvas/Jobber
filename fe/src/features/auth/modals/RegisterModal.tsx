@@ -19,6 +19,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/shared/ui/Dialog";
+import { AUTH_DIALOG_TITLE_IDS } from "@/features/auth/modals/authDialogTitleIds";
 import { ApiError } from "@/services/api";
 import { Loader2, Mail } from "lucide-react";
 
@@ -44,6 +45,7 @@ function ModalContent({
     handleSubmit,
     getValues,
     setError,
+    setFocus,
     formState: { errors },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -54,8 +56,29 @@ function ModalContent({
     onSuccess: () => {
       setRegisteredEmail(getValues("email"));
     },
+    // Attach the failure to the field it is actually about. Everything used to
+    // land under Email, so an over-long password reported "Invalid request
+    // payload" next to an address that was perfectly fine.
+    //
+    // Both password rejections get localised copy. The backend answers in
+    // English only, and rendering `error.message` put "password must be at
+    // least 8 characters" into the middle of an otherwise Russian or Ukrainian
+    // form — the rule is the same one the client already states, so it is said
+    // in the customer's language.
     onError: (error: ApiError) => {
-      setError("email", { message: error.message });
+      const isPasswordError =
+        error.code === "INVALID_PASSWORD" || error.code === "PASSWORD_TOO_LONG";
+      const field = isPasswordError ? "password" : "email";
+      setError(field, {
+        message: isPasswordError
+          ? t(
+              error.code === "PASSWORD_TOO_LONG"
+                ? "errors.passwordTooLong"
+                : "errors.passwordTooShort",
+            )
+          : error.message || t("errors.somethingWentWrong"),
+      });
+      setFocus(field);
     },
   });
 
@@ -109,7 +132,10 @@ function ModalContent({
     return (
       <>
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">
+          <DialogTitle
+            id={AUTH_DIALOG_TITLE_IDS.register}
+            className="text-2xl font-bold"
+          >
             {t("auth.enterCode")}
           </DialogTitle>
         </DialogHeader>
@@ -202,7 +228,10 @@ function ModalContent({
   return (
     <>
       <DialogHeader>
-        <DialogTitle className="text-2xl font-bold">
+        <DialogTitle
+          id={AUTH_DIALOG_TITLE_IDS.register}
+          className="text-2xl font-bold"
+        >
           {t("auth.register")}
         </DialogTitle>
         <DialogDescription>{t("auth.registerDescription")}</DialogDescription>
@@ -321,6 +350,7 @@ export function RegisterModal({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
+      labelledBy={AUTH_DIALOG_TITLE_IDS.register}
       swipeToDismiss
       className="max-sm:h-full max-sm:max-w-none"
     >

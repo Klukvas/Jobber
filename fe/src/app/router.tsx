@@ -1,8 +1,8 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, type RouteObject } from "react-router-dom";
 import { sentryCreateBrowserRouter } from "@/shared/lib/sentry";
 import { LegacyApplicationDetailRedirect } from "./LegacyApplicationRedirect";
 import { RootLayout } from "./layouts/RootLayout";
-import { AuthLayout } from "./layouts/AuthLayout";
+import { LandingLayout } from "./layouts/LandingLayout";
 import { AppLayout } from "./layouts/AppLayout";
 
 import { lazy, Suspense } from "react";
@@ -37,10 +37,18 @@ const CoverLettersPage = lazy(() => import("@/pages/CoverLetters"));
 const CoverLetterEditorPage = lazy(() => import("@/pages/CoverLetterEditor"));
 const NotFoundPage = lazy(() => import("@/pages/NotFound"));
 
+// Password reset from a `?email=&code=` URL (no auth, noindex).
+const ResetPasswordPage = lazy(() => import("@/pages/ResetPassword"));
+
 // Public shared-stats page (no auth; opened from links posted on social media)
 const SharedStatsPage = lazy(() => import("@/pages/SharedStats"));
 
-export const router = sentryCreateBrowserRouter([
+/**
+ * The route table itself, apart from the router built from it — the structure
+ * is what keeps the landing page mounted across an auth modal, so it is worth
+ * asserting on directly.
+ */
+export const routes: RouteObject[] = [
   {
     path: "/print/resume",
     element: (
@@ -54,13 +62,17 @@ export const router = sentryCreateBrowserRouter([
     element: <RootLayout />,
     children: [
       {
-        index: true,
-        element: <HomePage />,
-      },
-      {
+        // The landing page and the three modal routes drawn over it are
+        // siblings on purpose: same element, same depth, so opening or closing
+        // an auth modal re-renders the page instead of rebuilding it. See
+        // LandingLayout for what depended on that.
         path: "",
-        element: <AuthLayout />,
+        element: <LandingLayout />,
         children: [
+          {
+            index: true,
+            element: <HomePage />,
+          },
           {
             // Login modal is shown on Home page based on URL
             path: "login",
@@ -83,8 +95,18 @@ export const router = sentryCreateBrowserRouter([
         element: <Navigate to="/" replace />,
       },
       {
+        // A working entry point, not a redirect. The reset email carries a
+        // 6-digit code rather than a link, so the modal on the landing page is
+        // the usual way through — but the API takes `email` + `code` + the new
+        // password, and this page is where a `?email=&code=` URL lands. It
+        // redirected to `/` before, which dropped anyone who arrived with a
+        // valid code at a page that could not use it.
         path: "reset-password",
-        element: <Navigate to="/" replace />,
+        element: (
+          <Suspense fallback={<div />}>
+            <ResetPasswordPage />
+          </Suspense>
+        ),
       },
       {
         path: "blog",
@@ -109,6 +131,14 @@ export const router = sentryCreateBrowserRouter([
       {
         path: "features",
         children: [
+          {
+            // "/features" has no page of its own. Without this the route
+            // matched a layout-less branch and rendered a blank, indexable
+            // document; sending it to the first feature page keeps the URL
+            // useful and lets that page own the canonical/robots tags.
+            index: true,
+            element: <Navigate to="/features/applications" replace />,
+          },
           {
             path: "applications",
             element: <FeatureApplicationsPage />,
@@ -195,4 +225,6 @@ export const router = sentryCreateBrowserRouter([
       },
     ],
   },
-]);
+];
+
+export const router = sentryCreateBrowserRouter(routes);

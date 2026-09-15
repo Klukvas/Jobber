@@ -2,10 +2,12 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/andreypavlenko/jobber/modules/comments/model"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type CommentRepository struct {
@@ -67,6 +69,31 @@ func (r *CommentRepository) ListByJob(ctx context.Context, jobID, userID string)
 		comments = append(comments, c)
 	}
 	return comments, rows.Err()
+}
+
+// Update rewrites a comment's content.
+//
+// `user_id = $3` is the authorization: the row is only touched when the caller
+// authored it, so another user's comment id simply matches nothing and comes
+// back as "not found" — no separate read, no window between check and write.
+func (r *CommentRepository) Update(ctx context.Context, userID, commentID, content string) (*model.Comment, error) {
+	query := `
+		UPDATE comments
+		SET content = $1, updated_at = $2
+		WHERE id = $3 AND user_id = $4
+		RETURNING id, user_id, job_id, stage_id, content, created_at, updated_at
+	`
+
+	c := &model.Comment{}
+	err := r.pool.QueryRow(ctx, query, content, time.Now().UTC(), commentID, userID).
+		Scan(&c.ID, &c.UserID, &c.JobID, &c.StageID, &c.Content, &c.CreatedAt, &c.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, model.ErrCommentNotFound
+		}
+		return nil, err
+	}
+	return c, nil
 }
 
 func (r *CommentRepository) Delete(ctx context.Context, userID, commentID string) error {

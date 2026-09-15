@@ -10,6 +10,10 @@ export const commentsService = {
     return apiClient.get<CommentDTO[]>(`jobs/${jobId}/comments`);
   },
 
+  async update(id: string, content: string): Promise<CommentDTO> {
+    return apiClient.patch<CommentDTO>(`comments/${id}`, { content });
+  },
+
   async delete(id: string): Promise<void> {
     return apiClient.delete<void>(`comments/${id}`);
   },

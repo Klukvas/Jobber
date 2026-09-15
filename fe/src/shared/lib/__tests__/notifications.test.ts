@@ -4,6 +4,7 @@ vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
+    info: vi.fn(),
   },
 }));
 
@@ -11,6 +12,8 @@ import { toast } from "sonner";
 import {
   showSuccessNotification,
   showErrorNotification,
+  showInfoNotification,
+  toUserFacingMessage,
   requestNotificationPermission,
   registerServiceWorker,
   subscribeToPushNotifications,
@@ -304,5 +307,98 @@ describe("initializePushNotifications", () => {
 
     // Should complete without errors
     await initializePushNotifications();
+  });
+});
+
+// The API client hands over blank messages for anything it could not quote
+// safely, and libraries occasionally leak their own wording. Neither may reach
+// a customer.
+describe("toUserFacingMessage", () => {
+  it("passes a real, customer-readable message through untouched", () => {
+    expect(toUserFacingMessage("You have reached your plan limit.")).toBe(
+      "You have reached your plan limit.",
+    );
+  });
+
+  it("trims surrounding whitespace", () => {
+    expect(toUserFacingMessage("  Limit reached  ")).toBe("Limit reached");
+  });
+
+  it.each([
+    ["an empty message", ""],
+    ["whitespace only", "   "],
+    ["a fetch failure", "Failed to fetch"],
+    ["a status line with a URL", "Request failed with status code 404 Not Found: POST http://localhost:8080/api/v1/support"],
+    ["a bare backend URL", "https://api.jobber-app.com/api/v1/jobs"],
+    ["a localhost origin", "connect ECONNREFUSED localhost:8080"],
+    ["a stack frame", "TypeError at handleSubmit (Jobs.tsx:12)"],
+  ])("replaces %s with a generic line", (_label, message) => {
+    const result = toUserFacingMessage(message);
+
+    expect(result).not.toBe(message);
+    expect(result).not.toMatch(/https?:\/\//);
+    expect(result).not.toMatch(/localhost/i);
+    expect(result).not.toMatch(/status code/i);
+    expect(result.trim()).not.toBe("");
+  });
+
+  // The blanket "any URL is internal" rule was throwing away the one detail
+  // these messages exist to carry: which link the customer needs to fix.
+  it.each([
+    [
+      "an unreachable posting the customer pasted",
+      "We could not read https://jobs.example.com/postings/42 — check the link.",
+    ],
+    [
+      "a refused resume link",
+      "That file URL is not reachable: https://drive.example.com/file/abc",
+    ],
+  ])("keeps %s intact", (_label, message) => {
+    expect(toUserFacingMessage(message)).toBe(message);
+  });
+
+  it("still redacts a private address inside an otherwise readable sentence", () => {
+    const result = toUserFacingMessage(
+      "We could not read http://10.0.0.7:8080/internal — check the link.",
+    );
+
+    expect(result).not.toContain("10.0.0.7");
+  });
+});
+
+describe("showErrorNotification hygiene", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("never sends a raw transport message to the toast", () => {
+    showErrorNotification(
+      "Request failed with status code 500: GET http://localhost:8080/api/v1/jobs",
+    );
+
+    const shown = (toast.error as unknown as { mock: { calls: string[][] } })
+      .mock.calls[0][0];
+    expect(shown).not.toContain("localhost");
+    expect(shown).not.toContain("status code");
+  });
+
+  it("still shows a message the API wrote for the customer", () => {
+    showErrorNotification("Cover letters are not available on your plan.");
+    expect(toast.error).toHaveBeenCalledWith(
+      "Cover letters are not available on your plan.",
+    );
+  });
+});
+
+describe("showInfoNotification", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("uses the neutral toast, not the success one", () => {
+    showInfoNotification("We are confirming your payment");
+
+    expect(toast.info).toHaveBeenCalledWith("We are confirming your payment");
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });

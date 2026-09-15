@@ -1,7 +1,12 @@
-import { useSyncExternalStore, useCallback } from 'react';
-import { useAuthStore } from '@/stores/authStore';
+import { useSyncExternalStore, useCallback } from "react";
+import { useAuthStore } from "@/stores/authStore";
 
-const STORAGE_KEY = 'jobber-onboarding-completed';
+const STORAGE_KEY = "jobber-onboarding-completed";
+
+// "Not now" is a different answer from "don't show me this again": it holds
+// for the current browser session only, so the tour comes back next visit
+// instead of being silently lost forever.
+const SESSION_DISMISS_KEY = "jobber-onboarding-dismissed";
 
 // --- Completion store ---
 let completionListeners: Array<() => void> = [];
@@ -20,7 +25,10 @@ function subscribeCompletion(listener: () => void) {
 }
 
 function getCompletionSnapshot(): boolean {
-  return localStorage.getItem(STORAGE_KEY) === 'true';
+  return (
+    localStorage.getItem(STORAGE_KEY) === "true" ||
+    sessionStorage.getItem(SESSION_DISMISS_KEY) === "true"
+  );
 }
 
 // --- Highlight store ---
@@ -56,20 +64,37 @@ export function useOnboardingHighlight(): string | null {
 // --- Main hook ---
 export function useOnboarding() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const completed = useSyncExternalStore(subscribeCompletion, getCompletionSnapshot);
+  const completed = useSyncExternalStore(
+    subscribeCompletion,
+    getCompletionSnapshot,
+  );
 
   const shouldShow = isAuthenticated && !completed;
 
+  /** "I'm done with the tour" — never shown again on this device. */
   const complete = useCallback(() => {
-    localStorage.setItem(STORAGE_KEY, 'true');
+    localStorage.setItem(STORAGE_KEY, "true");
+    setOnboardingHighlight(null);
+    emitCompletionChange();
+  }, []);
+
+  /**
+   * "Not now" — hides the tour for this browser session only. Pressing Escape
+   * or clicking the backdrop used to run `complete`, so a stray keystroke on
+   * the first screen permanently retired the onboarding with no visible
+   * decision and no obvious way back.
+   */
+  const dismissForSession = useCallback(() => {
+    sessionStorage.setItem(SESSION_DISMISS_KEY, "true");
     setOnboardingHighlight(null);
     emitCompletionChange();
   }, []);
 
   const restart = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(SESSION_DISMISS_KEY);
     emitCompletionChange();
   }, []);
 
-  return { shouldShow, complete, restart };
+  return { shouldShow, complete, dismissForSession, restart };
 }

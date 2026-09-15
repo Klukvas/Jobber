@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/andreypavlenko/jobber/internal/platform/storage"
 	"github.com/andreypavlenko/jobber/modules/resumes/model"
 	"github.com/andreypavlenko/jobber/modules/resumes/ports"
 	"github.com/andreypavlenko/jobber/modules/resumes/service"
@@ -22,11 +23,19 @@ import (
 
 // MockResumeRepository implements ports.ResumeRepository
 type MockResumeRepository struct {
-	CreateFunc  func(ctx context.Context, resume *model.Resume) error
-	GetByIDFunc func(ctx context.Context, userID, resumeID string) (*model.Resume, error)
-	ListFunc    func(ctx context.Context, userID string, limit, offset int, sortBy, sortDir string) ([]*ports.ResumeWithCount, int, error)
-	UpdateFunc  func(ctx context.Context, resume *model.Resume) error
-	DeleteFunc  func(ctx context.Context, userID, resumeID string) error
+	CreateFinalizedUploadFunc func(ctx context.Context, resume *model.Resume, maxResumes int) error
+	CreateFunc                func(ctx context.Context, resume *model.Resume) error
+	GetByIDFunc               func(ctx context.Context, userID, resumeID string) (*model.Resume, error)
+	ListFunc                  func(ctx context.Context, userID string, limit, offset int, sortBy, sortDir string) ([]*ports.ResumeWithCount, int, error)
+	UpdateFunc                func(ctx context.Context, resume *model.Resume) error
+	DeleteFunc                func(ctx context.Context, userID, resumeID string) error
+}
+
+func (m *MockResumeRepository) CreateFinalizedUpload(ctx context.Context, resume *model.Resume, maxResumes int) error {
+	if m.CreateFinalizedUploadFunc != nil {
+		return m.CreateFinalizedUploadFunc(ctx, resume, maxResumes)
+	}
+	return m.Create(ctx, resume)
 }
 
 func (m *MockResumeRepository) Create(ctx context.Context, resume *model.Resume) error {
@@ -385,7 +394,8 @@ func TestResumeHandler_Delete(t *testing.T) {
 // --- Mock limit checker ---
 
 type MockLimitChecker struct {
-	CheckLimitFunc func(ctx context.Context, userID, resource string) error
+	CheckLimitFunc    func(ctx context.Context, userID, resource string) error
+	ResourceLimitFunc func(ctx context.Context, userID, resource string) (int, error)
 }
 
 func (m *MockLimitChecker) CheckLimit(ctx context.Context, userID, resource string) error {
@@ -393,6 +403,13 @@ func (m *MockLimitChecker) CheckLimit(ctx context.Context, userID, resource stri
 		return m.CheckLimitFunc(ctx, userID, resource)
 	}
 	return nil
+}
+
+func (m *MockLimitChecker) ResourceLimit(ctx context.Context, userID, resource string) (int, error) {
+	if m.ResourceLimitFunc != nil {
+		return m.ResourceLimitFunc(ctx, userID, resource)
+	}
+	return -1, nil
 }
 
 // --- Create: plan limit and service error ---
@@ -777,4 +794,292 @@ func TestResumeHandler_RegisterRoutes(t *testing.T) {
 			assert.NotEqual(t, http.StatusNotFound, w.Code, "Route %s %s should be registered", route.method, route.path)
 		})
 	}
+}
+
+// The finalize endpoint has to answer with the right *kind* of failure: a file
+// the customer never uploaded is a 400 they can act on, while a storage read
+// that fell over is a 500 and must not be dressed up as their mistake.
+func TestResumeHandler_FinalizeUpload(t *testing.T) {
+	const (
+		userID   = "user-123"
+		resumeID = "3f2a6c1e-0000-4000-8000-00000000abcd"
+		key      = "users/user-123/resumes/3f2a6c1e-0000-4000-8000-00000000abcd.pdf"
+	)
+
+	newRouter := func(objects map[string][]byte, repo *MockResumeRepository, stopServer bool) (*gin.Engine, func()) {
+		s3Client, cleanup := storage.NewTestS3Client(objects)
+		if stopServer {
+			cleanup()
+			cleanup = func() {}
+		}
+		handler := NewResumeHandler(service.NewResumeService(repo, s3Client, nil, nil), zap.NewNop())
+		router := setupTestRouter()
+		router.POST("/resumes/:id/finalize", mockAuthMiddleware(userID), handler.FinalizeUpload)
+		return router, cleanup
+	}
+
+	post := func(router *gin.Engine, id, body string) *httptest.ResponseRecorder {
+		req, _ := http.NewRequest(http.MethodPost, "/resumes/"+id+"/finalize", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		return w
+	}
+
+	pdf := func() []byte {
+		out := make([]byte, 2048)
+		copy(out, "%PDF-1.7\n")
+		return out
+	}
+
+	t.Run("returns 200 for a verified upload", func(t *testing.T) {
+		repo := &MockResumeRepository{
+			GetByIDFunc: func(context.Context, string, string) (*model.Resume, error) {
+				return nil, model.ErrResumeNotFound
+			},
+		}
+		router, cleanup := newRouter(map[string][]byte{key: pdf()}, repo, false)
+		defer cleanup()
+
+		w := post(router, resumeID, `{"title":"Backend Engineer"}`)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	// Content-Length is -1 on any chunked request — a proxy that re-frames the
+	// upload, a client that streams instead of buffering. Gating the decode on
+	// "> 0" threw that body away: the title the customer typed was discarded in
+	// silence and the resume kept its placeholder name.
+	t.Run("reads the title from a request with no declared length", func(t *testing.T) {
+		var created *model.Resume
+		repo := &MockResumeRepository{
+			GetByIDFunc: func(context.Context, string, string) (*model.Resume, error) {
+				return nil, model.ErrResumeNotFound
+			},
+			CreateFunc: func(_ context.Context, r *model.Resume) error {
+				created = r
+				return nil
+			},
+		}
+		router, cleanup := newRouter(map[string][]byte{key: pdf()}, repo, false)
+		defer cleanup()
+
+		req, _ := http.NewRequest(http.MethodPost, "/resumes/"+resumeID+"/finalize",
+			bytes.NewBufferString(`{"title":"Backend Engineer"}`))
+		req.Header.Set("Content-Type", "application/json")
+		// What net/http reports for Transfer-Encoding: chunked.
+		req.ContentLength = -1
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		require.NotNil(t, created)
+		assert.Equal(t, "Backend Engineer", created.Title)
+	})
+
+	// The body stays optional: an upload with no title keeps the placeholder.
+	t.Run("accepts a finalize with no body at all", func(t *testing.T) {
+		var created *model.Resume
+		repo := &MockResumeRepository{
+			GetByIDFunc: func(context.Context, string, string) (*model.Resume, error) {
+				return nil, model.ErrResumeNotFound
+			},
+			CreateFunc: func(_ context.Context, r *model.Resume) error {
+				created = r
+				return nil
+			},
+		}
+		router, cleanup := newRouter(map[string][]byte{key: pdf()}, repo, false)
+		defer cleanup()
+
+		w := post(router, resumeID, "")
+
+		require.Equal(t, http.StatusOK, w.Code)
+		require.NotNil(t, created)
+		assert.NotEmpty(t, created.Title)
+	})
+
+	t.Run("still rejects a body that is not JSON", func(t *testing.T) {
+		repo := &MockResumeRepository{
+			GetByIDFunc: func(context.Context, string, string) (*model.Resume, error) {
+				return nil, model.ErrResumeNotFound
+			},
+			CreateFunc: func(context.Context, *model.Resume) error {
+				t.Fatal("a malformed request must not create a resume")
+				return nil
+			},
+		}
+		router, cleanup := newRouter(map[string][]byte{key: pdf()}, repo, false)
+		defer cleanup()
+
+		w := post(router, resumeID, `{"title":`)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("returns 400 when the upload never landed", func(t *testing.T) {
+		repo := &MockResumeRepository{
+			GetByIDFunc: func(context.Context, string, string) (*model.Resume, error) {
+				return nil, model.ErrResumeNotFound
+			},
+		}
+		router, cleanup := newRouter(map[string][]byte{}, repo, false)
+		defer cleanup()
+
+		w := post(router, resumeID, `{}`)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		var body struct {
+			ErrorCode string `json:"error_code"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, string(model.CodeResumeFileMissing), body.ErrorCode)
+	})
+
+	// An empty upload reaches storage as a real 416, not a 404. Before the range
+	// classifier existed this surfaced as a 500; it is the customer's problem
+	// and has to read as one.
+	t.Run("returns 400 RESUME_FILE_MISSING for a present but empty object", func(t *testing.T) {
+		created := false
+		repo := &MockResumeRepository{
+			GetByIDFunc: func(context.Context, string, string) (*model.Resume, error) {
+				return nil, model.ErrResumeNotFound
+			},
+			CreateFunc: func(context.Context, *model.Resume) error {
+				created = true
+				return nil
+			},
+		}
+		router, cleanup := newRouter(map[string][]byte{key: {}}, repo, false)
+		defer cleanup()
+
+		w := post(router, resumeID, `{}`)
+
+		require.Equal(t, http.StatusBadRequest, w.Code)
+		assert.NotEqual(t, http.StatusInternalServerError, w.Code)
+
+		var body struct {
+			ErrorCode    string `json:"error_code"`
+			ErrorMessage string `json:"error_message"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, string(model.CodeResumeFileMissing), body.ErrorCode)
+		assert.NotEmpty(t, body.ErrorMessage)
+		assert.False(t, created, "an empty upload must not become a resume")
+	})
+
+	t.Run("an empty object belonging to another user is still unreachable", func(t *testing.T) {
+		created := false
+		repo := &MockResumeRepository{
+			GetByIDFunc: func(context.Context, string, string) (*model.Resume, error) {
+				return nil, model.ErrResumeNotFound
+			},
+			CreateFunc: func(context.Context, *model.Resume) error {
+				created = true
+				return nil
+			},
+		}
+		// The empty object sits under a different user's prefix, so the key this
+		// request derives names nothing at all.
+		objects := map[string][]byte{"users/someone-else/resumes/" + resumeID + ".pdf": {}}
+		router, cleanup := newRouter(objects, repo, false)
+		defer cleanup()
+
+		w := post(router, resumeID, `{}`)
+
+		require.Equal(t, http.StatusBadRequest, w.Code)
+		assert.False(t, created)
+		assert.Contains(t, objects, "users/someone-else/resumes/"+resumeID+".pdf",
+			"another user's object must be untouched")
+	})
+
+	t.Run("returns 500 when the store cannot be read", func(t *testing.T) {
+		repo := &MockResumeRepository{
+			GetByIDFunc: func(context.Context, string, string) (*model.Resume, error) {
+				return nil, model.ErrResumeNotFound
+			},
+		}
+		router, cleanup := newRouter(map[string][]byte{}, repo, true)
+		defer cleanup()
+
+		w := post(router, resumeID, `{}`)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.NotContains(t, w.Body.String(), string(model.CodeResumeFileMissing))
+	})
+
+	// Presigning no longer reserves a slot, so finalization is where the plan
+	// limit is actually enforced — and it has to answer with the same 403 the
+	// upload-URL endpoint gives, not a 500. subModel.ErrLimitReached is a
+	// subscriptions error, so the resume error mapping does not know it.
+	t.Run("returns 403 PLAN_LIMIT_REACHED when the plan is full", func(t *testing.T) {
+		created := false
+		// The write is where the limit is enforced — it counts and inserts in
+		// one transaction, which is the only place a *concurrent* finalize can
+		// be caught. Here it reports the customer's allowance as already full.
+		repo := &MockResumeRepository{
+			GetByIDFunc: func(context.Context, string, string) (*model.Resume, error) {
+				return nil, model.ErrResumeNotFound
+			},
+			CreateFinalizedUploadFunc: func(_ context.Context, _ *model.Resume, maxResumes int) error {
+				assert.Equal(t, 0, maxResumes, "the plan's ceiling reaches the write")
+				return model.ErrResumeLimitReached
+			},
+			CreateFunc: func(context.Context, *model.Resume) error {
+				created = true
+				return nil
+			},
+		}
+		limiter := &MockLimitChecker{
+			ResourceLimitFunc: func(_ context.Context, _, resource string) (int, error) {
+				assert.Equal(t, "resumes", resource)
+				return 0, nil
+			},
+		}
+
+		s3Client, cleanup := storage.NewTestS3Client(map[string][]byte{key: pdf()})
+		defer cleanup()
+		handler := NewResumeHandler(service.NewResumeService(repo, s3Client, limiter, nil), zap.NewNop())
+		router := setupTestRouter()
+		router.POST("/resumes/:id/finalize", mockAuthMiddleware(userID), handler.FinalizeUpload)
+
+		w := post(router, resumeID, `{}`)
+
+		require.Equal(t, http.StatusForbidden, w.Code)
+		assert.NotEqual(t, http.StatusInternalServerError, w.Code)
+
+		var body struct {
+			ErrorCode    string `json:"error_code"`
+			ErrorMessage string `json:"error_message"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, "PLAN_LIMIT_REACHED", body.ErrorCode)
+		assert.NotEmpty(t, body.ErrorMessage)
+		assert.False(t, created, "a refused upload must not become a resume")
+	})
+
+	t.Run("returns 200 again when the same upload is finalized twice", func(t *testing.T) {
+		storageKey := key
+		repo := &MockResumeRepository{
+			GetByIDFunc: func(context.Context, string, string) (*model.Resume, error) {
+				return &model.Resume{
+					ID: resumeID, UserID: userID, Title: "Backend Engineer",
+					StorageType: model.StorageTypeS3, StorageKey: &storageKey, IsActive: true,
+				}, nil
+			},
+			CreateFunc: func(context.Context, *model.Resume) error {
+				t.Fatal("a repeated finalize must not insert again")
+				return nil
+			},
+		}
+		objects := map[string][]byte{key: pdf()}
+		router, cleanup := newRouter(objects, repo, false)
+		defer cleanup()
+
+		w := post(router, resumeID, `{}`)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "Backend Engineer")
+		assert.Contains(t, objects, key, "the live object must survive")
+	})
 }

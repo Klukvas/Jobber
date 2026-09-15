@@ -6,9 +6,11 @@ import {
   keepPreviousData,
 } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import { companiesService } from "@/services/companiesService";
 import { jobsService, type ListJobsParams } from "@/services/jobsService";
 import { Button } from "@/shared/ui/Button";
+import { Input } from "@/shared/ui/Input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
 import {
   Dialog,
@@ -43,6 +45,7 @@ import {
   Search,
   Loader2,
   Link2,
+  Filter,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useDateLocale } from "@/shared/lib/dateFnsLocale";
@@ -64,6 +67,16 @@ type SortBy =
   "last_activity" | "applied_at" | "created_at" | "title" | "company_name";
 type SortDir = "asc" | "desc";
 type ViewMode = "list" | "kanban";
+
+/**
+ * The 44px floor a thumb needs, on the controls this page draws at pointer
+ * density: the view toggle (32px tall), the banner's install link (28) and the
+ * two icon-only buttons (24x24). Applied below `sm` only — the same page on a
+ * pointer keeps every one of these exactly as it was drawn.
+ */
+const TOUCH_ROW_TARGET = "flex items-center justify-center max-sm:min-h-11";
+const TOUCH_ICON_TARGET =
+  "flex h-6 w-6 items-center justify-center max-sm:h-11 max-sm:w-11";
 
 const EXTENSION_BANNER_KEY = "jobber-ext-banner-dismissed";
 const VIEW_MODE_KEY = "apps-view-mode";
@@ -116,6 +129,27 @@ export default function JobsPage() {
     () => localStorage.getItem(EXTENSION_BANNER_KEY) !== "true",
   );
 
+  // The company filter lives in the URL, not in component state: it arrives as
+  // a deep link from the Companies page, and it has to survive a refresh and
+  // be shareable. Clearing it drops the parameter again.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const companyFilterId = searchParams.get("company_id") ?? "";
+
+  const clearCompanyFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("company_id");
+    setSearchParams(next, { replace: true });
+    setPage(0);
+  };
+
+  // Only to name the filter in the UI — the list itself is filtered server-side.
+  const { data: filteredCompany } = useQuery({
+    queryKey: ["company", companyFilterId],
+    queryFn: () => companiesService.getById(companyFilterId),
+    enabled: !!companyFilterId,
+    staleTime: 5 * 60_000,
+  });
+
   // Persist view mode
   useEffect(() => {
     localStorage.setItem(VIEW_MODE_KEY, viewMode);
@@ -141,6 +175,7 @@ export default function JobsPage() {
           sortBy,
           sortDir,
           debouncedSearch,
+          companyFilterId,
         ]
       : [
           "jobs",
@@ -150,6 +185,7 @@ export default function JobsPage() {
           sortBy,
           sortDir,
           debouncedSearch,
+          companyFilterId,
         ];
 
   const listParams: ListJobsParams =
@@ -160,6 +196,7 @@ export default function JobsPage() {
           status: archivedFilter || undefined,
           sort: `${sortBy}:${sortDir}`,
           search: debouncedSearch || undefined,
+          company_id: companyFilterId || undefined,
         }
       : {
           limit: PAGE_SIZE,
@@ -167,11 +204,15 @@ export default function JobsPage() {
           status: archivedFilter || undefined,
           sort: `${sortBy}:${sortDir}`,
           search: debouncedSearch || undefined,
+          company_id: companyFilterId || undefined,
         };
 
   const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey,
-    queryFn: () => jobsService.list(listParams),
+    // React Query aborts this signal when the key changes, so a search that
+    // has been superseded by the next keystroke is cancelled on the wire
+    // instead of running to completion behind the one that matters.
+    queryFn: ({ signal }) => jobsService.list(listParams, { signal }),
     staleTime: 30_000,
     // Keep showing the current results while a new query (search/filter/sort/
     // page) loads, so only the list updates instead of the whole page falling
@@ -229,7 +270,8 @@ export default function JobsPage() {
   // An active search is also a "filter": without this, a search with no matches
   // falls through to the first-run onboarding empty state (and hides the search
   // box entirely), instead of showing a "no results" message.
-  const isFiltered = archivedFilter !== "" || debouncedSearch !== "";
+  const isFiltered =
+    archivedFilter !== "" || debouncedSearch !== "" || companyFilterId !== "";
 
   return (
     <div className="space-y-6">
@@ -253,7 +295,7 @@ export default function JobsPage() {
           <div className="flex items-center rounded-lg border bg-muted p-0.5">
             <button
               onClick={() => setViewMode("list")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`${TOUCH_ROW_TARGET} gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 viewMode === "list"
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -264,7 +306,7 @@ export default function JobsPage() {
             </button>
             <button
               onClick={() => setViewMode("kanban")}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`${TOUCH_ROW_TARGET} gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 viewMode === "kanban"
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -295,7 +337,7 @@ export default function JobsPage() {
             href="https://chromewebstore.google.com/detail/jobber-smart-job-saver/koegfmmcpedfgnjnohcaieecdoflmlab"
             target="_blank"
             rel="noopener noreferrer"
-            className="shrink-0 rounded-md bg-cyan-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-cyan-700"
+            className={`${TOUCH_ROW_TARGET} shrink-0 rounded-md bg-cyan-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-cyan-700`}
           >
             {t("jobs.installExtension")}
           </a>
@@ -304,7 +346,7 @@ export default function JobsPage() {
               setShowExtBanner(false);
               localStorage.setItem(EXTENSION_BANNER_KEY, "true");
             }}
-            className="shrink-0 rounded-md p-1 text-cyan-600 transition-colors hover:bg-cyan-100 dark:text-cyan-400 dark:hover:bg-cyan-900"
+            className={`${TOUCH_ICON_TARGET} shrink-0 rounded-md text-cyan-600 transition-colors hover:bg-cyan-100 dark:text-cyan-400 dark:hover:bg-cyan-900`}
             aria-label={t("common.close")}
           >
             <X className="h-4 w-4" />
@@ -326,11 +368,42 @@ export default function JobsPage() {
         />
       ) : (
         <>
+          {/* An active company filter has to be visible and reversible — a
+              silently filtered list looks like missing data. */}
+          {companyFilterId && (
+            <div
+              role="status"
+              className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2 text-sm"
+            >
+              <Filter className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span>
+                {t("jobs.filteredByCompany", {
+                  company:
+                    filteredCompany?.name ?? t("jobs.filterCompanyFallback"),
+                })}
+              </span>
+              {/* The only way out of a filtered list, and it was 28px tall on
+                  a phone — the same 44px floor as every other row control
+                  here, bought from the shared constant. */}
+              <button
+                type="button"
+                onClick={clearCompanyFilter}
+                className={`${TOUCH_ROW_TARGET} gap-1 rounded-md px-2 py-1 text-sm font-medium text-primary transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+              >
+                <X className="h-3.5 w-3.5" />
+                {t("jobs.clearCompanyFilter")}
+              </button>
+            </div>
+          )}
+
           {/* Filter + Sorting Controls — shared by list and board */}
           <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
+              {/* The shared field, not a hand-rolled one: it carries the
+                  44px phone height the rest of the app's inputs have. The
+                  local copy hard-coded `h-9` and was 36px on a 375px screen. */}
+              <Input
                 type="text"
                 value={searchInput}
                 onChange={(e) => {
@@ -339,7 +412,7 @@ export default function JobsPage() {
                 }}
                 placeholder={t("jobs.searchPlaceholder")}
                 aria-label={t("jobs.searchPlaceholder")}
-                className="flex h-9 w-56 rounded-md border border-input bg-background pl-8 pr-8 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="w-56 pl-8 pr-8"
               />
               {isFetching && (
                 <Loader2
@@ -362,7 +435,9 @@ export default function JobsPage() {
                   setArchivedFilter(e.target.value as ArchivedFilter);
                   setPage(0);
                 }}
-                className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                // Same height scale as the search field beside it: 40px as
+                // drawn, 44 below `sm` where a thumb has to hit it.
+                className="flex h-10 max-sm:h-11 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {ARCHIVED_FILTER_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -472,7 +547,7 @@ export default function JobsPage() {
                                     openMenuId === job.id ? null : job.id,
                                   );
                                 }}
-                                className="p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground"
+                                className={`${TOUCH_ICON_TARGET} rounded-md hover:bg-accent transition-colors text-muted-foreground`}
                                 aria-label={t("jobs.actionsMenu")}
                               >
                                 <MoreVertical className="h-4 w-4" />
@@ -669,7 +744,13 @@ export default function JobsPage() {
         <DialogContent onClose={() => setJobToDelete(null)}>
           <DialogHeader>
             <DialogTitle>{t("jobs.delete")}</DialogTitle>
-            <DialogDescription>{t("jobs.deleteConfirm")}</DialogDescription>
+            {/* Naming the card is the difference between a confirmation and a
+                coin toss when several are open. */}
+            <DialogDescription>
+              {t("jobs.deleteConfirm", {
+                title: jobToDelete?.title || t("common.untitled"),
+              })}
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button

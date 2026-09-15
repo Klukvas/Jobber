@@ -3,9 +3,11 @@ package repository
 import (
 	"context"
 	"errors"
+	"regexp"
 	"testing"
 	"time"
 
+	resumeModel "github.com/andreypavlenko/jobber/modules/resumes/model"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/service"
 	"github.com/jackc/pgx/v5"
@@ -190,6 +192,14 @@ func TestSubscriptionRepository_Counts(t *testing.T) {
 	})
 	t.Run("CountUserResumes", func(t *testing.T) {
 		countTest(t, "SELECT COUNT.+FROM resumes WHERE user_id", func(r *SubscriptionRepository) (int, error) {
+			return r.CountUserResumes(ctx, "user-1")
+		})
+	})
+	// The placeholder rows the presign-era upload flow left behind are not
+	// resumes: counting them let abandoned uploads fill a plan permanently,
+	// with no way for the customer to clear them.
+	t.Run("CountUserResumes leaves out unfinalized upload placeholders", func(t *testing.T) {
+		countTest(t, regexp.QuoteMeta(resumeModel.CountableResumeCondition), func(r *SubscriptionRepository) (int, error) {
 			return r.CountUserResumes(ctx, "user-1")
 		})
 	})

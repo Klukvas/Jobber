@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/ui/Button";
 import {
@@ -12,6 +11,7 @@ import {
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { usePlanSelection } from "@/features/subscription/usePlanSelection";
 import { FEATURES } from "@/shared/lib/features";
+import { useMonthlyResetDate } from "@/features/subscription/useMonthlyResetDate";
 
 interface UpgradeModalProps {
   open: boolean;
@@ -19,7 +19,7 @@ interface UpgradeModalProps {
 }
 
 export function UpgradeModal({ open, onOpenChange }: UpgradeModalProps) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { nextPlan } = useSubscription();
   const {
     selectPlan,
@@ -31,15 +31,8 @@ export function UpgradeModal({ open, onOpenChange }: UpgradeModalProps) {
     onPlanChanged: () => onOpenChange(false),
   });
 
-  const resetDate = useMemo(() => {
-    const now = new Date();
-    const firstOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    return firstOfNextMonth.toLocaleDateString(i18n.language, {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  }, [i18n.language]);
+  // AI requests are counted per calendar month, so the quota genuinely returns.
+  const resetDate = useMonthlyResetDate();
 
   if (!FEATURES.PAYMENTS) return null;
 

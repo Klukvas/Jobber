@@ -36,10 +36,29 @@ vi.mock("@/shared/hooks/useDebounce", () => ({
   useDebounce: (v: string) => v,
 }));
 
+// Stands in for the URL. The company filter lives there, so tests drive it by
+// seeding these params rather than by rendering a real router.
+const mockSearchParams = vi.hoisted(() => ({
+  value: new URLSearchParams(),
+  setSpy: vi.fn(),
+}));
+
 vi.mock("react-router-dom", () => ({
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),
+  useSearchParams: () => [
+    mockSearchParams.value,
+    (next: URLSearchParams) => {
+      mockSearchParams.setSpy(next.toString());
+      mockSearchParams.value = next;
+    },
+  ],
+}));
+
+const mockCompanyGetById = vi.hoisted(() => vi.fn());
+vi.mock("@/services/companiesService", () => ({
+  companiesService: { getById: mockCompanyGetById },
 }));
 
 vi.mock("react-i18next", () => ({
@@ -110,6 +129,7 @@ function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
+  mockSearchParams.value = new URLSearchParams();
   // default: banner already dismissed to keep the DOM small unless tested
   localStorage.setItem("jobber-ext-banner-dismissed", "true");
 });
@@ -161,6 +181,7 @@ describe("Jobs page", () => {
     await waitFor(() =>
       expect(mockList).toHaveBeenCalledWith(
         expect.objectContaining({ sort: "title:desc" }),
+        expect.anything(),
       ),
     );
   });
@@ -180,6 +201,7 @@ describe("Jobs page", () => {
     await waitFor(() =>
       expect(mockList).toHaveBeenCalledWith(
         expect.objectContaining({ status: "archived" }),
+        expect.anything(),
       ),
     );
   });
@@ -229,6 +251,7 @@ describe("Jobs page", () => {
     await waitFor(() =>
       expect(mockList).toHaveBeenCalledWith(
         expect.objectContaining({ search: "zzz" }),
+        expect.anything(),
       ),
     );
 
@@ -260,6 +283,7 @@ describe("Jobs page", () => {
     await waitFor(() =>
       expect(mockList).toHaveBeenCalledWith(
         expect.objectContaining({ offset: 20 }),
+        expect.anything(),
       ),
     );
   });
@@ -299,6 +323,7 @@ describe("Jobs page", () => {
     await waitFor(() =>
       expect(mockList).toHaveBeenCalledWith(
         expect.objectContaining({ sort: "title:desc", limit: 500 }),
+        expect.anything(),
       ),
     );
   });
@@ -370,5 +395,143 @@ describe("Jobs page", () => {
     await waitFor(() =>
       expect(mockShowError).toHaveBeenCalledWith("delete failed"),
     );
+  });
+});
+
+// The Companies page links here with ?company_id=…; the list has to actually
+// narrow, say so, and offer a way back to everything.
+describe("Jobs page — company filter", () => {
+  const COMPANY_ID = "0149b69a-0000-4000-8000-000000000001";
+
+  beforeEach(() => {
+    mockSearchParams.value = new URLSearchParams(`company_id=${COMPANY_ID}`);
+    mockCompanyGetById.mockResolvedValue({ id: COMPANY_ID, name: "TechNova" });
+  });
+
+  it("passes the company filter to the API", async () => {
+    mockList.mockResolvedValue(paginated([makeJob({ title: "Backend Dev" })]));
+    renderPage();
+
+    await waitFor(() =>
+      expect(mockList).toHaveBeenCalledWith(
+        expect.objectContaining({ company_id: COMPANY_ID }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("shows a visible indicator naming the company", async () => {
+    mockList.mockResolvedValue(paginated([makeJob({ title: "Backend Dev" })]));
+    renderPage();
+
+    expect(
+      await screen.findByText("jobs.filteredByCompany"),
+    ).toBeInTheDocument();
+  });
+
+  it("clears the filter and drops the parameter from the URL", async () => {
+    const user = userEvent.setup();
+    mockList.mockResolvedValue(paginated([makeJob({ title: "Backend Dev" })]));
+    renderPage();
+
+    await user.click(await screen.findByText("jobs.clearCompanyFilter"));
+
+    expect(mockSearchParams.setSpy).toHaveBeenCalledWith("");
+  });
+
+  it("treats an empty filtered result as 'no matches', not a first-run account", async () => {
+    mockList.mockResolvedValue(paginated([]));
+    renderPage();
+
+    expect(await screen.findByText("jobs.noJobsForFilter")).toBeInTheDocument();
+    expect(screen.queryByText("jobs.emptyTitle")).not.toBeInTheDocument();
+  });
+
+  it("sends no company filter when the URL has none", async () => {
+    mockSearchParams.value = new URLSearchParams();
+    mockList.mockResolvedValue(paginated([makeJob({ title: "Backend Dev" })]));
+    renderPage();
+
+    await waitFor(() => expect(mockList).toHaveBeenCalled());
+    expect(mockList.mock.calls[0][0].company_id).toBeUndefined();
+    expect(
+      screen.queryByText("jobs.filteredByCompany"),
+    ).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Every one of these measured under 44x44 on a 375/390 viewport: the banner's
+ * close button at 24x24 and its install link at 115x28, the List/Board toggle
+ * at 32px tall, the search field at 36 and the status select at 36, and the
+ * card's own actions button at 24x24.
+ *
+ * Asserted on classes rather than geometry — jsdom does no layout, and the
+ * classes are what decide the size. Each floor is scoped to `max-sm` so the
+ * same page on a pointer keeps the density it was drawn with.
+ */
+describe("Jobs page — touch targets", () => {
+  const PHONE_ROW = /max-sm:min-h-11/;
+
+  it("gives the extension banner's close button a 44x44 target on phones", async () => {
+    localStorage.removeItem("jobber-ext-banner-dismissed");
+    mockList.mockResolvedValue(paginated([makeJob()]));
+    renderPage();
+
+    const close = await screen.findByLabelText("common.close");
+    expect(close.className).toMatch(/max-sm:h-11/);
+    expect(close.className).toMatch(/max-sm:w-11/);
+    // …and stays the 24x24 it was drawn as on a pointer.
+    expect(close.className).toMatch(/(^|\s)h-6(\s|$)/);
+  });
+
+  it("gives the install-extension link a 44px height on phones", async () => {
+    localStorage.removeItem("jobber-ext-banner-dismissed");
+    mockList.mockResolvedValue(paginated([makeJob()]));
+    renderPage();
+
+    const install = await screen.findByText("jobs.installExtension");
+    expect(install.className).toMatch(PHONE_ROW);
+  });
+
+  it.each(["jobs.viewList", "jobs.viewBoard"])(
+    "gives the %s toggle a 44px height on phones",
+    async (label) => {
+      mockList.mockResolvedValue(paginated([makeJob()]));
+      renderPage();
+
+      const toggle = await screen.findByText(label);
+      expect(toggle.className).toMatch(PHONE_ROW);
+    },
+  );
+
+  // The field used to hard-code `h-9` and bypass the shared input entirely.
+  it("gives the search field the shared input's phone height", async () => {
+    mockList.mockResolvedValue(paginated([makeJob()]));
+    renderPage();
+
+    const search = await screen.findByLabelText("jobs.searchPlaceholder");
+    expect(search.className).toMatch(/max-sm:h-11/);
+    expect(search.className).not.toMatch(/(^|\s)h-9(\s|$)/);
+  });
+
+  it("gives the status filter the same phone height", async () => {
+    mockList.mockResolvedValue(paginated([makeJob()]));
+    renderPage();
+
+    await screen.findByText("Frontend Engineer");
+    const select = screen.getByLabelText("jobs.filterLabel");
+
+    expect(select.className).toMatch(/max-sm:h-11/);
+    expect(select.className).not.toMatch(/(^|\s)h-9(\s|$)/);
+  });
+
+  it("gives the card's actions button a 44x44 target on phones", async () => {
+    mockList.mockResolvedValue(paginated([makeJob()]));
+    renderPage();
+
+    const actions = await screen.findByLabelText("jobs.actionsMenu");
+    expect(actions.className).toMatch(/max-sm:h-11/);
+    expect(actions.className).toMatch(/max-sm:w-11/);
   });
 });

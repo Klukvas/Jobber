@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Check } from "lucide-react";
+import { Check, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -16,10 +16,16 @@ interface PricingModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
+interface PlanFeature {
+  readonly label: string;
+  /** false renders a cross — the line describes a limitation, not a feature. */
+  readonly included: boolean;
+}
+
 interface PlanCardProps {
   name: string;
   price: string;
-  features: string[];
+  features: PlanFeature[];
   isCurrent: boolean;
   isHighlighted: boolean;
   onSelect: () => void;
@@ -64,10 +70,25 @@ function PlanCard({
       </div>
 
       <ul className="mb-6 flex-1 space-y-3">
-        {features.map((feature) => (
-          <li key={feature} className="flex items-start gap-2 text-sm">
-            <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
-            <span>{feature}</span>
+        {features.map(({ label, included }) => (
+          <li
+            key={label}
+            className={`flex items-start gap-2 text-sm ${
+              included ? "" : "text-muted-foreground"
+            }`}
+          >
+            {included ? (
+              <Check
+                aria-hidden="true"
+                className="mt-0.5 h-4 w-4 shrink-0 text-green-500"
+              />
+            ) : (
+              <X
+                aria-hidden="true"
+                className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+              />
+            )}
+            <span>{label}</span>
           </li>
         ))}
       </ul>
@@ -118,18 +139,28 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
     selectPlan(target);
   };
 
+  const included = (key: string): PlanFeature => ({
+    label: t(`settings.subscription.pricing.${key}`),
+    included: true,
+  });
+
   const plans = [
     {
       id: "free" as SubscriptionPlan,
       name: t("settings.subscription.freePlan"),
       price: t("settings.subscription.pricing.freePrice"),
       features: [
-        t("settings.subscription.pricing.freeJobs"),
-        t("settings.subscription.pricing.freeResumes"),
-        t("settings.subscription.pricing.freeAI"),
-        t("settings.subscription.pricing.freeJobParses"),
-        t("settings.subscription.pricing.freeResumeBuilders"),
-        t("settings.subscription.pricing.freeCoverLetters"),
+        included("freeJobs"),
+        included("freeResumes"),
+        included("freeAI"),
+        included("freeJobParses"),
+        included("freeResumeBuilders"),
+        // Free has no cover letters at all — a green check here reads as a
+        // feature the plan does not have.
+        {
+          label: t("settings.subscription.pricing.freeCoverLetters"),
+          included: false,
+        },
       ],
       highlighted: false,
     },
@@ -138,12 +169,12 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
       name: t("settings.subscription.proPlan"),
       price: t("settings.subscription.pricing.proPrice"),
       features: [
-        t("settings.subscription.pricing.proJobs"),
-        t("settings.subscription.pricing.proResumes"),
-        t("settings.subscription.pricing.proAI"),
-        t("settings.subscription.pricing.proJobParses"),
-        t("settings.subscription.pricing.proResumeBuilders"),
-        t("settings.subscription.pricing.proCoverLetters"),
+        included("proJobs"),
+        included("proResumes"),
+        included("proAI"),
+        included("proJobParses"),
+        included("proResumeBuilders"),
+        included("proCoverLetters"),
       ],
       highlighted: true,
     },
@@ -152,12 +183,12 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
       name: t("settings.subscription.enterprisePlan"),
       price: t("settings.subscription.pricing.enterprisePrice"),
       features: [
-        t("settings.subscription.pricing.enterpriseJobs"),
-        t("settings.subscription.pricing.enterpriseResumes"),
-        t("settings.subscription.pricing.enterpriseAI"),
-        t("settings.subscription.pricing.enterpriseJobParses"),
-        t("settings.subscription.pricing.enterpriseResumeBuilders"),
-        t("settings.subscription.pricing.enterpriseCoverLetters"),
+        included("enterpriseJobs"),
+        included("enterpriseResumes"),
+        included("enterpriseAI"),
+        included("enterpriseJobParses"),
+        included("enterpriseResumeBuilders"),
+        included("enterpriseCoverLetters"),
       ],
       highlighted: false,
     },

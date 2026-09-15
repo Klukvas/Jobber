@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
@@ -219,8 +220,9 @@ func (h *ResumeHandler) Delete(c *gin.Context) {
 // @Produce json
 // @Param request body model.GenerateUploadURLRequest true "Upload request"
 // @Success 200 {object} model.GenerateUploadURLResponse
-// @Failure 400 {object} httpPlatform.ErrorResponse
+// @Failure 400 {object} httpPlatform.ErrorResponse "VALIDATION_ERROR — the body is missing a required field or is not JSON"
 // @Failure 401 {object} httpPlatform.ErrorResponse
+// @Failure 403 {object} httpPlatform.ErrorResponse "PLAN_LIMIT_REACHED — the plan's resume allowance is already used"
 // @Failure 500 {object} httpPlatform.ErrorResponse
 // @Router /resumes/upload-url [post]
 func (h *ResumeHandler) GenerateUploadURL(c *gin.Context) {
@@ -245,6 +247,83 @@ func (h *ResumeHandler) GenerateUploadURL(c *gin.Context) {
 		return
 	}
 	httpPlatform.RespondWithData(c, http.StatusOK, response)
+}
+
+// FinalizeUpload godoc
+// @Summary Finalize a resume upload
+// @Description Verify the uploaded object is a real PDF within the size limit and activate the resume. A rejected upload is deleted.
+// @Tags resumes
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path string true "Resume ID"
+// @Param request body model.FinalizeUploadRequest false "Optional resume title"
+// @Success 200 {object} model.ResumeDTO
+// @Failure 400 {object} httpPlatform.ErrorResponse "Uploaded file is not a valid PDF"
+// @Failure 401 {object} httpPlatform.ErrorResponse
+// @Failure 403 {object} httpPlatform.ErrorResponse "Plan resume limit reached"
+// @Failure 404 {object} httpPlatform.ErrorResponse "Resume not found"
+// @Failure 500 {object} httpPlatform.ErrorResponse
+// @Router /resumes/{id}/finalize [post]
+func (h *ResumeHandler) FinalizeUpload(c *gin.Context) {
+	userID, ok := auth.MustGetUserID(c)
+	if !ok {
+		return
+	}
+	resumeID := c.Param("id")
+
+	// The body is optional: an upload with no title keeps the placeholder.
+	//
+	// Decided by what the body actually decodes to, not by Content-Length. A
+	// chunked request — any proxy that re-frames the upload, and every client
+	// that streams instead of buffering — arrives with ContentLength -1, and
+	// gating on "> 0" dropped its JSON on the floor: the title the customer
+	// typed was silently discarded and the resume kept its placeholder name.
+	// An empty body still decodes to io.EOF, which is the "no title" case.
+	var req model.FinalizeUploadRequest
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request payload")
+		return
+	}
+
+	resume, err := h.service.FinalizeUpload(c.Request.Context(), userID, resumeID, &req)
+	if err != nil {
+		// Checked before the resume-error mapping below: a plan limit is a
+		// subscriptions error, so model.GetErrorCode does not recognise it and
+		// would fall through to INTERNAL_ERROR/500. Finalization re-checks the
+		// limit (presigning no longer reserves a slot), so this is a reachable
+		// answer and must match the one GenerateUploadURL gives.
+		//
+		// model.ErrResumeLimitReached is the same refusal reached the other
+		// way: the write itself counted and refused, which is the only place a
+		// *concurrent* finalize can be caught. Both are one answer to a client.
+		if errors.Is(err, subModel.ErrLimitReached) || errors.Is(err, model.ErrResumeLimitReached) {
+			httpPlatform.RespondWithError(c, http.StatusForbidden, "PLAN_LIMIT_REACHED", "You have reached the limit for your current plan.")
+			return
+		}
+
+		errCode := model.GetErrorCode(err)
+		statusCode := http.StatusInternalServerError
+		switch errCode {
+		case model.CodeResumeNotFound:
+			statusCode = http.StatusNotFound
+		case model.CodeInvalidFileContent, model.CodeFileTooLarge,
+			model.CodeResumeFileMissing, model.CodeResumeTitleRequired:
+			statusCode = http.StatusBadRequest
+		}
+
+		// The rejection reason is already in the response code; the log keeps
+		// the internal detail (which resume, which storage error).
+		h.logger.Warn("resume upload finalization rejected",
+			zap.String("user_id", userID),
+			zap.String("resume_id", resumeID),
+			zap.String("error_code", string(errCode)),
+			zap.Error(err),
+		)
+		httpPlatform.RespondWithError(c, statusCode, string(errCode), model.GetErrorMessage(err))
+		return
+	}
+	httpPlatform.RespondWithData(c, http.StatusOK, resume)
 }
 
 // DownloadResume godoc
@@ -286,6 +365,7 @@ func (h *ResumeHandler) RegisterRoutes(router *gin.RouterGroup, authMiddleware g
 	{
 		resumes.POST("", h.Create)
 		resumes.POST("/upload-url", h.GenerateUploadURL)
+		resumes.POST("/:id/finalize", h.FinalizeUpload)
 		resumes.GET("", h.List)
 		resumes.GET("/:id", h.Get)
 		resumes.GET("/:id/download", h.DownloadResume)

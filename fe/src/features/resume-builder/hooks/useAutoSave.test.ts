@@ -350,3 +350,51 @@ describe("useAutoSave", () => {
     expect(resumeBuilderService.updateSectionOrder).not.toHaveBeenCalled();
   });
 });
+
+describe("useAutoSave — unload guard", () => {
+  beforeEach(() => {
+    useResumeBuilderStore.setState({
+      resume: null,
+      isDirty: false,
+      saveStatus: "idle",
+    });
+  });
+
+  function fireBeforeUnload(): BeforeUnloadEvent {
+    const event = new Event("beforeunload", {
+      cancelable: true,
+    }) as BeforeUnloadEvent;
+    window.dispatchEvent(event);
+    return event;
+  }
+
+  it("warns before unload while there are unsaved changes", () => {
+    useResumeBuilderStore.setState({ resume: makeResume(), isDirty: true });
+    renderHook(() => useAutoSave());
+
+    const event = fireBeforeUnload();
+
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("stays out of the way when everything is saved", () => {
+    useResumeBuilderStore.setState({ resume: makeResume(), isDirty: false });
+    renderHook(() => useAutoSave());
+
+    const event = fireBeforeUnload();
+
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("stops warning once the editor is unmounted", () => {
+    useResumeBuilderStore.setState({ resume: makeResume(), isDirty: true });
+    const { unmount } = renderHook(() => useAutoSave());
+    unmount();
+
+    // The dirty flag is still set (the flush is fire-and-forget), but this
+    // editor is gone and must not block navigation elsewhere in the app.
+    const event = fireBeforeUnload();
+
+    expect(event.defaultPrevented).toBe(false);
+  });
+});

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -255,6 +256,14 @@ func Load() (*Config, error) {
 	if cfg.JWT.AccessSecret == "" {
 		return nil, fmt.Errorf("JWT_ACCESS_SECRET is required")
 	}
+	// The public origin is what a customer's browser is asked to open: it is
+	// the og:url social crawlers fetch, and the "Set a new password" button in
+	// the reset email. A value that is not an absolute http(s) URL produces a
+	// link that goes nowhere, and nothing downstream can tell that from a
+	// broken account — so it fails the boot instead.
+	if err := validatePublicBaseURL(cfg.Server.PublicBaseURL); err != nil {
+		return nil, fmt.Errorf("PUBLIC_BASE_URL must be an absolute http(s) URL: %w", err)
+	}
 	if cfg.JWT.RefreshSecret == "" {
 		return nil, fmt.Errorf("JWT_REFRESH_SECRET is required")
 	}
@@ -371,6 +380,22 @@ func resolvePublicBaseURL() string {
 		return o
 	}
 	return defaultPublicBaseURL
+}
+
+// validatePublicBaseURL checks the resolved public origin is something a
+// browser can actually open: an absolute URL, http or https, with a host.
+func validatePublicBaseURL(raw string) error {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("parse %q: %w", raw, err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("scheme %q is not http or https", parsed.Scheme)
+	}
+	if parsed.Host == "" {
+		return fmt.Errorf("%q names no host", raw)
+	}
+	return nil
 }
 
 // firstOrigin returns the first concrete origin from a comma-separated CORS list

@@ -80,10 +80,23 @@ export const resumesService = {
     return apiClient.get<DownloadURLResponse>(`resumes/${id}/download`);
   },
 
+  /**
+   * Asks the server to verify the object that actually landed in storage and
+   * activate the resume. This is where a spoofed .pdf is caught — the browser
+   * uploads straight to storage, so nothing before this point is trustworthy.
+   */
+  async finalizeUpload(id: string, title?: string): Promise<ResumeDTO> {
+    return apiClient.post<ResumeDTO>(
+      `resumes/${id}/finalize`,
+      title ? { title } : {},
+    );
+  },
+
   // Complete upload flow
   async uploadResume(
     file: File,
     onProgress?: (progress: number) => void,
+    title?: string,
   ): Promise<ResumeDTO> {
     // Step 1: Generate upload URL
     const uploadData = await this.generateUploadURL({
@@ -96,7 +109,25 @@ export const resumesService = {
     await this.uploadToS3(uploadData.upload_url, file);
     if (onProgress) onProgress(100);
 
-    // Step 3: Get the created resume
-    return this.getById(uploadData.resume_id);
+    // Step 3: Server-side verification + activation. A rejected upload is
+    // deleted server-side, so no half-created resume is left behind.
+    return this.finalizeUpload(uploadData.resume_id, title);
   },
 };
+
+/** First bytes of every PDF file. */
+const PDF_MAGIC = [0x25, 0x50, 0x44, 0x46, 0x2d]; // %PDF-
+
+/**
+ * Reads the file's first bytes to check it really is a PDF.
+ *
+ * This is a UX affordance, not a security control: it runs in the browser and
+ * can be bypassed. The upload is only trusted once the server has verified the
+ * stored object in `finalizeUpload`.
+ */
+export async function looksLikePdf(file: File): Promise<boolean> {
+  const header = new Uint8Array(
+    await file.slice(0, PDF_MAGIC.length).arrayBuffer(),
+  );
+  return PDF_MAGIC.every((byte, index) => header[index] === byte);
+}

@@ -695,3 +695,69 @@ func TestRecordResumeAutofillUsage(t *testing.T) {
 // ---------------------------------------------------------------------------
 // Helper to create service pointing at a test HTTP server
 // ---------------------------------------------------------------------------
+
+// ResourceLimit is what makes the ceiling enforceable at the write. CheckLimit
+// answers "is there room right now?", which stops being true the moment it
+// returns; a caller that counts and writes in one transaction needs the number.
+func TestResourceLimit(t *testing.T) {
+	tests := []struct {
+		name     string
+		plan     string
+		status   string
+		resource string
+		want     int
+	}{
+		{name: "free plan resumes", plan: "free", status: "free", resource: "resumes", want: model.FreePlanLimits.MaxResumes},
+		{name: "pro plan resumes", plan: "pro", status: "active", resource: "resumes", want: model.ProPlanLimits.MaxResumes},
+		{name: "enterprise is unlimited", plan: "enterprise", status: "active", resource: "resumes", want: -1},
+		{name: "jobs", plan: "free", status: "free", resource: "jobs", want: model.FreePlanLimits.MaxJobs},
+		{name: "cover letters", plan: "pro", status: "active", resource: "cover_letters", want: model.ProPlanLimits.MaxCoverLetters},
+		{name: "an unknown resource is unmetered", plan: "free", status: "free", resource: "widgets", want: -1},
+		// A paid plan that has stopped paying falls back to free, exactly as
+		// CheckLimit does — the two must not disagree about the ceiling.
+		{name: "a cancelled paid plan is charged free limits", plan: "pro", status: "cancelled", resource: "resumes", want: model.FreePlanLimits.MaxResumes},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &MockSubscriptionRepository{
+				GetByUserIDFunc: func(_ context.Context, _ string) (*model.Subscription, error) {
+					return &model.Subscription{Plan: tt.plan, Status: tt.status}, nil
+				},
+			}
+			svc := NewSubscriptionService(repo, nil, BillingConfig{})
+
+			limit, err := svc.ResourceLimit(context.Background(), "user-1", tt.resource)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, limit)
+		})
+	}
+
+	t.Run("a missing subscription is the free plan", func(t *testing.T) {
+		repo := &MockSubscriptionRepository{
+			GetByUserIDFunc: func(_ context.Context, _ string) (*model.Subscription, error) {
+				return nil, model.ErrSubscriptionNotFound
+			},
+		}
+		svc := NewSubscriptionService(repo, nil, BillingConfig{})
+
+		limit, err := svc.ResourceLimit(context.Background(), "user-1", "resumes")
+
+		require.NoError(t, err)
+		assert.Equal(t, model.FreePlanLimits.MaxResumes, limit)
+	})
+
+	t.Run("a storage failure is reported rather than guessed at", func(t *testing.T) {
+		repo := &MockSubscriptionRepository{
+			GetByUserIDFunc: func(_ context.Context, _ string) (*model.Subscription, error) {
+				return nil, errors.New("boom")
+			},
+		}
+		svc := NewSubscriptionService(repo, nil, BillingConfig{})
+
+		_, err := svc.ResourceLimit(context.Background(), "user-1", "resumes")
+
+		assert.Error(t, err)
+	})
+}

@@ -81,4 +81,25 @@ describe("PricingSection", () => {
     render(<PricingSection {...defaultProps} />);
     expect(screen.getByText("home.pricing.comparison")).toBeInTheDocument();
   });
+
+  // A limitation dressed in the same green tick as every included feature reads
+  // as a feature. The Free plan has no cover letters at all.
+  it("marks the unavailable Free feature with a cross, not a tick", () => {
+    render(<PricingSection {...defaultProps} />);
+    const bullet = screen
+      .getByText("home.pricing.freeFeature7")
+      .closest("div") as HTMLElement;
+
+    expect(bullet.textContent).toContain("✗");
+    expect(bullet.textContent).not.toContain("✓");
+  });
+
+  it("keeps a tick on the Free features that are actually included", () => {
+    render(<PricingSection {...defaultProps} />);
+    const bullet = screen
+      .getByText("home.pricing.freeFeature1")
+      .closest("div") as HTMLElement;
+
+    expect(bullet.textContent).toContain("✓");
+  });
 });

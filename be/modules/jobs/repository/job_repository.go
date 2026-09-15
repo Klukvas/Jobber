@@ -104,6 +104,17 @@ func searchFilter(search string, args *[]any) string {
 	return fmt.Sprintf(" AND (j.title ILIKE $%d OR c.name ILIKE $%d)", idx, idx)
 }
 
+// companyFilter restricts the list to one company. The id is bound as a
+// parameter and cast to uuid, so a malformed value can only ever be a bad
+// argument — the handler rejects those before we get here.
+func companyFilter(companyID string, args *[]any) string {
+	if companyID == "" {
+		return ""
+	}
+	*args = append(*args, companyID)
+	return fmt.Sprintf(" AND j.company_id = $%d::uuid", len(*args))
+}
+
 // List retrieves enriched jobs for a user with pagination, filtering, and sorting.
 // Single query (no N+1): company/resume/current-column joins, last-activity CTEs
 // and COUNT(*) OVER() for the total.
@@ -111,6 +122,7 @@ func (r *JobRepository) List(ctx context.Context, userID string, opts *ports.Lis
 	args := []any{userID}
 	filter := archivedFilter(opts.Status)
 	filter += searchFilter(opts.Search, &args)
+	filter += companyFilter(opts.CompanyID, &args)
 
 	sortDir := "DESC"
 	if strings.EqualFold(opts.SortDir, "asc") {

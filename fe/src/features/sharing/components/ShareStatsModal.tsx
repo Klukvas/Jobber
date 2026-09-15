@@ -213,8 +213,9 @@ export function ShareStatsModal({
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {new Date(share.created_at).toLocaleDateString()} ·{" "}
-                        {share.snapshot.overview.total_applications}{" "}
-                        {t("analytics.applications")}
+                        {t("analytics.applicationsCount", {
+                          count: share.snapshot.overview.total_applications,
+                        })}
                       </p>
                     </div>
                     <Button

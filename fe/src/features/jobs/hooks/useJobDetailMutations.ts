@@ -209,6 +209,34 @@ export function useJobDetailMutations({
     },
   });
 
+  const updateCommentMutation = useMutation({
+    mutationFn: ({
+      commentId,
+      content,
+    }: {
+      commentId: string;
+      content: string;
+    }) => commentsService.update(commentId, content),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["job", id] });
+      showSuccessNotification(t("jobs.commentUpdated"));
+    },
+    onError: (err: Error) => {
+      showErrorNotification(err.message || t("jobs.commentUpdateError"));
+    },
+  });
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: (commentId: string) => commentsService.delete(commentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["job", id] });
+      showSuccessNotification(t("jobs.commentDeleted"));
+    },
+    onError: (err: Error) => {
+      showErrorNotification(err.message || t("jobs.commentDeleteError"));
+    },
+  });
+
   const checkMatchMutation = useMutation({
     mutationFn: () => {
       if (!effectiveMatchResumeId) {
@@ -251,6 +279,8 @@ export function useJobDetailMutations({
     deleteMutation,
     completeCurrentStageMutation,
     addCommentMutation,
+    updateCommentMutation,
+    deleteCommentMutation,
     checkMatchMutation,
   };
 }

@@ -152,6 +152,172 @@ describe("Dialog while an external overlay is on screen", () => {
   });
 });
 
+/**
+ * The auth modal opened with `document.activeElement` still on `<body>`, and a
+ * real Tab from there walked into the navbar behind it. Two separate faults:
+ * focus was moved in from a `requestAnimationFrame` callback the dialog does
+ * not control, and the trap only acted when focus was already sitting on the
+ * first or last control inside — so from anywhere else it did nothing at all.
+ */
+describe("Dialog keyboard containment", () => {
+  function renderWithOutsideControl(open = true) {
+    const onOpenChange = vi.fn();
+    const view = render(
+      <>
+        <button>navbar</button>
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <button>first</button>
+          <button>last</button>
+        </Dialog>
+      </>,
+    );
+    return { onOpenChange, ...view };
+  }
+
+  it("moves focus inside on open instead of leaving it on body", () => {
+    expect(document.activeElement).toBe(document.body);
+
+    renderWithOutsideControl();
+
+    expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(
+      true,
+    );
+  });
+
+  it("pulls Tab back in when focus starts outside the dialog", () => {
+    renderWithOutsideControl();
+    screen.getByText("navbar").focus();
+
+    fireEvent.keyDown(document, { key: "Tab" });
+
+    expect(document.activeElement).toBe(screen.getByText("first"));
+  });
+
+  it("pulls Shift+Tab back to the last control when focus starts outside", () => {
+    renderWithOutsideControl();
+    screen.getByText("navbar").focus();
+
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+
+    expect(document.activeElement).toBe(screen.getByText("last"));
+  });
+
+  // The container holds focus on open and is not itself a tab stop, so both
+  // directions have to be steered off it explicitly — Shift+Tab from there used
+  // to leave the dialog entirely.
+  it("steers Tab off the dialog container into the first control", () => {
+    renderWithOutsideControl();
+    screen.getByRole("dialog").focus();
+
+    fireEvent.keyDown(document, { key: "Tab" });
+
+    expect(document.activeElement).toBe(screen.getByText("first"));
+  });
+
+  it("steers Shift+Tab off the dialog container onto the last control", () => {
+    renderWithOutsideControl();
+    screen.getByRole("dialog").focus();
+
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+
+    expect(document.activeElement).toBe(screen.getByText("last"));
+  });
+
+  it("wraps Shift+Tab from the first control round to the last", () => {
+    renderWithOutsideControl();
+    screen.getByText("first").focus();
+
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+
+    expect(document.activeElement).toBe(screen.getByText("last"));
+  });
+
+  it("keeps focus on a dialog that has nothing to tab between", () => {
+    render(
+      <Dialog open onOpenChange={vi.fn()}>
+        <p>nothing focusable here</p>
+      </Dialog>,
+    );
+    const dialog = screen.getByRole("dialog");
+
+    fireEvent.keyDown(document, { key: "Tab" });
+
+    expect(document.activeElement).toBe(dialog);
+  });
+
+  it("skips a disabled control when wrapping", () => {
+    render(
+      <Dialog open onOpenChange={vi.fn()}>
+        <button>first</button>
+        <button disabled>disabled</button>
+      </Dialog>,
+    );
+    screen.getByText("first").focus();
+
+    fireEvent.keyDown(document, { key: "Tab" });
+
+    expect(document.activeElement).toBe(screen.getByText("first"));
+  });
+
+  it("hands focus back to whatever opened it", () => {
+    const onOpenChange = vi.fn();
+    const { rerender } = render(
+      <>
+        <button>opener</button>
+        <Dialog open={false} onOpenChange={onOpenChange}>
+          <button>inside</button>
+        </Dialog>
+      </>,
+    );
+    const opener = screen.getByText("opener");
+    opener.focus();
+
+    rerender(
+      <>
+        <button>opener</button>
+        <Dialog open onOpenChange={onOpenChange}>
+          <button>inside</button>
+        </Dialog>
+      </>,
+    );
+    expect(document.activeElement).not.toBe(opener);
+
+    rerender(
+      <>
+        <button>opener</button>
+        <Dialog open={false} onOpenChange={onOpenChange}>
+          <button>inside</button>
+        </Dialog>
+      </>,
+    );
+
+    expect(document.activeElement).toBe(opener);
+  });
+
+  // A route-driven modal can leave its trigger unmounted; focusing a detached
+  // node silently drops focus to <body> instead of throwing, so the restore has
+  // to check before it reaches for it.
+  it("does not reach for an opener that has since been unmounted", () => {
+    const onOpenChange = vi.fn();
+    const { rerender } = render(
+      <>
+        <button>trigger</button>
+        <Dialog open onOpenChange={onOpenChange}>
+          <button>inside</button>
+        </Dialog>
+      </>,
+    );
+
+    expect(() =>
+      rerender(
+        <Dialog open={false} onOpenChange={onOpenChange}>
+          <button>inside</button>
+        </Dialog>,
+      ),
+    ).not.toThrow();
+  });
+});
+
 // ---------- DialogContent ----------
 describe("DialogContent", () => {
   it("renders children", () => {
@@ -171,6 +337,48 @@ describe("DialogContent", () => {
   it("does not render close button when onClose is omitted", () => {
     render(<DialogContent>Body</DialogContent>);
     expect(screen.queryByLabelText("common.close")).not.toBeInTheDocument();
+  });
+
+  /**
+   * The X glyph is 16×16. On its own that was the entire tap target for the
+   * one control every modal has to offer, well under the 44px a thumb needs.
+   * The button is now a 44×44 box on phones, shrinking to a compact 32×32 from
+   * `sm` up — asserted on the classes because jsdom has no layout to measure.
+   */
+  it("gives the close button a 44px tap target on phones", () => {
+    render(<DialogContent onClose={vi.fn()}>Body</DialogContent>);
+    const btn = screen.getByLabelText("common.close");
+
+    expect(btn.className).toContain("h-11");
+    expect(btn.className).toContain("w-11");
+    // Centres the glyph inside the larger box rather than pinning it corner-wise.
+    expect(btn.className).toContain("items-center");
+    expect(btn.className).toContain("justify-center");
+  });
+
+  it("keeps the compact size on desktop", () => {
+    render(<DialogContent onClose={vi.fn()}>Body</DialogContent>);
+    const btn = screen.getByLabelText("common.close");
+
+    expect(btn.className).toContain("sm:h-8");
+    expect(btn.className).toContain("sm:w-8");
+  });
+
+  // The offsets exist to cancel the box growth: 2 + 22 and 8 + 16 both put the
+  // glyph's centre 24px in from the corner, exactly where it was before.
+  it("offsets the box so the glyph does not move", () => {
+    render(<DialogContent onClose={vi.fn()}>Body</DialogContent>);
+    const btn = screen.getByLabelText("common.close");
+
+    expect(btn.className).toContain("right-0.5");
+    expect(btn.className).toContain("sm:right-2");
+  });
+
+  it("hides the decorative glyph from assistive tech, leaving only the label", () => {
+    render(<DialogContent onClose={vi.fn()}>Body</DialogContent>);
+    const btn = screen.getByLabelText("common.close");
+
+    expect(btn.querySelector("svg")).toHaveAttribute("aria-hidden");
   });
 });
 
@@ -271,5 +479,50 @@ describe("Sheet", () => {
     const outer = screen.getByRole("dialog").parentElement!;
     fireEvent.click(outer);
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  // The sheet shares Dialog's containment, so it has to keep the same promises.
+  it("moves focus inside on open instead of leaving it on body", () => {
+    render(
+      <Sheet open onOpenChange={vi.fn()} title="T">
+        <button>inside</button>
+      </Sheet>,
+    );
+
+    expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(
+      true,
+    );
+  });
+
+  it("pulls Tab back in when focus starts outside the sheet", () => {
+    render(
+      <>
+        <button>navbar</button>
+        <Sheet open onOpenChange={vi.fn()}>
+          <button>inside</button>
+        </Sheet>
+      </>,
+    );
+    screen.getByText("navbar").focus();
+
+    fireEvent.keyDown(document, { key: "Tab" });
+
+    expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(
+      true,
+    );
+  });
+
+  // The close button was a 24x24 target on a surface that only ever renders on
+  // a touch layout.
+  it("gives the close button a 44px tap target", () => {
+    render(
+      <Sheet open onOpenChange={vi.fn()} title="T">
+        <div>content</div>
+      </Sheet>,
+    );
+    const close = screen.getByLabelText("common.close");
+
+    expect(close.className).toContain("h-11");
+    expect(close.className).toContain("w-11");
   });
 });
