@@ -60,9 +60,17 @@ vi.mock("../hooks/useATSCheck", () => ({
   useATSCheck: () => mockATSCheckRef.current,
 }));
 
+// The upgrade CTA is behind the payments flag, which is read from the
+// environment at import time. Reading the real one made this file pass locally,
+// where .env turns payments on, and fail in CI, which has no .env at all. The
+// flag is pinned here instead, and exercised both ways below.
+const featuresMock = vi.hoisted(() => ({ FEATURES: { PAYMENTS: true } }));
+vi.mock("@/shared/lib/features", () => featuresMock);
+
 describe("ATSCheckerPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    featuresMock.FEATURES.PAYMENTS = true;
     mockResumeRef.current = { id: "resume-1" };
     mockATSCheckRef.current = {
       mutate: mockMutate,
@@ -216,6 +224,7 @@ describe("ATSCheckerPanel — monthly AI limit", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    featuresMock.FEATURES.PAYMENTS = true;
     mockResumeRef.current = { id: "resume-1" };
     mockATSCheckRef.current = {
       mutate: mockMutate,
@@ -266,6 +275,16 @@ describe("ATSCheckerPanel — monthly AI limit", () => {
     expect(
       screen.getByText("settings.subscription.upgradeForMore"),
     ).toBeInTheDocument();
+  });
+
+  it("offers no upgrade when this deployment has no payments", () => {
+    featuresMock.FEATURES.PAYMENTS = false;
+    quotaRejected();
+    render(<ATSCheckerPanel />);
+
+    expect(
+      screen.queryByText("settings.subscription.upgradeForMore"),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the previous report visible when a re-check is refused", async () => {
