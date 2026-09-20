@@ -49,6 +49,21 @@ on:
       - dev          # Trigger on push to dev branch
       - main         # Optional: also deploy from main
   workflow_dispatch: # Allow manual trigger for rollbacks or testing
+    inputs:
+      # A service is normally built only when its own files changed in the push.
+      # That leaves one gap: a build is also held back when *another* service's
+      # tests fail, and the next push — which fixes only that other service —
+      # detects no change for the held-back one. Its image then quietly stays on
+      # the stale `dev` tag while the tested code sits in main. These force the
+      # rebuild without an empty commit.
+      force_backend:
+        description: "Rebuild and deploy the backend even if be/** did not change"
+        type: boolean
+        default: false
+      force_frontend:
+        description: "Rebuild and deploy the frontend even if fe/** did not change"
+        type: boolean
+        default: false
 
 # Prevent concurrent deployments to the same environment
 concurrency:
@@ -73,8 +88,8 @@ jobs:
     
     # Outputs used by downstream jobs to conditionally build/deploy
     outputs:
-      backend: ${{ steps.filter.outputs.backend }}
-      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.decide.outputs.backend }}
+      frontend: ${{ steps.decide.outputs.frontend }}
       
     steps:
       - name: Checkout code
@@ -93,10 +108,27 @@ jobs:
               - 'docker-compose.yml'
               - 'Caddyfile'
       
-      - name: Display detected changes
+      # What the rest of the run acts on: the path filter, widened by a manual
+      # force. Everything downstream reads these outputs, so a forced service
+      # still runs its full test gate before anything is built or deployed.
+      - name: Decide which services to build
+        id: decide
+        env:
+          FILTERED_BACKEND: ${{ steps.filter.outputs.backend }}
+          FILTERED_FRONTEND: ${{ steps.filter.outputs.frontend }}
+          FORCED_BACKEND: ${{ inputs.force_backend }}
+          FORCED_FRONTEND: ${{ inputs.force_frontend }}
         run: |
-          echo "Backend changed: ${{ steps.filter.outputs.backend }}"
-          echo "Frontend changed: ${{ steps.filter.outputs.frontend }}"
+          backend="$FILTERED_BACKEND"
+          frontend="$FILTERED_FRONTEND"
+          [ "$FORCED_BACKEND" = "true" ] && backend=true
+          [ "$FORCED_FRONTEND" = "true" ] && frontend=true
+
+          echo "backend=$backend" >> "$GITHUB_OUTPUT"
+          echo "frontend=$frontend" >> "$GITHUB_OUTPUT"
+
+          echo "Backend changed: $FILTERED_BACKEND, forced: $FORCED_BACKEND -> build: $backend"
+          echo "Frontend changed: $FILTERED_FRONTEND, forced: $FORCED_FRONTEND -> build: $frontend"
 
   ############################################################################
   # Job 2: Run Backend Unit Tests
