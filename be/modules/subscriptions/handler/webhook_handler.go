@@ -111,6 +111,8 @@ func (h *WebhookHandler) logOutcomes(result service.WebhookResult) {
 			h.logger.Warn("FastSpring webhook event dropped: order tag contradicts the subscription it names", fields...)
 		case errors.Is(skipped.Err, service.ErrSubscriptionLinkConflict):
 			h.logger.Warn("FastSpring webhook event dropped: user is already linked to another live subscription", fields...)
+		case errors.Is(skipped.Err, service.ErrRefundNeedsReview):
+			h.logger.Warn("FastSpring refund observed, no subscription changed by it", fields...)
 		default:
 			h.logger.Info("FastSpring webhook event acknowledged without changes", fields...)
 		}

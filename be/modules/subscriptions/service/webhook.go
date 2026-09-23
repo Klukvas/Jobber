@@ -114,6 +114,20 @@ var ErrSubscriptionLinkConflict = errors.New("event describes a provider subscri
 // longer holds, and both are worth waking someone up for.
 var ErrUnprovenOrderTag = errors.New("order tag names a user without a valid Jobber proof")
 
+// ErrRefundNeedsReview marks a refund or chargeback on this store.
+//
+// Nothing is applied, and that is a decision rather than an omission: the
+// payload names an order, not a subscription, and a refund is not a
+// cancellation — a partial refund leaves the subscription billing normally,
+// and revoking access on one would take a paid plan away from someone who
+// still has it. Ending a subscription because of a refund is a merchant
+// decision, made in the dashboard, which then arrives here as the
+// deactivation it really is.
+//
+// What it must not be is invisible. Money left the account, so the event is
+// surfaced instead of being filed with the routine ones nobody reads.
+var ErrRefundNeedsReview = errors.New("a refund was issued in this store and may need a subscription ended by hand")
+
 var (
 	// errEventNotActionable marks an event type Jobber subscribes to but does
 	// not act on.
@@ -178,7 +192,7 @@ func (s *SubscriptionService) processEvent(ctx context.Context, event fastspring
 
 	handle := s.handlerFor(event.Type)
 	if handle == nil {
-		outcome.Err = errEventNotActionable
+		outcome.Err = notActionableReason(event.Type)
 		result.skip(outcome)
 		return
 	}
@@ -224,6 +238,17 @@ func (s *SubscriptionService) processEvent(ctx context.Context, event fastspring
 		outcome.Err = err
 		result.Failed = append(result.Failed, outcome)
 	}
+}
+
+// notActionableReason says why an event Jobber subscribes to is not acted on,
+// so the one that is worth a person's attention is not filed with the routine
+// ones. Everything else is ordinary: an order completing says nothing the
+// subscription events have not already said.
+func notActionableReason(eventType string) error {
+	if eventType == fastspring.EventReturnCreated {
+		return ErrRefundNeedsReview
+	}
+	return errEventNotActionable
 }
 
 type eventHandler func(ctx context.Context, event fastspring.Event) error

@@ -32,6 +32,13 @@ const (
 	EventSubscriptionResumed         = "subscription.resumed"
 	EventSubscriptionPaymentOverdue  = "subscription.payment.overdue"
 	EventOrderCompleted              = "order.completed"
+	// EventReturnCreated is a refund or chargeback. It is subscribed to so that
+	// money leaving the account is visible here at all, not because anything is
+	// applied: the payload names an order, not a subscription, and a refund is
+	// not a cancellation — a partial refund leaves the subscription billing.
+	//
+	// https://developer.fastspring.com/reference/returncreated
+	EventReturnCreated = "return.created"
 )
 
 // FastSpring subscription states.
