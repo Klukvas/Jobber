@@ -573,7 +573,6 @@ func main() {
 		KeyPrefix:   "support",
 	}, logger.Logger)
 
-	// Stricter rate limiting for email-sending endpoints (3 requests per 15 minutes per IP)
 	// The billing webhook is the only public route with no auth middleware in
 	// front of it. Deliberately far above anything FastSpring produces: a
 	// throttled delivery costs a lifecycle event, which is worth much more than
@@ -584,6 +583,7 @@ func main() {
 		KeyPrefix:   "billing-webhook",
 	}, logger.Logger)
 
+	// Stricter rate limiting for email-sending endpoints (3 requests per 15 minutes per IP)
 	emailRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
 		MaxRequests: 3,
 		Window:      15 * time.Minute,
@@ -772,10 +772,12 @@ func reconcileBillingEvents(svc *subService.SubscriptionService, log *zap.Logger
 		if result.Total() == 0 && len(result.Unacknowledged) == 0 {
 			return
 		}
-		log.Warn("Recovered billing events the webhook endpoint never received",
+		log.Warn("Billing reconciliation found events the webhook endpoint never received",
 			zap.Int("events", result.Total()),
 			zap.Int("pages", result.Pages),
-			zap.Int("applied", len(result.Processed)),
+			// Everything the sweep is done with — applied, duplicate, superseded
+			// or deliberately skipped — not only the ones that changed a row.
+			zap.Int("acknowledged", len(result.Processed)),
 			zap.Int("skipped", len(result.Skipped)),
 			zap.Int("failed", len(result.Failed)),
 			zap.Int("unacknowledged", len(result.Unacknowledged)),
