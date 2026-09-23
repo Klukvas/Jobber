@@ -84,7 +84,7 @@ func (h *WebhookHandler) logOutcomes(result service.WebhookResult) {
 		}
 		// Most skips are routine: a duplicate, a replay, an event type Jobber
 		// does not act on, or another product's subscription in the shared
-		// store. Four are not, and all four drop the event for good:
+		// store. Five are not. Four of them drop the event for good:
 		//
 		//   - an environment mismatch means this deployment is pointed at the
 		//     wrong billing environment;
@@ -98,6 +98,10 @@ func (h *WebhookHandler) logOutcomes(result service.WebhookResult) {
 		//     at a second subscription while their first one still bills, so
 		//     somebody may be paying twice and only one of the two is cancellable
 		//     from Jobber.
+		//
+		// The fifth is a refund: nothing was dropped and nothing was wrong, but
+		// money left the account and no subscription moved because of it, which
+		// somebody should see rather than discover in a payout.
 		switch {
 		case errors.Is(skipped.Err, service.ErrEnvironmentMismatch):
 			h.logger.Warn("FastSpring webhook event dropped: billing environment mismatch", fields...)
@@ -121,8 +125,20 @@ func (h *WebhookHandler) logOutcomes(result service.WebhookResult) {
 }
 
 // RegisterRoutes registers webhook routes (public, no auth).
-func (h *WebhookHandler) RegisterRoutes(router *gin.RouterGroup) {
+//
+// The HMAC is what authenticates a delivery, but verifying it means reading and
+// hashing the whole body first — so an unsigned flood still buys real work on
+// the one route with no auth in front of it. The limiter bounds that.
+//
+// It has to be generous, and it fails open on a Redis error, because the cost
+// of throttling the provider is worse than the cost of the flood: a rejected
+// delivery is a lifecycle event that has to come back through the retry
+// schedule, and one that never comes back is a subscriber on the wrong plan.
+func (h *WebhookHandler) RegisterRoutes(router *gin.RouterGroup, rateLimiter gin.HandlerFunc) {
 	webhooks := router.Group("/webhooks")
+	if rateLimiter != nil {
+		webhooks.Use(rateLimiter)
+	}
 	{
 		webhooks.POST("/fastspring", h.HandleFastSpringWebhook)
 	}

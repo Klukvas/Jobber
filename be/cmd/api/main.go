@@ -574,6 +574,16 @@ func main() {
 	}, logger.Logger)
 
 	// Stricter rate limiting for email-sending endpoints (3 requests per 15 minutes per IP)
+	// The billing webhook is the only public route with no auth middleware in
+	// front of it. Deliberately far above anything FastSpring produces: a
+	// throttled delivery costs a lifecycle event, which is worth much more than
+	// the bandwidth this saves.
+	webhookRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
+		MaxRequests: 600,
+		Window:      1 * time.Minute,
+		KeyPrefix:   "billing-webhook",
+	}, logger.Logger)
+
 	emailRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
 		MaxRequests: 3,
 		Window:      15 * time.Minute,
@@ -621,7 +631,7 @@ func main() {
 		// Webhook ingestion is gated separately so closing the checkout does not
 		// drop renewals, cancellations or deactivations for existing customers.
 		if cfg.Features.BillingWebhookEnabled {
-			webhookHdl.RegisterRoutes(v1) // Public, no auth — FastSpring signs the payload
+			webhookHdl.RegisterRoutes(v1, webhookRateLimiter) // Public, no auth — FastSpring signs the payload
 		} else {
 			logger.Warn("Billing webhook disabled via FEATURE_BILLING_WEBHOOK_ENABLED=false, subscription lifecycle events will not be recorded")
 		}

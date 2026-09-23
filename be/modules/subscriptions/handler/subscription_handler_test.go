@@ -968,15 +968,29 @@ func TestWebhookHandler_MissingSecretAsksForRetry(t *testing.T) {
 }
 
 func TestWebhookHandler_RegisterRoutes(t *testing.T) {
-	handler := newTestWebhookHandler(&MockSubscriptionRepository{})
+	postToWebhook := func(t *testing.T, rateLimiter gin.HandlerFunc) int {
+		t.Helper()
+		handler := newTestWebhookHandler(&MockSubscriptionRepository{})
+		router := setupTestRouter()
+		handler.RegisterRoutes(router.Group("/api/v1"), rateLimiter)
 
-	router := setupTestRouter()
-	v1 := router.Group("/api/v1")
-	handler.RegisterRoutes(v1)
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/webhooks/fastspring", bytes.NewBufferString("{}"))
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		return w.Code
+	}
 
-	req, _ := http.NewRequest(http.MethodPost, "/api/v1/webhooks/fastspring", bytes.NewBufferString("{}"))
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	t.Run("the route is registered", func(t *testing.T) {
+		assert.NotEqual(t, http.StatusNotFound, postToWebhook(t, nil),
+			"POST /api/v1/webhooks/fastspring should be registered")
+	})
 
-	assert.NotEqual(t, http.StatusNotFound, w.Code, "POST /api/v1/webhooks/fastspring should be registered")
+	t.Run("the rate limiter runs in front of it", func(t *testing.T) {
+		// This is the only public route with no auth middleware, and verifying
+		// the HMAC means reading and hashing the body first — so the limiter has
+		// to be reached before the handler, not merely configured somewhere.
+		refuse := func(c *gin.Context) { c.AbortWithStatus(http.StatusTooManyRequests) }
+
+		assert.Equal(t, http.StatusTooManyRequests, postToWebhook(t, refuse))
+	})
 }
