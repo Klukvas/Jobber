@@ -856,7 +856,7 @@ func TestWebhookHandler_LogsPermanentDropsLouderThanOrdinarySkips(t *testing.T) 
 		assert.Equal(t, http.StatusOK, w.Code, "a mismatched event is still acknowledged")
 		warnings := logs.FilterLevelExact(zap.WarnLevel).All()
 		require.Len(t, warnings, 1)
-		assert.Contains(t, warnings[0].Message, "billing environment mismatch")
+		assert.Contains(t, warnings[0].Message, "environment mismatch")
 		assert.Equal(t, "evt-live", warnings[0].ContextMap()["event_id"])
 	})
 

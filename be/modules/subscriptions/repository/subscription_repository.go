@@ -386,6 +386,14 @@ func (r *SubscriptionRepository) ApplySubscriptionEvent(
 		sub.CancelAt, sub.LastEventAt,
 	).Scan(&claimed, &applied)
 	if err != nil {
+		// The account on this event already belongs to another user. The whole
+		// transaction rolls back, so nothing is claimed and nothing is written —
+		// but no retry will ever untangle two users behind one billing account,
+		// so it is reported as its own terminal outcome rather than as a failure
+		// the provider (and the reconciliation sweep) should keep re-attempting.
+		if isUniqueViolation(err) {
+			return model.WebhookAccountConflict, nil
+		}
 		return "", fmt.Errorf("failed to apply subscription event %q: %w", eventID, err)
 	}
 	if err := tx.Commit(ctx); err != nil {

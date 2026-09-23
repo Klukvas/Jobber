@@ -11,6 +11,7 @@ import (
 	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/service"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -851,4 +852,32 @@ func TestApplySubscriptionEventPreservesLinkedAccount(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, model.WebhookApplied, outcome)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestApplySubscriptionEventReportsAnAccountAlreadyLinkedElsewhere(t *testing.T) {
+	// external_account_id is unique, so an event carrying an account that is
+	// already another user's breaks the index. It must come back as its own
+	// terminal outcome rather than as a generic failure: a failure is retried,
+	// and no retry can untangle two users behind one billing account. With the
+	// reconciliation sweep in place that retry is not even bounded by the
+	// provider's own give-up — it would come back every sweep until the event
+	// ages out of the window, burying everything else in the log.
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	sub := eventSubscription()
+	mock.ExpectBegin()
+	expectLinkRead(mock, sub.UserID, nil, "free")
+	mock.ExpectQuery("WITH claim AS").
+		WithArgs(applyArgs(sub)...).
+		WillReturnError(&pgconn.PgError{Code: uniqueViolationCode, ConstraintName: "idx_subscriptions_external_account_id"})
+	mock.ExpectRollback()
+
+	repo := NewSubscriptionRepository(mock)
+	outcome, err := repo.ApplySubscriptionEvent(context.Background(), "evt-1", "subscription.activated", sub)
+
+	require.NoError(t, err, "a collision is an outcome to report, not an error to retry")
+	assert.Equal(t, model.WebhookAccountConflict, outcome)
+	assert.NoError(t, mock.ExpectationsWereMet(), "the transaction must roll back, claiming nothing")
 }

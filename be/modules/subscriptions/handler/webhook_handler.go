@@ -82,39 +82,14 @@ func (h *WebhookHandler) logOutcomes(result service.WebhookResult) {
 			zap.String("event_type", skipped.EventType),
 			zap.Error(skipped.Err),
 		}
-		// Most skips are routine: a duplicate, a replay, an event type Jobber
-		// does not act on, or another product's subscription in the shared
-		// store. Five are not. Four of them drop the event for good:
-		//
-		//   - an environment mismatch means this deployment is pointed at the
-		//     wrong billing environment;
-		//   - an unproven order tag means an order named a Jobber user without
-		//     the proof this server mints, which is either a forged tag or a
-		//     rotated secret — never a normal purchase;
-		//   - a tagged-owner conflict means an order claimed a user who is
-		//     already paying for a different subscription, which a legitimate
-		//     first checkout cannot produce;
-		//   - a link conflict means the atomic write refused to repoint a user
-		//     at a second subscription while their first one still bills, so
-		//     somebody may be paying twice and only one of the two is cancellable
-		//     from Jobber.
-		//
-		// The fifth is a refund: nothing was dropped and nothing was wrong, but
-		// money left the account and no subscription moved because of it, which
-		// somebody should see rather than discover in a payout.
-		switch {
-		case errors.Is(skipped.Err, service.ErrEnvironmentMismatch):
-			h.logger.Warn("FastSpring webhook event dropped: billing environment mismatch", fields...)
-		case errors.Is(skipped.Err, service.ErrUnprovenOrderTag):
-			h.logger.Warn("FastSpring webhook event dropped: order tag names a user it cannot prove", fields...)
-		case errors.Is(skipped.Err, service.ErrTaggedOwnerConflict):
-			h.logger.Warn("FastSpring webhook event dropped: order tag contradicts the subscription it names", fields...)
-		case errors.Is(skipped.Err, service.ErrSubscriptionLinkConflict):
-			h.logger.Warn("FastSpring webhook event dropped: user is already linked to another live subscription", fields...)
-		case errors.Is(skipped.Err, service.ErrRefundNeedsReview):
-			h.logger.Warn("FastSpring refund observed, no subscription changed by it", fields...)
-		default:
-			h.logger.Info("FastSpring webhook event acknowledged without changes", fields...)
+		// Which of these is worth a person's attention is decided in the
+		// service, beside the sentinels, because the reconciliation sweep has to
+		// reach the same verdict for an event it recovers.
+		message, needsAttention := service.SkipReport(skipped.Err)
+		if needsAttention {
+			h.logger.Warn(message, fields...)
+		} else {
+			h.logger.Info(message, fields...)
 		}
 	}
 	for _, failed := range result.Failed {

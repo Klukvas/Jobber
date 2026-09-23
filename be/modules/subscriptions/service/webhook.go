@@ -220,10 +220,10 @@ func (s *SubscriptionService) processEvent(ctx context.Context, event fastspring
 		outcome.Err = err
 		result.skip(outcome)
 	case errors.Is(err, ErrTaggedOwnerConflict), errors.Is(err, ErrUnprovenOrderTag),
-		errors.Is(err, ErrSubscriptionLinkConflict):
+		errors.Is(err, ErrSubscriptionLinkConflict), errors.Is(err, model.ErrBillingAccountTaken):
 		// The event either cannot be shown to be ours or contradicts the row it
 		// names. A retry would only ask the same question again, so
-		// acknowledging drops the event; the handler logs all three loudly.
+		// acknowledging drops the event; the handler logs all four loudly.
 		outcome.Err = err
 		result.skip(outcome)
 	case errors.Is(err, errForeignBillingAccount):
@@ -249,6 +249,49 @@ func notActionableReason(eventType string) error {
 		return ErrRefundNeedsReview
 	}
 	return errEventNotActionable
+}
+
+// SkipReport turns the reason an event was acknowledged without changes into
+// the line to log for it, and says whether it is worth a person's attention.
+//
+// It lives beside the sentinels rather than in the HTTP handler because two
+// callers need the same judgement: the webhook endpoint and the reconciliation
+// sweep. When only the endpoint classified them, an event recovered by a sweep
+// — a refund, a forged tag, a subscriber paying twice — was reported as a bare
+// count and nothing else, which quietly undid the point of distinguishing them.
+//
+// Most skips are routine: a duplicate, a replay, an event type Jobber does not
+// act on, or another product's subscription in the shared store. The ones that
+// are not each mean something a person has to look at.
+func SkipReport(err error) (message string, needsAttention bool) {
+	switch {
+	case errors.Is(err, ErrEnvironmentMismatch):
+		// This deployment is pointed at the wrong billing environment, and
+		// acknowledging loses the event for good.
+		return "Billing event dropped: environment mismatch", true
+	case errors.Is(err, ErrUnprovenOrderTag):
+		// Either a forged tag or a proof minted under a secret this deployment
+		// no longer holds. Never a normal purchase.
+		return "Billing event dropped: order tag names a user it cannot prove", true
+	case errors.Is(err, ErrTaggedOwnerConflict):
+		// An order claimed a user who is already paying for a different
+		// subscription, which a legitimate first checkout cannot produce.
+		return "Billing event dropped: order tag contradicts the subscription it names", true
+	case errors.Is(err, ErrSubscriptionLinkConflict):
+		// Somebody may be paying twice with only one of the two cancellable
+		// from Jobber.
+		return "Billing event dropped: user is already linked to another live subscription", true
+	case errors.Is(err, model.ErrBillingAccountTaken):
+		// Two local users behind one provider billing account; only a person
+		// can decide which one the purchase belongs to.
+		return "Billing event dropped: provider account is already linked to another user", true
+	case errors.Is(err, ErrRefundNeedsReview):
+		// Nothing was dropped and nothing was wrong, but money left the account
+		// and no subscription moved because of it.
+		return "Billing refund observed in the shared store, no subscription changed by it", true
+	default:
+		return "Billing event acknowledged without changes", false
+	}
 }
 
 type eventHandler func(ctx context.Context, event fastspring.Event) error
@@ -340,6 +383,11 @@ func (s *SubscriptionService) applySubscriptionEvent(ctx context.Context, event 
 		return errEventDuplicate
 	case model.WebhookSuperseded:
 		return fmt.Errorf("%w (event changed at %s)", errEventSuperseded, eventAt.Format(time.RFC3339))
+	case model.WebhookAccountConflict:
+		// Two local users behind one provider billing account. Nothing was
+		// written; a person has to decide which account the buyer meant.
+		return fmt.Errorf("%w: user %q, event carries subscription %q",
+			model.ErrBillingAccountTaken, existing.UserID, incoming.ID)
 	case model.WebhookLinkConflict:
 		// Deliberately not the subscription the row holds: that value was read
 		// before the write refused, so reporting it could name state that has
