@@ -167,14 +167,14 @@ func TestCreateCheckoutSession(t *testing.T) {
 
 	t.Run("localises the checkout from the buyer record", func(t *testing.T) {
 		// FastSpring takes a two-letter language code, and its checkout language
-		// set has no Ukrainian — "ua"/"uk" therefore render in Russian, the
-		// store's default language for Ukraine (ADR-0002 flags that default as a
-		// dashboard setting to confirm in test mode).
+		// set has no Ukrainian — so "ua"/"uk" cannot be requested at all and fall
+		// back like any other unrenderable locale. English rather than Russian,
+		// deliberately: see checkoutLocale.
 		tests := map[string]string{
 			"en": "en",
 			"ru": "ru",
-			"ua": "ru",
-			"uk": "ru",
+			"ua": "en",
+			"uk": "en",
 			"RU": "ru",
 			"":   "en",
 			"kl": "en",

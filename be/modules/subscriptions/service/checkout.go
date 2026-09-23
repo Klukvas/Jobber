@@ -313,16 +313,19 @@ const (
 // provider does not render.
 //
 // Ukrainian has no FastSpring checkout language of its own — "uk" is absent from
-// the documented language set — so a Ukrainian buyer gets Russian, FastSpring's
-// own default language for Ukraine. That default is a store-level setting and is
-// the one thing here that must be confirmed in the dashboard's test mode before
-// go-live (see ADR-0002); if the store's Ukraine default is English instead,
-// this arm becomes localeEnglish.
+// the documented set — so a Ukrainian buyer cannot be shown a Ukrainian
+// checkout whatever this returns. The choice is only which of the languages the
+// storefront *can* render they are shown instead, and it is English.
+//
+// Russian is the closer language and was the first reading of FastSpring's own
+// regional default. It is still the wrong default to ship: for this audience,
+// putting a payment form in Russian in front of a Ukrainian buyer is a reason
+// to close the tab, and a checkout nobody completes costs more than one they
+// have to read in a second language. English is the neutral option and the one
+// the rest of the app already falls back to.
 func checkoutLocale(locale string) string {
 	switch strings.ToLower(strings.TrimSpace(locale)) {
 	case "ru":
-		return localeRussian
-	case "ua", "uk":
 		return localeRussian
 	default:
 		return localeEnglish
