@@ -75,7 +75,14 @@ type Client struct {
 	username   string
 	password   string
 	httpClient *http.Client
-	breaker    *circuitbreaker.Breaker
+	// Breakers are split by who is waiting on the call, because one shared
+	// breaker lets the wrong traffic close the checkout. The FluxLab store is
+	// shared with the other products sold from it, so their webhook deliveries
+	// drive account read-backs here; three of those failing in a row used to
+	// open the one breaker and refuse a real buyer's checkout for the next
+	// thirty seconds. Now background work can only trip the background half.
+	interactiveBreaker *circuitbreaker.Breaker
+	backgroundBreaker  *circuitbreaker.Breaker
 }
 
 // Config holds the credentials and endpoints a Client needs.
@@ -94,11 +101,12 @@ func NewClient(cfg Config) *Client {
 		baseURL = DefaultBaseURL
 	}
 	return &Client{
-		baseURL:    baseURL,
-		username:   cfg.Username,
-		password:   cfg.Password,
-		httpClient: &http.Client{Timeout: requestTimeout},
-		breaker:    circuitbreaker.New("fastspring", breakerFailureThreshold, breakerOpenDuration),
+		baseURL:            baseURL,
+		username:           cfg.Username,
+		password:           cfg.Password,
+		httpClient:         &http.Client{Timeout: requestTimeout},
+		interactiveBreaker: circuitbreaker.New("fastspring", breakerFailureThreshold, breakerOpenDuration),
+		backgroundBreaker:  circuitbreaker.New("fastspring-background", breakerFailureThreshold, breakerOpenDuration),
 	}
 }
 
@@ -109,7 +117,11 @@ func (c *Client) IsConfigured() bool {
 
 // do performs an authenticated request and decodes a JSON response into out.
 // The response body is always bounded and always closed.
-func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
+//
+// breaker selects which half of the client's circuit the call belongs to — see
+// the Client fields. Passing the wrong one is the only way to reintroduce the
+// coupling the split exists to remove, so every caller picks it explicitly.
+func (c *Client) do(ctx context.Context, breaker *circuitbreaker.Breaker, method, path string, body, out any) error {
 	if !c.IsConfigured() {
 		return ErrNotConfigured
 	}
@@ -139,7 +151,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 
 	var raw []byte
 	var status int
-	breakerErr := c.breaker.Execute(func() error {
+	breakerErr := breaker.Execute(func() error {
 		resp, doErr := c.httpClient.Do(req)
 		if doErr != nil {
 			return doErr
@@ -188,7 +200,7 @@ func (c *Client) CreateSession(ctx context.Context, checkoutPath string, req Ses
 	}
 
 	var resp SessionResponse
-	if err := c.do(ctx, http.MethodPost, "/v2/checkouts/"+escaped+"/sessions", req, &resp); err != nil {
+	if err := c.do(ctx, c.interactiveBreaker, http.MethodPost, "/v2/checkouts/"+escaped+"/sessions", req, &resp); err != nil {
 		return nil, err
 	}
 	if resp.ID == "" {
@@ -211,7 +223,7 @@ func (c *Client) ChangeSubscriptionProduct(ctx context.Context, subscriptionID, 
 		}},
 	}
 	var resp subscriptionActionResponse
-	if err := c.do(ctx, http.MethodPost, "/subscriptions", req, &resp); err != nil {
+	if err := c.do(ctx, c.interactiveBreaker, http.MethodPost, "/subscriptions", req, &resp); err != nil {
 		return err
 	}
 	return resp.firstError("subscription.update")
@@ -230,7 +242,7 @@ func (c *Client) CancelSubscription(ctx context.Context, subscriptionID string, 
 	path := "/subscriptions/" + url.PathEscape(subscriptionID) + "?billingPeriod=" + billingPeriod
 
 	var resp subscriptionActionResponse
-	if err := c.do(ctx, http.MethodDelete, path, nil, &resp); err != nil {
+	if err := c.do(ctx, c.interactiveBreaker, http.MethodDelete, path, nil, &resp); err != nil {
 		return err
 	}
 	return resp.firstError("subscription.cancel")
@@ -243,7 +255,7 @@ func (c *Client) CancelSubscription(ctx context.Context, subscriptionID string, 
 func (c *Client) AuthenticateAccount(ctx context.Context, accountID string) (string, error) {
 	var resp authenticateAccountResponse
 	path := "/accounts/" + url.PathEscape(accountID) + "/authenticate"
-	if err := c.do(ctx, http.MethodGet, path, nil, &resp); err != nil {
+	if err := c.do(ctx, c.interactiveBreaker, http.MethodGet, path, nil, &resp); err != nil {
 		return "", err
 	}
 	if len(resp.Accounts) == 0 {
@@ -262,7 +274,7 @@ func (c *Client) AuthenticateAccount(ctx context.Context, accountID string) (str
 func (c *Client) GetAccount(ctx context.Context, accountID string) (*Account, error) {
 	var account Account
 	path := "/accounts/" + url.PathEscape(accountID)
-	if err := c.do(ctx, http.MethodGet, path, nil, &account); err != nil {
+	if err := c.do(ctx, c.backgroundBreaker, http.MethodGet, path, nil, &account); err != nil {
 		return nil, err
 	}
 	return &account, nil
