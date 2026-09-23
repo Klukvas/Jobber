@@ -573,15 +573,7 @@ func main() {
 		KeyPrefix:   "support",
 	}, logger.Logger)
 
-	// The billing webhook is the only public route with no auth middleware in
-	// front of it. Deliberately far above anything FastSpring produces: a
-	// throttled delivery costs a lifecycle event, which is worth much more than
-	// the bandwidth this saves.
-	webhookRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
-		MaxRequests: 600,
-		Window:      1 * time.Minute,
-		KeyPrefix:   "billing-webhook",
-	}, logger.Logger)
+	webhookRateLimiter := newBillingWebhookRateLimiter(redisClient.Client, logger.Logger)
 
 	// Stricter rate limiting for email-sending endpoints (3 requests per 15 minutes per IP)
 	emailRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
@@ -692,23 +684,8 @@ func main() {
 		}
 	}()
 
-	// Start background job: recover webhook deliveries that never landed.
-	//
-	// FastSpring stops retrying a failed delivery after 7 days, so a deployment
-	// that was down, unreachable or holding a stale secret for longer than that
-	// keeps subscription rows that nothing will ever correct. The provider's
-	// documented remedy is to pull the events it still has no acknowledgement
-	// for, which is what this does — through the same pipeline, with the same
-	// guards, and idempotently against anything the push channel already applied.
-	//
-	// Gated on webhook ingestion rather than on payments: the same flag is what
-	// guarantees the secret every order-tag proof is verified against, and a
-	// deployment that deliberately ingests nothing must not start pulling.
-	if cfg.Features.BillingWebhookEnabled {
-		go reconcileBillingEvents(subscriptionSvc, logger.Logger)
-	} else {
-		logger.Warn("Billing reconciliation disabled with webhook ingestion, missed provider events will not be recovered")
-	}
+	// Recover webhook deliveries that never landed. See billing.go and ADR-0002.
+	startBillingReconciliation(cfg.Features, fastSpringClient, subscriptionSvc, logger.Logger)
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -740,58 +717,6 @@ func main() {
 	}
 
 	logger.Info("Server exited")
-}
-
-// How often missed provider events are swept for, and how far back each sweep
-// looks. The window covers FastSpring's whole 7-day retry schedule with room to
-// spare, so an event only just given up on cannot fall between two sweeps.
-const (
-	billingReconcileInterval = 6 * time.Hour
-	billingReconcileTimeout  = 5 * time.Minute
-	// The first sweep waits for the rest of the process to settle. It runs at
-	// all because the case this exists for — a deployment that was down or
-	// misconfigured — is the case where a restart has just happened.
-	billingReconcileStartDelay = 2 * time.Minute
-)
-
-// reconcileBillingEvents sweeps for provider events the webhook endpoint never
-// received, on a timer, for the life of the process.
-func reconcileBillingEvents(svc *subService.SubscriptionService, log *zap.Logger) {
-	sweep := func() {
-		ctx, cancel := context.WithTimeout(context.Background(), billingReconcileTimeout)
-		defer cancel()
-
-		result, err := svc.ReconcileMissedEvents(ctx, subService.DefaultReconcileDays)
-		if err != nil {
-			// Billing is degraded, not the app: log it and let the next sweep try.
-			log.Error("Billing reconciliation sweep failed", zap.Error(err))
-			return
-		}
-		// A sweep that found nothing is the normal case and says nothing worth
-		// reading, so only a sweep that actually did something is reported.
-		if result.Total() == 0 && len(result.Unacknowledged) == 0 {
-			return
-		}
-		log.Warn("Billing reconciliation found events the webhook endpoint never received",
-			zap.Int("events", result.Total()),
-			zap.Int("pages", result.Pages),
-			// Everything the sweep is done with — applied, duplicate, superseded
-			// or deliberately skipped — not only the ones that changed a row.
-			zap.Int("acknowledged", len(result.Processed)),
-			zap.Int("skipped", len(result.Skipped)),
-			zap.Int("failed", len(result.Failed)),
-			zap.Int("unacknowledged", len(result.Unacknowledged)),
-		)
-	}
-
-	time.Sleep(billingReconcileStartDelay)
-	sweep()
-
-	ticker := time.NewTicker(billingReconcileInterval)
-	defer ticker.Stop()
-	for range ticker.C {
-		sweep()
-	}
 }
 
 // healthCheckHandler godoc

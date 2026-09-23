@@ -16,34 +16,39 @@ import (
 // window ends up with subscription rows that are simply wrong, with nothing left
 // to correct them and nobody to notice.
 //
-// Reconciliation is the pull channel that closes it: the Events API still lists
-// every event FastSpring has no acknowledgement for, and those events run
-// through the exact same pipeline as a delivered one. FastSpring documents this
-// as the intended recovery path.
+// Reconciliation is the pull channel that closes it. See ADR-0002 for the whole
+// design; the rules that constrain this file are below.
 //
 // https://developer.fastspring.com/reference/processed-and-unprocessed-webhook-events
 const (
-	// DefaultReconcileDays covers FastSpring's whole 7-day retry window with
-	// room to spare, so a sweep cannot miss an event that has only just been
-	// given up on.
-	DefaultReconcileDays = 14
+	// ReconcileWindowDays covers FastSpring's whole 7-day retry window with room
+	// to spare, so an event only just given up on cannot fall between two sweeps.
+	//
+	// It is also what bounds a *permanently* failing event. Such an event is
+	// never acknowledged — that is what makes a transient failure retryable —
+	// so it is re-listed every sweep until it falls out of this window. Widening
+	// it therefore widens how long a stuck event keeps reporting; the endpoint's
+	// own hard ceiling is 30 days, beyond which it returns nothing at all.
+	ReconcileWindowDays = 14
 
-	// maxReconcilePages bounds one sweep. Anything left over is picked up by the
-	// next one — every event applied here is acknowledged, so the backlog only
-	// shrinks — and the bound is what keeps a provider answering `more: true`
-	// forever from turning a sweep into an endless loop.
-	maxReconcilePages = 20
+	// maxReconcileRounds bounds one sweep. Anything left over is picked up by
+	// the next one — every event cleared here is acknowledged, so the backlog
+	// shrinks — and the bound is what keeps a provider that never stops
+	// answering from turning a sweep into an endless loop.
+	maxReconcileRounds = 20
 )
 
 // ReconcileResult summarises one reconciliation sweep.
 type ReconcileResult struct {
 	WebhookResult
-	// Pages is how many pages of the Events API the sweep read.
-	Pages int
-	// Unacknowledged lists events that were applied (or deliberately skipped)
-	// locally but could not be reported back to FastSpring. They are harmless:
-	// the next sweep sees them again and the event claim recognises them as
-	// duplicates, so they cost one extra no-op rather than a second grant.
+	// Listings counts the calls made to the events endpoint. It is not a count
+	// of distinct pages: clearing events moves the provider's list, so the sweep
+	// deliberately re-reads from the start (see ReconcileMissedEvents).
+	Listings int
+	// Unacknowledged lists events that were settled locally but could not be
+	// reported back to FastSpring. They are harmless: the next sweep sees them
+	// again and the event claim recognises them as duplicates, so they cost one
+	// extra no-op rather than a second grant.
 	Unacknowledged []EventOutcome
 }
 
@@ -60,10 +65,7 @@ type ReconcileResult struct {
 // Applying is idempotent, so a sweep that overlaps a live delivery is safe: the
 // claim recognises the event ID and reports a duplicate instead of granting
 // anything twice.
-func (s *SubscriptionService) ReconcileMissedEvents(ctx context.Context, days int) (ReconcileResult, error) {
-	if days <= 0 {
-		days = DefaultReconcileDays
-	}
+func (s *SubscriptionService) ReconcileMissedEvents(ctx context.Context) (ReconcileResult, error) {
 	if !s.billing.IsConfigured() {
 		return ReconcileResult{}, fastspring.ErrNotConfigured
 	}
@@ -75,50 +77,81 @@ func (s *SubscriptionService) ReconcileMissedEvents(ctx context.Context, days in
 	}
 
 	var result ReconcileResult
-	for pageNumber := 1; pageNumber <= maxReconcilePages; {
-		page, err := s.billing.ListUnprocessedEvents(ctx, days, pageNumber)
+	page := 1
+	for round := 0; round < maxReconcileRounds; round++ {
+		listed, err := s.billing.ListUnprocessedEvents(ctx, ReconcileWindowDays, page)
 		if err != nil {
 			return result, fmt.Errorf("failed to list unprocessed billing events: %w", err)
 		}
-		result.Pages++
+		result.Listings++
+		if len(listed.Events) == 0 {
+			break
+		}
 
-		alreadyAcknowledged := len(result.Processed)
-		for _, event := range page.Events {
+		settledBefore := len(result.Processed)
+		for _, event := range listed.Events {
 			s.processEvent(ctx, event, &result.WebhookResult)
 		}
-		s.acknowledgeReconciled(ctx, result.Processed[alreadyAcknowledged:], &result)
+		cleared := s.acknowledgeReconciled(ctx, result.Processed[settledBefore:], &result)
 
-		next, ok := nextReconcilePage(page, pageNumber)
+		// Acknowledging removes those events from the provider's unprocessed
+		// list, so the list this loop is paging through has just shrunk under
+		// it: what was page 2 is now page 1, and asking for page 2 next would
+		// step straight over a page's worth. A round that cleared anything
+		// therefore starts again from the beginning, and only a round that
+		// cleared nothing — where the list cannot have moved — advances the
+		// cursor past the events it could not settle.
+		//
+		// That is also what terminates the loop: every round either shrinks the
+		// list or advances the cursor, and the round count bounds both.
+		if cleared > 0 {
+			page = 1
+			continue
+		}
+		next, ok := nextReconcilePage(listed, page)
 		if !ok {
 			break
 		}
-		pageNumber = next
+		page = next
 	}
 	return result, nil
 }
 
 // acknowledgeReconciled reports the events this sweep settled back to
-// FastSpring, so the next sweep does not see them again.
+// FastSpring and returns how many the provider actually accepted.
 //
 // Only events the pipeline is done with are acknowledged — applied, duplicate,
 // superseded or deliberately skipped — which is the same bar the webhook
 // endpoint's 200/202 answers to. A failed event is left alone on purpose: being
 // unacknowledged is exactly what makes the next sweep retry it.
 //
-// A failure to acknowledge is recorded, not returned. The work already
-// committed, and refusing to acknowledge the rest of the page because one call
-// failed would only widen the backlog.
-func (s *SubscriptionService) acknowledgeReconciled(ctx context.Context, eventIDs []string, result *ReconcileResult) {
-	for _, eventID := range eventIDs {
-		if err := s.billing.MarkEventProcessed(ctx, eventID); err != nil {
-			result.Unacknowledged = append(result.Unacknowledged, EventOutcome{EventID: eventID, Err: err})
-			// The circuit is open or the API is down: the rest of this page will
-			// fail the same way, and each attempt costs a request.
-			if errors.Is(err, fastspring.ErrNotConfigured) || errors.Is(err, circuitbreaker.ErrCircuitOpen) {
-				return
+// A failure to acknowledge is recorded rather than returned. The work already
+// committed, and abandoning the rest of the round because one call failed would
+// only widen the backlog.
+func (s *SubscriptionService) acknowledgeReconciled(
+	ctx context.Context, eventIDs []string, result *ReconcileResult,
+) int {
+	cleared := 0
+	for index, eventID := range eventIDs {
+		err := s.billing.MarkEventProcessed(ctx, eventID)
+		if err == nil {
+			cleared++
+			continue
+		}
+		result.Unacknowledged = append(result.Unacknowledged, EventOutcome{EventID: eventID, Err: err})
+
+		// The circuit is open or the client is unusable: every remaining call
+		// would fail the same way and each one costs a request. Give up on the
+		// round — but record what is being given up on, or the count the caller
+		// logs would quietly claim those events were settled.
+		if errors.Is(err, fastspring.ErrNotConfigured) || errors.Is(err, circuitbreaker.ErrCircuitOpen) {
+			for _, skipped := range eventIDs[index+1:] {
+				result.Unacknowledged = append(result.Unacknowledged, EventOutcome{EventID: skipped, Err: err})
 			}
+			return cleared
 		}
 	}
+	return cleared
 }
 
 // nextReconcilePage reports the page to read next, or false when the sweep is
