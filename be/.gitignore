@@ -1,4 +1,7 @@
 # Binaries
+# /api is what `go build ./cmd/api` drops here by default. It was committed
+# once, at 83 MB, and every later build silently restaged it.
+/api
 *.exe
 *.exe~
 *.dll
