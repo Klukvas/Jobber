@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -278,6 +279,38 @@ func TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber
 
 		assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	})
+}
+
+func TestSubscriptionHandler_CreateCheckoutSession_BillingAccountBelongsToAnotherUser(t *testing.T) {
+	// One provider account cannot resolve to two local users: it is the
+	// server-side link between a purchase and a user, so pointing it at a second
+	// one would mis-grant somebody's purchase. The buyer gets a 409 they can act
+	// on rather than a bare 500 that reads like an outage.
+	repo := &MockSubscriptionRepository{
+		GetByUserIDFunc: func(context.Context, string) (*model.Subscription, error) {
+			return nil, model.ErrSubscriptionNotFound
+		},
+		LinkExternalAccountFunc: func(context.Context, string, string) error {
+			return fmt.Errorf("%w: account %q", model.ErrBillingAccountTaken, "acct-shared")
+		},
+	}
+	handler := newProviderBackedHandler(t, repo, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"id":"sess-3","checkoutStatus":["READY_FOR_CHECKOUT"],
+			"customer":{"accountId":"acct-shared"}}`))
+	})
+
+	router := setupTestRouter()
+	router.POST("/subscription/checkout-session", mockAuthMiddleware(testUserID), handler.CreateCheckoutSession)
+
+	req, _ := http.NewRequest(http.MethodPost, "/subscription/checkout-session", bytes.NewBufferString(`{"plan":"pro"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusConflict, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "BILLING_ACCOUNT_TAKEN")
+	assert.NotContains(t, w.Body.String(), "acct-shared", "the response must not echo provider identifiers")
 }
 
 func ptr[T any](v T) *T { return &v }

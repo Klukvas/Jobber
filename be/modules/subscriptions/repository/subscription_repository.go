@@ -8,6 +8,7 @@ import (
 	resumeModel "github.com/andreypavlenko/jobber/modules/resumes/model"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // SubscriptionRepository implements ports.SubscriptionRepository with PostgreSQL.
@@ -62,6 +63,12 @@ func (r *SubscriptionRepository) queryOne(ctx context.Context, query string, arg
 // LinkExternalAccount stores the provider account ID for a user, creating the
 // free row if it is missing. Plan and status are untouched: linking happens when
 // a checkout starts, and an abandoned checkout must not grant anything.
+//
+// external_account_id carries a partial UNIQUE index, so one provider account
+// resolves to exactly one user. Hitting it is not a generic database failure:
+// it means this account is already somebody else's, which the checkout must
+// refuse rather than risk mis-granting — and which a person has to untangle.
+// Naming it is what separates that from an outage.
 func (r *SubscriptionRepository) LinkExternalAccount(ctx context.Context, userID, externalAccountID string) error {
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO subscriptions (user_id, external_account_id, status, plan, updated_at)
@@ -71,7 +78,19 @@ func (r *SubscriptionRepository) LinkExternalAccount(ctx context.Context, userID
 			updated_at = NOW()`,
 		userID, externalAccountID,
 	)
+	if isUniqueViolation(err) {
+		return fmt.Errorf("%w: account %q cannot also be linked to user %q",
+			model.ErrBillingAccountTaken, externalAccountID, userID)
+	}
 	return err
+}
+
+// uniqueViolationCode is PostgreSQL's SQLSTATE for a unique constraint breach.
+const uniqueViolationCode = "23505"
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == uniqueViolationCode
 }
 
 // EnsureFree creates a free subscription row for a user if none exists.

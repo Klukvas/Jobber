@@ -22,6 +22,17 @@ var (
 	// and leave it billing invisibly — plan changes must go through the provider
 	// subscription instead.
 	ErrAlreadySubscribed = errors.New("user already has a provider subscription")
+	// ErrBillingAccountTaken is returned when the provider account a checkout
+	// resolved to is already linked to a *different* local user.
+	//
+	// The provider records an account per buyer contact, not per purchase, so
+	// two Jobber users who check out with one email can land on one account.
+	// external_account_id is unique for a reason — it is a server-side link
+	// between a purchase and a user — so the checkout is refused rather than
+	// pointing one account at two people. It is its own error because nobody
+	// can resolve it from the app: it needs a human to decide which account the
+	// buyer actually meant.
+	ErrBillingAccountTaken = errors.New("provider billing account is already linked to another user")
 )
 
 // Subscription represents a user's subscription record.

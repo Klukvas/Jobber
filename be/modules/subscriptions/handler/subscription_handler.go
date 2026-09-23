@@ -87,6 +87,16 @@ func (h *SubscriptionHandler) CreateCheckoutSession(c *gin.Context) {
 			// second checkout from any other client would bill them twice.
 			httpPlatform.RespondWithError(c, http.StatusConflict, "ALREADY_SUBSCRIBED",
 				"You already have a subscription. Change your plan instead of starting a new checkout.")
+		case errors.Is(err, model.ErrBillingAccountTaken):
+			// Two Jobber accounts sit behind one provider billing account. The
+			// alternative to refusing is pointing one account at two users and
+			// mis-granting a purchase, and nobody can untangle it from the app —
+			// so the buyer is told to ask a human, and a human is told there is
+			// something to untangle.
+			h.logger.Warn("checkout refused: provider billing account belongs to another user",
+				zap.String("user_id", userID), zap.Error(err))
+			httpPlatform.RespondWithError(c, http.StatusConflict, "BILLING_ACCOUNT_TAKEN",
+				"This billing account is already linked to another Jobber account. Please contact support.")
 		default:
 			h.logger.Error("failed to create checkout session", zap.String("user_id", userID), zap.Error(err))
 			httpPlatform.RespondWithError(c, http.StatusInternalServerError, "CHECKOUT_ERROR", "Failed to start checkout")
