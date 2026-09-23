@@ -470,15 +470,35 @@ and a deployment that deliberately ingests nothing must not start pulling. With
 no API credentials or no secret the sweep refuses to run at all rather than
 dragging in purchases it could not prove.
 
+A sweep reports each recovered event exactly as the endpoint would, through the
+same `SkipReport` verdict. Without that a refund, a forged order tag or a
+subscriber paying twice would be loud when it arrived by webhook and silent when
+it arrived through the sweep that exists to recover what the webhook lost.
+
+**Acknowledging moves the list, so the sweep re-reads from the start.** Settling
+an event removes it from `/events/unprocessed`, which means the pagination the
+sweep is walking shifts underneath it: what was page 2 becomes page 1. A round
+that settled anything therefore starts again at page 1, and only a round that
+settled *nothing* — where the list cannot have moved — advances the cursor past
+what it could not clear. That is also what terminates the loop: every round
+either shrinks the list or advances the cursor, and a round cap bounds both.
+
+**A permanently failing event is bounded by the window, not by the sweep.** It
+is never acknowledged — that is what makes a transient failure retryable — so it
+is re-listed every sweep until it falls out of `ReconcileWindowDays`. This is why
+a failure that no retry can fix must not be reported as a failure: it would come
+back every six hours for two weeks. The collisions above are all terminal
+outcomes for exactly that reason, `WebhookAccountConflict` included.
+
 **This replaces polling each subscription for state drift, and deliberately.**
 Every state change *is* an event, and an event that is not acknowledged is
 replayed — so a second mechanism comparing rows against
 `GET /subscriptions/{id}` would re-derive what this already recovers, with its
 own drift to maintain. What it does not cover is an event the pipeline
-acknowledged and dropped on purpose (an environment mismatch, an unproven tag,
-a link conflict). Those are the four `warn` lines above, they require a human
-decision anyway, and no amount of polling would make them safe to apply
-automatically.
+acknowledged and dropped on purpose: an environment mismatch, an unproven tag, a
+tagged-owner conflict, a link conflict, or an account already linked elsewhere.
+Those are the `warn` lines above, they require a human decision anyway, and no
+amount of polling would make them safe to apply automatically.
 
 ## Checkout language
 
@@ -601,7 +621,14 @@ wrong user.
   a bare 500. It means two local users are behind one provider account — which
   happens when they check out with the same email — and refusing is the only
   alternative to mis-granting a purchase. Nobody can untangle it from inside the
-  app, so the buyer is told to contact support and support gets a `warn`.
+  app, so the buyer is told to contact support and support gets a `warn`. The
+  same collision reaching the *webhook* write is `WebhookAccountConflict`: also
+  acknowledged rather than retried, because a retry cannot untangle it either.
+- Reconciliation does not start without API credentials, checked at wiring time
+  rather than only inside the sweep. Payments off with webhook ingestion on is a
+  supported combination, and in it the webhook flag guarantees the secret while
+  nothing requires the credentials — a sweep started there would fail on every
+  tick instead of once at boot.
 - Checkout runs on our own origin, so the CSP has to make room for it. Five
   scoped allowances, each one observed in an actual popup run rather than
   guessed: `script-src https://sbl.onfastspring.com` (the SBL file),
