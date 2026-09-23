@@ -54,13 +54,31 @@ that identifies the buyer travels server-to-server:
 4. [`subscription.activated`](https://developer.fastspring.com/reference/subscriptionactivated)
    arrives carrying the account (`data.account`, an object on most events and a
    bare ID string on others) and the order's `data.tags`. The backend resolves
-   the owner by, in order: the provider subscription ID, then that account ID,
-   then the **proven `jobber_user_id` order tag** (see *The order tag is a claim,
-   not an identifier* below), then —
+   the owner by, in order: the provider subscription ID, then the **proven
+   `jobber_user_id` order tag** (see *The order tag is a claim, not an
+   identifier* below), then the account ID, then —
    only if all three miss — [`GET /accounts/{id}`](https://developer.fastspring.com/reference/retrieve-an-account)
    to read back `lookup.custom` and decode the user UUID from it. Whichever hop
    wins, the event's account ID *and* subscription ID are written to the row, so
    every later event resolves on the first hop.
+
+   **Why the tag outranks the account.** Once it has passed its MAC, the tag is
+   the strongest evidence in the payload and the only evidence bound to *this*
+   order: it names the user whose authenticated session created this checkout.
+   The account is weaker on both counts — FastSpring records it per buyer
+   contact rather than per purchase and reuses one account across purchases made
+   with the same contact, so two local users who check out with one email end up
+   behind one account and the account hop would hand one of them the other's
+   purchase. The subscription ID stays above the tag because it is exact, and it
+   is what every event after the first resolves on.
+
+   The tag is also read before *any* account handling, including the guard for
+   an event carrying no account at all. That guard used to sit above it, which
+   made the one hop designed to link a first purchase unreachable for exactly
+   the payloads most likely to need it — and left them retrying until FastSpring
+   gave up. An event that still identifies nobody stays retryable rather than
+   being acknowledged away as foreign: a payload we failed to read is our bug,
+   not somebody else's customer.
 
    > ✅ **Settled by a test-mode purchase (order for `jobber-enterprise`,
    > `subscription.activated` `EVWBPALB…`).** The assumption the first version of
@@ -79,7 +97,7 @@ that identifies the buyer travels server-to-server:
 
 Three of those four hops read a value Jobber itself wrote through an
 authenticated server-to-server call and then stored: the subscription ID, the
-account ID, and the account's custom lookup key. The fourth — the order tag — is
+account ID, and the account's custom lookup key. The other — the order tag — is
 the one value that arrives *inside* the event, and it is trusted only because of
 the proof described below. A `user_id` posted from client JavaScript is never
 read; the request DTO carries a plan and nothing else.
@@ -141,12 +159,19 @@ Two consequences worth stating plainly:
   (`ErrUnprovenOrderTag`, logged at `warn`), never by resolving the wrong user.
 - **No expiry, no nonce.** The proof is deterministic per user on purpose. It
   authorises exactly one thing — "this order belongs to user X" — and the only
-  party who can obtain a proof for X is X, through an authenticated call. Replay
-  by its owner attributes their own purchase to themselves, which is what the tag
-  is *for*; the one-subscription guard below is what stops that from repointing a
-  subscription they are already paying for. An expiry would buy nothing against
-  that and would start rejecting legitimate late deliveries — a webhook retried
-  for hours, or an activation that lands long after checkout.
+  party who can *obtain a fresh* proof for X is X, through an authenticated call.
+  Replay by its owner attributes their own purchase to themselves, which is what
+  the tag is *for*; the one-subscription guard below is what stops that from
+  repointing a subscription they are already paying for. An expiry would buy
+  nothing against that and would start rejecting legitimate late deliveries — a
+  webhook retried for hours, or an activation that lands long after checkout.
+
+  One caveat worth stating rather than glossing: the proof is also *stored at
+  FastSpring*, on the order, so anyone with merchant read access to the
+  dashboard or the API can read one for a user who has checked out. That is not
+  a hole in the construction — such a party already holds the webhook secret
+  the proof is keyed with, and everything else it protects — but "only X can
+  obtain a proof for X" is true of the minting path, not of the whole system.
 
 ## One subscriber, one subscription
 
@@ -198,9 +223,20 @@ not a plan change but a cancellation, so the free card offers no CTA to a
 subscriber at all — a dead button would only look broken. The 409 remains as
 defence in depth for any other client.
 
+`return.created` is subscribed to and deliberately **not** acted on either, but
+for a different reason, and it is reported as its own outcome rather than as a
+routine skip. The payload names an *order*, not a subscription, and a refund is
+not a cancellation: a partial refund leaves the subscription billing normally,
+so revoking access on one would take a paid plan from somebody who still has it.
+Ending a subscription over a refund is a merchant decision made in the
+dashboard, and it arrives here afterwards as the deactivation it really is. What
+it must not be is invisible — money left the account and nothing in the app
+moved — so it logs at `warn` next to the other four non-routine skips.
+
 `order.completed` is acknowledged but deliberately **not** acted on. Entitlement
 comes from the subscription lifecycle events alone, which avoids a second grant
-racing `subscription.activated`. The `orderTags` sent at session creation are
+racing `subscription.activated`. It stays a *routine* skip, which is what makes
+the refund's own outcome worth anything. The `orderTags` sent at session creation are
 read from the *subscription* events instead, where FastSpring echoes them back as
 `data.tags` — so nothing has to act on the order to know whose purchase it was.
 
@@ -297,6 +333,14 @@ used by any user-facing path.
 
 ## Safety rules the code enforces
 
+- **The endpoint is public, so it is rate limited.** It is the only route with
+  no auth middleware in front of it: the HMAC is the authentication, but
+  verifying it means reading and hashing the whole body first, so an unsigned
+  flood still buys real work. The limit sits far above anything FastSpring
+  produces and fails open on a Redis error, deliberately — a throttled delivery
+  is a lifecycle event that has to come back through the retry schedule, and one
+  that never comes back is a subscriber on the wrong plan. The body cap stays at
+  1 MB for the same reason: a tighter one would start refusing real batches.
 - **Signature first.** `X-FS-Signature` is `base64(HMAC-SHA256(rawBody))`
   ([Message Security](https://developer.fastspring.com/docs/message-security)).
   It is verified against the raw body before the payload is parsed or any query
@@ -383,6 +427,59 @@ used by any user-facing path.
   A failed event leaves no claim behind at all, so its retry gets a clean run
   while the rest of the batch stays acknowledged.
 
+## The webhook is a push channel, so there is also a pull channel
+
+Every guard above assumes the event arrives. A push channel does not guarantee
+that: FastSpring retries a failed delivery for **up to 7 days and at most 12
+attempts**, then marks it permanently failed and never sends it again. A
+deployment that was down, unreachable, or holding a stale secret for longer than
+that window ends up with subscription rows that nothing will ever correct — a
+buyer on the free plan they paid to leave, and a `warn` line in a log as the
+only trace.
+
+So a background sweep pulls what the push channel lost, which is
+[FastSpring's own documented remedy](https://developer.fastspring.com/reference/processed-and-unprocessed-webhook-events):
+[`GET /events/unprocessed`](https://developer.fastspring.com/reference/list-all-unprocessed-events)
+still lists every event with no acknowledgement, and
+[`POST /events/{id}`](https://developer.fastspring.com/reference/update-an-event)
+settles one. The sweep runs every 6 hours over a 14-day window — double the
+retry schedule, so an event only just given up on cannot fall between two
+sweeps — plus once shortly after boot, because a restart is exactly what
+follows the outage this exists for.
+
+Three things make it safe to reuse the ingestion pipeline verbatim:
+
+- **The trust model is unchanged.** A webhook body is trusted because its HMAC
+  proves FastSpring sent it; this response is trusted because Jobber fetched it
+  over TLS with its own API credentials. Both establish the same one fact — the
+  provider sent this — and neither says anything about who authored a tag
+  inside it. Every check that reads the event's *contents* is the same code:
+  the environment guard, the product allowlist, the order-tag proof, the link
+  guard and the event claim all run unchanged.
+- **Applying is idempotent.** A sweep overlapping a live delivery is recognised
+  by the event claim and reported as a duplicate, so nothing is granted twice.
+- **Only settled events are acknowledged.** Applied, duplicate, superseded and
+  deliberately-skipped events are reported back; a failed one is left
+  unacknowledged on purpose, because that is precisely what makes the next
+  sweep retry it. An acknowledgement that itself fails costs one duplicate on
+  the next sweep and nothing else.
+
+It is gated on `FEATURE_BILLING_WEBHOOK_ENABLED` rather than on payments: that
+flag is what guarantees the secret every order-tag proof is verified against,
+and a deployment that deliberately ingests nothing must not start pulling. With
+no API credentials or no secret the sweep refuses to run at all rather than
+dragging in purchases it could not prove.
+
+**This replaces polling each subscription for state drift, and deliberately.**
+Every state change *is* an event, and an event that is not acknowledged is
+replayed — so a second mechanism comparing rows against
+`GET /subscriptions/{id}` would re-derive what this already recovers, with its
+own drift to maintain. What it does not cover is an event the pipeline
+acknowledged and dropped on purpose (an environment mismatch, an unproven tag,
+a link conflict). Those are the four `warn` lines above, they require a human
+decision anyway, and no amount of polling would make them safe to apply
+automatically.
+
 ## Checkout language
 
 `locale` is a two-letter FastSpring language code. Jobber maps its own UI
@@ -391,17 +488,20 @@ locales onto the codes the storefront can actually render:
 | Jobber locale | FastSpring `locale` |
 | --- | --- |
 | `ru` | `ru` |
-| `ua`, `uk` | `ru` |
-| everything else (incl. `en`, empty, unknown) | `en` |
+| everything else (incl. `en`, `ua`, `uk`, empty, unknown) | `en` |
 
-**Ukrainian falls back to Russian**, and that is a deliberate, imperfect choice:
-FastSpring's documented checkout language set has no Ukrainian entry
+**Ukrainian falls back to English.** FastSpring's documented checkout language
+set has no Ukrainian entry
 (`ar cs da de es en fi fr hr it iw ja ko nl no pl pt ru sk sv tr zh`), so `uk`
-cannot be requested at all. The fallback follows FastSpring's own *default
-language for Ukraine*, which is a **store-level dashboard setting, not an API
-guarantee** — it is on the verification list below. If the store's Ukraine
-default turns out to be English, the `ua`/`uk` arm of `checkoutLocale` becomes
-`localeEnglish` and nothing else changes.
+cannot be requested at all and a Ukrainian buyer will not see a Ukrainian
+checkout whatever this maps to. The only question is which renderable language
+they see instead.
+
+An earlier version answered Russian, following FastSpring's own regional
+default. That is the wrong thing to ship for this audience: a payment form in
+Russian is a reason to close the tab, and a checkout nobody completes costs far
+more than one read in a second language. English is what the rest of the app
+already falls back to, so it is what the checkout falls back to.
 
 Regional tags (`en_US`, `ru_RU`, `uk_UA`) are never sent: they are not valid
 values for this field.
@@ -427,9 +527,6 @@ setting that no unit test can prove. Each needs one real **test-mode purchase**:
   silently truncated proof would look exactly like a forged one: `warn`
   "order tag names a user it cannot prove", plan unchanged. The tag hop is what
   links every first purchase, so this one needs the real payload.
-- [ ] **Default checkout language for Ukraine.** Open a checkout with
-  `locale: "ru"` from a Ukrainian context and confirm the storefront renders as
-  expected — FastSpring's per-country default language is a store setting.
 - [ ] **`checkoutStatus` shape on a live-ish response.** Confirm the created
   session answers with an array containing `READY_FOR_CHECKOUT`.
 - [ ] **Popup checkout path.** Confirm the configured
@@ -485,7 +582,26 @@ wrong user.
 - Both subscribed webhook types and the checkout id are dashboard settings, so
   they belong on the go-live checklist: subscribe to `subscription.activated`,
   `.updated`, `.canceled`, `.uncanceled`, `.deactivated`, `.paused`, `.resumed`,
-  `.charge.completed`, `.charge.failed`, `.payment.overdue` and `order.completed`.
+  `.charge.completed`, `.charge.failed`, `.payment.overdue`, `order.completed`
+  and `return.created`. The last one changes nothing on its own — see above —
+  but without it a refund or chargeback never reaches the logs at all.
+- The API credentials need **events read and write** for reconciliation to work,
+  on top of what checkout and subscription management already use. Without them
+  the sweep logs `ErrNotConfigured` and recovers nothing, while the push channel
+  keeps working — so a missing scope is quiet, and belongs on the checklist.
+- `webhook_events` claims are expired after 90 days by the hourly cleanup job.
+  The claim exists to recognise a redelivery, nothing can be redelivered past
+  the reconciliation window, and the lifecycle ordering guard refuses anything
+  not strictly newer even if one were forgotten early.
+- The API client keeps **two** circuit breakers, split by who is waiting on the
+  call. The shared store means other products' webhook deliveries drive account
+  read-backs here, and with one breaker three of those failing in a row refused
+  a real buyer's checkout for the next thirty seconds.
+- A `external_account_id` collision answers **409 `BILLING_ACCOUNT_TAKEN`**, not
+  a bare 500. It means two local users are behind one provider account — which
+  happens when they check out with the same email — and refusing is the only
+  alternative to mis-granting a purchase. Nobody can untangle it from inside the
+  app, so the buyer is told to contact support and support gets a `warn`.
 - Checkout runs on our own origin, so the CSP has to make room for it. Five
   scoped allowances, each one observed in an actual popup run rather than
   guessed: `script-src https://sbl.onfastspring.com` (the SBL file),
