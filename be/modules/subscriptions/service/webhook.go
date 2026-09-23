@@ -342,26 +342,36 @@ func lifecycleTime(event fastspring.Event, sub *fastspring.Subscription) time.Ti
 
 // resolveOwner finds the local subscription row a provider event belongs to.
 //
-// Three of the four hops read a value Jobber itself recorded: the provider
-// subscription ID and account ID on the local row (written at checkout-session
-// creation, then at activation), and the custom lookup key Jobber set on the
-// FastSpring account.
+// The hops, in order: the provider subscription ID already on a row, the proven
+// order tag, the provider account ID already on a row, and the custom lookup key
+// Jobber set on the FastSpring account.
 //
-// The fourth — the order tag — is the one hop whose value arrives *inside* the
-// event, and the payload alone does not say who put it there. The signature
-// proves FastSpring sent the body; it does not prove that Jobber, rather than a
-// visitor using the storefront's own `fastspring.builder.tag()`, wrote the tag.
-// So the tag is accepted only with the MAC that Jobber mints for it, which no
-// unauthenticated buyer can produce. That check, not the position of the hop, is
-// what makes it safe — see provenTaggedUserID and ordertag.go.
+// Three of them read a value Jobber itself recorded. The order tag is the one
+// whose value arrives *inside* the event, and the payload alone does not say who
+// put it there. The signature proves FastSpring sent the body; it does not prove
+// that Jobber, rather than a visitor using the storefront's own
+// `fastspring.builder.tag()`, wrote the tag. So the tag is accepted only with the
+// MAC that Jobber mints for it, which no unauthenticated buyer can produce — see
+// provenTaggedUserID and ordertag.go.
 //
-// The tag is tried before the account read-back because it is the hop that
-// actually links a new buyer. FastSpring creates the customer account *during*
-// checkout, so a first session answers with no `customer.accountId` to record,
-// and the account it then creates carries only `lookup.global` — both local IDs
-// miss on the very first lifecycle event, and the read-back has nothing to say.
-// Resolving off the signed payload also keeps the grant independent of a second
-// API call that could be down when the purchase lands.
+// # Why the tag outranks the account
+//
+// Once it has passed that MAC, the tag is the *strongest* evidence in the
+// payload, and the only evidence bound to this one order: it names the user
+// whose authenticated session created this checkout, and nothing else. The
+// account ID is weaker on both counts. It is recorded per *buyer*, not per
+// order, and FastSpring reuses one account across purchases made with the same
+// contact — so two local users who share an email can end up behind one account,
+// and the account hop would then hand one user's purchase to the other. The
+// subscription ID (hop 1) stays above the tag because it is exact and is what
+// every event after the first resolves on.
+//
+// The tag also runs before *any* account handling, including the guard for an
+// event that carries no account at all. That guard used to sit above it, which
+// made the one hop designed to link a first purchase unreachable for exactly the
+// payloads most likely to need it. Resolving off the payload alone also keeps
+// the grant independent of a second API call that could be down when the
+// purchase lands.
 func (s *SubscriptionService) resolveOwner(ctx context.Context, incoming *fastspring.Subscription) (*model.Subscription, error) {
 	if incoming.ID != "" {
 		sub, err := s.repo.GetByExternalSubscriptionID(ctx, incoming.ID)
@@ -373,6 +383,17 @@ func (s *SubscriptionService) resolveOwner(ctx context.Context, incoming *fastsp
 		}
 	}
 
+	userID, err := s.provenTaggedUserID(incoming)
+	if err != nil {
+		return nil, err
+	}
+	if userID != "" {
+		return s.resolveOwnerByOrderTag(ctx, incoming, userID)
+	}
+
+	// No account to read and no tag that named anyone: nothing identifies this
+	// event yet. Retryable rather than foreign — a payload shape that hid the
+	// account is our bug to fix, not somebody else's customer.
 	if incoming.AccountID == "" {
 		return nil, fmt.Errorf("cannot resolve subscription %q: %w", incoming.ID, model.ErrSubscriptionNotFound)
 	}
@@ -383,14 +404,6 @@ func (s *SubscriptionService) resolveOwner(ctx context.Context, incoming *fastsp
 	}
 	if !errors.Is(err, model.ErrSubscriptionNotFound) {
 		return nil, err
-	}
-
-	userID, err := s.provenTaggedUserID(incoming)
-	if err != nil {
-		return nil, err
-	}
-	if userID != "" {
-		return s.resolveOwnerByOrderTag(ctx, incoming, userID)
 	}
 
 	return s.resolveOwnerByLookupKey(ctx, incoming.AccountID)
