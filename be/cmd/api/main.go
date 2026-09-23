@@ -670,9 +670,35 @@ func main() {
 			if err := passwordResetRepository.DeleteExpired(bgCtx); err != nil {
 				logger.Error("Failed to clean up expired password reset tokens", zap.Error(err))
 			}
+			// Billing event claims outlive every redelivery that could reference
+			// them, so the table would otherwise grow for the life of the product.
+			dropped, err := subscriptionRepository.DeleteExpiredWebhookEvents(bgCtx, subRepo.WebhookEventRetentionDays)
+			if err != nil {
+				logger.Error("Failed to clean up expired billing event claims", zap.Error(err))
+			} else if dropped > 0 {
+				logger.Debug("Expired billing event claims cleaned up", zap.Int64("dropped", dropped))
+			}
 			logger.Debug("Expired tokens cleaned up")
 		}
 	}()
+
+	// Start background job: recover webhook deliveries that never landed.
+	//
+	// FastSpring stops retrying a failed delivery after 7 days, so a deployment
+	// that was down, unreachable or holding a stale secret for longer than that
+	// keeps subscription rows that nothing will ever correct. The provider's
+	// documented remedy is to pull the events it still has no acknowledgement
+	// for, which is what this does — through the same pipeline, with the same
+	// guards, and idempotently against anything the push channel already applied.
+	//
+	// Gated on webhook ingestion rather than on payments: the same flag is what
+	// guarantees the secret every order-tag proof is verified against, and a
+	// deployment that deliberately ingests nothing must not start pulling.
+	if cfg.Features.BillingWebhookEnabled {
+		go reconcileBillingEvents(subscriptionSvc, logger.Logger)
+	} else {
+		logger.Warn("Billing reconciliation disabled with webhook ingestion, missed provider events will not be recovered")
+	}
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -704,6 +730,56 @@ func main() {
 	}
 
 	logger.Info("Server exited")
+}
+
+// How often missed provider events are swept for, and how far back each sweep
+// looks. The window covers FastSpring's whole 7-day retry schedule with room to
+// spare, so an event only just given up on cannot fall between two sweeps.
+const (
+	billingReconcileInterval = 6 * time.Hour
+	billingReconcileTimeout  = 5 * time.Minute
+	// The first sweep waits for the rest of the process to settle. It runs at
+	// all because the case this exists for — a deployment that was down or
+	// misconfigured — is the case where a restart has just happened.
+	billingReconcileStartDelay = 2 * time.Minute
+)
+
+// reconcileBillingEvents sweeps for provider events the webhook endpoint never
+// received, on a timer, for the life of the process.
+func reconcileBillingEvents(svc *subService.SubscriptionService, log *zap.Logger) {
+	sweep := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), billingReconcileTimeout)
+		defer cancel()
+
+		result, err := svc.ReconcileMissedEvents(ctx, subService.DefaultReconcileDays)
+		if err != nil {
+			// Billing is degraded, not the app: log it and let the next sweep try.
+			log.Error("Billing reconciliation sweep failed", zap.Error(err))
+			return
+		}
+		// A sweep that found nothing is the normal case and says nothing worth
+		// reading, so only a sweep that actually did something is reported.
+		if result.Total() == 0 && len(result.Unacknowledged) == 0 {
+			return
+		}
+		log.Warn("Recovered billing events the webhook endpoint never received",
+			zap.Int("events", result.Total()),
+			zap.Int("pages", result.Pages),
+			zap.Int("applied", len(result.Processed)),
+			zap.Int("skipped", len(result.Skipped)),
+			zap.Int("failed", len(result.Failed)),
+			zap.Int("unacknowledged", len(result.Unacknowledged)),
+		)
+	}
+
+	time.Sleep(billingReconcileStartDelay)
+	sweep()
+
+	ticker := time.NewTicker(billingReconcileInterval)
+	defer ticker.Stop()
+	for range ticker.C {
+		sweep()
+	}
 }
 
 // healthCheckHandler godoc

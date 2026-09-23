@@ -217,6 +217,34 @@ func (r *SubscriptionRepository) GetAllCounts(ctx context.Context, userID string
 // together by TestStoredCancelledStatusMatchesTheService.
 const statusCancelled = "cancelled"
 
+// WebhookEventRetentionDays is how long an event claim is kept.
+//
+// The claim exists to recognise a redelivery. FastSpring stops retrying after 7
+// days and reconciliation reaches back at most 30, so a claim older than that
+// has nothing left to catch and the table would otherwise grow for the life of
+// the product. The window is far wider than either bound because forgetting one
+// early is not free: a manual resend of a very old event would be applied again.
+// Even then the lifecycle ordering guard refuses anything not strictly newer
+// than the state on the row, so the cost is a no-op rather than a wrong plan.
+const WebhookEventRetentionDays = 90
+
+// deleteExpiredWebhookEventsSQL drops claims no redelivery can still reference.
+// The window is a parameter rather than string-built SQL, so the interval is
+// data like every other bound value.
+const deleteExpiredWebhookEventsSQL = `
+		DELETE FROM webhook_events
+		WHERE processed_at < NOW() - make_interval(days => $1)`
+
+// DeleteExpiredWebhookEvents removes event claims older than the retention
+// window and reports how many were dropped.
+func (r *SubscriptionRepository) DeleteExpiredWebhookEvents(ctx context.Context, retentionDays int) (int64, error) {
+	tag, err := r.pool.Exec(ctx, deleteExpiredWebhookEventsSQL, retentionDays)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete webhook event claims older than %d days: %w", retentionDays, err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 // applySubscriptionEventSQL claims the webhook event and writes the state it
 // carries.
 //
