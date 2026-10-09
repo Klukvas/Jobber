@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/andreypavlenko/jobber/internal/platform/circuitbreaker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -199,6 +200,26 @@ func TestClient_Errors(t *testing.T) {
 		}
 
 		assert.EqualValues(t, breakerFailureThreshold+3, calls.Load(), "every call must still reach the API")
+	})
+
+	t.Run("a caller that gives up cannot re-close a breaker that Creem tripped", func(t *testing.T) {
+		var calls atomic.Int32
+		client := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+			calls.Add(1)
+			w.WriteHeader(http.StatusBadGateway)
+		})
+		for i := 0; i < breakerFailureThreshold; i++ {
+			require.Error(t, client.UpgradeSubscription(context.Background(), "sub_1", "prod_1"))
+		}
+		cancelled, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		err := client.UpgradeSubscription(cancelled, "sub_1", "prod_1")
+
+		require.Error(t, err)
+		assert.EqualValues(t, breakerFailureThreshold, calls.Load(), "the open breaker refuses before any request")
+		assert.ErrorIs(t, client.UpgradeSubscription(context.Background(), "sub_1", "prod_1"), circuitbreaker.ErrCircuitOpen,
+			"a cancelled call must leave the breaker open")
 	})
 
 	t.Run("a caller that gives up never counts against Creem", func(t *testing.T) {

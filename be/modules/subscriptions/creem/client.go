@@ -158,16 +158,13 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body any) 
 //
 // Only Creem's own faults trip the breaker: a 5xx or a transport failure. A 4xx
 // is our bug or a bad ID and will not heal by backing off, and a caller that
-// gave up (context.Canceled) says nothing about Creem's health.
+// gave up (context.Canceled) says nothing about Creem's health, so it is neither
+// a failure nor a success — in particular it must not re-close a breaker that is
+// open because Creem is down.
 func (c *Client) send(req *http.Request) (status int, raw []byte, err error) {
-	var callerGaveUp error
-	breakerErr := c.breaker.Execute(func() error {
+	err = c.breaker.ExecuteIgnoring(func() error {
 		resp, doErr := c.httpClient.Do(req)
 		if doErr != nil {
-			if errors.Is(doErr, context.Canceled) {
-				callerGaveUp = doErr
-				return nil
-			}
 			return doErr
 		}
 		defer resp.Body.Close()
@@ -181,12 +178,9 @@ func (c *Client) send(req *http.Request) (status int, raw []byte, err error) {
 			return &APIError{StatusCode: status, Body: truncate(raw)}
 		}
 		return nil
-	})
-	if breakerErr != nil {
-		return 0, nil, breakerErr
-	}
-	if callerGaveUp != nil {
-		return 0, nil, callerGaveUp
+	}, func(err error) bool { return errors.Is(err, context.Canceled) })
+	if err != nil {
+		return 0, nil, err
 	}
 	return status, raw, nil
 }
