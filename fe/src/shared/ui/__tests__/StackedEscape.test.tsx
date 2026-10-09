@@ -128,8 +128,8 @@ describe("Escape with dialogs stacked", () => {
     expect(onSheetChange).not.toHaveBeenCalled();
   });
 
-  // The payment popup is not in this app's DOM, so it cannot take its place in
-  // the stack; the dialog behind it opts out entirely instead.
+  // An overlay outside this app's DOM cannot take its place in the stack; the
+  // dialog behind it opts out entirely instead.
   it("lets the dialog underneath answer when the top one has opted out", () => {
     const onOuterChange = vi.fn();
     const onInnerChange = vi.fn();

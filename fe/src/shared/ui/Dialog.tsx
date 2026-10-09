@@ -38,14 +38,13 @@ interface DialogProps {
    */
   labelledBy?: string;
   /**
-   * True while an overlay this dialog does not own is on screen — the billing
-   * provider's payment popup, which its script appends to `<body>`, outside
-   * this dialog's DOM.
+   * True while something other than this dialog should own the keyboard — an
+   * overlay outside its DOM, or a flow that must not be interrupted (a checkout
+   * request in flight, the page navigating to the billing provider).
    *
-   * The dialog keeps rendering, but stops managing the keyboard: the Tab trap
-   * would lock focus out of the payment form, and Escape would close the modal
-   * out from under a payment in flight. Ownership returns the moment the
-   * overlay does.
+   * The dialog keeps rendering, but stops managing the keyboard: no Tab trap,
+   * and Escape no longer closes it. Ownership returns the moment the flag
+   * clears.
    */
   hasExternalOverlay?: boolean;
 }
@@ -120,11 +119,12 @@ export function Dialog({
   useBodyScrollLock(open);
 
   // Escape closes — but only while this dialog is the topmost thing on the
-  // page. Two things can be above it. An overlay it does not own (the payment
-  // popup) lives outside its DOM, and closing the page behind a payment in
-  // flight would lose it. And another dialog can be open over this one: each
-  // dialog used to hold its own `document` listener, so one Escape ran all of
-  // them and a confirmation opened over a form took the form down with it.
+  // page. Two things can be above it. A dialog that opted out via
+  // `hasExternalOverlay` (an overlay outside its DOM, or a flow that must not
+  // be interrupted) stays put on Escape. And another dialog can be open over
+  // this one: each dialog used to hold its own `document` listener, so one
+  // Escape ran all of them and a confirmation opened over a form took the form
+  // down with it.
   const closeDialog = React.useCallback(
     () => onOpenChange(false),
     [onOpenChange],

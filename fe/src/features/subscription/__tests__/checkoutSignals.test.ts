@@ -5,9 +5,6 @@ import {
   PRE_CHECKOUT_TTL_MS,
   readFreshPreCheckoutPlan,
   forgetPreCheckoutPlan,
-  notifyCheckoutCompleted,
-  onCheckoutCompleted,
-  readPreCheckoutPlan,
   rememberPreCheckoutPlan,
 } from "../checkoutSignals";
 
@@ -20,13 +17,12 @@ describe("the pre-checkout baseline", () => {
     rememberPreCheckoutPlan("pro");
     // Asserted through the reader: the stored shape carries a timestamp, and
     // pinning the serialization here would only make it hard to change.
-    expect(readPreCheckoutPlan()).toBe("pro");
     expect(sessionStorage.getItem(PRE_CHECKOUT_PLAN_KEY)).not.toBeNull();
-    expect(readPreCheckoutPlan()).toBe("pro");
+    expect(readFreshPreCheckoutPlan()).toBe("pro");
   });
 
-  it("reads as free when no checkout was ever started", () => {
-    expect(readPreCheckoutPlan()).toBe("free");
+  it("reads as nothing pending when no checkout was ever started", () => {
+    expect(readFreshPreCheckoutPlan()).toBeNull();
   });
 
   it("is forgotten so a later page load does not wait for an upgrade", () => {
@@ -34,35 +30,14 @@ describe("the pre-checkout baseline", () => {
     forgetPreCheckoutPlan();
 
     expect(sessionStorage.getItem(PRE_CHECKOUT_PLAN_KEY)).toBeNull();
-    expect(readPreCheckoutPlan()).toBe("free");
-  });
-});
-
-describe("the checkout-completed signal", () => {
-  it("reaches a listener on the same page load", () => {
-    // The popup never navigates, so this event is the layout's only cue.
-    const listener = vi.fn();
-    const unsubscribe = onCheckoutCompleted(listener);
-
-    notifyCheckoutCompleted();
-
-    expect(listener).toHaveBeenCalledTimes(1);
-    unsubscribe();
-  });
-
-  it("stops reaching a listener that unsubscribed", () => {
-    const listener = vi.fn();
-    onCheckoutCompleted(listener)();
-
-    notifyCheckoutCompleted();
-
-    expect(listener).not.toHaveBeenCalled();
+    expect(readFreshPreCheckoutPlan()).toBeNull();
   });
 });
 
 /**
  * A page load has to decide whether to believe a key it did not write. The
- * checkout popup can end without the provider saying so, and a leftover
+ * checkout redirect can end without the provider saying so (the buyer closes
+ * the tab or navigates back), and a leftover
  * baseline is what turned that silence into a full-screen "Activating your
  * subscription…" for someone who never paid.
  */
@@ -172,13 +147,10 @@ describe("readFreshPreCheckoutPlan", () => {
     expect(readFreshPreCheckoutPlan()).toBe("pro");
   });
 
-  // The in-page completion event has already seen the checkout happen and only
-  // needs the plan, so it is not subject to the freshness rule — but the entry
-  // still has to be a plan the app recognises.
-  it("still answers the in-page reader from a valid current-session entry", () => {
+  it("answers from a valid entry written by this page load", () => {
     rememberPreCheckoutPlan("pro");
 
-    expect(readPreCheckoutPlan()).toBe("pro");
+    expect(readFreshPreCheckoutPlan()).toBe("pro");
   });
 
   it("ignores a corrupted entry", () => {
@@ -189,7 +161,10 @@ describe("readFreshPreCheckoutPlan", () => {
   it.each([
     ["truncated json", "{not json"],
     ["json that is not an object", '"pro"'],
-    ["a plan nobody ships", JSON.stringify({ plan: "platinum", at: Date.now() })],
+    [
+      "a plan nobody ships",
+      JSON.stringify({ plan: "platinum", at: Date.now() }),
+    ],
     ["a legacy string naming no known plan", "platinum"],
     ["a plan of the wrong type", JSON.stringify({ plan: 7, at: Date.now() })],
     ["no plan at all", JSON.stringify({ at: Date.now() })],
@@ -201,14 +176,14 @@ describe("readFreshPreCheckoutPlan", () => {
   });
 
   // An unrecognised plan cannot be ranked against the backend's, so it must not
-  // reach the comparison at all — it falls back to the safe floor instead.
-  it("falls back to free for an unknown stored plan", () => {
+  // reach the comparison at all — it reads as nothing pending instead.
+  it("reads as nothing pending for an unknown stored plan", () => {
     sessionStorage.setItem(
       PRE_CHECKOUT_PLAN_KEY,
       JSON.stringify({ plan: "platinum", at: Date.now() }),
     );
 
-    expect(readPreCheckoutPlan()).toBe("free");
+    expect(readFreshPreCheckoutPlan()).toBeNull();
   });
 
   it("keeps every plan the app does ship", () => {
@@ -262,7 +237,6 @@ describe("storage failures are survivable", () => {
 
     try {
       expect(readFreshPreCheckoutPlan()).toBeNull();
-      expect(readPreCheckoutPlan()).toBe("free");
     } finally {
       getItem.mockRestore();
     }

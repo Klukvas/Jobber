@@ -3,7 +3,7 @@
  *
  * Three places need the same answer and used to give three different ones: the
  * focus trap deciding what Tab can reach, the checkout overlay deciding where
- * to hand the keyboard back, and the popup watch deciding whether the
+ * to hand the keyboard back, and the checkout watch deciding whether the
  * provider's checkout is still on screen. The cheap versions — reading
  * `element.style`, or `offsetParent` — are each wrong in a way that matters:
  * `style` sees nothing a stylesheet class did, and `offsetParent` is null for

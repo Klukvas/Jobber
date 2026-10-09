@@ -94,7 +94,7 @@ describe("ManageSubscriptionModal", () => {
     api.changePlan.mockResolvedValue(undefined);
     api.cancelSubscription.mockResolvedValue(undefined);
     api.createPortalSession.mockResolvedValue({
-      url: "https://store.onfastspring.com/account/abc#/subscriptions",
+      url: "https://creem.io/my-orders/abc#/subscriptions",
     });
     mockSubscriptionRef.current = {
       plan: "pro",
@@ -267,7 +267,7 @@ describe("ManageSubscriptionModal — billing portal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     api.createPortalSession.mockResolvedValue({
-      url: "https://store.onfastspring.com/account/abc#/subscriptions",
+      url: "https://creem.io/my-orders/abc#/subscriptions",
     });
     mockSubscriptionRef.current = {
       plan: "pro",
@@ -334,10 +334,31 @@ describe("ManageSubscriptionModal — billing portal", () => {
 
     await waitFor(() =>
       expect(assignSpy).toHaveBeenCalledExactlyOnceWith(
-        "https://store.onfastspring.com/account/abc#/subscriptions",
+        "https://creem.io/my-orders/abc#/subscriptions",
       ),
     );
     expect(api.createPortalSession).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["a javascript: URL", "javascript:alert(1)"],
+    ["an http URL", "http://creem.io/my-orders/abc"],
+    ["a URL with userinfo", "https://creem.io@evil.com/x"],
+  ])("refuses to navigate to %s from the backend", async (_label, url) => {
+    api.createPortalSession.mockResolvedValue({ url });
+
+    renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
+
+    fireEvent.click(
+      screen.getByText("settings.subscription.manage.openBillingPortal"),
+    );
+
+    await waitFor(() =>
+      expect(notifications.showErrorNotification).toHaveBeenCalledWith(
+        "settings.subscription.manage.portalError",
+      ),
+    );
+    expect(assignSpy).not.toHaveBeenCalled();
   });
 
   it("reports a failure instead of navigating nowhere", async () => {
@@ -379,7 +400,7 @@ describe("ManageSubscriptionModal — billing portal", () => {
       ).toBeDisabled(),
     );
 
-    releasePortal({ url: "https://store.onfastspring.com/account/abc" });
+    releasePortal({ url: "https://creem.io/my-orders/abc" });
   });
 });
 

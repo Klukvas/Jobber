@@ -1,8 +1,8 @@
 /**
- * The two signals that connect "a checkout was started" to "the app should
- * watch for the upgrade": one for the same page load, one for the next one.
+ * The pre-checkout baseline that connects "a checkout was started" to "the app
+ * should watch for the upgrade" after the redirect back.
  *
- * They live in their own module because both ends need them — the checkout hook
+ * It lives in its own module because both ends need it — the checkout hook
  * that starts a purchase and the layout that reacts to it — and neither should
  * have to import the other.
  */
@@ -10,12 +10,11 @@
 import type { SubscriptionPlan } from "@/shared/types/api";
 
 /**
- * The plan the user was on when the checkout popup opened.
+ * The plan the user was on when the checkout redirect started.
  *
  * It is a *baseline*, not a claim: success is only ever shown once the backend
  * reports a strictly higher plan than this. It lives in sessionStorage rather
- * than component state so a reload mid-purchase — which destroys the popup with
- * the page — still comes back watching for the upgrade.
+ * than component state so a reload mid-purchase — which loses the page — still comes back watching for the upgrade.
  */
 export const PRE_CHECKOUT_PLAN_KEY = "billing_pre_checkout_plan";
 
@@ -121,19 +120,12 @@ function takeUsableBaseline(): StoredBaseline | null {
 }
 
 /**
- * Fired when the popup closes reporting an order. The popup never navigates, so
- * without this the layout would have no way to notice the purchase until the
- * next page load.
- */
-const CHECKOUT_COMPLETED_EVENT = "jobber:checkout-completed";
-
-/**
- * Records the plan the user is on before the popup opens, and when.
+ * Records the plan the user is on before the checkout redirect, and when.
  *
- * Best-effort on purpose. This is a convenience for the *next* page load; a
+ * Best-effort on purpose. This is read by the *next* page load; a
  * storage jar that refuses writes — Safari's private mode, a full quota — must
- * not be able to stop a purchase from starting. Losing it costs the overlay
- * after a mid-checkout reload, nothing more.
+ * not be able to stop a purchase from starting. Losing it costs the
+ * "activating" overlay after the redirect back, nothing more.
  */
 export function rememberPreCheckoutPlan(plan: SubscriptionPlan): void {
   try {
@@ -142,7 +134,7 @@ export function rememberPreCheckoutPlan(plan: SubscriptionPlan): void {
       JSON.stringify({ plan, at: Date.now() }),
     );
   } catch {
-    // Nothing recorded: the in-page completion event still works.
+    // Nothing recorded; the plan change is still picked up by normal refetches.
   }
 }
 
@@ -158,19 +150,12 @@ export function forgetPreCheckoutPlan(): void {
   }
 }
 
-/** Reads the baseline, defaulting to free when nothing was recorded. */
-export function readPreCheckoutPlan(): SubscriptionPlan {
-  return takeUsableBaseline()?.plan ?? "free";
-}
-
 /**
  * The baseline a fresh page load should act on, or null when there is none
  * worth acting on.
  *
- * Separate from `readPreCheckoutPlan` because the two callers want different
- * things: the in-page completion event already knows a checkout just happened
- * and only needs the plan, while a mount has to decide whether to believe a
- * key it did not write. Expired entries are dropped from storage as they are
+ * A mount has to decide whether to believe a key it did not write, not just
+ * read the plan. Expired entries are dropped from storage as they are
  * read, so a stale one cannot keep re-arming the overlay on every navigation.
  */
 export function readFreshPreCheckoutPlan(): SubscriptionPlan | null {
@@ -196,21 +181,4 @@ export function readFreshPreCheckoutPlan(): SubscriptionPlan | null {
     return null;
   }
   return baseline.plan;
-}
-
-/**
- * Announces that the popup closed on an order.
- *
- * This says "start watching", nothing more. The provider's callback is not
- * evidence of payment — the webhook is — so the listener polls the backend and
- * only celebrates once the plan there has actually moved.
- */
-export function notifyCheckoutCompleted(): void {
-  window.dispatchEvent(new CustomEvent(CHECKOUT_COMPLETED_EVENT));
-}
-
-/** Subscribes to checkout completion. Returns the unsubscribe function. */
-export function onCheckoutCompleted(listener: () => void): () => void {
-  window.addEventListener(CHECKOUT_COMPLETED_EVENT, listener);
-  return () => window.removeEventListener(CHECKOUT_COMPLETED_EVENT, listener);
 }

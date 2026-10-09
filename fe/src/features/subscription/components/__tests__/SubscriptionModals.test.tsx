@@ -239,12 +239,12 @@ describe("checkout failures stay visible", () => {
   });
 });
 
-// ---------- the payment popup owns the keyboard while it is up ----------
-describe("the modal yields the keyboard to the payment popup", () => {
-  // The provider's popup is appended outside the modal's DOM. Escape reaching
-  // the modal would close the page behind a payment already in flight.
+// ---------- Escape is ignored while the checkout redirect is under way ----------
+describe("the modal ignores Escape while the checkout redirect is under way", () => {
+  // Closing the modal then would hide the error if the checkout fails to start,
+  // and the page is about to navigate to the provider anyway.
 
-  it("PricingModal ignores Escape while the checkout popup is open", () => {
+  it("PricingModal ignores Escape while the checkout is redirecting", () => {
     checkout.isPending = true;
     const onOpenChange = vi.fn();
 
@@ -254,7 +254,7 @@ describe("the modal yields the keyboard to the payment popup", () => {
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
-  it("UpgradeModal ignores Escape while the checkout popup is open", () => {
+  it("UpgradeModal ignores Escape while the checkout is redirecting", () => {
     checkout.isPending = true;
     const onOpenChange = vi.fn();
 
@@ -264,7 +264,7 @@ describe("the modal yields the keyboard to the payment popup", () => {
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
-  it("PricingModal closes on Escape as usual when no popup is open", () => {
+  it("PricingModal closes on Escape as usual when no checkout is redirecting", () => {
     const onOpenChange = vi.fn();
 
     renderWithClient(<PricingModal open onOpenChange={onOpenChange} />);
@@ -274,8 +274,8 @@ describe("the modal yields the keyboard to the payment popup", () => {
   });
 
   it("a subscriber's in-flight plan change still closes on Escape", () => {
-    // Nothing is drawn over the page for a plan change, so the modal keeps the
-    // keyboard even while the request is pending.
+    // A plan change never redirects, so the modal keeps the keyboard even
+    // while the request is pending.
     subscription.plan = "pro";
     checkout.isPending = true;
     const onOpenChange = vi.fn();

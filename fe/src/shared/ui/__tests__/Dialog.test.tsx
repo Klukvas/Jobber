@@ -85,9 +85,9 @@ describe("Dialog", () => {
 
 // ---------- Dialog with an overlay it does not own ----------
 describe("Dialog while an external overlay is on screen", () => {
-  // The billing provider's payment popup is appended to <body>, outside this
-  // dialog. Trapping Tab would lock the keyboard out of the payment form, and
-  // Escape would close the page behind a payment that is already in flight.
+  // An overlay (or an uninterruptible flow such as a checkout redirect) must
+  // own the keyboard: trapping Tab would lock focus out of it, and Escape
+  // would close the dialog underneath it.
   function renderDialog(hasExternalOverlay: boolean) {
     const onOpenChange = vi.fn();
     const view = render(

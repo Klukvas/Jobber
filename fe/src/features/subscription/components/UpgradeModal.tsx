@@ -25,7 +25,7 @@ export function UpgradeModal({ open, onOpenChange }: UpgradeModalProps) {
     selectPlan,
     isReady,
     isPending,
-    isCheckoutPopupOpen,
+    isCheckoutRedirecting,
     errorMessageKey,
   } = usePlanSelection({
     onPlanChanged: () => onOpenChange(false),
@@ -36,10 +36,9 @@ export function UpgradeModal({ open, onOpenChange }: UpgradeModalProps) {
 
   if (!FEATURES.PAYMENTS) return null;
 
-  // A free user gets the provider's checkout popup drawn over this page —
-  // nothing navigates, and no URL is involved. The modal stays open behind it
-  // on purpose: if starting the checkout failed, this is where the user sees
-  // why. A subscriber upgrades in place and the modal closes on success.
+  // A free user is sent to the provider's hosted checkout by a full-page
+  // redirect. The modal stays open meanwhile on purpose: if starting the
+  // checkout failed, this is where the user sees why. A subscriber upgrades in place and the modal closes on success.
   const handleUpgrade = () => {
     if (nextPlan) {
       selectPlan(nextPlan);
@@ -50,10 +49,10 @@ export function UpgradeModal({ open, onOpenChange }: UpgradeModalProps) {
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      // The payment popup is appended outside this dialog: while it is up, the
-      // keyboard has to reach it, and Escape must not close the page behind a
-      // payment in flight.
-      hasExternalOverlay={isCheckoutPopupOpen}
+      // While the checkout request is in flight or the browser is navigating to
+      // the provider's page, Escape must not close the modal: that would hide
+      // the error if the start fails, and the page is about to be replaced.
+      hasExternalOverlay={isCheckoutRedirecting}
     >
       <DialogContent onClose={() => onOpenChange(false)}>
         <DialogHeader>

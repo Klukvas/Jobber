@@ -397,22 +397,15 @@ export interface SubscriptionDTO {
 export interface CheckoutConfigDTO {
   provider: string;
   environment: string;
-  /**
-   * Popup storefront the provider's checkout script is pointed at, as
-   * `<host>/<popup-checkout-id>`. Derived by the backend from its checkout
-   * path and environment; empty means checkout cannot be opened.
-   */
-  storefront: string;
   plans: SubscriptionPlan[];
 }
 
 /**
- * A checkout session created by the backend. There is no URL: the popup takes
- * the opaque session id, so the browser is handed nothing to navigate to.
+ * A hosted checkout created by the backend. The browser navigates to
+ * `checkout_url`; callers must validate it before doing so.
  */
 export interface CheckoutSessionDTO {
-  session_id: string;
-  expires_at?: string;
+  checkout_url: string;
 }
 
 export interface PortalSessionDTO {

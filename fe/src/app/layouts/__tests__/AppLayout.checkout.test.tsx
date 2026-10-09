@@ -11,7 +11,6 @@ import { AppLayout, POLL_INTERVAL_MS } from "../AppLayout";
 import {
   PRE_CHECKOUT_PLAN_KEY,
   PRE_CHECKOUT_TTL_MS,
-  notifyCheckoutCompleted,
   rememberPreCheckoutPlan,
 } from "@/features/subscription/checkoutSignals";
 import type { SubscriptionPlan } from "@/shared/types/api";
@@ -101,7 +100,7 @@ describe("AppLayout — returning from checkout", () => {
   });
 
   it("polls after a checkout without showing success while the plan is unchanged", async () => {
-    // A reload while the popup was open: the baseline is still on disk, but
+    // The buyer returns from the hosted checkout: the baseline is still on disk, but
     // the backend keeps reporting the free plan.
     rememberPreCheckoutPlan("free");
 
@@ -145,9 +144,8 @@ describe("AppLayout — returning from checkout", () => {
     );
   });
 
-  it("still works when the storefront redirects back with the success param", async () => {
-    // The FastSpring storefront's post-order redirect is a dashboard setting we
-    // do not control, so both entry paths must behave identically.
+  it("detects the upgrade when the provider redirects back with the success param", async () => {
+    // The redirect back from the hosted checkout is the normal entry path.
     rememberPreCheckoutPlan("free");
     plan.value = "pro";
 
@@ -160,8 +158,8 @@ describe("AppLayout — returning from checkout", () => {
 });
 
 /**
- * The `?subscription=success` parameter is the storefront's, appended by a
- * dashboard redirect setting. It is a breadcrumb, never evidence — anyone can
+ * The `?subscription=success` parameter is the provider's, appended by a
+ * redirect setting. It is a breadcrumb, never evidence — anyone can
  * bookmark it, share it, or land on it twice — so the only thing it is allowed
  * to do is get itself cleaned out of the address bar.
  */
@@ -394,70 +392,8 @@ describe("AppLayout — the activating overlay is escapable", () => {
   });
 });
 
-describe("AppLayout — the popup closes without navigating", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    sessionStorage.clear();
-    plan.value = "free";
-  });
-
-  afterEach(() => {
-    sessionStorage.clear();
-  });
-
-  it("starts watching when the popup reports an order on this page load", async () => {
-    // Nothing pending at mount: the purchase happens entirely on this page, so
-    // there is no navigation for the mount-time read to notice.
-    renderLayout();
-    expect(
-      screen.queryByText("settings.subscription.activating"),
-    ).not.toBeInTheDocument();
-
-    rememberPreCheckoutPlan("free");
-    act(() => notifyCheckoutCompleted());
-
-    expect(
-      screen.getByText("settings.subscription.activating"),
-    ).toBeInTheDocument();
-    await waitFor(() =>
-      expect(invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ["subscription"],
-      }),
-    );
-    // The provider's callback is not payment: nothing is granted yet.
-    expect(screen.queryByTestId("upgrade-success")).not.toBeInTheDocument();
-  });
-
-  it("celebrates only once the backend reports the higher plan", async () => {
-    plan.value = "pro";
-    renderLayout();
-    // The backend already says pro, but no checkout is pending, so this is just
-    // an existing subscriber loading the app.
-    expect(screen.queryByTestId("upgrade-success")).not.toBeInTheDocument();
-
-    rememberPreCheckoutPlan("free");
-    act(() => notifyCheckoutCompleted());
-
-    expect(await screen.findByTestId("upgrade-success")).toHaveTextContent(
-      "pro",
-    );
-  });
-
-  it("lifts the baseline off disk so the next page load stays quiet", async () => {
-    renderLayout();
-
-    rememberPreCheckoutPlan("free");
-    act(() => notifyCheckoutCompleted());
-
-    await waitFor(() =>
-      expect(sessionStorage.getItem(PRE_CHECKOUT_PLAN_KEY)).toBeNull(),
-    );
-  });
-});
-
 /**
- * The provider does not always tell us the popup closed — its own X fires no
- * callback — so a baseline can outlive the checkout that wrote it. A page load
+ * The buyer can abandon the hosted checkout without telling us, so a baseline can outlive the checkout that wrote it. A page load
  * must not turn that leftover into a blocking "Activating your subscription…"
  * for someone who declined to pay.
  */
