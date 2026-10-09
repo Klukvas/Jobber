@@ -94,7 +94,7 @@ describe("ManageSubscriptionModal", () => {
     api.changePlan.mockResolvedValue(undefined);
     api.cancelSubscription.mockResolvedValue(undefined);
     api.createPortalSession.mockResolvedValue({
-      url: "https://store.onfastspring.com/account/abc#/subscriptions",
+      url: "https://creem.io/my-orders/abc#/subscriptions",
     });
     mockSubscriptionRef.current = {
       plan: "pro",
@@ -258,16 +258,15 @@ describe("ManageSubscriptionModal", () => {
 });
 
 describe("ManageSubscriptionModal — billing portal", () => {
-  // Invoices, receipts, the payment method and refund requests all live on the
-  // provider's side. Without this button the refund policy promises a route the
-  // app never offered.
+  // Invoices, receipts and the payment method live on the provider's side;
+  // this button is the only route to them.
   let assignSpy: ReturnType<typeof vi.fn>;
   let originalLocation: Location;
 
   beforeEach(() => {
     vi.clearAllMocks();
     api.createPortalSession.mockResolvedValue({
-      url: "https://store.onfastspring.com/account/abc#/subscriptions",
+      url: "https://creem.io/my-orders/abc#/subscriptions",
     });
     mockSubscriptionRef.current = {
       plan: "pro",
@@ -334,10 +333,34 @@ describe("ManageSubscriptionModal — billing portal", () => {
 
     await waitFor(() =>
       expect(assignSpy).toHaveBeenCalledExactlyOnceWith(
-        "https://store.onfastspring.com/account/abc#/subscriptions",
+        "https://creem.io/my-orders/abc#/subscriptions",
       ),
     );
     expect(api.createPortalSession).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["a javascript: URL", "javascript:alert(1)"],
+    ["an http URL", "http://creem.io/my-orders/abc"],
+    ["a URL with userinfo", "https://creem.io@evil.com/x"],
+    ["an https URL on another host", "https://evil.example/my-orders/abc"],
+    ["a lookalike host", "https://evilcreem.io/my-orders/abc"],
+    ["a URL with backslashes", "https:\\\\creem.io\\my-orders"],
+  ])("refuses to navigate to %s from the backend", async (_label, url) => {
+    api.createPortalSession.mockResolvedValue({ url });
+
+    renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
+
+    fireEvent.click(
+      screen.getByText("settings.subscription.manage.openBillingPortal"),
+    );
+
+    await waitFor(() =>
+      expect(notifications.showErrorNotification).toHaveBeenCalledWith(
+        "settings.subscription.manage.portalError",
+      ),
+    );
+    expect(assignSpy).not.toHaveBeenCalled();
   });
 
   it("reports a failure instead of navigating nowhere", async () => {
@@ -379,7 +402,135 @@ describe("ManageSubscriptionModal — billing portal", () => {
       ).toBeDisabled(),
     );
 
-    releasePortal({ url: "https://store.onfastspring.com/account/abc" });
+    releasePortal({ url: "https://creem.io/my-orders/abc" });
+  });
+});
+
+describe("ManageSubscriptionModal — plan change and cancellation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.changePlan.mockResolvedValue(undefined);
+    api.cancelSubscription.mockResolvedValue(undefined);
+    mockSubscriptionRef.current = {
+      ...mockSubscriptionRef.current,
+      plan: "pro",
+      subscription: {
+        ...mockSubscriptionRef.current.subscription,
+        plan: "pro",
+      },
+    };
+  });
+
+  const clickLabel = (key: string) => fireEvent.click(screen.getByText(key));
+
+  it("switches pro to enterprise, refreshes the subscription and closes", async () => {
+    const onOpenChange = vi.fn();
+    renderModal(
+      <ManageSubscriptionModal open={true} onOpenChange={onOpenChange} />,
+    );
+
+    clickLabel("settings.subscription.manage.switchToEnterprise");
+
+    await waitFor(() =>
+      expect(notifications.showSuccessNotification).toHaveBeenCalledWith(
+        "settings.subscription.manage.planChanged",
+      ),
+    );
+    expect(api.changePlan).toHaveBeenCalledWith("enterprise");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("switches enterprise down to pro", async () => {
+    mockSubscriptionRef.current = {
+      ...mockSubscriptionRef.current,
+      plan: "enterprise",
+      subscription: {
+        ...mockSubscriptionRef.current.subscription,
+        plan: "enterprise",
+      },
+    };
+    renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
+
+    clickLabel("settings.subscription.manage.switchToPro");
+
+    await waitFor(() => expect(api.changePlan).toHaveBeenCalledWith("pro"));
+  });
+
+  it("reports a failed plan change and keeps the modal open", async () => {
+    api.changePlan.mockRejectedValue(new Error("nope"));
+    const onOpenChange = vi.fn();
+    renderModal(
+      <ManageSubscriptionModal open={true} onOpenChange={onOpenChange} />,
+    );
+
+    clickLabel("settings.subscription.manage.switchToEnterprise");
+
+    await waitFor(() =>
+      expect(notifications.showErrorNotification).toHaveBeenCalledWith(
+        "settings.subscription.manage.changePlanError",
+      ),
+    );
+    expect(notifications.showSuccessNotification).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("asks for confirmation before cancelling and can back out", () => {
+    renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
+
+    clickLabel("settings.subscription.manage.cancelSubscription");
+    expect(
+      screen.getByText("settings.subscription.manage.cancelConfirmText"),
+    ).toBeInTheDocument();
+    expect(api.cancelSubscription).not.toHaveBeenCalled();
+
+    clickLabel("common.cancel");
+
+    expect(
+      screen.queryByText("settings.subscription.manage.cancelConfirmText"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("settings.subscription.manage.cancelSubscription"),
+    ).toBeInTheDocument();
+  });
+
+  it("cancels once confirmed, then notifies and closes", async () => {
+    const onOpenChange = vi.fn();
+    renderModal(
+      <ManageSubscriptionModal open={true} onOpenChange={onOpenChange} />,
+    );
+
+    clickLabel("settings.subscription.manage.cancelSubscription");
+    clickLabel("settings.subscription.manage.confirmCancel");
+
+    await waitFor(() =>
+      expect(notifications.showSuccessNotification).toHaveBeenCalledWith(
+        "settings.subscription.manage.cancelScheduled",
+      ),
+    );
+    expect(api.cancelSubscription).toHaveBeenCalledOnce();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("reports a failed cancellation and leaves the confirmation open", async () => {
+    api.cancelSubscription.mockRejectedValue(new Error("nope"));
+    const onOpenChange = vi.fn();
+    renderModal(
+      <ManageSubscriptionModal open={true} onOpenChange={onOpenChange} />,
+    );
+
+    clickLabel("settings.subscription.manage.cancelSubscription");
+    clickLabel("settings.subscription.manage.confirmCancel");
+
+    await waitFor(() =>
+      expect(notifications.showErrorNotification).toHaveBeenCalledWith(
+        "settings.subscription.manage.cancelError",
+      ),
+    );
+    expect(notifications.showSuccessNotification).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("settings.subscription.manage.cancelConfirmText"),
+    ).toBeInTheDocument();
   });
 });
 

@@ -81,11 +81,11 @@ export function usePlanSelection({ onPlanChanged }: PlanSelectionOptions = {}) {
     isReady: isSubscriber || isCheckoutReady,
     isPending: isSubscriber ? isChangingPlan : isCheckoutPending,
     /**
-     * True from the moment a purchase starts until the provider's popup closes
-     * — the window in which the payment form, not this app, owns the screen and
-     * the keyboard. A subscriber's plan change never opens one.
+     * True from the moment a purchase starts until the browser leaves for the
+     * provider's hosted page (or the request fails). A subscriber's plan change
+     * never redirects.
      */
-    isCheckoutPopupOpen: !isSubscriber && isCheckoutPending,
+    isCheckoutRedirecting: !isSubscriber && isCheckoutPending,
     /** i18n key for whichever request failed, or null while nothing has. */
     errorMessageKey: changePlanError
       ? "settings.subscription.manage.changePlanError"

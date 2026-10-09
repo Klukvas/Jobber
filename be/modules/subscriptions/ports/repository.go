@@ -10,10 +10,10 @@ import (
 type SubscriptionRepository interface {
 	GetByUserID(ctx context.Context, userID string) (*model.Subscription, error)
 	// GetByExternalSubscriptionID looks a subscription up by the billing
-	// provider's subscription ID (FastSpring `subscription`).
+	// provider's subscription ID (Creem `sub_…`).
 	GetByExternalSubscriptionID(ctx context.Context, externalSubID string) (*model.Subscription, error)
 	// GetByExternalAccountID looks a subscription up by the billing provider's
-	// customer account ID (FastSpring `account`). This is the server-side link
+	// customer ID (Creem `cust_…`). This is the server-side link
 	// between a purchase and a local user.
 	GetByExternalAccountID(ctx context.Context, externalAccountID string) (*model.Subscription, error)
 	// EnsureFree creates a free row for a user when none exists and leaves an

@@ -89,7 +89,7 @@ import (
 	rbRepo "github.com/andreypavlenko/jobber/modules/resumebuilder/repository"
 	rbService "github.com/andreypavlenko/jobber/modules/resumebuilder/service"
 
-	"github.com/andreypavlenko/jobber/modules/subscriptions/fastspring"
+	"github.com/andreypavlenko/jobber/modules/subscriptions/creem"
 	subHandler "github.com/andreypavlenko/jobber/modules/subscriptions/handler"
 	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	subRepo "github.com/andreypavlenko/jobber/modules/subscriptions/repository"
@@ -226,6 +226,13 @@ func main() {
 
 	// Initialize Gin router
 	router := gin.New()
+	if len(cfg.Server.TrustedProxies) > 0 {
+		// Without this gin trusts every proxy and takes the leftmost
+		// X-Forwarded-For, so per-IP rate limits can be dodged by rotating it.
+		if err := router.SetTrustedProxies(cfg.Server.TrustedProxies); err != nil {
+			logger.Fatal("Invalid TRUSTED_PROXIES", zap.Error(err))
+		}
+	}
 	router.Use(sentryPlatform.RecoveryMiddleware(sentryEnabled))
 	router.Use(httpPlatform.RequestIDMiddleware())
 	router.Use(httpPlatform.LoggerMiddleware(logger))
@@ -292,21 +299,26 @@ func main() {
 	subscriptionRepository := subRepo.NewSubscriptionRepository(pgClient.Pool)
 
 	// Initialize subscription service (used as limit checker by other services)
-	fastSpringClient := fastspring.NewClient(fastspring.Config{
-		Username: cfg.FastSpring.APIUsername,
-		Password: cfg.FastSpring.APIPassword,
+	creemClient := creem.NewClient(creem.Config{
+		APIKey:  cfg.Creem.APIKey,
+		BaseURL: creem.BaseURLFor(cfg.Creem.Environment == subService.EnvironmentLive),
 	})
 	subscriptionSvc := subService.NewSubscriptionService(
 		subscriptionRepository,
-		fastSpringClient,
+		creemClient,
 		subService.BillingConfig{
-			WebhookSecret:         cfg.FastSpring.WebhookSecret,
-			CheckoutPath:          cfg.FastSpring.CheckoutPath,
-			Environment:           cfg.FastSpring.Environment,
-			ProProductPath:        cfg.FastSpring.ProProductPath,
-			EnterpriseProductPath: cfg.FastSpring.EnterpriseProductPath,
+			WebhookSecret:       cfg.Creem.WebhookSecret,
+			Environment:         cfg.Creem.Environment,
+			SuccessURL:          subService.CheckoutSuccessURL(cfg.Server.PublicBaseURL),
+			ProProductID:        cfg.Creem.ProProductID,
+			EnterpriseProductID: cfg.Creem.EnterpriseProductID,
 		},
 	)
+
+	if cfg.IgnoresLiveBilling() {
+		logger.Warn("Billing is on in production but CREEM_ENVIRONMENT=test: every live Creem event will be " +
+			"dropped as an environment mismatch. Set CREEM_ENVIRONMENT=live (with live keys) before taking real payments")
+	}
 
 	// Initialize match score cache repository
 	matchScoreCacheRepo := matchScoreRepo.NewMatchScoreCacheRepository(pgClient.Pool)
@@ -573,6 +585,8 @@ func main() {
 		KeyPrefix:   "support",
 	}, logger.Logger)
 
+	webhookRateLimiter := newBillingWebhookRateLimiter(redisClient.Client, logger.Logger)
+
 	// Stricter rate limiting for email-sending endpoints (3 requests per 15 minutes per IP)
 	emailRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
 		MaxRequests: 3,
@@ -621,7 +635,7 @@ func main() {
 		// Webhook ingestion is gated separately so closing the checkout does not
 		// drop renewals, cancellations or deactivations for existing customers.
 		if cfg.Features.BillingWebhookEnabled {
-			webhookHdl.RegisterRoutes(v1) // Public, no auth — FastSpring signs the payload
+			webhookHdl.RegisterRoutes(v1, webhookRateLimiter) // Public, no auth — Creem signs the payload
 		} else {
 			logger.Warn("Billing webhook disabled via FEATURE_BILLING_WEBHOOK_ENABLED=false, subscription lifecycle events will not be recorded")
 		}
@@ -669,6 +683,14 @@ func main() {
 			}
 			if err := passwordResetRepository.DeleteExpired(bgCtx); err != nil {
 				logger.Error("Failed to clean up expired password reset tokens", zap.Error(err))
+			}
+			// Billing event claims outlive every redelivery that could reference
+			// them, so the table would otherwise grow for the life of the product.
+			dropped, err := subscriptionRepository.DeleteExpiredWebhookEvents(bgCtx, subRepo.WebhookEventRetentionDays)
+			if err != nil {
+				logger.Error("Failed to clean up expired billing event claims", zap.Error(err))
+			} else if dropped > 0 {
+				logger.Debug("Expired billing event claims cleaned up", zap.Int64("dropped", dropped))
 			}
 			logger.Debug("Expired tokens cleaned up")
 		}

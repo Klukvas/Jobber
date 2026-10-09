@@ -50,9 +50,8 @@ const FOCUS_RETRY_FRAMES = 20;
 interface DialogFocusOptions {
   readonly open: boolean;
   /**
-   * False while an overlay this dialog does not own is on screen — the billing
-   * provider's payment popup lives outside the dialog's DOM, so trapping Tab
-   * would lock the keyboard out of the payment form.
+   * False while something other than this dialog should own the keyboard —
+   * an overlay outside its DOM, so trapping Tab would lock focus out of it.
    */
   readonly trapEnabled?: boolean;
 }

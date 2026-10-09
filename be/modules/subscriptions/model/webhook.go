@@ -29,4 +29,13 @@ const (
 	// superseded event is routine ordering, this one means a subscriber is at
 	// risk of paying for two subscriptions.
 	WebhookLinkConflict WebhookApplyOutcome = "link_conflict"
+	// WebhookAccountConflict means the provider account this event carries is
+	// already linked to a *different* local user, so writing it would break the
+	// unique index that makes one account resolve to exactly one user.
+	//
+	// It is terminal rather than retryable, and that distinction is the whole
+	// point of naming it. A retry cannot resolve two users behind one provider
+	// customer — only a person can — and Creem would keep redelivering a failing
+	// event for 24 hours, burying everything else in the log on the way.
+	WebhookAccountConflict WebhookApplyOutcome = "account_conflict"
 )

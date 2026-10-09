@@ -396,11 +396,16 @@ jobs:
           # This should match the server's public IP/domain.
           # If not set, docker-compose.yml will use the default.
           # For production deploys, consider making this configurable via GitHub Secret.
+          #
+          # VITE_FEATURE_PAYMENTS is pinned to false below until Creem go-live
+          # (ADR-0003). To go live, read it from the VITE_FEATURE_PAYMENTS secret
+          # again, with a 'false' fallback like the lines around it. Keep any
+          # comment out of the block: its lines are build-args, not YAML.
           build-args: |
             VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL || '/api/v1' }}
             VITE_SENTRY_DSN=${{ secrets.VITE_SENTRY_DSN || '' }}
             VITE_FEATURE_SENTRY=${{ secrets.VITE_FEATURE_SENTRY || 'false' }}
-            VITE_FEATURE_PAYMENTS=${{ secrets.VITE_FEATURE_PAYMENTS || 'false' }}
+            VITE_FEATURE_PAYMENTS=false
             VITE_FEATURE_EMAIL_NOTIFICATIONS=${{ secrets.VITE_FEATURE_EMAIL_NOTIFICATIONS || 'true' }}
             GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
 
@@ -508,14 +513,12 @@ jobs:
           # Email
           V_RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           V_RESEND_FROM_ADDRESS: ${{ secrets.RESEND_FROM_ADDRESS }}
-          # Payments (FastSpring)
-          V_FASTSPRING_API_USERNAME: ${{ secrets.FASTSPRING_API_USERNAME }}
-          V_FASTSPRING_API_PASSWORD: ${{ secrets.FASTSPRING_API_PASSWORD }}
-          V_FASTSPRING_WEBHOOK_SECRET: ${{ secrets.FASTSPRING_WEBHOOK_SECRET }}
-          V_FASTSPRING_CHECKOUT_PATH: ${{ secrets.FASTSPRING_CHECKOUT_PATH }}
-          V_FASTSPRING_ENVIRONMENT: ${{ secrets.FASTSPRING_ENVIRONMENT }}
-          V_FASTSPRING_PRO_PRODUCT_PATH: ${{ secrets.FASTSPRING_PRO_PRODUCT_PATH }}
-          V_FASTSPRING_ENTERPRISE_PRODUCT_PATH: ${{ secrets.FASTSPRING_ENTERPRISE_PRODUCT_PATH }}
+          # Payments (Creem)
+          V_CREEM_API_KEY: ${{ secrets.CREEM_API_KEY }}
+          V_CREEM_WEBHOOK_SECRET: ${{ secrets.CREEM_WEBHOOK_SECRET }}
+          V_CREEM_ENVIRONMENT: ${{ secrets.CREEM_ENVIRONMENT }}
+          V_CREEM_PRO_PRODUCT_ID: ${{ secrets.CREEM_PRO_PRODUCT_ID }}
+          V_CREEM_ENTERPRISE_PRODUCT_ID: ${{ secrets.CREEM_ENTERPRISE_PRODUCT_ID }}
           # Telegram
           V_TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           V_TELEGRAM_SUPPORT_CHAT_ID: ${{ secrets.TELEGRAM_SUPPORT_CHAT_ID }}
@@ -525,8 +528,15 @@ jobs:
           # Feature flags
           V_FEATURE_SENTRY_ENABLED: ${{ secrets.FEATURE_SENTRY_ENABLED }}
           V_FEATURE_EMAIL_ENABLED: ${{ secrets.FEATURE_EMAIL_ENABLED }}
-          V_FEATURE_PAYMENTS_ENABLED: ${{ secrets.FEATURE_PAYMENTS_ENABLED }}
-          V_FEATURE_BILLING_WEBHOOK_ENABLED: ${{ secrets.FEATURE_BILLING_WEBHOOK_ENABLED }}
+          # Payments are pinned OFF in production until Creem go-live (ADR-0003).
+          # Both are written explicitly: an unset secret would be skipped below and
+          # leave whatever the server's .env already holds (possibly `true`), and
+          # a `true` here without CREEM_* credentials makes the API refuse to boot.
+          # To go live: read these two from the FEATURE_PAYMENTS_ENABLED and
+          # FEATURE_BILLING_WEBHOOK_ENABLED secrets again, set the CREEM_*
+          # secrets, and un-pin VITE_FEATURE_PAYMENTS in the frontend build args.
+          V_FEATURE_PAYMENTS_ENABLED: "false"
+          V_FEATURE_BILLING_WEBHOOK_ENABLED: "false"
         run: |
           # Build temp file with non-empty secrets only
           ENV_FILE=$(mktemp)
@@ -560,14 +570,12 @@ jobs:
           # Email
           add "RESEND_API_KEY" "$V_RESEND_API_KEY"
           add "RESEND_FROM_ADDRESS" "$V_RESEND_FROM_ADDRESS"
-          # Payments (FastSpring)
-          add "FASTSPRING_API_USERNAME" "$V_FASTSPRING_API_USERNAME"
-          add "FASTSPRING_API_PASSWORD" "$V_FASTSPRING_API_PASSWORD"
-          add "FASTSPRING_WEBHOOK_SECRET" "$V_FASTSPRING_WEBHOOK_SECRET"
-          add "FASTSPRING_CHECKOUT_PATH" "$V_FASTSPRING_CHECKOUT_PATH"
-          add "FASTSPRING_ENVIRONMENT" "$V_FASTSPRING_ENVIRONMENT"
-          add "FASTSPRING_PRO_PRODUCT_PATH" "$V_FASTSPRING_PRO_PRODUCT_PATH"
-          add "FASTSPRING_ENTERPRISE_PRODUCT_PATH" "$V_FASTSPRING_ENTERPRISE_PRODUCT_PATH"
+          # Payments (Creem)
+          add "CREEM_API_KEY" "$V_CREEM_API_KEY"
+          add "CREEM_WEBHOOK_SECRET" "$V_CREEM_WEBHOOK_SECRET"
+          add "CREEM_ENVIRONMENT" "$V_CREEM_ENVIRONMENT"
+          add "CREEM_PRO_PRODUCT_ID" "$V_CREEM_PRO_PRODUCT_ID"
+          add "CREEM_ENTERPRISE_PRODUCT_ID" "$V_CREEM_ENTERPRISE_PRODUCT_ID"
           # Telegram
           add "TELEGRAM_BOT_TOKEN" "$V_TELEGRAM_BOT_TOKEN"
           add "TELEGRAM_SUPPORT_CHAT_ID" "$V_TELEGRAM_SUPPORT_CHAT_ID"

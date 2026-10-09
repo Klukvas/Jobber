@@ -114,19 +114,18 @@ services:
 
       # CORS
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
 
       # Resend (optional - email service)
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM_ADDRESS: ${RESEND_FROM_ADDRESS:-}
 
-      # FastSpring (optional - payment processing)
-      FASTSPRING_API_USERNAME: ${FASTSPRING_API_USERNAME:-}
-      FASTSPRING_API_PASSWORD: ${FASTSPRING_API_PASSWORD:-}
-      FASTSPRING_WEBHOOK_SECRET: ${FASTSPRING_WEBHOOK_SECRET:-}
-      FASTSPRING_CHECKOUT_PATH: ${FASTSPRING_CHECKOUT_PATH:-}
-      FASTSPRING_ENVIRONMENT: ${FASTSPRING_ENVIRONMENT:-test}
-      FASTSPRING_PRO_PRODUCT_PATH: ${FASTSPRING_PRO_PRODUCT_PATH:-jobber-pro}
-      FASTSPRING_ENTERPRISE_PRODUCT_PATH: ${FASTSPRING_ENTERPRISE_PRODUCT_PATH:-jobber-enterprise}
+      # Creem (optional - payment processing)
+      CREEM_API_KEY: ${CREEM_API_KEY:-}
+      CREEM_WEBHOOK_SECRET: ${CREEM_WEBHOOK_SECRET:-}
+      CREEM_ENVIRONMENT: ${CREEM_ENVIRONMENT:-test}
+      CREEM_PRO_PRODUCT_ID: ${CREEM_PRO_PRODUCT_ID:-}
+      CREEM_ENTERPRISE_PRODUCT_ID: ${CREEM_ENTERPRISE_PRODUCT_ID:-}
 
       # Telegram (optional - support ticket forwarding)
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
@@ -137,9 +136,9 @@ services:
       FEATURE_EMAIL_ENABLED: ${FEATURE_EMAIL_ENABLED:-true}
       FEATURE_PAYMENTS_ENABLED: ${FEATURE_PAYMENTS_ENABLED:-false}
       # Empty by default so it follows FEATURE_PAYMENTS_ENABLED: a local stack with
-      # billing off boots without any FastSpring config. Set it to true to keep
+      # billing off boots without any Creem config. Set it to true to keep
       # ingesting lifecycle events while the checkout is closed — that needs
-      # FASTSPRING_WEBHOOK_SECRET, or the API refuses to start.
+      # CREEM_WEBHOOK_SECRET, or the API refuses to start.
       FEATURE_BILLING_WEBHOOK_ENABLED: ${FEATURE_BILLING_WEBHOOK_ENABLED:-}
     depends_on:
       postgres:

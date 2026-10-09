@@ -4,17 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
-	"github.com/andreypavlenko/jobber/modules/subscriptions/fastspring"
+	"github.com/andreypavlenko/jobber/modules/subscriptions/creem"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/ports"
 )
 
 // Provider names the billing provider exposed to the frontend.
-const Provider = "fastspring"
+const Provider = "creem"
 
-// Billing environments. FastSpring marks every order and webhook event as live
-// or test; the service refuses to act on events from the other mode.
+// Billing environments. Creem marks every object it sends as live or test; the
+// service refuses to act on events from the other mode.
 const (
 	EnvironmentLive = "live"
 	EnvironmentTest = "test"
@@ -36,38 +37,45 @@ const (
 	StatusPaused    = "paused"
 )
 
-// BillingConfig holds the FastSpring settings the service needs. Product paths
-// and the checkout path are configurable because they are dashboard-owned
-// identifiers, not code.
+// scheduledCancelGrace is how long past its end date a scheduled cancellation may
+// still count as paid.
+//
+// The cancellation is a webhook, and Creem stops retrying one after 24 hours. A
+// service that was down longer would otherwise keep a subscriber on a paid plan
+// forever, because nothing would ever correct the row. Two days outlasts a late
+// or retried delivery, so a subscriber whose period really was renewed in the
+// meantime is not downgraded by it.
+const scheduledCancelGrace = 48 * time.Hour
+
+// BillingConfig holds the Creem settings the service needs. Product IDs are
+// dashboard-owned identifiers, not code.
 type BillingConfig struct {
 	WebhookSecret string
-	// CheckoutPath identifies the dashboard *popup* checkout the Sessions API
-	// creates sessions against, e.g. "<storefront-id>/popup-<checkout-id>". The
-	// popup storefront the browser loads is derived from it, so a single value
-	// governs both halves of the flow.
-	CheckoutPath          string
-	Environment           string
-	ProProductPath        string
-	EnterpriseProductPath string
+	Environment   string
+	// SuccessURL is where Creem sends the buyer after a completed checkout.
+	SuccessURL          string
+	ProProductID        string
+	EnterpriseProductID string
 }
 
-// IsLive reports whether the service is wired to the live FastSpring store.
+// IsLive reports whether the service is wired to live Creem.
 func (c BillingConfig) IsLive() bool { return c.Environment == EnvironmentLive }
 
 // SubscriptionService handles subscription business logic.
 type SubscriptionService struct {
 	repo    ports.SubscriptionRepository
-	billing *fastspring.Client
+	billing *creem.Client
 	cfg     BillingConfig
+	now     func() time.Time
 }
 
 // NewSubscriptionService creates a new SubscriptionService.
 func NewSubscriptionService(
 	repo ports.SubscriptionRepository,
-	billing *fastspring.Client,
+	billing *creem.Client,
 	cfg BillingConfig,
 ) *SubscriptionService {
-	return &SubscriptionService{repo: repo, billing: billing, cfg: cfg}
+	return &SubscriptionService{repo: repo, billing: billing, cfg: cfg, now: time.Now}
 }
 
 // GetSubscription returns the current subscription with usage for a user.
@@ -82,84 +90,75 @@ func (s *SubscriptionService) GetSubscription(ctx context.Context, userID string
 		return nil, fmt.Errorf("failed to get usage: %w", err)
 	}
 
-	return sub.ToDTO(usage), nil
+	dto := sub.ToDTO(usage, s.effectivePlanOf(sub))
+	if s.scheduledCancelLapsed(sub) {
+		// The cancellation date passed and the webhook that should have ended the
+		// subscription never arrived. Show what enforcement already applies, as the
+		// cancellation itself would have: free, cancelled, no period.
+		dto.Plan, dto.Status = PlanFree, StatusCancelled
+		dto.CurrentPeriodEnd, dto.CancelAt = nil, nil
+	}
+	return dto, nil
 }
 
-// GetCheckoutConfig tells the frontend which provider and plans are live, and
-// which popup storefront to load the provider's script against. It carries no
-// credentials and no catalog product paths — checkout sessions are created
-// server-side.
-//
-// The storefront is derived from the configured checkout path and the store
-// mode rather than configured separately, so "which checkout the API creates a
-// session against" and "which storefront the browser opens" can never name two
-// different checkouts. A path that yields no storefront leaves the field empty,
-// which the frontend reads as "checkout is not openable" — startup validation
-// makes that unreachable while payments are on.
+// GetCheckoutConfig tells the frontend which provider and plans are live. It
+// carries no credentials and no product IDs — checkouts are created server-side.
 func (s *SubscriptionService) GetCheckoutConfig() *model.CheckoutConfigDTO {
-	storefront, err := fastspring.PopupStorefront(s.cfg.CheckoutPath, s.cfg.IsLive())
-	if err != nil {
-		storefront = ""
-	}
 	return &model.CheckoutConfigDTO{
 		Provider:    Provider,
 		Environment: s.cfg.Environment,
-		Storefront:  storefront,
 		Plans:       s.purchasablePlans(),
 	}
 }
 
-// purchasablePlans lists the plans with a configured product path, cheapest
-// first. A plan without a path cannot be bought and is never advertised.
+// purchasablePlans lists the plans with a configured product, cheapest first. A
+// plan without a product cannot be bought and is never advertised.
 func (s *SubscriptionService) purchasablePlans() []string {
 	plans := make([]string, 0, 2)
-	if s.cfg.ProProductPath != "" {
+	if s.cfg.ProProductID != "" {
 		plans = append(plans, PlanPro)
 	}
-	if s.cfg.EnterpriseProductPath != "" {
+	if s.cfg.EnterpriseProductID != "" {
 		plans = append(plans, PlanEnterprise)
 	}
 	return plans
 }
 
-// productPathForPlan maps a plan name to its FastSpring catalog product path.
-func (s *SubscriptionService) productPathForPlan(plan string) (string, error) {
+// productIDForPlan maps a plan name to its Creem product ID.
+func (s *SubscriptionService) productIDForPlan(plan string) (string, error) {
 	switch plan {
 	case PlanPro:
-		if s.cfg.ProProductPath == "" {
-			return "", fmt.Errorf("%w: pro product path is not configured", model.ErrUnknownPlan)
+		if s.cfg.ProProductID == "" {
+			return "", fmt.Errorf("%w: pro product is not configured", model.ErrUnknownPlan)
 		}
-		return s.cfg.ProProductPath, nil
+		return s.cfg.ProProductID, nil
 	case PlanEnterprise:
-		if s.cfg.EnterpriseProductPath == "" {
-			return "", fmt.Errorf("%w: enterprise product path is not configured", model.ErrUnknownPlan)
+		if s.cfg.EnterpriseProductID == "" {
+			return "", fmt.Errorf("%w: enterprise product is not configured", model.ErrUnknownPlan)
 		}
-		return s.cfg.EnterpriseProductPath, nil
+		return s.cfg.EnterpriseProductID, nil
 	default:
 		return "", fmt.Errorf("%w: %q", model.ErrUnknownPlan, plan)
 	}
 }
 
-// planForProductPath is the reverse mapping, used when a webhook tells us what
-// was actually bought. An unrecognised path never yields a paid plan.
-func (s *SubscriptionService) planForProductPath(path string) (string, error) {
+// planForProductID is the reverse mapping, used when a webhook tells us what was
+// actually bought. An unrecognised ID never yields a paid plan.
+func (s *SubscriptionService) planForProductID(productID string) (string, error) {
 	switch {
-	case path == "":
-		return "", errors.New("subscription event carried no product path")
-	case s.cfg.EnterpriseProductPath != "" && path == s.cfg.EnterpriseProductPath:
+	case productID == "":
+		return "", errors.New("subscription event carried no product ID")
+	case s.cfg.EnterpriseProductID != "" && productID == s.cfg.EnterpriseProductID:
 		return PlanEnterprise, nil
-	case s.cfg.ProProductPath != "" && path == s.cfg.ProProductPath:
+	case s.cfg.ProProductID != "" && productID == s.cfg.ProProductID:
 		return PlanPro, nil
 	default:
-		return "", fmt.Errorf("unrecognised product path %q", path)
+		return "", fmt.Errorf("unrecognised product ID %q", productID)
 	}
 }
 
 // effectivePlan resolves the plan whose limits actually apply right now for a
-// user. Paid quotas only apply while the subscription is actually paying: a
-// paused/cancelled paid plan falls back to free (past_due keeps a grace
-// window, matching Subscription.IsActive semantics). A missing subscription
-// row is treated as the free plan.
+// user. A missing subscription row is treated as the free plan.
 func (s *SubscriptionService) effectivePlan(ctx context.Context, userID string) (string, error) {
 	sub, err := s.repo.GetByUserID(ctx, userID)
 	if err != nil {
@@ -168,10 +167,34 @@ func (s *SubscriptionService) effectivePlan(ctx context.Context, userID string) 
 		}
 		return "", fmt.Errorf("failed to get subscription: %w", err)
 	}
+	return s.effectivePlanOf(sub), nil
+}
+
+// effectivePlanOf is the plan whose limits apply to a stored subscription.
+// Paid quotas only apply while the subscription is actually paying: a
+// paused/cancelled paid plan falls back to free (past_due keeps a grace window),
+// and so does a scheduled cancellation whose end date is long past.
+//
+// Every place that enforces or reports limits goes through here, so what the
+// user is shown can never disagree with what the backend enforces.
+func (s *SubscriptionService) effectivePlanOf(sub *model.Subscription) string {
 	if sub.Plan != PlanFree && sub.Status != StatusActive && sub.Status != StatusPastDue {
-		return PlanFree, nil
+		return PlanFree
 	}
-	return sub.Plan, nil
+	if s.scheduledCancelLapsed(sub) {
+		return PlanFree
+	}
+	return sub.Plan
+}
+
+// scheduledCancelLapsed reports whether a cancellation date passed long enough
+// ago that the row can only be stale: the subscription.canceled that should have
+// followed it never arrived.
+func (s *SubscriptionService) scheduledCancelLapsed(sub *model.Subscription) bool {
+	if sub.Status != StatusActive || sub.CancelAt == nil {
+		return false
+	}
+	return s.now().After(sub.CancelAt.Add(scheduledCancelGrace))
 }
 
 // RequirePaidPlan returns ErrPaidFeature unless the user is on an effective

@@ -55,6 +55,7 @@ temp/
 !fe/src/content/**/*.md
 # Tracked because README.md links to it as the billing design record.
 !docs/adr/0002-fastspring-billing.md
+!docs/adr/0003-creem-billing.md
 
 # Terraform
 terraform/.terraform/
@@ -98,3 +99,7 @@ screenshots/
 # Vitest's sentinel `build.outDir`. Unanchored on purpose: it is resolved
 # against whatever root the run uses, so it can land in more than one place.
 dummy-non-existing-folder/
+
+# Compiled API binaries (the Dockerfile builds its own)
+/be/api
+/be/jobber-api

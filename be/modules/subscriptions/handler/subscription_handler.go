@@ -59,11 +59,9 @@ func (h *SubscriptionHandler) GetCheckoutConfig(c *gin.Context) {
 	httpPlatform.RespondWithData(c, http.StatusOK, config)
 }
 
-// CreateCheckoutSession creates a provider checkout session for the current user
-// and returns the opaque session id its popup opens on. No checkout URL is
-// returned and nothing is navigated: the browser hands the id straight to the
-// provider's Store Builder Library, which draws the checkout over the page. The
-// user is taken from the auth context, never from the request body.
+// CreateCheckoutSession creates a hosted checkout for the current user and
+// returns the URL the browser is sent to. The user is taken from the auth
+// context, never from the request body.
 func (h *SubscriptionHandler) CreateCheckoutSession(c *gin.Context) {
 	userID, exists := auth.GetUserID(c)
 	if !exists {

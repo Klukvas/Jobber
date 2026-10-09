@@ -23,7 +23,7 @@ A comprehensive platform for tracking job applications, managing interview stage
 │   │   ├── calendar/        # Google Calendar integration
 │   │   ├── jobimport/       # Import jobs by URL (JSON-LD + AI)
 │   │   ├── matchscore/      # AI resume-to-job matching
-│   │   └── subscriptions/   # Plans + FastSpring webhooks
+│   │   └── subscriptions/   # Plans + Creem webhooks
 │   ├── migrations/          # Database migrations (golang-migrate)
 │   ├── docs/                # Swagger/OpenAPI documentation
 │   └── Makefile             # Backend build commands
@@ -411,7 +411,7 @@ every test skips.
 - **Stats Sharing** - Publish a read-only snapshot of your job-search stats via a public `/s/{token}` link (aggregates only, `noindex`, revocable)
 - **Job Import** - Import jobs from LinkedIn, Indeed, DOU by URL (JSON-LD + Claude AI fallback)
 - **AI Match Score** - Resume-to-job matching with Claude Haiku (score, categories, missing keywords)
-- **Subscriptions** - Free/Pro/Enterprise plans with FastSpring integration (see `docs/adr/0002-fastspring-billing.md`)
+- **Subscriptions** - Free/Pro/Enterprise plans with Creem integration (see `docs/adr/0003-creem-billing.md`)
 - **Google Calendar** - Schedule interviews from app (hidden behind feature flag, pending Google verification)
 - **i18n** - Full localization: English, Russian, Ukrainian
 - **Reminders** - Schedule follow-ups (model + repository ready, API pending)

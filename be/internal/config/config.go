@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/andreypavlenko/jobber/modules/subscriptions/fastspring"
 	"gopkg.in/yaml.v3"
 )
 
@@ -39,7 +38,7 @@ type Config struct {
 	S3             S3Config
 	GoogleCalendar GoogleCalendarConfig
 	Anthropic      AnthropicConfig
-	FastSpring     FastSpringConfig
+	Creem          CreemConfig
 	Sentry         SentryConfig
 	Resend         ResendConfig
 	Telegram       TelegramConfig
@@ -71,24 +70,18 @@ type ResendConfig struct {
 	FromAddress string
 }
 
-// FastSpringConfig holds FastSpring payment configuration.
+// CreemConfig holds Creem payment configuration.
 //
-// The API credentials are an HTTP Basic username/password pair created under
-// Developer Tools > API Credentials; WebhookSecret is the HMAC SHA256 secret set
-// on the webhook endpoint. Product paths are catalog identifiers, so they are
+// APIKey is sent as `x-api-key`; WebhookSecret is the HMAC SHA256 secret of the
+// webhook endpoint. Test and live mode use different keys, and Environment picks
+// the matching API host. Product IDs are catalog identifiers, so they are
 // configurable rather than hardcoded.
-type FastSpringConfig struct {
-	APIUsername   string
-	APIPassword   string
-	WebhookSecret string
-	// CheckoutPath is the dashboard checkout the Sessions API creates sessions
-	// against. It is exactly "<store-id>/<checkout-id>" — two segments, no
-	// surrounding slashes — and is validated segment by segment before it is
-	// ever put in a request URL.
-	CheckoutPath          string
-	Environment           string // test or live
-	ProProductPath        string
-	EnterpriseProductPath string
+type CreemConfig struct {
+	APIKey              string
+	WebhookSecret       string
+	Environment         string // test or live
+	ProProductID        string
+	EnterpriseProductID string
 }
 
 // AnthropicConfig holds Anthropic API configuration
@@ -112,6 +105,10 @@ type ServerConfig struct {
 	AllowedOrigins string
 	FrontendURL    string // internal SPA URL for server-to-server calls (e.g. PDF render)
 	PublicBaseURL  string // public origin used to build shareable/OG links
+	// TrustedProxies lists the proxy IPs/CIDRs whose X-Forwarded-For is honoured
+	// when deriving the client IP. Empty keeps gin's default of trusting every
+	// proxy, which lets a caller rotate the header to dodge per-IP rate limits.
+	TrustedProxies []string
 }
 
 // DatabaseConfig holds database configuration
@@ -158,6 +155,16 @@ type S3Config struct {
 	SecretKey string
 }
 
+// IgnoresLiveBilling reports a setup that looks healthy and silently drops every
+// real payment event: a production server still pointed at Creem's test
+// environment while billing is on. It is a warning, not a startup failure,
+// because exercising test mode on the production host before go-live is a
+// legitimate step.
+func (c *Config) IgnoresLiveBilling() bool {
+	billingOn := c.Features.PaymentsEnabled || c.Features.BillingWebhookEnabled
+	return c.Server.Env == "production" && c.Creem.Environment == "test" && billingOn
+}
+
 // Load reads configuration from environment variables
 func Load() (*Config, error) {
 	// Webhook ingestion follows the checkout unless an operator says otherwise.
@@ -174,6 +181,7 @@ func Load() (*Config, error) {
 			AllowedOrigins: getEnv("ALLOWED_ORIGINS", "*"),
 			FrontendURL:    getEnv("FRONTEND_URL", ""),
 			PublicBaseURL:  resolvePublicBaseURL(),
+			TrustedProxies: splitList(getEnv("TRUSTED_PROXIES", "")),
 		},
 		Database: DatabaseConfig{
 			Host:            getEnv("DB_HOST", "localhost"),
@@ -219,14 +227,12 @@ func Load() (*Config, error) {
 		Anthropic: AnthropicConfig{
 			APIKey: getEnv("ANTHROPIC_API_KEY", ""),
 		},
-		FastSpring: FastSpringConfig{
-			APIUsername:           getEnv("FASTSPRING_API_USERNAME", ""),
-			APIPassword:           getEnv("FASTSPRING_API_PASSWORD", ""),
-			WebhookSecret:         getEnv("FASTSPRING_WEBHOOK_SECRET", ""),
-			CheckoutPath:          getEnv("FASTSPRING_CHECKOUT_PATH", ""),
-			Environment:           getEnv("FASTSPRING_ENVIRONMENT", "test"),
-			ProProductPath:        getEnv("FASTSPRING_PRO_PRODUCT_PATH", "jobber-pro"),
-			EnterpriseProductPath: getEnv("FASTSPRING_ENTERPRISE_PRODUCT_PATH", "jobber-enterprise"),
+		Creem: CreemConfig{
+			APIKey:              getEnv("CREEM_API_KEY", ""),
+			WebhookSecret:       getEnv("CREEM_WEBHOOK_SECRET", ""),
+			Environment:         getEnv("CREEM_ENVIRONMENT", "test"),
+			ProProductID:        getEnv("CREEM_PRO_PRODUCT_ID", ""),
+			EnterpriseProductID: getEnv("CREEM_ENTERPRISE_PRODUCT_ID", ""),
 		},
 		Sentry: SentryConfig{
 			DSN:     getEnv("SENTRY_DSN", ""),
@@ -269,37 +275,25 @@ func Load() (*Config, error) {
 	}
 
 	// Billing guards — fail at startup rather than at the first checkout.
-	if cfg.Features.PaymentsEnabled {
-		if cfg.FastSpring.APIUsername == "" || cfg.FastSpring.APIPassword == "" {
-			return nil, fmt.Errorf("FASTSPRING_API_USERNAME and FASTSPRING_API_PASSWORD are required when FEATURE_PAYMENTS_ENABLED=true")
-		}
-		if cfg.FastSpring.CheckoutPath == "" {
-			return nil, fmt.Errorf("FASTSPRING_CHECKOUT_PATH is required when FEATURE_PAYMENTS_ENABLED=true")
-		}
-		// The same whitelist the client applies before building a request URL.
-		// Running it here turns a typo into a failed boot instead of a checkout
-		// that only breaks once a real buyer clicks Upgrade.
-		if _, err := fastspring.EscapeCheckoutPath(cfg.FastSpring.CheckoutPath); err != nil {
-			return nil, fmt.Errorf(`FASTSPRING_CHECKOUT_PATH must be exactly "<storefront-id>/<checkout-id>": %w`, err)
-		}
-		// Checkout opens in the Store Builder Library popup, which can only open
-		// a checkout the dashboard generated as a popup. A leftover full-page
-		// Web Checkout path passes every other check and then produces an empty
-		// popup for a real buyer, so it fails the boot instead.
-		if err := fastspring.ValidatePopupCheckoutPath(cfg.FastSpring.CheckoutPath); err != nil {
-			return nil, fmt.Errorf(
-				`FASTSPRING_CHECKOUT_PATH must name a popup checkout, e.g. "<storefront-id>/%s<name>": %w`,
-				fastspring.PopupCheckoutPrefix, err)
-		}
+	if cfg.Features.PaymentsEnabled && cfg.Creem.APIKey == "" {
+		return nil, fmt.Errorf("CREEM_API_KEY is required when FEATURE_PAYMENTS_ENABLED=true")
 	}
-	if cfg.FastSpring.Environment != "test" && cfg.FastSpring.Environment != "live" {
-		return nil, fmt.Errorf("FASTSPRING_ENVIRONMENT must be 'test' or 'live', got %q", cfg.FastSpring.Environment)
+	// Without a product ID a checkout never opens and says nothing about why, and
+	// ingestion cannot tell which plan a subscription event grants, so every
+	// non-cancellation would fail and be retried until Creem gives up.
+	billingOn := cfg.Features.PaymentsEnabled || cfg.Features.BillingWebhookEnabled
+	if billingOn && cfg.Creem.ProProductID == "" && cfg.Creem.EnterpriseProductID == "" {
+		return nil, fmt.Errorf("CREEM_PRO_PRODUCT_ID or CREEM_ENTERPRISE_PRODUCT_ID is required when " +
+			"FEATURE_PAYMENTS_ENABLED=true or FEATURE_BILLING_WEBHOOK_ENABLED=true")
+	}
+	if cfg.Creem.Environment != "test" && cfg.Creem.Environment != "live" {
+		return nil, fmt.Errorf("CREEM_ENVIRONMENT must be 'test' or 'live', got %q", cfg.Creem.Environment)
 	}
 	// Without the secret every delivery is rejected, so the server would run
 	// looking healthy while silently dropping every renewal and cancellation.
 	// Refusing to start makes that a deploy failure someone sees.
-	if cfg.Features.BillingWebhookEnabled && cfg.FastSpring.WebhookSecret == "" {
-		return nil, fmt.Errorf("FASTSPRING_WEBHOOK_SECRET is required when FEATURE_BILLING_WEBHOOK_ENABLED=true " +
+	if cfg.Features.BillingWebhookEnabled && cfg.Creem.WebhookSecret == "" {
+		return nil, fmt.Errorf("CREEM_WEBHOOK_SECRET is required when FEATURE_BILLING_WEBHOOK_ENABLED=true " +
 			"(it defaults to the value of FEATURE_PAYMENTS_ENABLED); set the secret or set FEATURE_BILLING_WEBHOOK_ENABLED=false")
 	}
 
@@ -434,4 +428,15 @@ func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
 		}
 	}
 	return defaultValue
+}
+
+// splitList turns a comma-separated value into its non-empty, trimmed items.
+func splitList(raw string) []string {
+	var items []string
+	for _, item := range strings.Split(raw, ",") {
+		if trimmed := strings.TrimSpace(item); trimmed != "" {
+			items = append(items, trimmed)
+		}
+	}
+	return items
 }

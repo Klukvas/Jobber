@@ -4,20 +4,19 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"strings"
 
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
-	"github.com/andreypavlenko/jobber/modules/subscriptions/fastspring"
+	"github.com/andreypavlenko/jobber/modules/subscriptions/creem"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
 // maxWebhookBodyBytes caps the body on this unauthenticated endpoint so a huge
-// payload cannot exhaust memory. FastSpring batches stay well under 1 MB.
+// payload cannot exhaust memory. Creem events stay well under 1 MB.
 const maxWebhookBodyBytes = 1 << 20
 
-// WebhookHandler handles FastSpring webhook HTTP requests (no auth — the HMAC
+// WebhookHandler handles Creem webhook HTTP requests (no auth — the HMAC
 // signature is the authentication).
 type WebhookHandler struct {
 	service *service.SubscriptionService
@@ -29,101 +28,97 @@ func NewWebhookHandler(service *service.SubscriptionService, logger *zap.Logger)
 	return &WebhookHandler{service: service, logger: logger}
 }
 
-// HandleFastSpringWebhook processes an incoming FastSpring webhook batch.
+// HandleCreemWebhook processes one incoming Creem webhook delivery.
 //
-// Acknowledgement follows the documented contract: 200 when every event in the
-// batch is processed, 202 with the processed event IDs (one per line) when only
-// some are, and 503 when none are, so FastSpring retries the rest.
+// Creem treats a 200 as "delivered" and retries anything else on a schedule that
+// ends after 24 hours, so a delivery that failed on our side answers 500 and
+// everything we are done with — applied, duplicate, deliberately skipped —
+// answers 200.
 //
-// https://developer.fastspring.com/docs/processed-and-unprocessed-webhook-events
-func (h *WebhookHandler) HandleFastSpringWebhook(c *gin.Context) {
-	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxWebhookBodyBytes))
+// https://docs.creem.io/code/webhooks
+func (h *WebhookHandler) HandleCreemWebhook(c *gin.Context) {
+	body, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, maxWebhookBodyBytes))
 	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			httpPlatform.RespondWithError(c, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "Request body too large")
+			return
+		}
 		httpPlatform.RespondWithError(c, http.StatusBadRequest, "BAD_REQUEST", "Failed to read request body")
 		return
 	}
 
-	signature := c.GetHeader(fastspring.SignatureHeader)
+	signature := c.GetHeader(creem.SignatureHeader)
 
 	result, err := h.service.HandleWebhook(c.Request.Context(), body, signature)
-	if err != nil {
+	switch {
+	case err == nil:
+		h.logOutcome(result)
+		c.String(http.StatusOK, "OK")
+	case errors.Is(err, service.ErrEventFailed):
+		h.logger.Error("Creem webhook event failed, will be retried",
+			zap.String("event_id", result.EventID),
+			zap.String("event_type", result.EventType),
+			zap.Error(err),
+		)
+		c.String(http.StatusInternalServerError, "")
+	default:
 		// A rejected signature or an unparseable body means nothing was written.
 		// The reason stays in the logs; the response body reveals nothing.
-		h.logger.Warn("FastSpring webhook rejected",
+		h.logger.Warn("Creem webhook rejected",
 			zap.Error(err),
 			zap.Bool("signature_present", signature != ""),
 			zap.Int("body_bytes", len(body)),
 		)
 		status := http.StatusBadRequest
-		if errors.Is(err, fastspring.ErrSecretMissing) {
-			// Misconfiguration on our side — let FastSpring retry once it is fixed.
+		if errors.Is(err, creem.ErrSecretMissing) {
+			// Misconfiguration on our side — let Creem retry once it is fixed.
 			status = http.StatusServiceUnavailable
 		}
 		httpPlatform.RespondWithError(c, status, "WEBHOOK_ERROR", "invalid webhook payload")
-		return
-	}
-
-	h.logOutcomes(result)
-
-	switch {
-	case result.AllProcessed():
-		c.String(http.StatusOK, "OK")
-	case len(result.Processed) > 0:
-		c.String(http.StatusAccepted, strings.Join(result.Processed, "\n"))
-	default:
-		c.String(http.StatusServiceUnavailable, "")
 	}
 }
 
-func (h *WebhookHandler) logOutcomes(result service.WebhookResult) {
-	for _, skipped := range result.Skipped {
-		fields := []zap.Field{
-			zap.String("event_id", skipped.EventID),
-			zap.String("event_type", skipped.EventType),
-			zap.Error(skipped.Err),
-		}
-		// Most skips are routine: a duplicate, a replay, an event type Jobber
-		// does not act on, or another product's subscription in the shared
-		// store. Four are not, and all four drop the event for good:
-		//
-		//   - an environment mismatch means this deployment is pointed at the
-		//     wrong billing environment;
-		//   - an unproven order tag means an order named a Jobber user without
-		//     the proof this server mints, which is either a forged tag or a
-		//     rotated secret — never a normal purchase;
-		//   - a tagged-owner conflict means an order claimed a user who is
-		//     already paying for a different subscription, which a legitimate
-		//     first checkout cannot produce;
-		//   - a link conflict means the atomic write refused to repoint a user
-		//     at a second subscription while their first one still bills, so
-		//     somebody may be paying twice and only one of the two is cancellable
-		//     from Jobber.
-		switch {
-		case errors.Is(skipped.Err, service.ErrEnvironmentMismatch):
-			h.logger.Warn("FastSpring webhook event dropped: billing environment mismatch", fields...)
-		case errors.Is(skipped.Err, service.ErrUnprovenOrderTag):
-			h.logger.Warn("FastSpring webhook event dropped: order tag names a user it cannot prove", fields...)
-		case errors.Is(skipped.Err, service.ErrTaggedOwnerConflict):
-			h.logger.Warn("FastSpring webhook event dropped: order tag contradicts the subscription it names", fields...)
-		case errors.Is(skipped.Err, service.ErrSubscriptionLinkConflict):
-			h.logger.Warn("FastSpring webhook event dropped: user is already linked to another live subscription", fields...)
-		default:
-			h.logger.Info("FastSpring webhook event acknowledged without changes", fields...)
-		}
+func (h *WebhookHandler) logOutcome(result service.WebhookResult) {
+	if result.Skipped == nil {
+		return
 	}
-	for _, failed := range result.Failed {
-		h.logger.Error("FastSpring webhook event failed, will be retried",
-			zap.String("event_id", failed.EventID),
-			zap.String("event_type", failed.EventType),
-			zap.Error(failed.Err),
-		)
+	fields := []zap.Field{
+		zap.String("event_id", result.EventID),
+		zap.String("event_type", result.EventType),
+		zap.Error(result.Skipped),
+	}
+	// How loudly a skip is reported is decided in the service, beside the
+	// sentinels. An event that was dropped for good is an error: Creem will never
+	// redeliver it, so this line is the only trace that a paying user may be on
+	// the wrong plan.
+	message, severity := service.SkipReport(result.Skipped)
+	switch severity {
+	case service.SkipLostEvent:
+		h.logger.Error(message, fields...)
+	case service.SkipNeedsReview:
+		h.logger.Warn(message, fields...)
+	default:
+		h.logger.Info(message, fields...)
 	}
 }
 
 // RegisterRoutes registers webhook routes (public, no auth).
-func (h *WebhookHandler) RegisterRoutes(router *gin.RouterGroup) {
+//
+// The HMAC is what authenticates a delivery, but verifying it means reading and
+// hashing the whole body first — so an unsigned flood still buys real work on
+// the one route with no auth in front of it. The limiter bounds that.
+//
+// It has to be generous, and it fails open on a Redis error, because the cost
+// of throttling the provider is worse than the cost of the flood: a rejected
+// delivery is a lifecycle event that has to come back through the retry
+// schedule, and one that never comes back is a subscriber on the wrong plan.
+func (h *WebhookHandler) RegisterRoutes(router *gin.RouterGroup, rateLimiter gin.HandlerFunc) {
 	webhooks := router.Group("/webhooks")
+	if rateLimiter != nil {
+		webhooks.Use(rateLimiter)
+	}
 	{
-		webhooks.POST("/fastspring", h.HandleFastSpringWebhook)
+		webhooks.POST("/creem", h.HandleCreemWebhook)
 	}
 }

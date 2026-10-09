@@ -8,6 +8,7 @@ import (
 	resumeModel "github.com/andreypavlenko/jobber/modules/resumes/model"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // SubscriptionRepository implements ports.SubscriptionRepository with PostgreSQL.
@@ -59,28 +60,77 @@ func (r *SubscriptionRepository) queryOne(ctx context.Context, query string, arg
 	return &sub, nil
 }
 
-// LinkExternalAccount stores the provider account ID for a user, creating the
+// LinkExternalAccount stores the provider customer ID for a user, creating the
 // free row if it is missing. Plan and status are untouched: linking happens when
-// a checkout starts, and an abandoned checkout must not grant anything.
+// a checkout completes, and it grants nothing by itself.
+//
+// A customer already on the row is kept. This runs off checkout.completed, which
+// can be replayed or arrive late; letting it overwrite would point the customer
+// portal at a stale customer. The subscription events carry the authoritative
+// customer and replace it when they land.
+//
+// external_account_id carries a partial UNIQUE index, so one provider account
+// resolves to exactly one user. Hitting it is not a generic database failure:
+// it means this account is already somebody else's, which the checkout must
+// refuse rather than risk mis-granting — and which a person has to untangle.
+// Naming it is what separates that from an outage.
 func (r *SubscriptionRepository) LinkExternalAccount(ctx context.Context, userID, externalAccountID string) error {
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO subscriptions (user_id, external_account_id, status, plan, updated_at)
 		VALUES ($1, $2, 'free', 'free', NOW())
 		ON CONFLICT (user_id) DO UPDATE SET
-			external_account_id = EXCLUDED.external_account_id,
+			external_account_id = COALESCE(subscriptions.external_account_id, EXCLUDED.external_account_id),
 			updated_at = NOW()`,
 		userID, externalAccountID,
 	)
+	switch {
+	case isAccountUniqueViolation(err):
+		return fmt.Errorf("%w: account %q cannot also be linked to user %q",
+			model.ErrBillingAccountTaken, externalAccountID, userID)
+	case isMissingUser(err):
+		return fmt.Errorf("%w: cannot link account %q to user %q", model.ErrUserNotFound, externalAccountID, userID)
+	}
 	return err
 }
 
+// PostgreSQL SQLSTATEs the repository maps to domain errors.
+const (
+	uniqueViolationCode     = "23505"
+	foreignKeyViolationCode = "23503"
+)
+
+// externalAccountUniqueIndex is the partial UNIQUE index that makes one provider
+// customer resolve to exactly one user (migration 000045).
+const externalAccountUniqueIndex = "idx_subscriptions_external_account_id"
+
+// isAccountUniqueViolation reports a breach of the customer index specifically.
+// Any other unique breach (the subscription ID, say) is a different problem and
+// must not be reported as two users sharing a customer.
+func isAccountUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == uniqueViolationCode &&
+		pgErr.ConstraintName == externalAccountUniqueIndex
+}
+
+// isMissingUser reports a foreign-key breach: the row names a user that does not
+// exist. Subscription rows cascade with their user, so this means the account
+// was deleted.
+func isMissingUser(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == foreignKeyViolationCode
+}
+
 // EnsureFree creates a free subscription row for a user if none exists.
-// An existing row is left untouched — this must never downgrade a payer.
+// An existing row is left untouched — this must never downgrade a payer. A user
+// that does not exist comes back as model.ErrUserNotFound.
 func (r *SubscriptionRepository) EnsureFree(ctx context.Context, userID string) error {
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO subscriptions (user_id, status, plan)
 		VALUES ($1, 'free', 'free')
 		ON CONFLICT (user_id) DO NOTHING`, userID)
+	if isMissingUser(err) {
+		return fmt.Errorf("%w: %q", model.ErrUserNotFound, userID)
+	}
 	return err
 }
 
@@ -88,8 +138,8 @@ func (r *SubscriptionRepository) EnsureFree(ctx context.Context, userID string) 
 func (r *SubscriptionRepository) GetUserContact(ctx context.Context, userID string) (*model.UserContact, error) {
 	var contact model.UserContact
 	err := r.pool.QueryRow(ctx,
-		`SELECT email, name, locale FROM users WHERE id = $1`, userID,
-	).Scan(&contact.Email, &contact.Name, &contact.Locale)
+		`SELECT email, name FROM users WHERE id = $1`, userID,
+	).Scan(&contact.Email, &contact.Name)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, model.ErrSubscriptionNotFound
@@ -217,6 +267,35 @@ func (r *SubscriptionRepository) GetAllCounts(ctx context.Context, userID string
 // together by TestStoredCancelledStatusMatchesTheService.
 const statusCancelled = "cancelled"
 
+// WebhookEventRetentionDays is how long an event claim is kept.
+//
+// The claim exists to recognise a redelivery. Creem stops retrying after 24
+// hours, so a claim older than that has nothing left to catch but a manual
+// resend from the dashboard, and the table would otherwise grow for the life of
+// the product. The window is far wider than the retry schedule because
+// forgetting a claim early is not free: a manual resend of a very old event
+// would be applied again.
+// Even then the lifecycle ordering guard refuses anything not strictly newer
+// than the state on the row, so the cost is a no-op rather than a wrong plan.
+const WebhookEventRetentionDays = 90
+
+// deleteExpiredWebhookEventsSQL drops claims no redelivery can still reference.
+// The window is a parameter rather than string-built SQL, so the interval is
+// data like every other bound value.
+const deleteExpiredWebhookEventsSQL = `
+		DELETE FROM webhook_events
+		WHERE processed_at < NOW() - make_interval(days => $1)`
+
+// DeleteExpiredWebhookEvents removes event claims older than the retention
+// window and reports how many were dropped.
+func (r *SubscriptionRepository) DeleteExpiredWebhookEvents(ctx context.Context, retentionDays int) (int64, error) {
+	tag, err := r.pool.Exec(ctx, deleteExpiredWebhookEventsSQL, retentionDays)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete webhook event claims older than %d days: %w", retentionDays, err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 // applySubscriptionEventSQL claims the webhook event and writes the state it
 // carries.
 //
@@ -231,14 +310,19 @@ const statusCancelled = "cancelled"
 // committed.
 //
 //   - Lifecycle ordering is strictly greater-than, so an event bearing the
-//     *same* `data.changed` as the applied state is superseded rather than
-//     replayed. Two events describing one change (a charge and the subscription
+//     *same* `updated_at` as the applied state is superseded rather than
+//     replayed. Two events describing one change (a payment and the subscription
 //     update it triggers) normalise to the same state, so re-applying the second
 //     can only undo a correct write when it arrives out of order — first writer
-//     wins, and the loser is still recorded as processed.
+//     wins, and the loser is still recorded as processed. The one exception is
+//     an ending: a cancellation that ties with the applied state still lands,
+//     because Creem is not documented to bump `updated_at` between the last
+//     payment and the cancel, and dropping it would keep a non-paying user on a
+//     paid plan. Ending access is also the only transition that is safe to apply
+//     twice.
 //   - The link guard refuses to overwrite a *different*, still-live
 //     external_subscription_id. The row holds exactly one, so replacing it would
-//     leave a subscription billing at FastSpring with nothing in Jobber pointing
+//     leave a subscription billing at Creem with nothing in Jobber pointing
 //     at it. A first link (nothing stored), the same subscription moving through
 //     its lifecycle, and a replacement after the provider ended the old one are
 //     all allowed.
@@ -270,7 +354,10 @@ const applySubscriptionEventSQL = `
 				last_event_at = EXCLUDED.last_event_at,
 				updated_at = NOW()
 			WHERE (subscriptions.last_event_at IS NULL
-			       OR EXCLUDED.last_event_at > subscriptions.last_event_at)
+			       OR EXCLUDED.last_event_at > subscriptions.last_event_at
+			       OR (EXCLUDED.last_event_at = subscriptions.last_event_at
+			           AND EXCLUDED.status = '` + statusCancelled + `'
+			           AND subscriptions.status <> '` + statusCancelled + `'))
 			  AND (COALESCE(subscriptions.external_subscription_id, '') = ''
 			       OR subscriptions.external_subscription_id = EXCLUDED.external_subscription_id
 			       OR subscriptions.status = '` + statusCancelled + `')
@@ -303,10 +390,11 @@ const lockLinkedSubscriptionSQL = `
 //     app can cancel.
 //
 // The second invariant is decided here, under the row lock the opening read
-// takes, so it holds for *every* way the owning row was resolved — the order tag
-// and the provider account ID alike. A conflict returns before anything is
-// claimed or written, leaving the event free to land later if the stale link is
-// genuinely ended; the same condition is repeated in the write's WHERE clause as
+// takes, so it holds for *every* way the owning row was resolved — the checkout
+// metadata, the subscription ID and the provider customer alike. A conflict
+// returns before anything is claimed or written, so the caller can ask the
+// provider to redeliver and the event lands once the stale link is genuinely
+// ended; the same condition is repeated in the write's WHERE clause as
 // the backstop for the one case the lock cannot cover, a row that did not exist
 // when the read ran.
 //
@@ -339,6 +427,14 @@ func (r *SubscriptionRepository) ApplySubscriptionEvent(
 		sub.CancelAt, sub.LastEventAt,
 	).Scan(&claimed, &applied)
 	if err != nil {
+		// The account on this event already belongs to another user. The whole
+		// transaction rolls back, so nothing is claimed and nothing is written —
+		// but no retry will ever untangle two users behind one provider customer,
+		// so it is reported as its own terminal outcome rather than as a failure
+		// the provider should keep re-attempting.
+		if isAccountUniqueViolation(err) {
+			return model.WebhookAccountConflict, nil
+		}
 		return "", fmt.Errorf("failed to apply subscription event %q: %w", eventID, err)
 	}
 	if err := tx.Commit(ctx); err != nil {

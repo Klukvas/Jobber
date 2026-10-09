@@ -32,12 +32,12 @@ export default function Refund() {
         <p>
           All payments for Jobber Pro subscriptions are processed by{" "}
           <a
-            href="https://www.fastspring.com"
+            href="https://www.creem.io"
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary underline"
           >
-            FastSpring
+            Creem
           </a>
           , our Merchant of Record. This refund policy outlines the conditions
           under which you may request a refund.
@@ -72,9 +72,8 @@ export default function Refund() {
             with your account email and the reason for the refund.
           </li>
           <li>
-            Use the FastSpring account management portal (accessible from
-            Settings &gt; Subscription &gt; Manage Subscription) to contact
-            billing support.
+            Use the Creem customer portal (accessible from Settings &gt;
+            Subscription &gt; Manage Subscription) to contact billing support.
           </li>
         </ul>
       </section>
@@ -117,9 +116,9 @@ export default function Refund() {
       <section className="mb-8">
         <h2 className="mb-3 text-xl font-semibold">6. Refund Processing</h2>
         <p>
-          Approved refunds are processed by FastSpring and typically appear in
-          your account within 5&ndash;10 business days, depending on your
-          payment method and financial institution.
+          Approved refunds are processed by Creem and typically appear in your
+          account within 5&ndash;10 business days, depending on your payment
+          method and financial institution.
         </p>
       </section>
 

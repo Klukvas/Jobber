@@ -5,13 +5,13 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
-	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/andreypavlenko/jobber/modules/subscriptions/fastspring"
+	"github.com/andreypavlenko/jobber/modules/subscriptions/creem"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/service"
 	"github.com/gin-gonic/gin"
@@ -81,7 +81,7 @@ func (m *MockSubscriptionRepository) GetUserContact(ctx context.Context, userID 
 	if m.GetUserContactFunc != nil {
 		return m.GetUserContactFunc(ctx, userID)
 	}
-	return &model.UserContact{Email: "buyer@example.com", Name: "Test Buyer", Locale: "en"}, nil
+	return &model.UserContact{Email: "buyer@example.com", Name: "Test Buyer"}, nil
 }
 
 func (m *MockSubscriptionRepository) CountUserJobs(ctx context.Context, userID string) (int, error) {
@@ -176,30 +176,31 @@ func mockAuthMiddleware(userID string) gin.HandlerFunc {
 }
 
 const (
-	// A real user ID is a UUID (`users.id` is a `uuid` column), and the checkout
-	// path now depends on that: the order tag it writes is a MAC over the
-	// canonical UUID, so a synthetic non-UUID id would fail the session it could
-	// never make resolvable.
-	testUserID         = "550e8400-e29b-41d4-a716-446655440000"
-	testWebhookSecret  = "test-webhook-secret"
-	testProPath        = "jobber-pro"
-	testEnterprisePath = "jobber-enterprise"
-	testCheckoutPath   = "fluxlab/popup-jobber"
+	// A real user ID is a UUID (`users.id` is a `uuid` column): the webhook path
+	// only trusts checkout metadata that parses as one.
+	testUserID              = "550e8400-e29b-41d4-a716-446655440000"
+	testWebhookSecret       = "test-webhook-secret"
+	testProProductID        = "prod_pro"
+	testEnterpriseProductID = "prod_enterprise"
 )
+
+func testBillingConfig() service.BillingConfig {
+	return service.BillingConfig{
+		WebhookSecret:       testWebhookSecret,
+		Environment:         service.EnvironmentTest,
+		SuccessURL:          "https://jobber.test/settings?subscription=success",
+		ProProductID:        testProProductID,
+		EnterpriseProductID: testEnterpriseProductID,
+	}
+}
 
 func newTestService(repo *MockSubscriptionRepository) *service.SubscriptionService {
 	return service.NewSubscriptionService(
 		repo,
-		// No API credentials: these handler tests exercise HTTP wiring, and an
+		// No API key: these handler tests exercise HTTP wiring, and an
 		// unconfigured client fails fast instead of reaching the network.
-		fastspring.NewClient(fastspring.Config{}),
-		service.BillingConfig{
-			WebhookSecret:         testWebhookSecret,
-			CheckoutPath:          testCheckoutPath,
-			Environment:           service.EnvironmentTest,
-			ProProductPath:        testProPath,
-			EnterpriseProductPath: testEnterprisePath,
-		},
+		creem.NewClient(creem.Config{}),
+		testBillingConfig(),
 	)
 }
 
@@ -437,7 +438,7 @@ func TestSubscriptionHandler_CreateCheckoutSession(t *testing.T) {
 		mockRepo := &MockSubscriptionRepository{
 			GetUserContactFunc: func(_ context.Context, uid string) (*model.UserContact, error) {
 				contactUserID = uid
-				return &model.UserContact{Email: "buyer@example.com", Name: "Test Buyer", Locale: "en"}, nil
+				return &model.UserContact{Email: "buyer@example.com", Name: "Test Buyer"}, nil
 			},
 		}
 		handler := newTestSubscriptionHandler(mockRepo)
@@ -451,8 +452,8 @@ func TestSubscriptionHandler_CreateCheckoutSession(t *testing.T) {
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
-		// The provider client has no credentials here, so the call fails after
-		// the identity has already been resolved from the session.
+		// The provider client has no API key here, so the call fails after the
+		// identity has already been resolved from the session.
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 		assert.Equal(t, userID, contactUserID, "the buyer must come from the auth context")
 	})
@@ -668,7 +669,7 @@ func TestSubscriptionHandler_CancelSubscription(t *testing.T) {
 
 	t.Run("returns 500 when the provider call fails", func(t *testing.T) {
 		// A linked subscription exists, so the handler reaches the provider —
-		// which has no credentials and fails.
+		// which has no API key and fails.
 		externalID := "sub-external-1"
 		mockRepo := &MockSubscriptionRepository{
 			GetByUserIDFunc: func(_ context.Context, uid string) (*model.Subscription, error) {
@@ -690,7 +691,7 @@ func TestSubscriptionHandler_CancelSubscription(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
-		assert.NotContains(t, w.Body.String(), "fastspring",
+		assert.NotContains(t, w.Body.String(), "creem",
 			"the client response must not expose provider internals")
 	})
 }
@@ -773,36 +774,57 @@ func TestSubscriptionHandler_RegisterRoutes_PaymentsDisabled(t *testing.T) {
 
 // --- WebhookHandler Tests ---
 
-// signWebhook produces the header value FastSpring would send for a body.
+// signWebhook produces the header value Creem would send for a body.
 func signWebhook(body string) string {
 	mac := hmac.New(sha256.New, []byte(testWebhookSecret))
 	mac.Write([]byte(body))
-	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 func postWebhook(handler *WebhookHandler, body, signature string) *httptest.ResponseRecorder {
 	router := setupTestRouter()
-	router.POST("/webhooks/fastspring", handler.HandleFastSpringWebhook)
+	router.POST("/webhooks/creem", handler.HandleCreemWebhook)
 
-	req, _ := http.NewRequest(http.MethodPost, "/webhooks/fastspring", bytes.NewBufferString(body))
+	req, _ := http.NewRequest(http.MethodPost, "/webhooks/creem", bytes.NewBufferString(body))
 	if signature != "" {
-		req.Header.Set("X-FS-Signature", signature)
+		req.Header.Set(creem.SignatureHeader, signature)
 	}
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	return w
 }
 
+// webhookBody builds a Creem event around a subscription object.
+func webhookBody(eventID, eventType, mode string) string {
+	return `{"id":"` + eventID + `","eventType":"` + eventType + `","created_at":1759665600000,
+		"object":{"id":"sub_x","mode":"` + mode + `","status":"active",
+		"product":{"id":"` + testProProductID + `"},"customer":{"id":"cust_x"},
+		"metadata":{"jobber_user_id":"` + testUserID + `"},
+		"current_period_end_date":"2026-11-01T00:00:00Z","updated_at":"2026-10-05T12:00:00Z"}}`
+}
+
+func ownerRepo(outcome model.WebhookApplyOutcome) *MockSubscriptionRepository {
+	return &MockSubscriptionRepository{
+		GetByUserIDFunc: func(_ context.Context, uid string) (*model.Subscription, error) {
+			return &model.Subscription{UserID: uid, Plan: "free", Status: "free"}, nil
+		},
+		ApplySubscriptionEventFunc: func(context.Context, string, string, *model.Subscription) (model.WebhookApplyOutcome, error) {
+			return outcome, nil
+		},
+	}
+}
+
 func TestWebhookHandler_RejectsUnverifiedPayloads(t *testing.T) {
+	body := webhookBody("evt-1", creem.EventSubscriptionPaid, "test")
 	tests := []struct {
 		name      string
 		body      string
 		signature string
 	}{
 		{name: "empty body", body: "", signature: ""},
-		{name: "missing signature", body: `{"events":[]}`, signature: ""},
-		{name: "wrong signature", body: `{"events":[]}`, signature: "bm90LWEtc2lnbmF0dXJl"},
-		{name: "signature for a different body", body: `{"events":[]}`, signature: signWebhook(`{"events":[{}]}`)},
+		{name: "missing signature", body: body, signature: ""},
+		{name: "wrong signature", body: body, signature: "deadbeef"},
+		{name: "signature for a different body", body: body, signature: signWebhook(body + " ")},
 	}
 
 	for _, tc := range tests {
@@ -823,97 +845,68 @@ func TestWebhookHandler_RejectsUnverifiedPayloads(t *testing.T) {
 	}
 }
 
-func TestWebhookHandler_AcknowledgesProcessedBatch(t *testing.T) {
-	// Two events Jobber does not act on: both are acknowledged with 200 so
-	// FastSpring stops redelivering them.
-	body := `{"events":[
-		{"id":"evt-1","live":false,"processed":false,"type":"order.completed","created":1751328000000,"data":{}},
-		{"id":"evt-2","live":false,"processed":false,"type":"account.updated","created":1751328000001,"data":{}}
-	]}`
+func TestWebhookHandler_AcknowledgesAnAppliedEvent(t *testing.T) {
+	body := webhookBody("evt-1", creem.EventSubscriptionPaid, "test")
 
-	w := postWebhook(newTestWebhookHandler(&MockSubscriptionRepository{}), body, signWebhook(body))
+	w := postWebhook(newTestWebhookHandler(ownerRepo(model.WebhookApplied)), body, signWebhook(body))
 
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestWebhookHandler_AcknowledgesAnEventItDoesNotActOn(t *testing.T) {
+	body := `{"id":"evt-1","eventType":"credits.granted","created_at":1759665600000,"object":{}}`
+
+	w := postWebhook(newTestWebhookHandler(&MockSubscriptionRepository{}), body, signWebhook(body))
+
+	assert.Equal(t, http.StatusOK, w.Code, "200 is what stops Creem redelivering")
+}
+
 func TestWebhookHandler_LogsPermanentDropsLouderThanOrdinarySkips(t *testing.T) {
 	// All of these are acknowledged and none is retried, so the log is the only
-	// place they differ — and they must differ. A routine skip is noise; a
-	// mismatch means this deployment is reading the wrong billing environment,
-	// and an unprovable order tag means someone tagged an order Jobber did not
-	// create. Both lose the event for good.
-	t.Run("an environment mismatch is a warning", func(t *testing.T) {
-		// live:true against a test-mode deployment.
-		body := `{"events":[
-			{"id":"evt-live","live":true,"processed":false,"type":"subscription.activated","created":1751328000000,
-			 "data":{"id":"sub-x","subscription":"sub-x","state":"active","active":true,
-			         "account":{"id":"acct-x"},"product":{"product":"jobber-pro"}}}
-		]}`
-		handler, logs := newObservedWebhookHandler(&MockSubscriptionRepository{})
+	// place they differ — and they must differ. A routine skip is noise. An event
+	// that was dropped for good (wrong environment, a customer shared by two
+	// users) is an error, because Creem never redelivers it and nothing else says
+	// a paying user may be on the wrong plan.
+	t.Run("an environment mismatch is an error", func(t *testing.T) {
+		body := webhookBody("evt-live", creem.EventSubscriptionPaid, "prod")
+		handler, logs := newObservedWebhookHandler(ownerRepo(model.WebhookApplied))
 
 		w := postWebhook(handler, body, signWebhook(body))
 
 		assert.Equal(t, http.StatusOK, w.Code, "a mismatched event is still acknowledged")
-		warnings := logs.FilterLevelExact(zap.WarnLevel).All()
-		require.Len(t, warnings, 1)
-		assert.Contains(t, warnings[0].Message, "billing environment mismatch")
-		assert.Equal(t, "evt-live", warnings[0].ContextMap()["event_id"])
+		errs := logs.FilterLevelExact(zap.ErrorLevel).All()
+		require.Len(t, errs, 1)
+		assert.Contains(t, errs[0].Message, "environment mismatch")
+		assert.Equal(t, "evt-live", errs[0].ContextMap()["event_id"])
 	})
 
-	t.Run("an order tag with no proof is a warning", func(t *testing.T) {
-		// The forgery the proof exists to stop: a storefront buyer tagging their
-		// own order with somebody else's Jobber user ID. It is acknowledged like
-		// any other permanent drop, so the log is the only place it surfaces.
-		body := `{"events":[
-			{"id":"evt-forged","live":false,"processed":false,"type":"subscription.activated","created":1751328000000,
-			 "data":{"id":"sub-x","subscription":"sub-x","state":"active","active":true,
-			         "account":{"id":"acct-x"},"product":{"product":"jobber-pro"},
-			         "tags":{"jobber_user_id":"550e8400-e29b-41d4-a716-446655440000"}}}
-		]}`
+	t.Run("a customer shared by two users is an error", func(t *testing.T) {
+		body := webhookBody("evt-shared", creem.EventSubscriptionPaid, "test")
+		handler, logs := newObservedWebhookHandler(ownerRepo(model.WebhookAccountConflict))
+
+		w := postWebhook(handler, body, signWebhook(body))
+
+		assert.Equal(t, http.StatusOK, w.Code, "no retry can untangle two users behind one customer")
+		errs := logs.FilterLevelExact(zap.ErrorLevel).All()
+		require.Len(t, errs, 1)
+		assert.Contains(t, errs[0].Message, "already linked to another user")
+	})
+
+	t.Run("a refund is a warning", func(t *testing.T) {
+		body := `{"id":"evt-refund","eventType":"refund.created","created_at":1759665600000,"object":{"id":"ref_1"}}`
 		handler, logs := newObservedWebhookHandler(&MockSubscriptionRepository{})
 
 		w := postWebhook(handler, body, signWebhook(body))
 
-		assert.Equal(t, http.StatusOK, w.Code, "an unprovable claim is acknowledged, never retried")
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Empty(t, logs.FilterLevelExact(zap.ErrorLevel).All())
 		warnings := logs.FilterLevelExact(zap.WarnLevel).All()
 		require.Len(t, warnings, 1)
-		assert.Contains(t, warnings[0].Message, "cannot prove")
-		assert.Equal(t, "evt-forged", warnings[0].ContextMap()["event_id"])
-	})
-
-	t.Run("a second live subscription for one user is a warning", func(t *testing.T) {
-		// The atomic write refused to repoint the user at a second subscription
-		// while the first still bills. Nobody is looking at the row, so this log
-		// line is the only thing that says a subscriber may be paying twice with
-		// only one of the two cancellable from Jobber.
-		body := `{"events":[
-			{"id":"evt-second-sub","live":false,"processed":false,"type":"subscription.activated","created":1751328000000,
-			 "data":{"id":"sub-second","subscription":"sub-second","state":"active","active":true,
-			         "account":{"id":"acct-x"},"product":{"product":"jobber-pro"}}}
-		]}`
-		mockRepo := &MockSubscriptionRepository{
-			GetByExternalAccountIDFunc: func(_ context.Context, accountID string) (*model.Subscription, error) {
-				return &model.Subscription{ID: "sub-row-1", UserID: "user-1", Status: "active", Plan: "pro"}, nil
-			},
-			ApplySubscriptionEventFunc: func(context.Context, string, string, *model.Subscription) (model.WebhookApplyOutcome, error) {
-				return model.WebhookLinkConflict, nil
-			},
-		}
-		handler, logs := newObservedWebhookHandler(mockRepo)
-
-		w := postWebhook(handler, body, signWebhook(body))
-
-		assert.Equal(t, http.StatusOK, w.Code, "a link conflict is acknowledged, never retried")
-		warnings := logs.FilterLevelExact(zap.WarnLevel).All()
-		require.Len(t, warnings, 1)
-		assert.Contains(t, warnings[0].Message, "already linked to another live subscription")
-		assert.Equal(t, "evt-second-sub", warnings[0].ContextMap()["event_id"])
+		assert.Contains(t, warnings[0].Message, "refund")
 	})
 
 	t.Run("an event Jobber does not act on stays informational", func(t *testing.T) {
-		body := `{"events":[
-			{"id":"evt-ok","live":false,"processed":false,"type":"order.completed","created":1751328000000,"data":{}}
-		]}`
+		body := `{"id":"evt-ok","eventType":"credits.granted","created_at":1759665600000,"object":{}}`
 		handler, logs := newObservedWebhookHandler(&MockSubscriptionRepository{})
 
 		w := postWebhook(handler, body, signWebhook(body))
@@ -921,62 +914,77 @@ func TestWebhookHandler_LogsPermanentDropsLouderThanOrdinarySkips(t *testing.T) 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Empty(t, logs.FilterLevelExact(zap.WarnLevel).All(),
 			"a routine skip must not raise the noise floor for the real misconfiguration")
+		assert.Empty(t, logs.FilterLevelExact(zap.ErrorLevel).All())
 		require.Len(t, logs.FilterLevelExact(zap.InfoLevel).All(), 1)
 	})
 }
 
-func TestWebhookHandler_PartialBatchReturns202WithProcessedIDs(t *testing.T) {
-	// evt-ok is acknowledged as non-actionable; evt-bad cannot be resolved to a
-	// user, so it must be retried.
-	body := `{"events":[
-		{"id":"evt-ok","live":false,"processed":false,"type":"order.completed","created":1751328000000,"data":{}},
-		{"id":"evt-bad","live":false,"processed":false,"type":"subscription.activated","created":1751328000001,
-		 "data":{"id":"sub-x","subscription":"sub-x","state":"active","active":true,
-		         "account":{"id":"acct-unknown"},"product":{"product":"jobber-pro"}}}
-	]}`
+func TestWebhookHandler_ASecondLiveSubscriptionIsRetriedAndLoggedAsAnError(t *testing.T) {
+	// Acknowledging would lose a paying user's new plan if the cancellation of
+	// the old subscription was merely late. A retry lets it land once it is.
+	body := webhookBody("evt-second-sub", creem.EventSubscriptionPaid, "test")
+	handler, logs := newObservedWebhookHandler(ownerRepo(model.WebhookLinkConflict))
 
-	w := postWebhook(newTestWebhookHandler(&MockSubscriptionRepository{}), body, signWebhook(body))
+	w := postWebhook(handler, body, signWebhook(body))
 
-	assert.Equal(t, http.StatusAccepted, w.Code)
-	assert.Equal(t, "evt-ok", w.Body.String(),
-		"the 202 body lists only the processed event IDs, one per line")
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	errs := logs.FilterLevelExact(zap.ErrorLevel).All()
+	require.Len(t, errs, 1)
+	assert.Equal(t, "evt-second-sub", errs[0].ContextMap()["event_id"])
 }
 
-func TestWebhookHandler_FullyFailedBatchAsksForRetry(t *testing.T) {
-	body := `{"events":[
-		{"id":"evt-bad","live":false,"processed":false,"type":"subscription.activated","created":1751328000000,
-		 "data":{"id":"sub-x","subscription":"sub-x","state":"active","active":true,
-		         "account":{"id":"acct-unknown"},"product":{"product":"jobber-pro"}}}
-	]}`
+func TestWebhookHandler_AFailedEventAsksForRetry(t *testing.T) {
+	// The subscription cannot be placed on any user, so the event must come back.
+	body := `{"id":"evt-bad","eventType":"subscription.paid","created_at":1759665600000,
+		"object":{"id":"sub_x","mode":"test","status":"active","product":{"id":"` + testProProductID + `"},
+		"customer":{"id":"cust_unknown"}}}`
+	handler, logs := newObservedWebhookHandler(&MockSubscriptionRepository{})
 
-	w := postWebhook(newTestWebhookHandler(&MockSubscriptionRepository{}), body, signWebhook(body))
+	w := postWebhook(handler, body, signWebhook(body))
 
-	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	errs := logs.FilterLevelExact(zap.ErrorLevel).All()
+	require.Len(t, errs, 1)
+	assert.Equal(t, "evt-bad", errs[0].ContextMap()["event_id"])
 }
 
 func TestWebhookHandler_MissingSecretAsksForRetry(t *testing.T) {
-	// Our own misconfiguration must not be reported as a client error, or
-	// FastSpring would stop retrying and the event would be lost.
+	// Our own misconfiguration must not be reported as a client error, or Creem
+	// would stop retrying and the event would be lost.
 	svc := service.NewSubscriptionService(&MockSubscriptionRepository{},
-		fastspring.NewClient(fastspring.Config{}),
+		creem.NewClient(creem.Config{}),
 		service.BillingConfig{Environment: service.EnvironmentTest})
 	handler := NewWebhookHandler(svc, zap.NewNop())
 
-	w := postWebhook(handler, `{"events":[]}`, "c2lnbmF0dXJl")
+	w := postWebhook(handler, `{}`, "abcd")
 
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
 func TestWebhookHandler_RegisterRoutes(t *testing.T) {
-	handler := newTestWebhookHandler(&MockSubscriptionRepository{})
+	postToWebhook := func(t *testing.T, rateLimiter gin.HandlerFunc) int {
+		t.Helper()
+		handler := newTestWebhookHandler(&MockSubscriptionRepository{})
+		router := setupTestRouter()
+		handler.RegisterRoutes(router.Group("/api/v1"), rateLimiter)
 
-	router := setupTestRouter()
-	v1 := router.Group("/api/v1")
-	handler.RegisterRoutes(v1)
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/webhooks/creem", bytes.NewBufferString("{}"))
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		return w.Code
+	}
 
-	req, _ := http.NewRequest(http.MethodPost, "/api/v1/webhooks/fastspring", bytes.NewBufferString("{}"))
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	t.Run("the route is registered", func(t *testing.T) {
+		assert.NotEqual(t, http.StatusNotFound, postToWebhook(t, nil),
+			"POST /api/v1/webhooks/creem should be registered")
+	})
 
-	assert.NotEqual(t, http.StatusNotFound, w.Code, "POST /api/v1/webhooks/fastspring should be registered")
+	t.Run("the rate limiter runs in front of it", func(t *testing.T) {
+		// This is the only public route with no auth middleware, and verifying
+		// the HMAC means reading and hashing the body first — so the limiter has
+		// to be reached before the handler, not merely configured somewhere.
+		refuse := func(c *gin.Context) { c.AbortWithStatus(http.StatusTooManyRequests) }
+
+		assert.Equal(t, http.StatusTooManyRequests, postToWebhook(t, refuse))
+	})
 }

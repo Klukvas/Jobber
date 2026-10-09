@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Dialog, DialogTitle } from "@/shared/ui/Dialog";
 import { Button } from "@/shared/ui/Button";
+import { safeBillingUrl } from "@/features/subscription/safeHttpsUrl";
 import { subscriptionService } from "@/services/subscriptionService";
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { useDateLocale } from "@/shared/lib/dateFnsLocale";
@@ -58,12 +59,19 @@ export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
   });
 
   // Same-tab navigation, never window.open: the URL only exists after an async
-  // round-trip, by which point a popup is no longer tied to the user's click and
+  // round-trip, by which point a new window is no longer tied to the user's click and
   // browsers block it.
   const portalMutation = useMutation({
     mutationFn: subscriptionService.createPortalSession,
     onSuccess: ({ url }) => {
-      window.location.assign(url);
+      // The URL is backend data: treat one that is not a billing-provider https link as a
+      // failed request rather than navigating to it.
+      const safeUrl = safeBillingUrl(url);
+      if (!safeUrl) {
+        showErrorNotification(t("settings.subscription.manage.portalError"));
+        return;
+      }
+      window.location.assign(safeUrl);
     },
     onError: () => {
       showErrorNotification(t("settings.subscription.manage.portalError"));
@@ -178,8 +186,8 @@ export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
           </div>
         </div>
 
-        {/* Billing portal — invoices, receipts, payment method and refunds all
-            live on the provider's side, so this is the only route to them. */}
+        {/* Billing portal — invoices, receipts and the payment method live on
+            the provider's side, so this is the only route to them. */}
         <div className="rounded-lg border px-4 py-3">
           <div className="flex items-start justify-between gap-3">
             <div>

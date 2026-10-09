@@ -289,6 +289,120 @@ func TestIntegrationApplySubscriptionEventOrdering(t *testing.T) {
 	})
 }
 
+func TestIntegrationApplySubscriptionEventCancellationTie(t *testing.T) {
+	repo, pool := newIntegrationRepo(t)
+	ctx := context.Background()
+
+	const (
+		userID = "22222222-2222-4222-8222-222222222222"
+		subID  = "sub_tie_1"
+	)
+	seedUser(t, pool, userID)
+	account := "cust_tie_1"
+	stamp := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+
+	outcome, err := repo.ApplySubscriptionEvent(ctx, "evt-paid", "subscription.paid",
+		eventState(userID, subID, &account, "active", "pro", stamp))
+	require.NoError(t, err)
+	require.Equal(t, model.WebhookApplied, outcome)
+
+	t.Run("a cancellation stamped with the same time still lands", func(t *testing.T) {
+		// Creem is not documented to bump updated_at between the last payment and
+		// the cancel. Dropping the cancel would keep a non-paying user on a paid plan.
+		outcome, err := repo.ApplySubscriptionEvent(ctx, "evt-cancel", "subscription.canceled",
+			eventState(userID, subID, &account, "cancelled", "free", stamp))
+
+		require.NoError(t, err)
+		assert.Equal(t, model.WebhookApplied, outcome)
+
+		sub, err := repo.GetByUserID(ctx, userID)
+		require.NoError(t, err)
+		assert.Equal(t, "cancelled", sub.Status)
+		assert.Equal(t, "free", sub.Plan)
+	})
+
+	t.Run("a second cancellation with the same time is not applied again", func(t *testing.T) {
+		outcome, err := repo.ApplySubscriptionEvent(ctx, "evt-cancel-resend", "subscription.canceled",
+			eventState(userID, subID, &account, "cancelled", "free", stamp))
+
+		require.NoError(t, err)
+		assert.Equal(t, model.WebhookSuperseded, outcome)
+	})
+
+	t.Run("a payment stamped with the same time cannot revive the cancelled row", func(t *testing.T) {
+		outcome, err := repo.ApplySubscriptionEvent(ctx, "evt-paid-late", "subscription.paid",
+			eventState(userID, subID, &account, "active", "pro", stamp))
+
+		require.NoError(t, err)
+		assert.Equal(t, model.WebhookSuperseded, outcome)
+
+		sub, err := repo.GetByUserID(ctx, userID)
+		require.NoError(t, err)
+		assert.Equal(t, "cancelled", sub.Status)
+	})
+}
+
+func TestIntegrationApplySubscriptionEventAccountConflict(t *testing.T) {
+	repo, pool := newIntegrationRepo(t)
+	ctx := context.Background()
+
+	const (
+		owner    = "33333333-3333-4333-8333-333333333333"
+		intruder = "44444444-4444-4444-8444-444444444444"
+	)
+	seedUser(t, pool, owner)
+	seedUser(t, pool, intruder)
+	customer := "cust_shared"
+	stamp := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+
+	outcome, err := repo.ApplySubscriptionEvent(ctx, "evt-owner", "subscription.paid",
+		eventState(owner, "sub_owner", &customer, "active", "pro", stamp))
+	require.NoError(t, err)
+	require.Equal(t, model.WebhookApplied, outcome)
+
+	t.Run("a second user behind the same customer is a terminal conflict that writes nothing", func(t *testing.T) {
+		outcome, err := repo.ApplySubscriptionEvent(ctx, "evt-intruder", "subscription.paid",
+			eventState(intruder, "sub_intruder", &customer, "active", "pro", stamp.Add(time.Hour)))
+
+		require.NoError(t, err)
+		assert.Equal(t, model.WebhookAccountConflict, outcome)
+
+		_, err = repo.GetByUserID(ctx, intruder)
+		assert.ErrorIs(t, err, model.ErrSubscriptionNotFound, "no row may be created for the second user")
+		assert.NotContains(t, recordedEventIDs(t, pool), "evt-intruder",
+			"the claim must roll back with the write, or the retry would be dismissed as a duplicate")
+	})
+
+	t.Run("the first user's row is untouched", func(t *testing.T) {
+		sub, err := repo.GetByUserID(ctx, owner)
+		require.NoError(t, err)
+		assert.Equal(t, "active", sub.Status)
+		assert.Equal(t, "pro", sub.Plan)
+		assert.True(t, sub.LastEventAt.Equal(stamp))
+	})
+
+	t.Run("linking the customer to the second user is refused too", func(t *testing.T) {
+		err := repo.LinkExternalAccount(ctx, intruder, customer)
+
+		assert.ErrorIs(t, err, model.ErrBillingAccountTaken)
+	})
+
+	t.Run("linking never overwrites a customer already on the row", func(t *testing.T) {
+		require.NoError(t, repo.LinkExternalAccount(ctx, owner, "cust_other"))
+
+		sub, err := repo.GetByUserID(ctx, owner)
+		require.NoError(t, err)
+		require.NotNil(t, sub.ExternalAccountID)
+		assert.Equal(t, customer, *sub.ExternalAccountID)
+	})
+
+	t.Run("a user that does not exist is reported as such", func(t *testing.T) {
+		err := repo.EnsureFree(ctx, "55555555-5555-4555-8555-555555555555")
+
+		assert.ErrorIs(t, err, model.ErrUserNotFound)
+	})
+}
+
 func TestIntegrationApplySubscriptionEventConcurrentDeliveries(t *testing.T) {
 	repo, pool := newIntegrationRepo(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -437,7 +551,7 @@ func TestIntegrationApplySubscriptionEventLinkGuard(t *testing.T) {
 			wantOutcome: model.WebhookLinkConflict,
 		},
 		{
-			// Dunning: FastSpring is still trying to charge the old subscription.
+			// Dunning: Creem is still trying to charge the old subscription.
 			name:        "a second subscription cannot replace a past-due one",
 			link:        linkOther,
 			status:      "past_due",
@@ -513,7 +627,7 @@ func TestIntegrationApplySubscriptionEventLinkGuard(t *testing.T) {
 // two activations for two different provider subscriptions land at once.
 //
 // Exactly one may link. If both were allowed the second would overwrite the
-// first identifier and leave that subscription billing at FastSpring with
+// first identifier and leave that subscription billing at Creem with
 // nothing in Jobber able to cancel it.
 func TestIntegrationApplySubscriptionEventConcurrentActivations(t *testing.T) {
 	repo, pool := newIntegrationRepo(t)

@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
-	"github.com/andreypavlenko/jobber/modules/subscriptions/fastspring"
+	"github.com/andreypavlenko/jobber/modules/subscriptions/creem"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/ports"
 	"github.com/stretchr/testify/assert"
@@ -71,7 +72,7 @@ func (m *MockSubscriptionRepository) GetUserContact(ctx context.Context, userID 
 	if m.GetUserContactFunc != nil {
 		return m.GetUserContactFunc(ctx, userID)
 	}
-	return &model.UserContact{Email: "buyer@example.com", Name: "Test Buyer", Locale: "en"}, nil
+	return &model.UserContact{Email: "buyer@example.com", Name: "Test Buyer"}, nil
 }
 
 func (m *MockSubscriptionRepository) CountUserJobs(ctx context.Context, userID string) (int, error) {
@@ -161,32 +162,34 @@ func (m *MockSubscriptionRepository) ApplySubscriptionEvent(
 var _ ports.SubscriptionRepository = (*MockSubscriptionRepository)(nil)
 
 const (
-	testUserID                = "550e8400-e29b-41d4-a716-446655440000"
-	testProProductPath        = "jobber-pro"
-	testEnterpriseProductPath = "jobber-enterprise"
-	testCheckoutPath          = "fluxlab/popup-jobber"
-	testTestStorefront        = "fluxlab.test.onfastspring.com/popup-jobber"
-	testLiveStorefront        = "fluxlab.onfastspring.com/popup-jobber"
-	testWebhookSecret         = "test-webhook-secret"
+	testUserID              = "550e8400-e29b-41d4-a716-446655440000"
+	testProProductID        = "prod_pro"
+	testEnterpriseProductID = "prod_enterprise"
+	testSuccessURL          = "https://jobber.test/settings?subscription=success"
+	testWebhookSecret       = "test-webhook-secret"
 )
 
 // testBillingConfig is the default billing setup used by the service tests:
 // test mode, both plans purchasable.
 func testBillingConfig() BillingConfig {
 	return BillingConfig{
-		WebhookSecret:         testWebhookSecret,
-		CheckoutPath:          testCheckoutPath,
-		Environment:           EnvironmentTest,
-		ProProductPath:        testProProductPath,
-		EnterpriseProductPath: testEnterpriseProductPath,
+		WebhookSecret:       testWebhookSecret,
+		Environment:         EnvironmentTest,
+		SuccessURL:          testSuccessURL,
+		ProProductID:        testProProductID,
+		EnterpriseProductID: testEnterpriseProductID,
 	}
 }
 
 func newTestService(repo *MockSubscriptionRepository) *SubscriptionService {
-	return NewSubscriptionService(repo, fastspring.NewClient(fastspring.Config{
-		Username: "test-user",
-		Password: "test-pass",
-	}), testBillingConfig())
+	return NewSubscriptionService(repo, creem.NewClient(creem.Config{APIKey: "test-key"}), testBillingConfig())
+}
+
+// newTestServiceWithAPI points the Creem client at a stub API, so checkout and
+// subscription-management calls can be observed without a network.
+func newTestServiceWithAPI(repo *MockSubscriptionRepository, apiURL string) *SubscriptionService {
+	client := creem.NewClient(creem.Config{APIKey: "test-key", BaseURL: apiURL})
+	return NewSubscriptionService(repo, client, testBillingConfig())
 }
 
 func TestRequirePaidPlan(t *testing.T) {
@@ -543,10 +546,6 @@ func TestGetSubscription(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// GetCheckoutConfig tests
-// ---------------------------------------------------------------------------
-
 func TestEnsureFreeSubscription(t *testing.T) {
 	t.Run("creates a free row for the user", func(t *testing.T) {
 		var ensuredUserID string
@@ -760,4 +759,151 @@ func TestResourceLimit(t *testing.T) {
 
 		assert.Error(t, err)
 	})
+}
+
+func TestEffectivePlan_ALapsedScheduledCancellationFallsBackToFree(t *testing.T) {
+	now := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
+	at := func(offset time.Duration) *time.Time {
+		moment := now.Add(offset)
+		return &moment
+	}
+
+	tests := []struct {
+		name string
+		sub  *model.Subscription
+		want string
+	}{
+		{name: "no cancellation scheduled", sub: &model.Subscription{Plan: PlanPro, Status: StatusActive}, want: PlanPro},
+		{name: "cancellation still ahead", sub: &model.Subscription{Plan: PlanPro, Status: StatusActive, CancelAt: at(24 * time.Hour)}, want: PlanPro},
+		{name: "end date just passed: a late webhook may still be coming", sub: &model.Subscription{Plan: PlanPro, Status: StatusActive, CancelAt: at(-time.Hour)}, want: PlanPro},
+		{name: "inside the grace window", sub: &model.Subscription{Plan: PlanPro, Status: StatusActive, CancelAt: at(-47 * time.Hour)}, want: PlanPro},
+		{name: "past the grace window: the cancel webhook never arrived", sub: &model.Subscription{Plan: PlanEnterprise, Status: StatusActive, CancelAt: at(-49 * time.Hour)}, want: PlanFree},
+		{name: "a stale date on a past_due row is left to the dunning flow", sub: &model.Subscription{Plan: PlanPro, Status: StatusPastDue, CancelAt: at(-72 * time.Hour)}, want: PlanPro},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := newTestService(&MockSubscriptionRepository{
+				GetByUserIDFunc: func(context.Context, string) (*model.Subscription, error) { return tt.sub, nil },
+			})
+			svc.now = func() time.Time { return now }
+
+			plan, err := svc.effectivePlan(context.Background(), testUserID)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, plan)
+		})
+	}
+}
+
+func TestGetSubscription_ShowsTheLimitsThatAreEnforced(t *testing.T) {
+	now := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
+	at := func(offset time.Duration) *time.Time {
+		moment := now.Add(offset)
+		return &moment
+	}
+	periodEnd := now.Add(72 * time.Hour)
+
+	tests := []struct {
+		name       string
+		sub        *model.Subscription
+		wantPlan   string
+		wantStatus string
+		wantLimits model.PlanLimits
+		wantEnd    bool
+	}{
+		{
+			name:     "an active paid subscription shows paid limits",
+			sub:      &model.Subscription{Plan: PlanPro, Status: StatusActive, CurrentPeriodEnd: &periodEnd},
+			wantPlan: PlanPro, wantStatus: StatusActive, wantLimits: model.ProPlanLimits, wantEnd: true,
+		},
+		{
+			name:     "a paused subscription keeps its plan but is shown the free limits it is held to",
+			sub:      &model.Subscription{Plan: PlanPro, Status: StatusPaused, CurrentPeriodEnd: &periodEnd},
+			wantPlan: PlanPro, wantStatus: StatusPaused, wantLimits: model.FreePlanLimits, wantEnd: true,
+		},
+		{
+			name:     "past_due keeps its grace window",
+			sub:      &model.Subscription{Plan: PlanPro, Status: StatusPastDue},
+			wantPlan: PlanPro, wantStatus: StatusPastDue, wantLimits: model.ProPlanLimits,
+		},
+		{
+			name:     "a cancellation date long past is shown as the cancelled free plan it already is",
+			sub:      &model.Subscription{Plan: PlanEnterprise, Status: StatusActive, CancelAt: at(-49 * time.Hour), CurrentPeriodEnd: at(-49 * time.Hour)},
+			wantPlan: PlanFree, wantStatus: StatusCancelled, wantLimits: model.FreePlanLimits,
+		},
+		{
+			name:     "a cancellation date inside the grace window is still shown as paid",
+			sub:      &model.Subscription{Plan: PlanPro, Status: StatusActive, CancelAt: at(-47 * time.Hour)},
+			wantPlan: PlanPro, wantStatus: StatusActive, wantLimits: model.ProPlanLimits,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &MockSubscriptionRepository{
+				GetByUserIDFunc: func(context.Context, string) (*model.Subscription, error) { return tt.sub, nil },
+				GetAllCountsFunc: func(context.Context, string) (int, int, int, int, int, int, error) {
+					return 0, 0, 0, 0, 0, 0, nil
+				},
+			}
+			svc := newTestService(repo)
+			svc.now = func() time.Time { return now }
+
+			dto, err := svc.GetSubscription(context.Background(), testUserID)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantPlan, dto.Plan)
+			assert.Equal(t, tt.wantStatus, dto.Status)
+			assert.Equal(t, tt.wantLimits, dto.Limits)
+			assert.Equal(t, tt.wantEnd, dto.CurrentPeriodEnd != nil)
+			if tt.wantStatus == StatusCancelled {
+				assert.Nil(t, dto.CancelAt, "an ended subscription shows no pending cancellation")
+			}
+		})
+	}
+
+	t.Run("what is shown is what CheckLimit enforces", func(t *testing.T) {
+		// 4 jobs: inside the pro limit, over a (test) free limit of 3. The response
+		// and the enforcement must agree for the same paused row.
+		prev := model.FreePlanLimits
+		model.FreePlanLimits = model.PlanLimits{MaxJobs: 3, MaxResumes: 1, MaxAIRequests: 1, MaxJobParses: 1, MaxResumeBuilders: 1, MaxCoverLetters: 1}
+		t.Cleanup(func() { model.FreePlanLimits = prev })
+		repo := &MockSubscriptionRepository{
+			GetByUserIDFunc: func(context.Context, string) (*model.Subscription, error) {
+				return &model.Subscription{Plan: PlanPro, Status: StatusPaused}, nil
+			},
+			CountUserJobsFunc: func(context.Context, string) (int, error) { return 4, nil },
+			GetAllCountsFunc: func(context.Context, string) (int, int, int, int, int, int, error) {
+				return 4, 0, 0, 0, 0, 0, nil
+			},
+		}
+		svc := newTestService(repo)
+
+		dto, err := svc.GetSubscription(context.Background(), testUserID)
+		require.NoError(t, err)
+
+		assert.Equal(t, 3, dto.Limits.MaxJobs)
+		assert.ErrorIs(t, svc.CheckLimit(context.Background(), testUserID, "jobs"), model.ErrLimitReached)
+	})
+}
+
+func TestHoldsLiveProviderSubscription(t *testing.T) {
+	tests := []struct {
+		name string
+		sub  *model.Subscription
+		want bool
+	}{
+		{name: "no provider id", sub: &model.Subscription{Status: StatusActive}, want: false},
+		{name: "empty provider id", sub: &model.Subscription{Status: StatusActive, ExternalSubscriptionID: strPtr("")}, want: false},
+		{name: "live", sub: &model.Subscription{Status: StatusActive, ExternalSubscriptionID: strPtr("sub_1")}, want: true},
+		{name: "past due still bills", sub: &model.Subscription{Status: StatusPastDue, ExternalSubscriptionID: strPtr("sub_1")}, want: true},
+		{name: "ended", sub: &model.Subscription{Status: StatusCancelled, ExternalSubscriptionID: strPtr("sub_1")}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, holdsLiveProviderSubscription(tt.sub))
+		})
+	}
 }

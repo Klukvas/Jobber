@@ -482,9 +482,6 @@
       "renewsOn": "Renews on {{date}}",
       "cancelledOn": "Cancelled, access until {{date}}",
       "pastDue": "Payment past due",
-      "upgradeDescription": "Get more tracked jobs, resumes, and AI-powered match scoring.",
-      "proFeatures": "100 tracked jobs, 10 resumes & AI match scoring",
-      "enterpriseFeatures": "Unlimited tracked jobs, resumes & AI match scoring",
       "aiRequests": "AI Requests",
       "jobs": "Jobs",
       "resumes": "Resumes",
@@ -505,7 +502,7 @@
         "cancelConfirmText": "Your subscription will remain active until the end of the current billing period. After that you will be moved to the Free plan.",
         "confirmCancel": "Yes, cancel",
         "billingPortal": "Billing portal",
-        "billingPortalDescription": "Invoices, receipts, payment method and refund requests.",
+        "billingPortalDescription": "Invoices, receipts and your payment method.",
         "openBillingPortal": "Open portal",
         "portalError": "Could not open the billing portal. Please try again."
       },
@@ -538,7 +535,7 @@
         "switchPlan": "Switch to this plan",
         "downgradeViaCancel": "Cancel your subscription to return to Free."
       },
-      "checkoutReceived": "Thanks! We're confirming your payment — your plan updates automatically once it clears.",
+      "checkoutReceived": "If you just completed a payment, your plan updates automatically once it is confirmed.",
       "coverLetters": "Cover Letters",
       "resumeBuilders": "Resume Builders",
       "notIncluded": "Not included",
@@ -1671,12 +1668,12 @@
     "unavailable": "In-app support is unavailable right now. Please email us instead."
   },
   "cookieConsent": {
-    "message": "We use essential cookies to sign you in and to process secure payments via FastSpring. With your consent, we also use analytics cookies (Google Analytics, PostHog) to improve the product.",
+    "message": "We use essential cookies to sign you in and to process secure payments via Creem. With your consent, we also use analytics cookies (Google Analytics, PostHog) to improve the product.",
     "privacyLink": "Privacy Policy",
     "acceptAll": "Accept all",
     "essentialOnly": "Essential only",
     "settings": "Cookie settings",
     "ariaLabel": "Cookie consent",
-    "messageEssentialOnly": "We use essential cookies to sign you in and to process secure payments via FastSpring. No analytics or advertising cookies are in use on this site."
+    "messageEssentialOnly": "We use essential cookies to sign you in and to process secure payments via Creem. No analytics or advertising cookies are in use on this site."
   }
 }

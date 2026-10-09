@@ -58,7 +58,7 @@ import (
 	rbRepo "github.com/andreypavlenko/jobber/modules/resumebuilder/repository"
 	rbService "github.com/andreypavlenko/jobber/modules/resumebuilder/service"
 
-	"github.com/andreypavlenko/jobber/modules/subscriptions/fastspring"
+	"github.com/andreypavlenko/jobber/modules/subscriptions/creem"
 	subHandler "github.com/andreypavlenko/jobber/modules/subscriptions/handler"
 	subRepo "github.com/andreypavlenko/jobber/modules/subscriptions/repository"
 	subService "github.com/andreypavlenko/jobber/modules/subscriptions/service"
@@ -216,11 +216,11 @@ func TestMain(m *testing.M) {
 	// Services
 	//
 	// Billing runs with no provider credentials: these tests exercise plan
-	// limits and entitlement, never a real checkout. Every FastSpring call
+	// limits and entitlement, never a real checkout. Every Creem call
 	// therefore fails with ErrNotConfigured instead of reaching the network.
 	subscriptionSvc := subService.NewSubscriptionService(
 		subscriptionRepository,
-		fastspring.NewClient(fastspring.Config{}),
+		creem.NewClient(creem.Config{}),
 		subService.BillingConfig{Environment: subService.EnvironmentTest},
 	)
 
@@ -296,7 +296,7 @@ func TestMain(m *testing.M) {
 		contentLibraryHdl.RegisterRoutes(v1, authMiddleware)
 		coverLetterHdl.RegisterRoutes(v1, authMiddleware)
 		subscriptionHdl.RegisterRoutes(v1, authMiddleware, false)
-		webhookHdl.RegisterRoutes(v1)
+		webhookHdl.RegisterRoutes(v1, nil)
 	}
 
 	// Start test server

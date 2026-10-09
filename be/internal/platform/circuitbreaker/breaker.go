@@ -62,6 +62,29 @@ func (b *Breaker) Execute(fn func() error) error {
 	return err
 }
 
+// ExecuteIgnoring is Execute for calls that can end in an outcome that says
+// nothing about the service's health, such as the caller giving up.
+//
+// When ignore reports true for the returned error, the error still goes back to
+// the caller but is recorded as neither a success nor a failure: the state and
+// the consecutive-failure count are left alone, and a half-open probe slot is
+// released so the next request can probe instead. Recording it as a success
+// would let one cancelled request re-close a breaker while the service is down.
+func (b *Breaker) ExecuteIgnoring(fn func() error, ignore func(error) bool) error {
+	if !b.allow() {
+		return ErrCircuitOpen
+	}
+
+	err := fn()
+	if err != nil && ignore != nil && ignore(err) {
+		b.releaseProbe()
+		return err
+	}
+
+	b.record(err)
+	return err
+}
+
 // State returns the current state (for metrics/logging).
 func (b *Breaker) State() State {
 	b.mu.Lock()
@@ -92,6 +115,13 @@ func (b *Breaker) allow() bool {
 		return true
 	}
 	return false
+}
+
+// releaseProbe frees the half-open probe slot without changing the state.
+func (b *Breaker) releaseProbe() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.probing = false
 }
 
 func (b *Breaker) record(err error) {

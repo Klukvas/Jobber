@@ -12,9 +12,7 @@ import { SubscriptionSuccessModal } from "@/features/subscription/components/Sub
 import { SupportButton } from "@/features/support/SupportButton";
 import {
   forgetPreCheckoutPlan,
-  onCheckoutCompleted,
   readFreshPreCheckoutPlan,
-  readPreCheckoutPlan,
 } from "@/features/subscription/checkoutSignals";
 import { resetConsent } from "@/shared/lib/consent";
 import { PoweredByFluxLab } from "@/shared/ui/PoweredByFluxLab";
@@ -32,13 +30,13 @@ export const POLL_INTERVAL_MS = 3_000;
 const POLL_TIMEOUT_MS = 5 * 60_000;
 
 /**
- * The storefront's post-order redirect parameter.
+ * The hosted checkout's post-purchase redirect parameter.
  *
  * A breadcrumb, never evidence. It is appended by a dashboard setting we do
  * not control, it survives bookmarking and sharing, and anybody can type it —
  * so the only thing it is allowed to do here is get itself removed from the
  * address bar. What a checkout actually happened is decided by the baseline
- * this app wrote before opening the popup.
+ * this app wrote before redirecting to the checkout.
  */
 const SUBSCRIPTION_PARAM = "subscription";
 
@@ -60,18 +58,16 @@ export function AppLayout() {
   // later navigation. The initialiser runs once per mount and the removal is
   // idempotent, so a double-invoked initialiser in StrictMode changes nothing.
   //
-  // Checkout itself is a popup on this very page, so the normal path is the
-  // same-page event below, not this. What this covers is a *reload* while the
-  // popup was open: that destroys the popup along with the page, and the
-  // baseline left in sessionStorage is the only surviving trace of a purchase
-  // that may well have gone through.
+  // Checkout is a full-page redirect to the provider, so this is the normal
+  // path: the buyer comes back (`?subscription=success`) to a fresh page load,
+  // and the baseline left in sessionStorage is the only trace of the purchase.
   //
   // The baseline is the *whole* arming condition. `?subscription=success` used
   // to arm it too, standing in a "free" baseline when none was stored — which
   // meant a bookmarked or shared success URL, opened by somebody who was
   // already on pro, read as an upgrade from free and congratulated them on a
   // purchase that never happened. Only a baseline this app wrote, minutes ago,
-  // before opening a popup, correlates a page load to a checkout.
+  // before redirecting to checkout, correlates a page load to a checkout.
   const [initialBaseline] = useState<SubscriptionPlan | null>(() =>
     readFreshPreCheckoutPlan(),
   );
@@ -107,24 +103,7 @@ export function AppLayout() {
     forgetPreCheckoutPlan();
   }, []);
 
-  // The checkout popup closes without navigating anywhere, so a completed
-  // purchase produces no page load for the mount-time read above to notice.
-  // This is that missing signal — and it is only a signal: it starts the same
-  // poll a reload would, and the success modal still waits for the backend to
-  // report the higher plan. The provider's own callback is never treated as
-  // payment.
-  useEffect(() => {
-    return onCheckoutCompleted(() => {
-      setPreCheckoutPlan(readPreCheckoutPlan());
-      setUpgradedPlan(null);
-      setIsAwaitingUpgrade(true);
-      // The baseline has been lifted into state; leaving it on disk would make
-      // the next page load poll all over again.
-      forgetPreCheckoutPlan();
-    });
-  }, []);
-
-  // Pressing Back — or leaving for the Account Management Portal — can restore
+  // Pressing Back — or leaving for the customer portal — can restore
   // this page straight from the bfcache: no remount, no effects, so nothing
   // else clears the baseline and the *next* full load would poll for a purchase
   // that never happened.
@@ -169,7 +148,7 @@ export function AppLayout() {
     forgetPreCheckoutPlan();
   }, [initialBaseline]);
 
-  // Take the storefront's parameter back out of the address bar, whether or not
+  // Take the provider's parameter back out of the address bar, whether or not
   // it correlated to anything.
   //
   // Read from the router rather than from `window.location`: the two disagree
@@ -213,7 +192,11 @@ export function AppLayout() {
             <Link to="/refund" className={FOOTER_LINK}>
               {t("home.footer.refund")}
             </Link>
-            <button type="button" onClick={resetConsent} className={FOOTER_LINK}>
+            <button
+              type="button"
+              onClick={resetConsent}
+              className={FOOTER_LINK}
+            >
               {t("cookieConsent.settings")}
             </button>
             <span>

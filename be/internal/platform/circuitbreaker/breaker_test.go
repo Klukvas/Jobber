@@ -276,3 +276,74 @@ func TestBreaker_SuccessResetsFailCount(t *testing.T) {
 		assert.Equal(t, StateClosed, cb.State())
 	})
 }
+
+func TestBreaker_ExecuteIgnoring(t *testing.T) {
+	errGaveUp := errors.New("caller gave up")
+	isGaveUp := func(err error) bool { return errors.Is(err, errGaveUp) }
+
+	t.Run("an ignored error is returned but does not count as a failure", func(t *testing.T) {
+		cb := New("test", 3, time.Minute)
+
+		for range 10 {
+			err := cb.ExecuteIgnoring(func() error { return errGaveUp }, isGaveUp)
+			require.ErrorIs(t, err, errGaveUp)
+		}
+
+		assert.Equal(t, StateClosed, cb.State(), "ignored outcomes must never trip the breaker")
+	})
+
+	t.Run("an ignored error does not reset the failure count", func(t *testing.T) {
+		cb := New("test", 3, time.Minute)
+		_ = cb.Execute(func() error { return errTest })
+		_ = cb.Execute(func() error { return errTest })
+
+		_ = cb.ExecuteIgnoring(func() error { return errGaveUp }, isGaveUp)
+		_ = cb.Execute(func() error { return errTest })
+
+		assert.Equal(t, StateOpen, cb.State(), "the third real failure must still trip it")
+	})
+
+	t.Run("an ignored probe does not re-close a breaker whose service is down", func(t *testing.T) {
+		cb := New("test", 1, 20*time.Millisecond)
+		_ = cb.Execute(func() error { return errTest })
+		require.Equal(t, StateOpen, cb.State())
+		time.Sleep(30 * time.Millisecond)
+		require.Equal(t, StateHalfOpen, cb.State())
+
+		err := cb.ExecuteIgnoring(func() error { return errGaveUp }, isGaveUp)
+
+		require.ErrorIs(t, err, errGaveUp)
+		assert.Equal(t, StateHalfOpen, cb.State(), "the cancelled probe proved nothing about the service")
+	})
+
+	t.Run("an ignored probe releases the slot so the next request can probe", func(t *testing.T) {
+		cb := New("test", 1, 20*time.Millisecond)
+		_ = cb.Execute(func() error { return errTest })
+		time.Sleep(30 * time.Millisecond)
+		_ = cb.ExecuteIgnoring(func() error { return errGaveUp }, isGaveUp)
+
+		var probed bool
+		err := cb.ExecuteIgnoring(func() error { probed = true; return nil }, isGaveUp)
+
+		require.NoError(t, err)
+		assert.True(t, probed, "a wedged probe slot would refuse every later request")
+		assert.Equal(t, StateClosed, cb.State(), "a real success closes it")
+	})
+
+	t.Run("a non-ignored error is recorded as usual", func(t *testing.T) {
+		cb := New("test", 1, time.Minute)
+
+		_ = cb.ExecuteIgnoring(func() error { return errTest }, isGaveUp)
+
+		assert.Equal(t, StateOpen, cb.State())
+	})
+
+	t.Run("an open breaker still refuses without calling the function", func(t *testing.T) {
+		cb := New("test", 1, time.Minute)
+		_ = cb.Execute(func() error { return errTest })
+
+		err := cb.ExecuteIgnoring(func() error { t.Fatal("must not run"); return nil }, isGaveUp)
+
+		assert.ErrorIs(t, err, ErrCircuitOpen)
+	})
+}
