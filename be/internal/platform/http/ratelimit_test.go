@@ -1,6 +1,7 @@
 package http
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -217,4 +218,37 @@ func TestUserRateLimitMiddleware(t *testing.T) {
 		}
 		assert.True(t, found, "expected Redis key with IP fallback on non-string user_id, got keys: %v", keys)
 	})
+}
+
+func TestRateLimitMiddleware_BoundsTheRedisCall(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// A listener that accepts and never answers: the call would hang for the
+	// client's own (much longer) timeouts without the limiter's bound.
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = listener.Close() })
+	go func() {
+		for {
+			conn, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				return
+			}
+			t.Cleanup(func() { _ = conn.Close() })
+		}
+	}()
+	rdb := redis.NewClient(&redis.Options{Addr: listener.Addr().String(), ReadTimeout: 10 * time.Second})
+	t.Cleanup(func() { _ = rdb.Close() })
+
+	router := gin.New()
+	router.Use(RateLimitMiddleware(rdb, RateLimitConfig{MaxRequests: 1, Window: time.Minute, KeyPrefix: "slow"}, zap.NewNop()))
+	router.GET("/ping", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) })
+
+	started := time.Now()
+	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code, "an unresponsive Redis must fail open")
+	assert.Less(t, time.Since(started), 2*time.Second, "the limiter must not wait out the client's timeout")
 }

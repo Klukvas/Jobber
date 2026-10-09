@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -19,6 +20,11 @@ type RateLimitConfig struct {
 	// KeyPrefix is prepended to the rate limit key (e.g., "auth", "api")
 	KeyPrefix string
 }
+
+// redisCallTimeout bounds the limiter's one Redis round trip. It is generous for
+// a local INCR and short enough that a webhook sender with a tight timeout still
+// sees the request succeed while the limiter fails open.
+const redisCallTimeout = 300 * time.Millisecond
 
 // rateLimitScript atomically increments the counter and sets TTL only on first access.
 // Returns the current count after increment.
@@ -55,14 +61,23 @@ func UserRateLimitMiddleware(rdb *redis.Client, cfg RateLimitConfig, logger *zap
 }
 
 func rateLimitByKey(rdb *redis.Client, cfg RateLimitConfig, logger *zap.Logger, keyFn func(*gin.Context) string) gin.HandlerFunc {
+	// go-redis ignores a context deadline for network I/O unless the client opted
+	// in, so the bound has to be on the client itself. WithTimeout returns a copy
+	// with its own read/write timeout and leaves the shared client untouched.
+	bounded := rdb.WithTimeout(redisCallTimeout)
+
 	return func(c *gin.Context) {
 		identity := keyFn(c)
 		key := fmt.Sprintf("ratelimit:%s:%s", cfg.KeyPrefix, identity)
 
-		ctx := c.Request.Context()
+		// A slow or unreachable Redis must not hold every request for the
+		// client's own timeout (and its retries) before failing open: the context
+		// also stops the retry back-off.
+		ctx, cancel := context.WithTimeout(c.Request.Context(), redisCallTimeout)
+		defer cancel()
 
 		windowSeconds := int(cfg.Window.Seconds())
-		result, err := rateLimitScript.Run(ctx, rdb, []string{key}, windowSeconds).Int64()
+		result, err := rateLimitScript.Run(ctx, bounded, []string{key}, windowSeconds).Int64()
 		if err != nil {
 			// On Redis error, allow the request (fail open) but log
 			logger.Warn("rate limiter fail-open: redis error",
