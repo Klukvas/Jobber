@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { Dialog, DialogTitle } from "@/shared/ui/Dialog";
 import { Button } from "@/shared/ui/Button";
-import { safeHttpsUrl } from "@/features/subscription/safeHttpsUrl";
+import { safeBillingUrl } from "@/features/subscription/safeHttpsUrl";
 import { subscriptionService } from "@/services/subscriptionService";
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { useDateLocale } from "@/shared/lib/dateFnsLocale";
@@ -64,9 +64,9 @@ export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
   const portalMutation = useMutation({
     mutationFn: subscriptionService.createPortalSession,
     onSuccess: ({ url }) => {
-      // The URL is backend data: treat one that is not a plain https link as a
+      // The URL is backend data: treat one that is not a billing-provider https link as a
       // failed request rather than navigating to it.
-      const safeUrl = safeHttpsUrl(url);
+      const safeUrl = safeBillingUrl(url);
       if (!safeUrl) {
         showErrorNotification(t("settings.subscription.manage.portalError"));
         return;
@@ -186,8 +186,8 @@ export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
           </div>
         </div>
 
-        {/* Billing portal — invoices, receipts, payment method and refunds all
-            live on the provider's side, so this is the only route to them. */}
+        {/* Billing portal — invoices, receipts and the payment method live on
+            the provider's side, so this is the only route to them. */}
         <div className="rounded-lg border px-4 py-3">
           <div className="flex items-start justify-between gap-3">
             <div>

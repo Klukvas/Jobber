@@ -160,6 +160,17 @@ describe("useCheckout", () => {
     ["a malformed URL", { checkout_url: "https://" }],
     ["a URL with a username", { checkout_url: "https://creem.io@evil.com/x" }],
     ["a URL with credentials", { checkout_url: "https://user:pw@creem.io/x" }],
+    [
+      "an https URL on another host",
+      { checkout_url: "https://evil.example/checkout" },
+    ],
+    ["a lookalike host", { checkout_url: "https://evilcreem.io/checkout" }],
+    ["a URL with backslashes", { checkout_url: "https:\\\\www.creem.io\\x" }],
+    ["a URL with a leading space", { checkout_url: " https://www.creem.io/x" }],
+    [
+      "a URL on a non-default port",
+      { checkout_url: "https://www.creem.io:8443/x" },
+    ],
     ["a blank URL", { checkout_url: "" }],
     ["a non-string URL", { checkout_url: 42 }],
     ["an empty body", {}],
@@ -242,6 +253,95 @@ describe("useCheckout", () => {
     );
   });
 
+  describe("when the redirect is still pending", () => {
+    it("neither throws nor warns if the hook unmounts before the session resolves", async () => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      let release: (value: unknown) => void = () => {};
+      mockCreateSession.mockReturnValue(
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+      );
+      try {
+        const { result, unmount } = renderHook(() => useCheckout());
+        let pending: Promise<void> = Promise.resolve();
+        act(() => {
+          pending = result.current.openCheckout("pro");
+        });
+
+        unmount();
+        await act(async () => release({ checkout_url: CHECKOUT_URL }));
+
+        await expect(pending).resolves.toBeUndefined();
+        expect(consoleError).not.toHaveBeenCalled();
+      } finally {
+        consoleError.mockRestore();
+      }
+    });
+
+    it("swallows a late failure after unmount instead of leaking a rejection", async () => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      let fail: (reason: Error) => void = () => {};
+      mockCreateSession.mockReturnValue(
+        new Promise((_resolve, reject) => {
+          fail = reject;
+        }),
+      );
+      try {
+        const { result, unmount } = renderHook(() => useCheckout());
+        let pending: Promise<void> = Promise.resolve();
+        act(() => {
+          pending = result.current.openCheckout("pro");
+        });
+
+        unmount();
+        await act(async () => fail(new Error("late")));
+
+        await expect(pending).resolves.toBeUndefined();
+        expect(assignSpy).not.toHaveBeenCalled();
+        expect(consoleError).not.toHaveBeenCalled();
+      } finally {
+        consoleError.mockRestore();
+      }
+    });
+  });
+
+  describe("when storage throws and the session then fails", () => {
+    it("does not leave the button busy", async () => {
+      const setItem = vi
+        .spyOn(Storage.prototype, "setItem")
+        .mockImplementation(() => {
+          throw new DOMException("denied", "SecurityError");
+        });
+      const removeItem = vi
+        .spyOn(Storage.prototype, "removeItem")
+        .mockImplementation(() => {
+          throw new DOMException("denied", "SecurityError");
+        });
+      mockCreateSession.mockRejectedValue(new Error("boom"));
+      try {
+        const { result } = renderHook(() => useCheckout());
+
+        await act(() => result.current.openCheckout("pro"));
+
+        expect(result.current.isPending).toBe(false);
+        expect(result.current.error?.message).toBe("boom");
+        expect(assignSpy).not.toHaveBeenCalled();
+
+        mockCreateSession.mockResolvedValue({ checkout_url: CHECKOUT_URL });
+        await act(() => result.current.openCheckout("pro"));
+        expect(assignSpy).toHaveBeenCalledWith(CHECKOUT_URL);
+      } finally {
+        setItem.mockRestore();
+        removeItem.mockRestore();
+      }
+    });
+  });
+
   describe("pageshow", () => {
     function firePageShow(persisted: boolean) {
       const event = new Event("pageshow") as PageTransitionEvent;
@@ -270,6 +370,9 @@ describe("useCheckout", () => {
       firePageShow(false);
 
       expect(result.current.isPending).toBe(true);
+      // The guard is still armed: a second click must not start another one.
+      await act(() => result.current.openCheckout("pro"));
+      expect(mockCreateSession).toHaveBeenCalledTimes(1);
     });
   });
 });

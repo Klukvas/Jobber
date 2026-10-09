@@ -65,6 +65,8 @@ const mockFeatures = vi.hoisted(() => ({
 
 vi.mock("@/shared/lib/features", () => ({ FEATURES: mockFeatures.value }));
 
+const mockInvalidateQueries = vi.hoisted(() => vi.fn());
+
 vi.mock("@tanstack/react-query", () => ({
   keepPreviousData: (prev: unknown) => prev,
   useQuery: () => ({
@@ -84,7 +86,7 @@ vi.mock("@tanstack/react-query", () => ({
     error: null,
   }),
   useQueryClient: () => ({
-    invalidateQueries: vi.fn(),
+    invalidateQueries: mockInvalidateQueries,
     cancelQueries: vi.fn(),
     setQueryData: vi.fn(),
     getQueryData: vi.fn(),
@@ -463,6 +465,7 @@ describe("Settings", () => {
       mockNotify.showInfoNotification.mockClear();
       mockNotify.showSuccessNotification.mockClear();
       mockSearchParams.set.mockClear();
+      mockInvalidateQueries.mockClear();
     });
 
     afterEach(() => {
@@ -479,6 +482,15 @@ describe("Settings", () => {
       expect(mockNotify.showSuccessNotification).not.toHaveBeenCalled();
     });
 
+    it("refetches the subscription so the new plan shows up", () => {
+      mockSearchParams.value = new URLSearchParams("subscription=success");
+      render(<Settings />);
+
+      expect(mockInvalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["subscription"],
+      });
+    });
+
     it("clears the parameter out of the URL", () => {
       mockSearchParams.value = new URLSearchParams("subscription=success");
       render(<Settings />);
@@ -489,6 +501,7 @@ describe("Settings", () => {
     it("says nothing on an ordinary visit", () => {
       render(<Settings />);
       expect(mockNotify.showInfoNotification).not.toHaveBeenCalled();
+      expect(mockInvalidateQueries).not.toHaveBeenCalled();
     });
   });
 });

@@ -186,6 +186,26 @@ describe("readFreshPreCheckoutPlan", () => {
     expect(readFreshPreCheckoutPlan()).toBeNull();
   });
 
+  it("treats an empty stored value as nothing pending and removes it", () => {
+    sessionStorage.setItem(PRE_CHECKOUT_PLAN_KEY, "");
+
+    expect(readFreshPreCheckoutPlan()).toBeNull();
+    expect(sessionStorage.getItem(PRE_CHECKOUT_PLAN_KEY)).toBeNull();
+  });
+
+  // 1e999 is valid JSON and parses to Infinity; a timestamp that is not a
+  // finite number must read as undated, i.e. expired, never as fresh forever.
+  it.each([
+    ["an infinite timestamp", '{"plan":"pro","at":1e999}'],
+    ["a non-numeric timestamp", '{"plan":"pro","at":"yesterday"}'],
+    ["a null timestamp", '{"plan":"pro","at":null}'],
+  ])("treats %s as expired and clears it", (_label, raw) => {
+    sessionStorage.setItem(PRE_CHECKOUT_PLAN_KEY, raw);
+
+    expect(readFreshPreCheckoutPlan()).toBeNull();
+    expect(sessionStorage.getItem(PRE_CHECKOUT_PLAN_KEY)).toBeNull();
+  });
+
   it("keeps every plan the app does ship", () => {
     for (const plan of ["free", "pro", "enterprise"] as const) {
       rememberPreCheckoutPlan(plan);

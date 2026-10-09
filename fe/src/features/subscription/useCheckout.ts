@@ -6,7 +6,7 @@ import {
   forgetPreCheckoutPlan,
   rememberPreCheckoutPlan,
 } from "@/features/subscription/checkoutSignals";
-import { safeHttpsUrl } from "@/features/subscription/safeHttpsUrl";
+import { safeBillingUrl } from "@/features/subscription/safeHttpsUrl";
 import { FEATURES } from "@/shared/lib/features";
 import type { SubscriptionPlan } from "@/shared/types/api";
 
@@ -14,7 +14,8 @@ import type { SubscriptionPlan } from "@/shared/types/api";
  * What the customer is told when a checkout cannot start.
  *
  * One message for every failure, deliberately free of detail: a rejected
- * session or a malformed URL is not something a buyer can act on.
+ * session or a malformed URL is not something a buyer can act on. It only
+ * ends up in the thrown Error; the UI shows `settings.subscription.checkoutError`.
  */
 const CHECKOUT_FAILED_MESSAGE = "The checkout could not be completed";
 
@@ -77,7 +78,7 @@ export function useCheckout() {
         ]);
         rememberPreCheckoutPlan(cached?.plan ?? "free");
 
-        const checkoutUrl = safeHttpsUrl(
+        const checkoutUrl = safeBillingUrl(
           (await createSession(plan))?.checkout_url,
         );
         if (!checkoutUrl) {
