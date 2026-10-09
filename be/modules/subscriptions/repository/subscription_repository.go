@@ -83,41 +83,54 @@ func (r *SubscriptionRepository) LinkExternalAccount(ctx context.Context, userID
 			updated_at = NOW()`,
 		userID, externalAccountID,
 	)
-	if isAccountUniqueViolation(err) {
+	switch {
+	case isAccountUniqueViolation(err):
 		return fmt.Errorf("%w: account %q cannot also be linked to user %q",
 			model.ErrBillingAccountTaken, externalAccountID, userID)
+	case isMissingUser(err):
+		return fmt.Errorf("%w: cannot link account %q to user %q", model.ErrUserNotFound, externalAccountID, userID)
 	}
 	return err
 }
 
-// uniqueViolationCode is PostgreSQL's SQLSTATE for a unique constraint breach.
-const uniqueViolationCode = "23505"
+// PostgreSQL SQLSTATEs the repository maps to domain errors.
+const (
+	uniqueViolationCode     = "23505"
+	foreignKeyViolationCode = "23503"
+)
 
 // externalAccountUniqueIndex is the partial UNIQUE index that makes one provider
 // customer resolve to exactly one user (migration 000045).
 const externalAccountUniqueIndex = "idx_subscriptions_external_account_id"
 
-func isUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == uniqueViolationCode
-}
-
-// isAccountUniqueViolation narrows isUniqueViolation to the customer index. Any
-// other unique breach (the subscription ID, say) is a different problem and must
-// not be reported as two users sharing a customer.
+// isAccountUniqueViolation reports a breach of the customer index specifically.
+// Any other unique breach (the subscription ID, say) is a different problem and
+// must not be reported as two users sharing a customer.
 func isAccountUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == uniqueViolationCode &&
 		pgErr.ConstraintName == externalAccountUniqueIndex
 }
 
+// isMissingUser reports a foreign-key breach: the row names a user that does not
+// exist. Subscription rows cascade with their user, so this means the account
+// was deleted.
+func isMissingUser(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == foreignKeyViolationCode
+}
+
 // EnsureFree creates a free subscription row for a user if none exists.
-// An existing row is left untouched — this must never downgrade a payer.
+// An existing row is left untouched — this must never downgrade a payer. A user
+// that does not exist comes back as model.ErrUserNotFound.
 func (r *SubscriptionRepository) EnsureFree(ctx context.Context, userID string) error {
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO subscriptions (user_id, status, plan)
 		VALUES ($1, 'free', 'free')
 		ON CONFLICT (user_id) DO NOTHING`, userID)
+	if isMissingUser(err) {
+		return fmt.Errorf("%w: %q", model.ErrUserNotFound, userID)
+	}
 	return err
 }
 

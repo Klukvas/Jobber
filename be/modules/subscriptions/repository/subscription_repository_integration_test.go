@@ -342,6 +342,67 @@ func TestIntegrationApplySubscriptionEventCancellationTie(t *testing.T) {
 	})
 }
 
+func TestIntegrationApplySubscriptionEventAccountConflict(t *testing.T) {
+	repo, pool := newIntegrationRepo(t)
+	ctx := context.Background()
+
+	const (
+		owner    = "33333333-3333-4333-8333-333333333333"
+		intruder = "44444444-4444-4444-8444-444444444444"
+	)
+	seedUser(t, pool, owner)
+	seedUser(t, pool, intruder)
+	customer := "cust_shared"
+	stamp := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+
+	outcome, err := repo.ApplySubscriptionEvent(ctx, "evt-owner", "subscription.paid",
+		eventState(owner, "sub_owner", &customer, "active", "pro", stamp))
+	require.NoError(t, err)
+	require.Equal(t, model.WebhookApplied, outcome)
+
+	t.Run("a second user behind the same customer is a terminal conflict that writes nothing", func(t *testing.T) {
+		outcome, err := repo.ApplySubscriptionEvent(ctx, "evt-intruder", "subscription.paid",
+			eventState(intruder, "sub_intruder", &customer, "active", "pro", stamp.Add(time.Hour)))
+
+		require.NoError(t, err)
+		assert.Equal(t, model.WebhookAccountConflict, outcome)
+
+		_, err = repo.GetByUserID(ctx, intruder)
+		assert.ErrorIs(t, err, model.ErrSubscriptionNotFound, "no row may be created for the second user")
+		assert.NotContains(t, recordedEventIDs(t, pool), "evt-intruder",
+			"the claim must roll back with the write, or the retry would be dismissed as a duplicate")
+	})
+
+	t.Run("the first user's row is untouched", func(t *testing.T) {
+		sub, err := repo.GetByUserID(ctx, owner)
+		require.NoError(t, err)
+		assert.Equal(t, "active", sub.Status)
+		assert.Equal(t, "pro", sub.Plan)
+		assert.True(t, sub.LastEventAt.Equal(stamp))
+	})
+
+	t.Run("linking the customer to the second user is refused too", func(t *testing.T) {
+		err := repo.LinkExternalAccount(ctx, intruder, customer)
+
+		assert.ErrorIs(t, err, model.ErrBillingAccountTaken)
+	})
+
+	t.Run("linking never overwrites a customer already on the row", func(t *testing.T) {
+		require.NoError(t, repo.LinkExternalAccount(ctx, owner, "cust_other"))
+
+		sub, err := repo.GetByUserID(ctx, owner)
+		require.NoError(t, err)
+		require.NotNil(t, sub.ExternalAccountID)
+		assert.Equal(t, customer, *sub.ExternalAccountID)
+	})
+
+	t.Run("a user that does not exist is reported as such", func(t *testing.T) {
+		err := repo.EnsureFree(ctx, "55555555-5555-4555-8555-555555555555")
+
+		assert.ErrorIs(t, err, model.ErrUserNotFound)
+	})
+}
+
 func TestIntegrationApplySubscriptionEventConcurrentDeliveries(t *testing.T) {
 	repo, pool := newIntegrationRepo(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

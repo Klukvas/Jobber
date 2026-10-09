@@ -677,6 +677,9 @@ func TestSkipReport(t *testing.T) {
 		{name: "environment mismatch loses the event", err: ErrEnvironmentMismatch, wantSeverity: SkipLostEvent},
 		{name: "customer shared by two users loses a paid purchase", err: model.ErrBillingAccountTaken, wantSeverity: SkipLostEvent},
 		{name: "refund needs a person", err: ErrRefundNeedsReview, wantSeverity: SkipNeedsReview},
+		{name: "a deleted user's purchase loses the event", err: model.ErrUserNotFound, wantSeverity: SkipLostEvent},
+		{name: "a second subscription needs a person", err: errSecondSubscription, wantSeverity: SkipNeedsReview},
+		{name: "nothing to end is routine", err: errNothingToEnd, wantSeverity: SkipRoutine},
 		{name: "wrapped sentinel is still recognised", err: errors.Join(errors.New("ctx"), model.ErrBillingAccountTaken), wantSeverity: SkipLostEvent},
 		{name: "duplicate is routine", err: errEventDuplicate, wantSeverity: SkipRoutine},
 		{name: "superseded is routine", err: errEventSuperseded, wantSeverity: SkipRoutine},
@@ -760,9 +763,9 @@ func TestHandleWebhook_CancellationOfALinkedSubscriptionNeedsNoKnownProduct(t *t
 }
 
 func TestHandleWebhook_AnEventThatOmitsFieldsKeepsTheStoredOnes(t *testing.T) {
-	storedStart := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
-	storedEnd := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
-	stored := &model.Subscription{
+	storedStart := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	storedEnd := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC) // ahead of the events' updated_at (10-05)
+	current := &model.Subscription{
 		UserID: testUserID, Plan: PlanPro, Status: StatusActive,
 		CurrentPeriodStart: &storedStart, CurrentPeriodEnd: &storedEnd,
 		ExternalAccountID: strPtr("cust_stored"),
@@ -774,53 +777,233 @@ func TestHandleWebhook_AnEventThatOmitsFieldsKeepsTheStoredOnes(t *testing.T) {
 		}
 		return base
 	}
-
-	t.Run("period dates and customer survive a partial payload", func(t *testing.T) {
+	appliedFor := func(t *testing.T, row *model.Subscription, eventType string, object map[string]any) *model.Subscription {
+		t.Helper()
 		var applied []*model.Subscription
 		repo := ownedRepo(&applied, model.WebhookApplied)
-		repo.GetByUserIDFunc = func(context.Context, string) (*model.Subscription, error) { return stored, nil }
-		svc := newTestService(repo)
+		repo.GetByUserIDFunc = func(context.Context, string) (*model.Subscription, error) { return row, nil }
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionUpdate, subscriptionObject(bare(nil)))
-		_, err := svc.HandleWebhook(context.Background(), body, signature)
+		body, signature := signed(t, "evt_1", eventType, subscriptionObject(object))
+		_, err := newTestService(repo).HandleWebhook(context.Background(), body, signature)
 
 		require.NoError(t, err)
 		require.Len(t, applied, 1)
-		assert.True(t, applied[0].CurrentPeriodStart.Equal(storedStart), "the renewal date must not be erased")
-		assert.True(t, applied[0].CurrentPeriodEnd.Equal(storedEnd))
-		assert.Equal(t, "cust_stored", *applied[0].ExternalAccountID)
+		return applied[0]
+	}
+
+	t.Run("a current stored period survives a partial payload", func(t *testing.T) {
+		got := appliedFor(t, current, creem.EventSubscriptionUpdate, bare(nil))
+
+		assert.True(t, got.CurrentPeriodStart.Equal(storedStart), "the renewal date must not be erased")
+		assert.True(t, got.CurrentPeriodEnd.Equal(storedEnd))
+	})
+
+	t.Run("a customer the event does not carry is left to the write to keep", func(t *testing.T) {
+		// Copying the value read a moment ago could undo a customer a concurrent
+		// event just set; nil lets the SQL COALESCE keep whatever is stored.
+		got := appliedFor(t, current, creem.EventSubscriptionUpdate, bare(nil))
+
+		assert.Nil(t, got.ExternalAccountID)
+	})
+
+	t.Run("a customer the event carries is written", func(t *testing.T) {
+		got := appliedFor(t, current, creem.EventSubscriptionUpdate,
+			bare(map[string]any{"customer": map[string]any{"id": "cust_new"}}))
+
+		require.NotNil(t, got.ExternalAccountID)
+		assert.Equal(t, "cust_new", *got.ExternalAccountID)
 	})
 
 	t.Run("a scheduled cancellation still gets its end date", func(t *testing.T) {
-		var applied []*model.Subscription
-		repo := ownedRepo(&applied, model.WebhookApplied)
-		repo.GetByUserIDFunc = func(context.Context, string) (*model.Subscription, error) { return stored, nil }
-		svc := newTestService(repo)
+		got := appliedFor(t, current, creem.EventSubscriptionScheduledCancel,
+			bare(map[string]any{"status": "scheduled_cancel"}))
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionScheduledCancel,
-			subscriptionObject(bare(map[string]any{"status": "scheduled_cancel"})))
-		_, err := svc.HandleWebhook(context.Background(), body, signature)
+		require.NotNil(t, got.CancelAt, "an access end the UI cannot show is worse than a late one")
+		assert.True(t, got.CancelAt.Equal(storedEnd))
+	})
 
-		require.NoError(t, err)
-		require.Len(t, applied, 1)
-		require.NotNil(t, applied[0].CancelAt, "an access end the UI cannot show is worse than a late one")
-		assert.True(t, applied[0].CancelAt.Equal(storedEnd))
+	t.Run("a stale stored period is not carried onto a later cancellation", func(t *testing.T) {
+		// Renewals that carried no dates never advanced the stored end. Using it
+		// would make cancel_at a date in the past and downgrade a paying user as
+		// soon as the grace window ran out.
+		staleEnd := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+		stale := *current
+		stale.CurrentPeriodEnd = &staleEnd
+
+		got := appliedFor(t, &stale, creem.EventSubscriptionScheduledCancel,
+			bare(map[string]any{"status": "scheduled_cancel"}))
+
+		assert.Nil(t, got.CancelAt)
+		assert.Nil(t, got.CurrentPeriodEnd)
+		assert.Equal(t, StatusActive, got.Status)
 	})
 
 	t.Run("a cancellation still clears the period", func(t *testing.T) {
-		var applied []*model.Subscription
-		repo := ownedRepo(&applied, model.WebhookApplied)
-		repo.GetByUserIDFunc = func(context.Context, string) (*model.Subscription, error) { return stored, nil }
-		svc := newTestService(repo)
+		got := appliedFor(t, current, creem.EventSubscriptionCanceled, bare(map[string]any{"status": "canceled"}))
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionCanceled,
-			subscriptionObject(bare(map[string]any{"status": "canceled"})))
+		assert.Nil(t, got.CurrentPeriodEnd)
+		assert.Nil(t, got.CancelAt)
+	})
+}
+
+func TestHandleWebhook_RefusedReplacementOfALiveSubscription(t *testing.T) {
+	storedAt := time.Date(2026, 10, 5, 12, 0, 0, 0, time.UTC)
+	liveRow := func() *model.Subscription {
+		return &model.Subscription{
+			UserID: testUserID, Plan: PlanPro, Status: StatusActive,
+			ExternalSubscriptionID: strPtr("sub_live"), LastEventAt: &storedAt,
+		}
+	}
+	conflictRepo := func(row *model.Subscription, outcome model.WebhookApplyOutcome) *MockSubscriptionRepository {
+		var applied []*model.Subscription
+		repo := ownedRepo(&applied, outcome)
+		repo.GetByUserIDFunc = func(context.Context, string) (*model.Subscription, error) { return row, nil }
+		return repo
+	}
+	at := func(updatedAt time.Time) map[string]any {
+		return map[string]any{"id": "sub_new", "updated_at": updatedAt.Format(time.RFC3339)}
+	}
+
+	t.Run("a newer paid event is retried: the old subscription's cancel may just be late", func(t *testing.T) {
+		svc := newTestService(conflictRepo(liveRow(), model.WebhookLinkConflict))
+
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(at(storedAt.Add(time.Hour))))
 		_, err := svc.HandleWebhook(context.Background(), body, signature)
 
+		require.ErrorIs(t, err, ErrEventFailed)
+		require.ErrorIs(t, err, ErrSubscriptionLinkConflict)
+	})
+
+	t.Run("the cancellation of a subscription the row does not track is acknowledged, not retried", func(t *testing.T) {
+		// A replay of an old subscription's cancel, or the cancel of a second
+		// subscription that was never linked: nothing here to end, and a redelivery
+		// could only repeat the same answer for 24 hours.
+		svc := newTestService(conflictRepo(liveRow(), model.WebhookLinkConflict))
+
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionCanceled,
+			subscriptionObject(map[string]any{"id": "sub_old", "status": "canceled", "updated_at": storedAt.Add(time.Hour).Format(time.RFC3339)}))
+		result, err := svc.HandleWebhook(context.Background(), body, signature)
+
 		require.NoError(t, err)
+		assert.ErrorIs(t, result.Skipped, errNothingToEnd)
+	})
+
+	t.Run("a paid event that is not newer than the row is acknowledged and flagged", func(t *testing.T) {
+		// The older state can never win, so a redelivery cannot help; it is also
+		// what a user paying for two subscriptions looks like.
+		svc := newTestService(conflictRepo(liveRow(), model.WebhookLinkConflict))
+
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(at(storedAt.Add(-time.Hour))))
+		result, err := svc.HandleWebhook(context.Background(), body, signature)
+
+		require.NoError(t, err)
+		assert.ErrorIs(t, result.Skipped, errSecondSubscription)
+		message, severity := SkipReport(result.Skipped)
+		assert.NotEmpty(t, message)
+		assert.Equal(t, SkipNeedsReview, severity)
+	})
+
+	t.Run("a replacement that lost the ordering to the old subscription's cancel is flagged", func(t *testing.T) {
+		// S1 was cancelled at T3 and S2's events (T2 < T3) were redelivered after
+		// it. Ordering across two subscriptions is meaningless, but the purchase is
+		// not applied, so it must not hide among the routine replays.
+		row := liveRow()
+		row.Status = StatusCancelled
+		svc := newTestService(conflictRepo(row, model.WebhookSuperseded))
+
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(at(storedAt.Add(-time.Hour))))
+		result, err := svc.HandleWebhook(context.Background(), body, signature)
+
+		require.NoError(t, err)
+		assert.ErrorIs(t, result.Skipped, errSecondSubscription)
+		assert.ErrorIs(t, result.Skipped, errEventSuperseded)
+	})
+
+	t.Run("a routine replay of the linked subscription stays routine", func(t *testing.T) {
+		row := liveRow()
+		row.ExternalSubscriptionID = strPtr("sub_1")
+		svc := newTestService(conflictRepo(row, model.WebhookSuperseded))
+
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(nil))
+		result, err := svc.HandleWebhook(context.Background(), body, signature)
+
+		require.NoError(t, err)
+		assert.ErrorIs(t, result.Skipped, errEventSuperseded)
+		assert.NotErrorIs(t, result.Skipped, errSecondSubscription)
+	})
+}
+
+func TestHandleWebhook_AUserWithNoRowIsStillGranted(t *testing.T) {
+	t.Run("the free row is created and the purchase lands", func(t *testing.T) {
+		var applied []*model.Subscription
+		var ensured string
+		reads := 0
+		repo := ownedRepo(&applied, model.WebhookApplied)
+		repo.GetByUserIDFunc = func(_ context.Context, userID string) (*model.Subscription, error) {
+			reads++
+			if ensured == "" {
+				return nil, model.ErrSubscriptionNotFound
+			}
+			return &model.Subscription{UserID: userID, Plan: PlanFree, Status: StatusFree}, nil
+		}
+		repo.EnsureFreeFunc = func(_ context.Context, userID string) error {
+			ensured = userID
+			return nil
+		}
+		svc := newTestService(repo)
+
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(nil))
+		_, err := svc.HandleWebhook(context.Background(), body, signature)
+
+		require.NoError(t, err, "a paying customer must not be retried into the ground over a missing row")
+		assert.Equal(t, testUserID, ensured)
+		assert.Equal(t, 2, reads)
 		require.Len(t, applied, 1)
-		assert.Nil(t, applied[0].CurrentPeriodEnd)
-		assert.Nil(t, applied[0].CancelAt)
+		assert.Equal(t, PlanPro, applied[0].Plan)
+	})
+
+	t.Run("a user who no longer exists is acknowledged and flagged", func(t *testing.T) {
+		var applied []*model.Subscription
+		repo := ownedRepo(&applied, model.WebhookApplied)
+		repo.GetByUserIDFunc = func(context.Context, string) (*model.Subscription, error) {
+			return nil, model.ErrSubscriptionNotFound
+		}
+		repo.EnsureFreeFunc = func(context.Context, string) error { return model.ErrUserNotFound }
+		svc := newTestService(repo)
+
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(nil))
+		result, err := svc.HandleWebhook(context.Background(), body, signature)
+
+		require.NoError(t, err, "no retry brings a deleted account back")
+		assert.ErrorIs(t, result.Skipped, model.ErrUserNotFound)
+		assert.Empty(t, applied)
+		_, severity := SkipReport(result.Skipped)
+		assert.Equal(t, SkipLostEvent, severity)
+	})
+
+	t.Run("a checkout for a deleted user is acknowledged too", func(t *testing.T) {
+		repo := &MockSubscriptionRepository{
+			LinkExternalAccountFunc: func(context.Context, string, string) error { return model.ErrUserNotFound },
+		}
+		svc := newTestService(repo)
+
+		body, signature := signed(t, "evt_c1", creem.EventCheckoutCompleted, completedCheckout(nil))
+		result, err := svc.HandleWebhook(context.Background(), body, signature)
+
+		require.NoError(t, err)
+		assert.ErrorIs(t, result.Skipped, model.ErrUserNotFound)
+	})
+
+	t.Run("a failure creating the row is retried", func(t *testing.T) {
+		repo := &MockSubscriptionRepository{
+			EnsureFreeFunc: func(context.Context, string) error { return errors.New("db down") },
+		}
+		svc := newTestService(repo)
+
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(nil))
+		_, err := svc.HandleWebhook(context.Background(), body, signature)
+
+		require.ErrorIs(t, err, ErrEventFailed)
 	})
 }
 

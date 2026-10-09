@@ -784,6 +784,21 @@ func TestSubscriptionRepository_LinkExternalAccount(t *testing.T) {
 		assert.ErrorIs(t, err, model.ErrBillingAccountTaken)
 	})
 
+	t.Run("a user who no longer exists is reported as such", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		mock.ExpectExec("INSERT INTO subscriptions").
+			WithArgs("user-1", "acct-1").
+			WillReturnError(&pgconn.PgError{Code: foreignKeyViolationCode, ConstraintName: "subscriptions_user_id_fkey"})
+
+		repo := NewSubscriptionRepository(mock)
+		err = repo.LinkExternalAccount(context.Background(), "user-1", "acct-1")
+
+		assert.ErrorIs(t, err, model.ErrUserNotFound)
+	})
+
 	t.Run("any other unique violation is not blamed on a shared customer", func(t *testing.T) {
 		mock, err := pgxmock.NewPool()
 		require.NoError(t, err)
@@ -816,17 +831,50 @@ func TestSubscriptionRepository_LinkExternalAccount(t *testing.T) {
 }
 
 func TestSubscriptionRepository_EnsureFree(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
+	t.Run("creates the row", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
 
-	mock.ExpectExec("INSERT INTO subscriptions").
-		WithArgs("user-1").
-		WillReturnResult(pgxmock.NewResult("INSERT", 0))
+		mock.ExpectExec("INSERT INTO subscriptions").
+			WithArgs("user-1").
+			WillReturnResult(pgxmock.NewResult("INSERT", 0))
 
-	repo := NewSubscriptionRepository(mock)
-	require.NoError(t, repo.EnsureFree(context.Background(), "user-1"))
-	require.NoError(t, mock.ExpectationsWereMet())
+		repo := NewSubscriptionRepository(mock)
+		require.NoError(t, repo.EnsureFree(context.Background(), "user-1"))
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("a user who does not exist is reported as such", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		mock.ExpectExec("INSERT INTO subscriptions").
+			WithArgs("user-1").
+			WillReturnError(&pgconn.PgError{Code: foreignKeyViolationCode})
+
+		repo := NewSubscriptionRepository(mock)
+		err = repo.EnsureFree(context.Background(), "user-1")
+
+		assert.ErrorIs(t, err, model.ErrUserNotFound)
+	})
+
+	t.Run("any other failure is passed through", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		mock.ExpectExec("INSERT INTO subscriptions").
+			WithArgs("user-1").
+			WillReturnError(errors.New("boom"))
+
+		repo := NewSubscriptionRepository(mock)
+		err = repo.EnsureFree(context.Background(), "user-1")
+
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, model.ErrUserNotFound)
+	})
 }
 
 func TestSubscriptionRepository_GetUserContact(t *testing.T) {

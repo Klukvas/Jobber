@@ -180,3 +180,9 @@ func TestParseCompletedCheckout(t *testing.T) {
 	assert.False(t, checkout.IsLive)
 	assert.Equal(t, "u1", checkout.Metadata["jobber_user_id"])
 }
+
+func TestParseCompletedCheckout_RejectsAnObjectThatIsNotJSON(t *testing.T) {
+	_, err := ParseCompletedCheckout([]byte("not json"))
+
+	require.Error(t, err)
+}

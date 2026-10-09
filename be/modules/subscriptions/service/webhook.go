@@ -42,12 +42,13 @@ var ErrEnvironmentMismatch = errors.New("event environment does not match the co
 // nothing in Jobber able to cancel it, so the write refuses — atomically, under
 // the row lock, whichever hop resolved the owner.
 //
-// It is retried, not acknowledged. The usual cause is a delayed cancellation of
-// the old subscription, and a redelivery after that lands applies the new one by
-// itself; acknowledging would lose a paying user's new plan for good. When the
-// old subscription really is alive the retries run out after 24 hours and the
-// failure is logged at error each time, which is the signal that somebody may be
-// paying twice.
+// It is retried, not acknowledged, but only for an event that could still land:
+// a non-cancellation that is newer than the row. The usual cause is a delayed
+// cancellation of the old subscription, and a redelivery after that lands applies
+// the new one by itself. Anything else is acknowledged (see errNothingToEnd and
+// errSecondSubscription), because retrying cannot change its outcome. When the old
+// subscription really is alive the retries run out after 24 hours and each one is
+// logged at error, which is the signal that somebody may be paying twice.
 var ErrSubscriptionLinkConflict = errors.New("event describes a provider subscription other than the live one linked to this user")
 
 // ErrRefundNeedsReview marks a refund or dispute on this account.
@@ -76,6 +77,18 @@ var (
 	errEventSuperseded = errors.New("event is not newer than the applied subscription state")
 	// errEventDuplicate marks a redelivery of an event that was already applied.
 	errEventDuplicate = errors.New("event was already processed")
+	// errNothingToEnd marks the cancellation of a subscription the row does not
+	// track while it holds a different live one: a replay of an old
+	// subscription's cancel, or the cancel of a second subscription that was
+	// never linked. There is nothing in Jobber to end and retrying cannot change
+	// that.
+	errNothingToEnd = errors.New("cancellation is for a subscription this user's row does not track")
+	// errSecondSubscription marks a paid event for a subscription other than the
+	// live one on the row, that is not newer than the row. A redelivery cannot
+	// help — the older state will never beat the newer one — so it is
+	// acknowledged, but it is also the signature of a user paying for two
+	// subscriptions, which a person should look at.
+	errSecondSubscription = errors.New("event is for a second subscription that cannot replace the linked live one")
 	// errEventMissingID marks an actionable event with no ID. It cannot be
 	// de-duplicated, so it is treated as a malformed delivery and retried.
 	errEventMissingID = errors.New("actionable event carried no event ID")
@@ -142,8 +155,11 @@ func isAcknowledgedSkip(err error) bool {
 		errors.Is(err, errEventSuperseded) ||
 		errors.Is(err, errForeignBillingEvent) ||
 		errors.Is(err, errEventNotActionable) ||
+		errors.Is(err, errNothingToEnd) ||
+		errors.Is(err, errSecondSubscription) ||
 		errors.Is(err, ErrEnvironmentMismatch) ||
-		errors.Is(err, model.ErrBillingAccountTaken)
+		errors.Is(err, model.ErrBillingAccountTaken) ||
+		errors.Is(err, model.ErrUserNotFound)
 }
 
 // notActionableReason says why an event is not acted on, so the one that is worth
@@ -185,6 +201,12 @@ func SkipReport(err error) (message string, severity SkipSeverity) {
 		// which one the purchase belongs to, and until then a paid purchase grants
 		// nothing.
 		return "Billing event dropped: provider customer is already linked to another user", SkipLostEvent
+	case errors.Is(err, model.ErrUserNotFound):
+		// A purchase for an account that no longer exists: money may have moved
+		// and nothing can be granted.
+		return "Billing event dropped: the Jobber user it names no longer exists", SkipLostEvent
+	case errors.Is(err, errSecondSubscription):
+		return "Billing event for a second subscription that cannot replace the linked live one", SkipNeedsReview
 	case errors.Is(err, ErrRefundNeedsReview):
 		return "Billing refund or dispute observed, no subscription changed by it", SkipNeedsReview
 	default:
@@ -240,7 +262,8 @@ func (s *SubscriptionService) applySubscriptionEvent(ctx context.Context, event 
 		return err
 	}
 
-	updated := buildSubscriptionUpdate(existing, incoming, status, plan, lifecycleTime(event, incoming))
+	eventAt := lifecycleTime(event, incoming)
+	updated := buildSubscriptionUpdate(existing, incoming, status, plan, eventAt)
 
 	// One statement claims the event and writes the state, so a failure can never
 	// record the event as processed while losing what it carried.
@@ -248,7 +271,7 @@ func (s *SubscriptionService) applySubscriptionEvent(ctx context.Context, event 
 	if err != nil {
 		return fmt.Errorf("failed to apply subscription event: %w", err)
 	}
-	return outcomeError(outcome, existing.UserID, incoming.ID, *updated.LastEventAt)
+	return outcomeError(outcome, existing, incoming.ID, status, eventAt)
 }
 
 // entitlementFor decides the status and plan an event grants.
@@ -275,14 +298,20 @@ func (s *SubscriptionService) entitlementFor(incoming *creem.Subscription) (stat
 
 // buildSubscriptionUpdate assembles the row the atomic write applies.
 //
-// A field the payload omits keeps its stored value: some Creem samples carry no
-// period dates, and writing them as nil would erase the renewal date the UI shows.
-// An ended subscription has no current period at all.
+// A payload that omits its period keeps the stored one, because some Creem
+// samples carry no dates and writing them as nil would erase the renewal date
+// the UI shows — but only while the stored end is still ahead of the event. A
+// stored end that already passed is stale (renewals that carried no dates never
+// advanced it), and carrying it forward would turn a later scheduled cancellation
+// into a cancel date in the past. An ended subscription has no current period.
 func buildSubscriptionUpdate(
 	existing *model.Subscription, incoming *creem.Subscription, status, plan string, eventAt time.Time,
 ) *model.Subscription {
-	periodStart := firstTime(incoming.CurrentPeriodStart, existing.CurrentPeriodStart)
-	periodEnd := firstTime(incoming.CurrentPeriodEnd, existing.CurrentPeriodEnd)
+	periodStart, periodEnd := incoming.CurrentPeriodStart, incoming.CurrentPeriodEnd
+	storedPeriodIsCurrent := existing.CurrentPeriodEnd != nil && existing.CurrentPeriodEnd.After(eventAt)
+	if periodStart == nil && periodEnd == nil && storedPeriodIsCurrent {
+		periodStart, periodEnd = existing.CurrentPeriodStart, existing.CurrentPeriodEnd
+	}
 	if status == StatusCancelled {
 		periodStart, periodEnd = nil, nil
 	}
@@ -290,7 +319,6 @@ func buildSubscriptionUpdate(
 	updated := &model.Subscription{
 		UserID:                 existing.UserID,
 		ExternalSubscriptionID: &incoming.ID,
-		ExternalAccountID:      existing.ExternalAccountID,
 		Status:                 status,
 		Plan:                   plan,
 		CurrentPeriodStart:     periodStart,
@@ -298,40 +326,70 @@ func buildSubscriptionUpdate(
 		CancelAt:               pendingCancelAt(status, incoming, periodEnd),
 		LastEventAt:            &eventAt,
 	}
+	// A customer is written only when the event carries one. Leaving it nil lets
+	// the write keep whatever is stored, which — unlike copying the value read a
+	// moment ago — cannot undo a customer a concurrent event just set.
 	if incoming.CustomerID != "" {
 		updated.ExternalAccountID = &incoming.CustomerID
 	}
 	return updated
 }
 
-func firstTime(preferred, fallback *time.Time) *time.Time {
-	if preferred != nil {
-		return preferred
-	}
-	return fallback
-}
-
 // outcomeError translates what the atomic write did into the error (or nil) the
 // pipeline classifies.
-func outcomeError(outcome model.WebhookApplyOutcome, userID, subscriptionID string, eventAt time.Time) error {
+func outcomeError(
+	outcome model.WebhookApplyOutcome, existing *model.Subscription, subscriptionID, status string, eventAt time.Time,
+) error {
 	switch outcome {
 	case model.WebhookDuplicate:
 		return errEventDuplicate
 	case model.WebhookSuperseded:
-		return fmt.Errorf("%w (event changed at %s)", errEventSuperseded, eventAt.Format(time.RFC3339))
+		superseded := fmt.Errorf("%w (event changed at %s)", errEventSuperseded, eventAt.Format(time.RFC3339))
+		if holdsOtherSubscription(existing, subscriptionID) && status != StatusCancelled {
+			// Ordering across two subscriptions is meaningless, but this is the
+			// shape of a purchase that lost to the other subscription's later
+			// event. Say so instead of filing it with the routine replays.
+			return fmt.Errorf("%w: %w", errSecondSubscription, superseded)
+		}
+		return superseded
 	case model.WebhookAccountConflict:
 		// Two local users behind one provider customer. Nothing was written; a
 		// person has to decide which one the buyer meant.
 		return fmt.Errorf("%w: user %q, event carries subscription %q",
-			model.ErrBillingAccountTaken, userID, subscriptionID)
+			model.ErrBillingAccountTaken, existing.UserID, subscriptionID)
 	case model.WebhookLinkConflict:
-		// Deliberately not the subscription the row holds: that value was read
-		// before the write refused, so reporting it could name state that has
-		// since moved on. What is certain is the user and the event.
-		return fmt.Errorf("%w: user %q, event carries %q", ErrSubscriptionLinkConflict, userID, subscriptionID)
+		return linkConflictError(existing, subscriptionID, status, eventAt)
 	default:
 		return nil
 	}
+}
+
+// linkConflictError decides what a refused replacement of the live subscription
+// means. Nothing was written and nothing was claimed, so the question is only
+// whether a redelivery can ever do better.
+//
+// It can for a non-cancellation that is newer than the row: the usual cause is the
+// old subscription's cancellation arriving late, and once it lands the same event
+// applies. It cannot for a cancellation (there is nothing here to end — it is the
+// replay of an old subscription's cancel, or the cancel of a second one) or for an
+// event that is not newer than the row (the older state can never win).
+//
+// The reported subscription is deliberately not the one the row holds: that value
+// was read before the write refused, so it could name state that has since moved
+// on. What is certain is the user and the event.
+func linkConflictError(existing *model.Subscription, subscriptionID, status string, eventAt time.Time) error {
+	if status == StatusCancelled {
+		return fmt.Errorf("%w: user %q, event carries %q", errNothingToEnd, existing.UserID, subscriptionID)
+	}
+	if existing.LastEventAt != nil && !eventAt.After(*existing.LastEventAt) {
+		return fmt.Errorf("%w: user %q, event carries %q", errSecondSubscription, existing.UserID, subscriptionID)
+	}
+	return fmt.Errorf("%w: user %q, event carries %q", ErrSubscriptionLinkConflict, existing.UserID, subscriptionID)
+}
+
+func holdsOtherSubscription(sub *model.Subscription, subscriptionID string) bool {
+	return sub.ExternalSubscriptionID != nil && *sub.ExternalSubscriptionID != "" &&
+		*sub.ExternalSubscriptionID != subscriptionID
 }
 
 // linkCompletedCheckout records which Creem customer a finished checkout belongs
@@ -418,11 +476,7 @@ func (s *SubscriptionService) resolveOwner(ctx context.Context, incoming *creem.
 	}
 
 	if userID, ok := userIDFromMetadata(incoming.Metadata); ok {
-		sub, err := s.repo.GetByUserID(ctx, userID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load the user named by subscription %q: %w", incoming.ID, err)
-		}
-		return sub, nil
+		return s.loadMetadataOwner(ctx, userID, incoming.ID)
 	}
 
 	if !s.isOwnProduct(incoming.ProductID) {
@@ -440,6 +494,27 @@ func (s *SubscriptionService) resolveOwner(ctx context.Context, incoming *creem.
 	}
 
 	return nil, fmt.Errorf("cannot resolve subscription %q: %w", incoming.ID, model.ErrSubscriptionNotFound)
+}
+
+// loadMetadataOwner loads the row of the user a checkout named.
+//
+// A user with no subscriptions row yet (an account that predates the row being
+// created at registration) is a real customer with a real payment, so the free
+// row the write will upsert into is created rather than the purchase being
+// retried until Creem gives up. A user who no longer exists comes back as
+// model.ErrUserNotFound, which is acknowledged: no retry brings the account back.
+func (s *SubscriptionService) loadMetadataOwner(ctx context.Context, userID, subscriptionID string) (*model.Subscription, error) {
+	sub, err := s.repo.GetByUserID(ctx, userID)
+	if errors.Is(err, model.ErrSubscriptionNotFound) {
+		if ensureErr := s.repo.EnsureFree(ctx, userID); ensureErr != nil {
+			return nil, fmt.Errorf("failed to prepare the row of the user named by subscription %q: %w", subscriptionID, ensureErr)
+		}
+		sub, err = s.repo.GetByUserID(ctx, userID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to load the user named by subscription %q: %w", subscriptionID, err)
+	}
+	return sub, nil
 }
 
 // userIDFromMetadata reads the Jobber user ID out of checkout metadata. Anything
