@@ -634,6 +634,19 @@ func TestLoad_BillingGuards(t *testing.T) {
 		assert.Contains(t, err.Error(), "CREEM_PRO_PRODUCT_ID")
 	})
 
+	t.Run("ingestion alone also needs a product to map a subscription to a plan", func(t *testing.T) {
+		// Without it every non-cancellation fails and is retried until Creem gives up.
+		setMinimalEnv(t)
+		t.Setenv("FEATURE_PAYMENTS_ENABLED", "false")
+		t.Setenv("FEATURE_BILLING_WEBHOOK_ENABLED", "true")
+		t.Setenv("CREEM_WEBHOOK_SECRET", "webhook-secret")
+
+		_, err := Load()
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "CREEM_PRO_PRODUCT_ID")
+	})
+
 	t.Run("one product is enough", func(t *testing.T) {
 		setPaymentsEnv(t)
 		t.Setenv("CREEM_ENTERPRISE_PRODUCT_ID", "")
@@ -695,6 +708,7 @@ func TestLoad_BillingGuards(t *testing.T) {
 		t.Setenv("FEATURE_PAYMENTS_ENABLED", "false")
 		t.Setenv("FEATURE_BILLING_WEBHOOK_ENABLED", "true")
 		t.Setenv("CREEM_WEBHOOK_SECRET", "webhook-secret")
+		t.Setenv("CREEM_PRO_PRODUCT_ID", "prod_pro")
 
 		cfg, err := Load()
 
@@ -732,4 +746,25 @@ func TestConfig_IgnoresLiveBilling(t *testing.T) {
 			assert.Equal(t, tt.want, tt.cfg.IgnoresLiveBilling())
 		})
 	}
+}
+
+func TestLoad_TrustedProxies(t *testing.T) {
+	t.Run("defaults to none, which keeps gin's behaviour", func(t *testing.T) {
+		setMinimalEnv(t)
+
+		cfg, err := Load()
+
+		require.NoError(t, err)
+		assert.Empty(t, cfg.Server.TrustedProxies)
+	})
+
+	t.Run("reads a comma-separated list and ignores blanks", func(t *testing.T) {
+		setMinimalEnv(t)
+		t.Setenv("TRUSTED_PROXIES", " 172.18.0.0/16, 10.0.0.5 ,, ")
+
+		cfg, err := Load()
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"172.18.0.0/16", "10.0.0.5"}, cfg.Server.TrustedProxies)
+	})
 }

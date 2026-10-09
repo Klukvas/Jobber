@@ -114,6 +114,7 @@ services:
 
       # CORS
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
 
       # Resend (optional - email service)
       RESEND_API_KEY: ${RESEND_API_KEY:-}

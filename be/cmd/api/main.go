@@ -226,6 +226,13 @@ func main() {
 
 	// Initialize Gin router
 	router := gin.New()
+	if len(cfg.Server.TrustedProxies) > 0 {
+		// Without this gin trusts every proxy and takes the leftmost
+		// X-Forwarded-For, so per-IP rate limits can be dodged by rotating it.
+		if err := router.SetTrustedProxies(cfg.Server.TrustedProxies); err != nil {
+			logger.Fatal("Invalid TRUSTED_PROXIES", zap.Error(err))
+		}
+	}
 	router.Use(sentryPlatform.RecoveryMiddleware(sentryEnabled))
 	router.Use(httpPlatform.RequestIDMiddleware())
 	router.Use(httpPlatform.LoggerMiddleware(logger))

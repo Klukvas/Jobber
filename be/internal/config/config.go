@@ -105,6 +105,10 @@ type ServerConfig struct {
 	AllowedOrigins string
 	FrontendURL    string // internal SPA URL for server-to-server calls (e.g. PDF render)
 	PublicBaseURL  string // public origin used to build shareable/OG links
+	// TrustedProxies lists the proxy IPs/CIDRs whose X-Forwarded-For is honoured
+	// when deriving the client IP. Empty keeps gin's default of trusting every
+	// proxy, which lets a caller rotate the header to dodge per-IP rate limits.
+	TrustedProxies []string
 }
 
 // DatabaseConfig holds database configuration
@@ -177,6 +181,7 @@ func Load() (*Config, error) {
 			AllowedOrigins: getEnv("ALLOWED_ORIGINS", "*"),
 			FrontendURL:    getEnv("FRONTEND_URL", ""),
 			PublicBaseURL:  resolvePublicBaseURL(),
+			TrustedProxies: splitList(getEnv("TRUSTED_PROXIES", "")),
 		},
 		Database: DatabaseConfig{
 			Host:            getEnv("DB_HOST", "localhost"),
@@ -273,9 +278,13 @@ func Load() (*Config, error) {
 	if cfg.Features.PaymentsEnabled && cfg.Creem.APIKey == "" {
 		return nil, fmt.Errorf("CREEM_API_KEY is required when FEATURE_PAYMENTS_ENABLED=true")
 	}
-	// A checkout with no product to sell never opens and says nothing about why.
-	if cfg.Features.PaymentsEnabled && cfg.Creem.ProProductID == "" && cfg.Creem.EnterpriseProductID == "" {
-		return nil, fmt.Errorf("CREEM_PRO_PRODUCT_ID or CREEM_ENTERPRISE_PRODUCT_ID is required when FEATURE_PAYMENTS_ENABLED=true")
+	// Without a product ID a checkout never opens and says nothing about why, and
+	// ingestion cannot tell which plan a subscription event grants, so every
+	// non-cancellation would fail and be retried until Creem gives up.
+	billingOn := cfg.Features.PaymentsEnabled || cfg.Features.BillingWebhookEnabled
+	if billingOn && cfg.Creem.ProProductID == "" && cfg.Creem.EnterpriseProductID == "" {
+		return nil, fmt.Errorf("CREEM_PRO_PRODUCT_ID or CREEM_ENTERPRISE_PRODUCT_ID is required when " +
+			"FEATURE_PAYMENTS_ENABLED=true or FEATURE_BILLING_WEBHOOK_ENABLED=true")
 	}
 	if cfg.Creem.Environment != "test" && cfg.Creem.Environment != "live" {
 		return nil, fmt.Errorf("CREEM_ENVIRONMENT must be 'test' or 'live', got %q", cfg.Creem.Environment)
@@ -419,4 +428,15 @@ func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
 		}
 	}
 	return defaultValue
+}
+
+// splitList turns a comma-separated value into its non-empty, trimmed items.
+func splitList(raw string) []string {
+	var items []string
+	for _, item := range strings.Split(raw, ",") {
+		if trimmed := strings.TrimSpace(item); trimmed != "" {
+			items = append(items, trimmed)
+		}
+	}
+	return items
 }
