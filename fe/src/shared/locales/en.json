@@ -1671,12 +1671,12 @@
     "unavailable": "In-app support is unavailable right now. Please email us instead."
   },
   "cookieConsent": {
-    "message": "We use essential cookies to sign you in and to process secure payments via FastSpring. With your consent, we also use analytics cookies (Google Analytics, PostHog) to improve the product.",
+    "message": "We use essential cookies to sign you in and to process secure payments via Creem. With your consent, we also use analytics cookies (Google Analytics, PostHog) to improve the product.",
     "privacyLink": "Privacy Policy",
     "acceptAll": "Accept all",
     "essentialOnly": "Essential only",
     "settings": "Cookie settings",
     "ariaLabel": "Cookie consent",
-    "messageEssentialOnly": "We use essential cookies to sign you in and to process secure payments via FastSpring. No analytics or advertising cookies are in use on this site."
+    "messageEssentialOnly": "We use essential cookies to sign you in and to process secure payments via Creem. No analytics or advertising cookies are in use on this site."
   }
 }

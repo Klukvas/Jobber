@@ -16,7 +16,7 @@
  * EMAIL_NOTIFICATIONS: Controls whether email-dependent UI is shown
  * (e.g. "resend verification" link). Backend has its own flag.
  *
- * PAYMENTS: FastSpring checkout & upgrade UI. Set VITE_FEATURE_PAYMENTS=true
+ * PAYMENTS: Creem checkout & upgrade UI. Set VITE_FEATURE_PAYMENTS=true
  * to enable upgrade banners, pricing modal, and checkout flow.
  * Subscription limits/usage still work regardless of this flag.
  */

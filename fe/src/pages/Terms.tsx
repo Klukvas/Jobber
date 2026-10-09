@@ -81,20 +81,20 @@ export default function Terms() {
           <li>
             Payments are processed by{" "}
             <a
-              href="https://www.fastspring.com"
+              href="https://www.creem.io"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary underline"
             >
-              FastSpring
+              Creem
             </a>
-            , our Merchant of Record. FastSpring handles all billing, taxes, and
+            , our Merchant of Record. Creem handles all billing, taxes, and
             compliance on our behalf.
           </li>
           <li>
-            By subscribing to a paid plan, you agree to FastSpring&apos;s{" "}
+            By subscribing to a paid plan, you agree to Creem&apos;s{" "}
             <a
-              href="https://fastspring.com/terms-of-use/"
+              href="https://www.creem.io/terms-of-service"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary underline"
@@ -103,7 +103,7 @@ export default function Terms() {
             </a>{" "}
             and{" "}
             <a
-              href="https://fastspring.com/privacy/"
+              href="https://www.creem.io/privacy-policy"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary underline"

@@ -95,16 +95,16 @@ export default function Privacy() {
             .
           </li>
           <li>
-            <strong>FastSpring</strong> — payments for paid plans are processed
-            by FastSpring, our Merchant of Record. When you subscribe,
-            FastSpring collects and processes your billing information under{" "}
+            <strong>Creem</strong> — payments for paid plans are processed by
+            Creem, our Merchant of Record. When you subscribe, Creem collects
+            and processes your billing information under{" "}
             <a
-              href="https://fastspring.com/privacy/"
+              href="https://www.creem.io/privacy-policy"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary underline"
             >
-              FastSpring&apos;s Privacy Policy
+              Creem&apos;s Privacy Policy
             </a>
             . We never see or store your full payment card details.
           </li>
@@ -139,7 +139,7 @@ export default function Privacy() {
           <li>
             <strong>Essential cookies</strong> — required for the service to
             work: secure, httpOnly authentication cookies that keep you signed
-            in. Checkout runs on FastSpring&apos;s own hosted storefront, which
+            in. Checkout runs on Creem&apos;s own hosted checkout page, which
             sets its own cookies for payment processing and fraud prevention
             while you are on that page. These cannot be switched off.
           </li>
