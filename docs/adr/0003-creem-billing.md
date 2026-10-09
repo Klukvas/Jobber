@@ -313,6 +313,12 @@ navigation, not a script, frame, request or form post.
   error until the constant is updated.
 - [ ] **A user with no `subscriptions` row** that pays ends up on the plan (covered by
   tests; confirm once against a real account created before registration wrote a row).
+- [ ] **Remove the production pin.** `.github/workflows/deploy-dev.yml` writes
+  `FEATURE_PAYMENTS_ENABLED=false` and `FEATURE_BILLING_WEBHOOK_ENABLED=false` to the
+  server and builds the frontend with `VITE_FEATURE_PAYMENTS=false`, whatever the
+  secrets say, so production ships with payments off. Going live means reading
+  those three from their secrets again (and setting the `CREEM_*` ones first, or
+  the API refuses to boot).
 - [ ] **Delete the stale GitHub Secrets**: all `FASTSPRING_*` and the earlier
   `PADDLE_*`, and add the five `CREEM_*` ones.
 - [ ] **Legal pages** (Terms, Privacy, Refund) name Creem as Merchant of Record —

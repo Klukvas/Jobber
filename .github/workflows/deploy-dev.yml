@@ -396,11 +396,16 @@ jobs:
           # This should match the server's public IP/domain.
           # If not set, docker-compose.yml will use the default.
           # For production deploys, consider making this configurable via GitHub Secret.
+          #
+          # VITE_FEATURE_PAYMENTS is pinned to false below until Creem go-live
+          # (ADR-0003). To go live, read it from the VITE_FEATURE_PAYMENTS secret
+          # again, with a 'false' fallback like the lines around it. Keep any
+          # comment out of the block: its lines are build-args, not YAML.
           build-args: |
             VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL || '/api/v1' }}
             VITE_SENTRY_DSN=${{ secrets.VITE_SENTRY_DSN || '' }}
             VITE_FEATURE_SENTRY=${{ secrets.VITE_FEATURE_SENTRY || 'false' }}
-            VITE_FEATURE_PAYMENTS=${{ secrets.VITE_FEATURE_PAYMENTS || 'false' }}
+            VITE_FEATURE_PAYMENTS=false
             VITE_FEATURE_EMAIL_NOTIFICATIONS=${{ secrets.VITE_FEATURE_EMAIL_NOTIFICATIONS || 'true' }}
             GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
 
@@ -523,8 +528,15 @@ jobs:
           # Feature flags
           V_FEATURE_SENTRY_ENABLED: ${{ secrets.FEATURE_SENTRY_ENABLED }}
           V_FEATURE_EMAIL_ENABLED: ${{ secrets.FEATURE_EMAIL_ENABLED }}
-          V_FEATURE_PAYMENTS_ENABLED: ${{ secrets.FEATURE_PAYMENTS_ENABLED }}
-          V_FEATURE_BILLING_WEBHOOK_ENABLED: ${{ secrets.FEATURE_BILLING_WEBHOOK_ENABLED }}
+          # Payments are pinned OFF in production until Creem go-live (ADR-0003).
+          # Both are written explicitly: an unset secret would be skipped below and
+          # leave whatever the server's .env already holds (possibly `true`), and
+          # a `true` here without CREEM_* credentials makes the API refuse to boot.
+          # To go live: read these two from the FEATURE_PAYMENTS_ENABLED and
+          # FEATURE_BILLING_WEBHOOK_ENABLED secrets again, set the CREEM_*
+          # secrets, and un-pin VITE_FEATURE_PAYMENTS in the frontend build args.
+          V_FEATURE_PAYMENTS_ENABLED: "false"
+          V_FEATURE_BILLING_WEBHOOK_ENABLED: "false"
         run: |
           # Build temp file with non-empty secrets only
           ENV_FILE=$(mktemp)
