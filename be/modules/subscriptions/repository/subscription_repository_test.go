@@ -512,7 +512,7 @@ func TestSubscriptionRepository_ApplySubscriptionEvent(t *testing.T) {
 //
 // Without it, a user who starts two checkouts while free and pays for both ends
 // up with the second activation overwriting the first identifier: subscription
-// one keeps charging at FastSpring with nothing in Jobber pointing at it, so
+// one keeps charging at Creem with nothing in Jobber pointing at it, so
 // neither the user nor the app can cancel it.
 func TestApplySubscriptionEventLinkGuard(t *testing.T) {
 	const incomingID = "psub-1"
@@ -547,7 +547,7 @@ func TestApplySubscriptionEventLinkGuard(t *testing.T) {
 			refuse:   true,
 		},
 		{
-			// past_due is a dunning period: FastSpring is still trying to charge.
+			// past_due is a dunning period: Creem is still trying to charge.
 			name:     "a second subscription while the first is past due",
 			linkedID: &other,
 			status:   "past_due",
@@ -669,8 +669,15 @@ func TestApplySubscriptionEventKeepsItsGuardsInOneStatement(t *testing.T) {
 	assert.Contains(t, executed, "EXCLUDED.last_event_at > subscriptions.last_event_at",
 		"the lifecycle-ordering guard must live in the SQL WHERE, not in a prior read")
 	assert.NotContains(t, executed, "EXCLUDED.last_event_at >= subscriptions.last_event_at",
-		"the guard must be strict: an event carrying the same `changed` describes a change "+
+		"the guard must be strict: an event carrying the same `updated_at` describes a change "+
 			"already accounted for, so replaying it could only undo a correct write")
+	assert.Contains(t, executed, "EXCLUDED.last_event_at = subscriptions.last_event_at",
+		"a tie is allowed for exactly one transition")
+	assert.Contains(t, executed, "EXCLUDED.status = 'cancelled'",
+		"a cancellation that ties with the applied state must still land, or a non-paying "+
+			"user keeps a paid plan")
+	assert.Contains(t, executed, "subscriptions.status <> 'cancelled'",
+		"an ending is not re-applied over an ending")
 	assert.Contains(t, executed, "subscriptions.external_subscription_id = EXCLUDED.external_subscription_id",
 		"the link guard must be re-evaluated by the write itself against the row version a "+
 			"concurrent writer committed, not only by the read that precedes it")
@@ -746,6 +753,53 @@ func TestSubscriptionRepository_LinkExternalAccount(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
+	t.Run("keeps a customer already on the row", func(t *testing.T) {
+		// A replayed or late checkout.completed must not point the portal at a
+		// stale customer.
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		mock.ExpectExec(`external_account_id = COALESCE\(subscriptions\.external_account_id, EXCLUDED\.external_account_id\)`).
+			WithArgs("user-1", "acct-1").
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+
+		repo := NewSubscriptionRepository(mock)
+		require.NoError(t, repo.LinkExternalAccount(context.Background(), "user-1", "acct-1"))
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("a customer owned by another user is reported as such", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		mock.ExpectExec("INSERT INTO subscriptions").
+			WithArgs("user-1", "acct-1").
+			WillReturnError(&pgconn.PgError{Code: uniqueViolationCode, ConstraintName: externalAccountUniqueIndex})
+
+		repo := NewSubscriptionRepository(mock)
+		err = repo.LinkExternalAccount(context.Background(), "user-1", "acct-1")
+
+		assert.ErrorIs(t, err, model.ErrBillingAccountTaken)
+	})
+
+	t.Run("any other unique violation is not blamed on a shared customer", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		mock.ExpectExec("INSERT INTO subscriptions").
+			WithArgs("user-1", "acct-1").
+			WillReturnError(&pgconn.PgError{Code: uniqueViolationCode, ConstraintName: "subscriptions_external_subscription_id_key"})
+
+		repo := NewSubscriptionRepository(mock)
+		err = repo.LinkExternalAccount(context.Background(), "user-1", "acct-1")
+
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, model.ErrBillingAccountTaken)
+	})
+
 	t.Run("propagates db error", func(t *testing.T) {
 		mock, err := pgxmock.NewPool()
 		require.NoError(t, err)
@@ -781,9 +835,9 @@ func TestSubscriptionRepository_GetUserContact(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		rows := pgxmock.NewRows([]string{"email", "name", "locale"}).
-			AddRow("buyer@example.com", "Test Buyer", "en")
-		mock.ExpectQuery("SELECT email, name, locale FROM users").
+		rows := pgxmock.NewRows([]string{"email", "name"}).
+			AddRow("buyer@example.com", "Test Buyer")
+		mock.ExpectQuery("SELECT email, name FROM users").
 			WithArgs("user-1").
 			WillReturnRows(rows)
 
@@ -791,9 +845,7 @@ func TestSubscriptionRepository_GetUserContact(t *testing.T) {
 		contact, err := repo.GetUserContact(context.Background(), "user-1")
 		require.NoError(t, err)
 		assert.Equal(t, "buyer@example.com", contact.Email)
-		first, last := contact.FirstLast()
-		assert.Equal(t, "Test", first)
-		assert.Equal(t, "Buyer", last)
+		assert.Equal(t, "Test Buyer", contact.Name)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
@@ -802,7 +854,7 @@ func TestSubscriptionRepository_GetUserContact(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		mock.ExpectQuery("SELECT email, name, locale FROM users").
+		mock.ExpectQuery("SELECT email, name FROM users").
 			WithArgs("user-1").
 			WillReturnError(pgx.ErrNoRows)
 
@@ -817,7 +869,7 @@ func TestSubscriptionRepository_GetUserContact(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		mock.ExpectQuery("SELECT email, name, locale FROM users").
+		mock.ExpectQuery("SELECT email, name FROM users").
 			WithArgs("user-1").
 			WillReturnError(errors.New("boom"))
 
@@ -858,10 +910,7 @@ func TestApplySubscriptionEventReportsAnAccountAlreadyLinkedElsewhere(t *testing
 	// external_account_id is unique, so an event carrying an account that is
 	// already another user's breaks the index. It must come back as its own
 	// terminal outcome rather than as a generic failure: a failure is retried,
-	// and no retry can untangle two users behind one billing account. With the
-	// reconciliation sweep in place that retry is not even bounded by the
-	// provider's own give-up — it would come back every sweep until the event
-	// ages out of the window, burying everything else in the log.
+	// and no retry can untangle two users behind one provider customer.
 	mock, err := pgxmock.NewPool()
 	require.NoError(t, err)
 	defer mock.Close()

@@ -5,14 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/andreypavlenko/jobber/modules/subscriptions/fastspring"
+	"github.com/andreypavlenko/jobber/modules/subscriptions/creem"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/service"
 	"github.com/gin-gonic/gin"
@@ -21,9 +21,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// newProviderBackedHandler wires the handler to a stub FastSpring API so the
-// success paths — which the credential-less default setup can never reach —
-// are exercised end to end through the HTTP layer.
+// newProviderBackedHandler wires the handler to a stub Creem API so the success
+// paths — which the key-less default setup can never reach — are exercised end
+// to end through the HTTP layer.
 func newProviderBackedHandler(t *testing.T, repo *MockSubscriptionRepository, providerHandler http.HandlerFunc) *SubscriptionHandler {
 	t.Helper()
 	server := httptest.NewServer(providerHandler)
@@ -31,18 +31,8 @@ func newProviderBackedHandler(t *testing.T, repo *MockSubscriptionRepository, pr
 
 	svc := service.NewSubscriptionService(
 		repo,
-		fastspring.NewClient(fastspring.Config{
-			BaseURL:  server.URL,
-			Username: "api-user",
-			Password: "api-pass",
-		}),
-		service.BillingConfig{
-			WebhookSecret:         testWebhookSecret,
-			CheckoutPath:          testCheckoutPath,
-			Environment:           service.EnvironmentTest,
-			ProProductPath:        testProPath,
-			EnterpriseProductPath: testEnterprisePath,
-		},
+		creem.NewClient(creem.Config{APIKey: "creem_key", BaseURL: server.URL}),
+		testBillingConfig(),
 	)
 	return NewSubscriptionHandler(svc, zap.NewNop())
 }
@@ -62,24 +52,16 @@ func activeSubscriptionRepo(externalSubID, externalAccountID string) *MockSubscr
 }
 
 func TestSubscriptionHandler_CreateCheckoutSession_Success(t *testing.T) {
-	userID := testUserID
-	var linkedAccount string
-	repo := &MockSubscriptionRepository{
-		LinkExternalAccountFunc: func(_ context.Context, _, accountID string) error {
-			linkedAccount = accountID
-			return nil
-		},
-	}
-	handler := newProviderBackedHandler(t, repo, func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v2/checkouts/"+testCheckoutPath+"/sessions", r.URL.Path)
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"id":"sess-1","expires":"2026-07-01T00:00:00Z","checkoutStatus":["READY_FOR_CHECKOUT"],
-			"customer":{"accountId":"acct-1"},
-			"checkoutUrls":{"webcheckoutUrl":"https://jobber.test.onfastspring.com/checkout/sess-1"}}`))
+	var seenBody map[string]any
+	handler := newProviderBackedHandler(t, &MockSubscriptionRepository{}, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/v1/checkouts", r.URL.Path)
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &seenBody)
+		_, _ = w.Write([]byte(`{"id":"ch_1","status":"pending","checkout_url":"https://www.creem.io/test/checkout/ch_1"}`))
 	})
 
 	router := setupTestRouter()
-	router.POST("/subscription/checkout-session", mockAuthMiddleware(userID), handler.CreateCheckoutSession)
+	router.POST("/subscription/checkout-session", mockAuthMiddleware(testUserID), handler.CreateCheckoutSession)
 
 	req, _ := http.NewRequest(http.MethodPost, "/subscription/checkout-session", bytes.NewBufferString(`{"plan":"pro"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -90,17 +72,17 @@ func TestSubscriptionHandler_CreateCheckoutSession_Success(t *testing.T) {
 
 	var session model.CheckoutSessionDTO
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &session))
-	assert.Equal(t, "sess-1", session.SessionID)
-	assert.NotContains(t, w.Body.String(), "onfastspring.com",
-		"the endpoint returns a session id for the popup, never a URL to navigate to")
-	assert.Equal(t, "acct-1", linkedAccount,
-		"the provider account must be linked before the session reaches the browser")
+	assert.Equal(t, "https://www.creem.io/test/checkout/ch_1", session.CheckoutURL)
+	assert.Equal(t, map[string]any{"jobber_user_id": testUserID}, seenBody["metadata"],
+		"the buyer is bound to the checkout server-side")
 }
 
 func TestSubscriptionHandler_ChangePlan_Success(t *testing.T) {
-	repo := activeSubscriptionRepo("sub-ext-1", "acct-ext-1")
-	handler := newProviderBackedHandler(t, repo, func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"subscriptions":[{"subscription":"sub-ext-1","action":"subscription.update","result":"success"}]}`))
+	var path string
+	repo := activeSubscriptionRepo("sub_1", "cust_1")
+	handler := newProviderBackedHandler(t, repo, func(w http.ResponseWriter, r *http.Request) {
+		path = r.URL.Path
+		_, _ = w.Write([]byte(`{"id":"sub_1"}`))
 	})
 
 	router := setupTestRouter()
@@ -112,14 +94,16 @@ func TestSubscriptionHandler_ChangePlan_Success(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Equal(t, "/v1/subscriptions/sub_1/upgrade", path)
 }
 
 func TestSubscriptionHandler_CancelSubscription_Success(t *testing.T) {
-	var query string
-	repo := activeSubscriptionRepo("sub-ext-1", "acct-ext-1")
+	var body map[string]any
+	repo := activeSubscriptionRepo("sub_1", "cust_1")
 	handler := newProviderBackedHandler(t, repo, func(w http.ResponseWriter, r *http.Request) {
-		query = r.URL.RawQuery
-		_, _ = w.Write([]byte(`{"subscriptions":[{"subscription":"sub-ext-1","action":"subscription.cancel","result":"success"}]}`))
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &body)
+		_, _ = w.Write([]byte(`{"id":"sub_1","status":"scheduled_cancel"}`))
 	})
 
 	router := setupTestRouter()
@@ -130,13 +114,13 @@ func TestSubscriptionHandler_CancelSubscription_Success(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
-	assert.Equal(t, "billingPeriod=1", query, "a user-facing cancel keeps access until the period ends")
+	assert.Equal(t, "scheduled", body["mode"], "a user-facing cancel keeps access until the period ends")
 }
 
 func TestSubscriptionHandler_CreatePortalSession_Success(t *testing.T) {
-	repo := activeSubscriptionRepo("sub-ext-1", "acct-ext-1")
+	repo := activeSubscriptionRepo("sub_1", "cust_1")
 	handler := newProviderBackedHandler(t, repo, func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"accounts":[{"account":"acct-ext-1","result":"success","url":"https://store.onfastspring.com/account/a/b"}]}`))
+		_, _ = w.Write([]byte(`{"customer_portal_link":"https://creem.io/my-orders/login/abc"}`))
 	})
 
 	router := setupTestRouter()
@@ -150,29 +134,12 @@ func TestSubscriptionHandler_CreatePortalSession_Success(t *testing.T) {
 
 	var portal model.PortalSessionDTO
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &portal))
-	assert.Equal(t, "https://store.onfastspring.com/account/a/b#/subscriptions", portal.URL)
-}
-
-func TestWebhookHandler_PartialBatchListsEveryProcessedID(t *testing.T) {
-	// Two acknowledged events and one that must be retried: the 202 body has to
-	// carry both processed IDs, one per line, or FastSpring would redeliver them.
-	body := `{"events":[
-		{"id":"evt-a","live":false,"processed":false,"type":"order.completed","created":1751328000000,"data":{}},
-		{"id":"evt-b","live":false,"processed":false,"type":"account.updated","created":1751328000001,"data":{}},
-		{"id":"evt-bad","live":false,"processed":false,"type":"subscription.activated","created":1751328000002,
-		 "data":{"id":"sub-x","subscription":"sub-x","state":"active","active":true,
-		         "account":{"id":"acct-unknown"},"product":{"product":"jobber-pro"}}}
-	]}`
-
-	w := postWebhook(newTestWebhookHandler(&MockSubscriptionRepository{}), body, signWebhook(body))
-
-	assert.Equal(t, http.StatusAccepted, w.Code)
-	assert.Equal(t, "evt-a\nevt-b", w.Body.String())
+	assert.Equal(t, "https://creem.io/my-orders/login/abc", portal.URL)
 }
 
 func TestWebhookHandler_OversizedBodyIsRejected(t *testing.T) {
-	// A body over the 1 MB cap is read truncated, so the signature — computed
-	// over the full payload — no longer matches and nothing is processed.
+	// A body over the 1 MB cap is refused outright, before any hashing, so an
+	// unsigned flood of large payloads buys nothing.
 	var wrote bool
 	repo := &MockSubscriptionRepository{
 		ApplySubscriptionEventFunc: func(context.Context, string, string, *model.Subscription) (model.WebhookApplyOutcome, error) {
@@ -180,11 +147,11 @@ func TestWebhookHandler_OversizedBodyIsRejected(t *testing.T) {
 			return model.WebhookApplied, nil
 		},
 	}
-	body := `{"events":[]}` + strings.Repeat(" ", 1<<20)
+	body := `{"id":"evt-1","eventType":"subscription.paid","object":{}}` + strings.Repeat(" ", 1<<20)
 
 	w := postWebhook(newTestWebhookHandler(repo), body, signWebhook(body))
 
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
 	assert.False(t, wrote, "an oversized payload must not reach the database")
 }
 
@@ -197,9 +164,9 @@ func TestWebhookHandler_BodyReadFailure(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.POST("/webhooks/fastspring", handler.HandleFastSpringWebhook)
+	router.POST("/webhooks/creem", handler.HandleCreemWebhook)
 
-	req, err := http.NewRequest(http.MethodPost, "/webhooks/fastspring", failingReader{})
+	req, err := http.NewRequest(http.MethodPost, "/webhooks/creem", failingReader{})
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -214,19 +181,19 @@ func TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber
 
 	subscribed := map[string]*model.Subscription{
 		"active": {
-			UserID: testUserID, ExternalSubscriptionID: ptr("sub-ext-1"),
+			UserID: testUserID, ExternalSubscriptionID: ptr("sub_1"),
 			Status: "active", Plan: "pro",
 		},
 		"past_due": {
-			UserID: testUserID, ExternalSubscriptionID: ptr("sub-ext-1"),
+			UserID: testUserID, ExternalSubscriptionID: ptr("sub_1"),
 			Status: "past_due", Plan: "pro",
 		},
 		"paused": {
-			UserID: testUserID, ExternalSubscriptionID: ptr("sub-ext-1"),
+			UserID: testUserID, ExternalSubscriptionID: ptr("sub_1"),
 			Status: "paused", Plan: "pro",
 		},
 		"cancellation scheduled": {
-			UserID: testUserID, ExternalSubscriptionID: ptr("sub-ext-1"),
+			UserID: testUserID, ExternalSubscriptionID: ptr("sub_1"),
 			Status: "active", Plan: "pro", CancelAt: &cancelAt,
 		},
 	}
@@ -257,16 +224,13 @@ func TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber
 		repo := &MockSubscriptionRepository{
 			GetByUserIDFunc: func(context.Context, string) (*model.Subscription, error) {
 				return &model.Subscription{
-					UserID: testUserID, ExternalSubscriptionID: ptr("sub-ext-old"),
+					UserID: testUserID, ExternalSubscriptionID: ptr("sub_old"),
 					Status: "cancelled", Plan: "free",
 				}, nil
 			},
 		}
 		handler := newProviderBackedHandler(t, repo, func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"id":"sess-2","checkoutStatus":["READY_FOR_CHECKOUT"],
-				"customer":{"accountId":"acct-1"},
-				"checkoutUrls":{"webcheckoutUrl":"https://jobber.test.onfastspring.com/checkout/sess-2"}}`))
+			_, _ = w.Write([]byte(`{"id":"ch_2","checkout_url":"https://www.creem.io/test/checkout/ch_2"}`))
 		})
 
 		router := setupTestRouter()
@@ -281,23 +245,10 @@ func TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber
 	})
 }
 
-func TestSubscriptionHandler_CreateCheckoutSession_BillingAccountBelongsToAnotherUser(t *testing.T) {
-	// One provider account cannot resolve to two local users: it is the
-	// server-side link between a purchase and a user, so pointing it at a second
-	// one would mis-grant somebody's purchase. The buyer gets a 409 they can act
-	// on rather than a bare 500 that reads like an outage.
-	repo := &MockSubscriptionRepository{
-		GetByUserIDFunc: func(context.Context, string) (*model.Subscription, error) {
-			return nil, model.ErrSubscriptionNotFound
-		},
-		LinkExternalAccountFunc: func(context.Context, string, string) error {
-			return fmt.Errorf("%w: account %q", model.ErrBillingAccountTaken, "acct-shared")
-		},
-	}
-	handler := newProviderBackedHandler(t, repo, func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"id":"sess-3","checkoutStatus":["READY_FOR_CHECKOUT"],
-			"customer":{"accountId":"acct-shared"}}`))
+func TestSubscriptionHandler_CreateCheckoutSession_ProviderFailureIsAGenericError(t *testing.T) {
+	handler := newProviderBackedHandler(t, &MockSubscriptionRepository{}, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"message":"invalid api key creem_key"}`))
 	})
 
 	router := setupTestRouter()
@@ -308,9 +259,9 @@ func TestSubscriptionHandler_CreateCheckoutSession_BillingAccountBelongsToAnothe
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	require.Equal(t, http.StatusConflict, w.Code, w.Body.String())
-	assert.Contains(t, w.Body.String(), "BILLING_ACCOUNT_TAKEN")
-	assert.NotContains(t, w.Body.String(), "acct-shared", "the response must not echo provider identifiers")
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "CHECKOUT_ERROR")
+	assert.NotContains(t, w.Body.String(), "invalid api key", "provider detail stays in the logs")
 }
 
 func ptr[T any](v T) *T { return &v }

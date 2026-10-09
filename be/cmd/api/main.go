@@ -89,7 +89,7 @@ import (
 	rbRepo "github.com/andreypavlenko/jobber/modules/resumebuilder/repository"
 	rbService "github.com/andreypavlenko/jobber/modules/resumebuilder/service"
 
-	"github.com/andreypavlenko/jobber/modules/subscriptions/fastspring"
+	"github.com/andreypavlenko/jobber/modules/subscriptions/creem"
 	subHandler "github.com/andreypavlenko/jobber/modules/subscriptions/handler"
 	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	subRepo "github.com/andreypavlenko/jobber/modules/subscriptions/repository"
@@ -292,21 +292,26 @@ func main() {
 	subscriptionRepository := subRepo.NewSubscriptionRepository(pgClient.Pool)
 
 	// Initialize subscription service (used as limit checker by other services)
-	fastSpringClient := fastspring.NewClient(fastspring.Config{
-		Username: cfg.FastSpring.APIUsername,
-		Password: cfg.FastSpring.APIPassword,
+	creemClient := creem.NewClient(creem.Config{
+		APIKey:  cfg.Creem.APIKey,
+		BaseURL: creem.BaseURLFor(cfg.Creem.Environment == subService.EnvironmentLive),
 	})
 	subscriptionSvc := subService.NewSubscriptionService(
 		subscriptionRepository,
-		fastSpringClient,
+		creemClient,
 		subService.BillingConfig{
-			WebhookSecret:         cfg.FastSpring.WebhookSecret,
-			CheckoutPath:          cfg.FastSpring.CheckoutPath,
-			Environment:           cfg.FastSpring.Environment,
-			ProProductPath:        cfg.FastSpring.ProProductPath,
-			EnterpriseProductPath: cfg.FastSpring.EnterpriseProductPath,
+			WebhookSecret:       cfg.Creem.WebhookSecret,
+			Environment:         cfg.Creem.Environment,
+			SuccessURL:          subService.CheckoutSuccessURL(cfg.Server.PublicBaseURL),
+			ProProductID:        cfg.Creem.ProProductID,
+			EnterpriseProductID: cfg.Creem.EnterpriseProductID,
 		},
 	)
+
+	if cfg.IgnoresLiveBilling() {
+		logger.Warn("Billing is on in production but CREEM_ENVIRONMENT=test: every live Creem event will be " +
+			"dropped as an environment mismatch. Set CREEM_ENVIRONMENT=live (with live keys) before taking real payments")
+	}
 
 	// Initialize match score cache repository
 	matchScoreCacheRepo := matchScoreRepo.NewMatchScoreCacheRepository(pgClient.Pool)
@@ -623,7 +628,7 @@ func main() {
 		// Webhook ingestion is gated separately so closing the checkout does not
 		// drop renewals, cancellations or deactivations for existing customers.
 		if cfg.Features.BillingWebhookEnabled {
-			webhookHdl.RegisterRoutes(v1, webhookRateLimiter) // Public, no auth — FastSpring signs the payload
+			webhookHdl.RegisterRoutes(v1, webhookRateLimiter) // Public, no auth — Creem signs the payload
 		} else {
 			logger.Warn("Billing webhook disabled via FEATURE_BILLING_WEBHOOK_ENABLED=false, subscription lifecycle events will not be recorded")
 		}
@@ -683,9 +688,6 @@ func main() {
 			logger.Debug("Expired tokens cleaned up")
 		}
 	}()
-
-	// Recover webhook deliveries that never landed. See billing.go and ADR-0002.
-	startBillingReconciliation(cfg.Features, fastSpringClient, subscriptionSvc, logger.Logger)
 
 	// Create HTTP server
 	srv := &http.Server{

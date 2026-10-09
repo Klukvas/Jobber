@@ -60,9 +60,14 @@ func (r *SubscriptionRepository) queryOne(ctx context.Context, query string, arg
 	return &sub, nil
 }
 
-// LinkExternalAccount stores the provider account ID for a user, creating the
+// LinkExternalAccount stores the provider customer ID for a user, creating the
 // free row if it is missing. Plan and status are untouched: linking happens when
-// a checkout starts, and an abandoned checkout must not grant anything.
+// a checkout completes, and it grants nothing by itself.
+//
+// A customer already on the row is kept. This runs off checkout.completed, which
+// can be replayed or arrive late; letting it overwrite would point the customer
+// portal at a stale customer. The subscription events carry the authoritative
+// customer and replace it when they land.
 //
 // external_account_id carries a partial UNIQUE index, so one provider account
 // resolves to exactly one user. Hitting it is not a generic database failure:
@@ -74,11 +79,11 @@ func (r *SubscriptionRepository) LinkExternalAccount(ctx context.Context, userID
 		INSERT INTO subscriptions (user_id, external_account_id, status, plan, updated_at)
 		VALUES ($1, $2, 'free', 'free', NOW())
 		ON CONFLICT (user_id) DO UPDATE SET
-			external_account_id = EXCLUDED.external_account_id,
+			external_account_id = COALESCE(subscriptions.external_account_id, EXCLUDED.external_account_id),
 			updated_at = NOW()`,
 		userID, externalAccountID,
 	)
-	if isUniqueViolation(err) {
+	if isAccountUniqueViolation(err) {
 		return fmt.Errorf("%w: account %q cannot also be linked to user %q",
 			model.ErrBillingAccountTaken, externalAccountID, userID)
 	}
@@ -88,9 +93,22 @@ func (r *SubscriptionRepository) LinkExternalAccount(ctx context.Context, userID
 // uniqueViolationCode is PostgreSQL's SQLSTATE for a unique constraint breach.
 const uniqueViolationCode = "23505"
 
+// externalAccountUniqueIndex is the partial UNIQUE index that makes one provider
+// customer resolve to exactly one user (migration 000045).
+const externalAccountUniqueIndex = "idx_subscriptions_external_account_id"
+
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == uniqueViolationCode
+}
+
+// isAccountUniqueViolation narrows isUniqueViolation to the customer index. Any
+// other unique breach (the subscription ID, say) is a different problem and must
+// not be reported as two users sharing a customer.
+func isAccountUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == uniqueViolationCode &&
+		pgErr.ConstraintName == externalAccountUniqueIndex
 }
 
 // EnsureFree creates a free subscription row for a user if none exists.
@@ -107,8 +125,8 @@ func (r *SubscriptionRepository) EnsureFree(ctx context.Context, userID string) 
 func (r *SubscriptionRepository) GetUserContact(ctx context.Context, userID string) (*model.UserContact, error) {
 	var contact model.UserContact
 	err := r.pool.QueryRow(ctx,
-		`SELECT email, name, locale FROM users WHERE id = $1`, userID,
-	).Scan(&contact.Email, &contact.Name, &contact.Locale)
+		`SELECT email, name FROM users WHERE id = $1`, userID,
+	).Scan(&contact.Email, &contact.Name)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, model.ErrSubscriptionNotFound
@@ -238,11 +256,12 @@ const statusCancelled = "cancelled"
 
 // WebhookEventRetentionDays is how long an event claim is kept.
 //
-// The claim exists to recognise a redelivery. FastSpring stops retrying after 7
-// days and reconciliation reaches back at most 30, so a claim older than that
-// has nothing left to catch and the table would otherwise grow for the life of
-// the product. The window is far wider than either bound because forgetting one
-// early is not free: a manual resend of a very old event would be applied again.
+// The claim exists to recognise a redelivery. Creem stops retrying after 24
+// hours, so a claim older than that has nothing left to catch but a manual
+// resend from the dashboard, and the table would otherwise grow for the life of
+// the product. The window is far wider than the retry schedule because
+// forgetting a claim early is not free: a manual resend of a very old event
+// would be applied again.
 // Even then the lifecycle ordering guard refuses anything not strictly newer
 // than the state on the row, so the cost is a no-op rather than a wrong plan.
 const WebhookEventRetentionDays = 90
@@ -278,14 +297,19 @@ func (r *SubscriptionRepository) DeleteExpiredWebhookEvents(ctx context.Context,
 // committed.
 //
 //   - Lifecycle ordering is strictly greater-than, so an event bearing the
-//     *same* `data.changed` as the applied state is superseded rather than
-//     replayed. Two events describing one change (a charge and the subscription
+//     *same* `updated_at` as the applied state is superseded rather than
+//     replayed. Two events describing one change (a payment and the subscription
 //     update it triggers) normalise to the same state, so re-applying the second
 //     can only undo a correct write when it arrives out of order — first writer
-//     wins, and the loser is still recorded as processed.
+//     wins, and the loser is still recorded as processed. The one exception is
+//     an ending: a cancellation that ties with the applied state still lands,
+//     because Creem is not documented to bump `updated_at` between the last
+//     payment and the cancel, and dropping it would keep a non-paying user on a
+//     paid plan. Ending access is also the only transition that is safe to apply
+//     twice.
 //   - The link guard refuses to overwrite a *different*, still-live
 //     external_subscription_id. The row holds exactly one, so replacing it would
-//     leave a subscription billing at FastSpring with nothing in Jobber pointing
+//     leave a subscription billing at Creem with nothing in Jobber pointing
 //     at it. A first link (nothing stored), the same subscription moving through
 //     its lifecycle, and a replacement after the provider ended the old one are
 //     all allowed.
@@ -317,7 +341,10 @@ const applySubscriptionEventSQL = `
 				last_event_at = EXCLUDED.last_event_at,
 				updated_at = NOW()
 			WHERE (subscriptions.last_event_at IS NULL
-			       OR EXCLUDED.last_event_at > subscriptions.last_event_at)
+			       OR EXCLUDED.last_event_at > subscriptions.last_event_at
+			       OR (EXCLUDED.last_event_at = subscriptions.last_event_at
+			           AND EXCLUDED.status = '` + statusCancelled + `'
+			           AND subscriptions.status <> '` + statusCancelled + `'))
 			  AND (COALESCE(subscriptions.external_subscription_id, '') = ''
 			       OR subscriptions.external_subscription_id = EXCLUDED.external_subscription_id
 			       OR subscriptions.status = '` + statusCancelled + `')
@@ -350,10 +377,11 @@ const lockLinkedSubscriptionSQL = `
 //     app can cancel.
 //
 // The second invariant is decided here, under the row lock the opening read
-// takes, so it holds for *every* way the owning row was resolved — the order tag
-// and the provider account ID alike. A conflict returns before anything is
-// claimed or written, leaving the event free to land later if the stale link is
-// genuinely ended; the same condition is repeated in the write's WHERE clause as
+// takes, so it holds for *every* way the owning row was resolved — the checkout
+// metadata, the subscription ID and the provider customer alike. A conflict
+// returns before anything is claimed or written, so the caller can ask the
+// provider to redeliver and the event lands once the stale link is genuinely
+// ended; the same condition is repeated in the write's WHERE clause as
 // the backstop for the one case the lock cannot cover, a row that did not exist
 // when the read ran.
 //
@@ -388,10 +416,10 @@ func (r *SubscriptionRepository) ApplySubscriptionEvent(
 	if err != nil {
 		// The account on this event already belongs to another user. The whole
 		// transaction rolls back, so nothing is claimed and nothing is written —
-		// but no retry will ever untangle two users behind one billing account,
+		// but no retry will ever untangle two users behind one provider customer,
 		// so it is reported as its own terminal outcome rather than as a failure
-		// the provider (and the reconciliation sweep) should keep re-attempting.
-		if isUniqueViolation(err) {
+		// the provider should keep re-attempting.
+		if isAccountUniqueViolation(err) {
 			return model.WebhookAccountConflict, nil
 		}
 		return "", fmt.Errorf("failed to apply subscription event %q: %w", eventID, err)

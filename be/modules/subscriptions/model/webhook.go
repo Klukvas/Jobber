@@ -34,9 +34,8 @@ const (
 	// unique index that makes one account resolve to exactly one user.
 	//
 	// It is terminal rather than retryable, and that distinction is the whole
-	// point of naming it. A retry cannot resolve two users behind one billing
-	// account — only a person can — and with reconciliation in place a
-	// permanently failing event is re-attempted every sweep until it ages out of
-	// the window, burying everything else in the log on the way.
+	// point of naming it. A retry cannot resolve two users behind one provider
+	// customer — only a person can — and Creem would keep redelivering a failing
+	// event for 24 hours, burying everything else in the log on the way.
 	WebhookAccountConflict WebhookApplyOutcome = "account_conflict"
 )

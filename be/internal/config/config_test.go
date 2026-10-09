@@ -586,114 +586,73 @@ func setPaymentsEnv(t *testing.T) {
 	t.Helper()
 	setMinimalEnv(t)
 	t.Setenv("FEATURE_PAYMENTS_ENABLED", "true")
-	t.Setenv("FASTSPRING_API_USERNAME", "api-user")
-	t.Setenv("FASTSPRING_API_PASSWORD", "api-pass")
-	t.Setenv("FASTSPRING_CHECKOUT_PATH", "fluxlab/popup-jobber")
-	t.Setenv("FASTSPRING_WEBHOOK_SECRET", "webhook-secret")
+	t.Setenv("CREEM_API_KEY", "creem_test_key")
+	t.Setenv("CREEM_WEBHOOK_SECRET", "webhook-secret")
+	t.Setenv("CREEM_PRO_PRODUCT_ID", "prod_pro")
+	t.Setenv("CREEM_ENTERPRISE_PRODUCT_ID", "prod_enterprise")
 }
 
 func TestLoad_BillingGuards(t *testing.T) {
-	t.Run("accepts a two-segment popup checkout path", func(t *testing.T) {
+	t.Run("accepts a complete billing setup", func(t *testing.T) {
 		setPaymentsEnv(t)
 
 		cfg, err := Load()
 
 		require.NoError(t, err)
-		assert.Equal(t, "fluxlab/popup-jobber", cfg.FastSpring.CheckoutPath)
+		assert.Equal(t, "prod_pro", cfg.Creem.ProProductID)
+		assert.Equal(t, "prod_enterprise", cfg.Creem.EnterpriseProductID)
+		assert.Equal(t, "test", cfg.Creem.Environment, "defaults to the test environment")
 		assert.True(t, cfg.Features.PaymentsEnabled)
 	})
 
-	t.Run("refuses the full-page web checkout path", func(t *testing.T) {
-		// Checkout opens in the Store Builder Library popup, which can only open
-		// a checkout the dashboard generated as a popup. The old Web Checkout id
-		// passes every other check and then shows a real buyer an empty popup —
-		// so it has to fail the boot, not the purchase.
+	t.Run("refuses to start with payments on and no API key", func(t *testing.T) {
 		setPaymentsEnv(t)
-		t.Setenv("FASTSPRING_CHECKOUT_PATH", "fluxlab/jobber-checkout")
+		t.Setenv("CREEM_API_KEY", "")
 
 		_, err := Load()
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "FASTSPRING_CHECKOUT_PATH")
-		assert.Contains(t, err.Error(), "popup-")
+		assert.Contains(t, err.Error(), "CREEM_API_KEY")
 	})
 
-	t.Run("refuses any checkout id without the popup prefix", func(t *testing.T) {
-		for _, path := range []string{
-			"fluxlab/jobber-checkout",
-			"fluxlab/checkout",
-			"fluxlab/jobber-popup-checkout", // the prefix must start the segment
-			"fluxlab/POPUP-jobber",          // FastSpring generates it lowercase
-		} {
-			t.Run(path, func(t *testing.T) {
-				setPaymentsEnv(t)
-				t.Setenv("FASTSPRING_CHECKOUT_PATH", path)
-
-				_, err := Load()
-
-				require.Error(t, err, "path %q must not boot the server", path)
-			})
-		}
-	})
-
-	t.Run("rejects a checkout path that is not exactly storefront-id/checkout-id", func(t *testing.T) {
-		// A typo here would otherwise surface as a failed checkout for a real
-		// buyer; the same whitelist the API client uses runs at startup instead.
-		invalid := map[string]string{
-			"single segment":   "fluxlab",
-			"three segments":   "fluxlab/popup/jobber",
-			"leading slash":    "/fluxlab/popup-jobber",
-			"trailing slash":   "fluxlab/popup-jobber/",
-			"path traversal":   "fluxlab/../accounts",
-			"encoded slash":    "fluxlab/popup%2Fjobber",
-			"query smuggling":  "fluxlab/popup-jobber?x=1",
-			"spaces":           "flux lab/popup jobber",
-			"empty segment":    "fluxlab//popup-jobber",
-			"only a separator": "/",
-		}
-
-		for name, path := range invalid {
-			t.Run(name, func(t *testing.T) {
-				setPaymentsEnv(t)
-				t.Setenv("FASTSPRING_CHECKOUT_PATH", path)
-
-				_, err := Load()
-
-				require.Error(t, err, "path %q must not boot the server", path)
-				assert.Contains(t, err.Error(), "FASTSPRING_CHECKOUT_PATH")
-			})
-		}
-	})
-
-	t.Run("an unset checkout path is still refused when payments are on", func(t *testing.T) {
-		setPaymentsEnv(t)
-		t.Setenv("FASTSPRING_CHECKOUT_PATH", "")
-
-		_, err := Load()
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "FASTSPRING_CHECKOUT_PATH")
-	})
-
-	t.Run("a bad checkout path is ignored while payments are off", func(t *testing.T) {
+	t.Run("a missing API key is ignored while payments are off", func(t *testing.T) {
 		setMinimalEnv(t)
-		t.Setenv("FASTSPRING_CHECKOUT_PATH", "nonsense//path")
 
 		_, err := Load()
 
 		require.NoError(t, err, "billing config is only validated when billing is on")
 	})
 
-	t.Run("refuses to start with webhook ingestion on and no secret", func(t *testing.T) {
-		// A server that boots without the secret answers every delivery with a
-		// rejection: it looks healthy while dropping renewals and cancellations.
+	t.Run("refuses to start with payments on and nothing to sell", func(t *testing.T) {
 		setPaymentsEnv(t)
-		t.Setenv("FASTSPRING_WEBHOOK_SECRET", "")
+		t.Setenv("CREEM_PRO_PRODUCT_ID", "")
+		t.Setenv("CREEM_ENTERPRISE_PRODUCT_ID", "")
 
 		_, err := Load()
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "FASTSPRING_WEBHOOK_SECRET")
+		assert.Contains(t, err.Error(), "CREEM_PRO_PRODUCT_ID")
+	})
+
+	t.Run("one product is enough", func(t *testing.T) {
+		setPaymentsEnv(t)
+		t.Setenv("CREEM_ENTERPRISE_PRODUCT_ID", "")
+
+		_, err := Load()
+
+		require.NoError(t, err)
+	})
+
+	t.Run("refuses to start with webhook ingestion on and no secret", func(t *testing.T) {
+		// A server that boots without the secret answers every delivery with a
+		// rejection: it looks healthy while dropping renewals and cancellations.
+		setPaymentsEnv(t)
+		t.Setenv("CREEM_WEBHOOK_SECRET", "")
+
+		_, err := Load()
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "CREEM_WEBHOOK_SECRET")
 	})
 
 	t.Run("webhook ingestion follows payments by default", func(t *testing.T) {
@@ -719,7 +678,7 @@ func TestLoad_BillingGuards(t *testing.T) {
 	})
 
 	t.Run("local billing-off startup needs no billing config at all", func(t *testing.T) {
-		// The default developer setup: no FastSpring credentials, no secret.
+		// The default developer setup: no Creem credentials, no secret.
 		setMinimalEnv(t)
 
 		cfg, err := Load()
@@ -735,7 +694,7 @@ func TestLoad_BillingGuards(t *testing.T) {
 		setMinimalEnv(t)
 		t.Setenv("FEATURE_PAYMENTS_ENABLED", "false")
 		t.Setenv("FEATURE_BILLING_WEBHOOK_ENABLED", "true")
-		t.Setenv("FASTSPRING_WEBHOOK_SECRET", "webhook-secret")
+		t.Setenv("CREEM_WEBHOOK_SECRET", "webhook-secret")
 
 		cfg, err := Load()
 
@@ -746,11 +705,31 @@ func TestLoad_BillingGuards(t *testing.T) {
 
 	t.Run("rejects an environment that is neither test nor live", func(t *testing.T) {
 		setMinimalEnv(t)
-		t.Setenv("FASTSPRING_ENVIRONMENT", "sandbox")
+		t.Setenv("CREEM_ENVIRONMENT", "sandbox")
 
 		_, err := Load()
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "FASTSPRING_ENVIRONMENT")
+		assert.Contains(t, err.Error(), "CREEM_ENVIRONMENT")
 	})
+}
+
+func TestConfig_IgnoresLiveBilling(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  Config
+		want bool
+	}{
+		{name: "production on test with payments on", cfg: Config{Server: ServerConfig{Env: "production"}, Creem: CreemConfig{Environment: "test"}, Features: FeaturesConfig{PaymentsEnabled: true}}, want: true},
+		{name: "production on test with only webhook ingestion on", cfg: Config{Server: ServerConfig{Env: "production"}, Creem: CreemConfig{Environment: "test"}, Features: FeaturesConfig{BillingWebhookEnabled: true}}, want: true},
+		{name: "production on live", cfg: Config{Server: ServerConfig{Env: "production"}, Creem: CreemConfig{Environment: "live"}, Features: FeaturesConfig{PaymentsEnabled: true}}},
+		{name: "production on test with billing off", cfg: Config{Server: ServerConfig{Env: "production"}, Creem: CreemConfig{Environment: "test"}}},
+		{name: "development on test", cfg: Config{Server: ServerConfig{Env: "development"}, Creem: CreemConfig{Environment: "test"}, Features: FeaturesConfig{PaymentsEnabled: true}}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.cfg.IgnoresLiveBilling())
+		})
+	}
 }

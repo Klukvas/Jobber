@@ -6,56 +6,24 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/andreypavlenko/jobber/modules/subscriptions/fastspring"
+	"github.com/andreypavlenko/jobber/modules/subscriptions/creem"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
+	"github.com/google/uuid"
 )
 
-// EventOutcome records what happened to one event in a webhook batch, so the
-// HTTP layer can log it without the service needing a logger.
-type EventOutcome struct {
+// WebhookResult describes what happened to one delivery, so the HTTP layer can
+// log it without the service needing a logger.
+type WebhookResult struct {
 	EventID   string
 	EventType string
-	Err       error
+	// Skipped is the reason the event was acknowledged without changing anything,
+	// or nil when it was applied.
+	Skipped error
 }
 
-// WebhookResult summarises a processed batch.
-//
-// FastSpring acknowledges a batch with HTTP 200 (all events processed) or
-// HTTP 202 plus the processed event IDs, one per line.
-//
-// https://developer.fastspring.com/docs/processed-and-unprocessed-webhook-events
-type WebhookResult struct {
-	// Processed lists every event FastSpring should stop redelivering: handled
-	// successfully, an already-seen duplicate, or deliberately not actionable.
-	Processed []string
-	// Failed lists events that must be retried.
-	Failed []EventOutcome
-	// Skipped lists events that were acknowledged without touching the database.
-	Skipped []EventOutcome
-	// Received counts every event in the batch, including ones acknowledged
-	// without an ID to report back.
-	Received int
-}
-
-// AllProcessed reports whether every event in the batch can be acknowledged.
-func (r WebhookResult) AllProcessed() bool { return len(r.Failed) == 0 }
-
-// Total returns the number of events in the batch.
-func (r WebhookResult) Total() int { return r.Received }
-
-// acknowledge records an event as processed. An event with no ID cannot be
-// named in the 202 body, so it is counted but never reported as an empty ID.
-func (r *WebhookResult) acknowledge(eventID string) {
-	if eventID != "" {
-		r.Processed = append(r.Processed, eventID)
-	}
-}
-
-// skip acknowledges an event that was deliberately not applied.
-func (r *WebhookResult) skip(outcome EventOutcome) {
-	r.Skipped = append(r.Skipped, outcome)
-	r.acknowledge(outcome.EventID)
-}
+// ErrEventFailed marks a delivery that must be retried: nothing was claimed and
+// nothing was written, so the redelivery gets a clean run. The cause is wrapped.
+var ErrEventFailed = errors.New("billing event failed and must be retried")
 
 // ErrEnvironmentMismatch marks a test event received by a live deployment (or
 // vice versa). It is acknowledged, never applied: retrying could not change the
@@ -66,265 +34,199 @@ func (r *WebhookResult) skip(outcome EventOutcome) {
 // HTTP layer reports it louder than an ordinary skip.
 var ErrEnvironmentMismatch = errors.New("event environment does not match the configured billing environment")
 
-// ErrTaggedOwnerConflict marks an event whose order tag names a user who
-// already holds a *different*, still-billing provider subscription.
-//
-// Jobber writes the tag only for a first checkout, and refuses to open one for a
-// user who already pays — so a proven tag naming such a user did not come from
-// that flow. Its owner can replay their own proof onto a storefront purchase
-// Jobber never brokered, which is exactly what this refuses: the row carries a
-// single external_subscription_id, and overwriting it would leave the
-// subscription that user actually pays for billing at FastSpring with nothing in
-// Jobber pointing at it. The event is acknowledged rather than retried — no
-// redelivery could make it safe — and it is exported because a tag that
-// contradicts the row is worth looking at, not routine.
-var ErrTaggedOwnerConflict = errors.New("order tag names a user who already holds another provider subscription")
-
 // ErrSubscriptionLinkConflict marks an event that would repoint a user's row at
 // a provider subscription other than the still-billing one it already names.
 //
 // The row carries a single external_subscription_id. Replacing it while the old
-// subscription is alive would leave that subscription billing at FastSpring with
+// subscription is alive would leave that subscription billing at Creem with
 // nothing in Jobber able to cancel it, so the write refuses — atomically, under
-// the row lock, whichever hop resolved the owner. ErrTaggedOwnerConflict is the
-// same invariant caught one step earlier and with a sharper diagnosis, on the
-// one hop whose input a buyer can influence; this is the guard that covers the
-// rest, including two checkouts a user started while free and then both paid.
+// the row lock, whichever hop resolved the owner.
 //
-// The event is acknowledged rather than retried — redelivery cannot make the
-// second subscription fit a row that is already spoken for — and it is exported
-// because it means a subscriber may be paying twice, which is worth waking
-// someone up for.
+// It is retried, not acknowledged. The usual cause is a delayed cancellation of
+// the old subscription, and a redelivery after that lands applies the new one by
+// itself; acknowledging would lose a paying user's new plan for good. When the
+// old subscription really is alive the retries run out after 24 hours and the
+// failure is logged at error each time, which is the signal that somebody may be
+// paying twice.
 var ErrSubscriptionLinkConflict = errors.New("event describes a provider subscription other than the live one linked to this user")
 
-// ErrUnprovenOrderTag marks an event whose order tags name a Jobber user without
-// the proof Jobber's own server mints alongside that name.
+// ErrRefundNeedsReview marks a refund or dispute on this account.
 //
-// Order tags are not a server-only channel: the Store Builder Library exposes
-// `fastspring.builder.tag()`, so any visitor to the shared storefront can attach
-// arbitrary tags to their own order, and the webhook HMAC proves only that
-// FastSpring sent the event — never who authored a tag inside it. Without the
-// proof, a bare user ID is a request, not an identifier, and honouring it would
-// let a stranger's purchase claim someone else's account. See ordertag.go.
-//
-// The event is acknowledged rather than retried: redelivering the same
-// unprovable claim would only ask the same question again. It is exported
-// because on one of Jobber's own products this should never happen by accident —
-// it is either a forged tag or a proof minted under a secret this deployment no
-// longer holds, and both are worth waking someone up for.
-var ErrUnprovenOrderTag = errors.New("order tag names a user without a valid Jobber proof")
-
-// ErrRefundNeedsReview marks a refund or chargeback on this store.
-//
-// Nothing is applied, and that is a decision rather than an omission: the
-// payload names an order, not a subscription, and a refund is not a
-// cancellation — a partial refund leaves the subscription billing normally,
-// and revoking access on one would take a paid plan away from someone who
-// still has it. Ending a subscription because of a refund is a merchant
-// decision, made in the dashboard, which then arrives here as the
-// deactivation it really is.
+// Nothing is applied, and that is a decision rather than an omission: a refund is
+// not a cancellation — a partial refund leaves the subscription billing normally,
+// and revoking access on one would take a paid plan away from someone who still
+// has it. Ending a subscription because of a refund is a merchant decision, made
+// in the dashboard, which then arrives here as the cancellation it really is.
 //
 // What it must not be is invisible. Money left the account, so the event is
-// surfaced instead of being filed with the routine ones nobody reads.
-var ErrRefundNeedsReview = errors.New("a refund was issued in this store and may need a subscription ended by hand")
+// surfaced instead of being filed with the routine ones nobody reads. A downgrade
+// refunds the unused time of the old plan, so expect one of these per downgrade.
+var ErrRefundNeedsReview = errors.New("a refund or dispute was raised on this account and may need a subscription ended by hand")
 
 var (
-	// errEventNotActionable marks an event type Jobber subscribes to but does
-	// not act on.
+	// errEventNotActionable marks an event type Jobber does not act on.
 	errEventNotActionable = errors.New("event type is not actionable")
-	// errForeignBillingAccount marks an event about a FastSpring account that is
-	// not Jobber's. The FluxLab store is shared with the other products sold
-	// from it, and their subscription lifecycle events reach this endpoint too.
-	// Such an event makes no order-tag claim of its own and its account carries
-	// no Jobber lookup key, and no retry could ever make one appear, so it is
-	// acknowledged and dropped rather than redelivered forever.
-	errForeignBillingAccount = errors.New("billing account belongs to another product in the shared store")
+	// errForeignBillingEvent marks an event for a product that is not Jobber's.
+	// The Creem account may sell other products too, and their events reach this
+	// endpoint as well. No retry could ever make one resolvable, so it is
+	// acknowledged and dropped rather than redelivered until Creem gives up.
+	errForeignBillingEvent = errors.New("event belongs to another product on this Creem account")
 	// errEventSuperseded marks a replayed or out-of-order event that does not
-	// describe a change newer than the state already applied. An event carrying
-	// the same `data.changed` counts as superseded: it describes a change that
-	// has already been accounted for, so re-applying it could only undo a
-	// correct write.
+	// describe a state newer than the one already applied.
 	errEventSuperseded = errors.New("event is not newer than the applied subscription state")
 	// errEventDuplicate marks a redelivery of an event that was already applied.
 	errEventDuplicate = errors.New("event was already processed")
 	// errEventMissingID marks an actionable event with no ID. It cannot be
-	// de-duplicated, so it is treated as a malformed delivery and retried
-	// instead of being applied blind.
+	// de-duplicated, so it is treated as a malformed delivery and retried.
 	errEventMissingID = errors.New("actionable event carried no event ID")
 )
 
-// HandleWebhook verifies and processes a FastSpring webhook batch.
+// HandleWebhook verifies and processes one Creem webhook delivery.
 //
 // The signature is checked against the raw body before anything is parsed or
-// written, so an unsigned or forged request can never reach the database.
+// written, so an unsigned or forged request can never reach the database. A
+// rejected signature or an unparseable body returns that error as is; a delivery
+// that has to be retried returns ErrEventFailed.
 //
-// https://developer.fastspring.com/docs/message-security
-// https://developer.fastspring.com/docs/webhooks-overview
+// https://docs.creem.io/code/webhooks
 func (s *SubscriptionService) HandleWebhook(ctx context.Context, body []byte, signature string) (WebhookResult, error) {
-	if err := fastspring.VerifySignature(body, signature, s.cfg.WebhookSecret); err != nil {
+	if err := creem.VerifySignature(body, signature, s.cfg.WebhookSecret); err != nil {
 		return WebhookResult{}, err
 	}
 
-	events, err := fastspring.ParseEvents(body)
+	event, err := creem.ParseEvent(body)
 	if err != nil {
 		return WebhookResult{}, err
 	}
 
-	var result WebhookResult
-	for _, event := range events {
-		s.processEvent(ctx, event, &result)
+	result := WebhookResult{EventID: event.ID, EventType: event.Type}
+	skipped, err := s.processEvent(ctx, event)
+	if err != nil {
+		return result, fmt.Errorf("%w: %w", ErrEventFailed, err)
 	}
+	result.Skipped = skipped
 	return result, nil
 }
 
-// processEvent runs one event through the environment guard and its handler,
-// recording the outcome. De-duplication is not a step here: it happens inside
-// the handler's single atomic write, together with the state change.
-func (s *SubscriptionService) processEvent(ctx context.Context, event fastspring.Event, result *WebhookResult) {
-	result.Received++
-	outcome := EventOutcome{EventID: event.ID, EventType: event.Type}
-
-	if event.Live != s.cfg.IsLive() {
-		outcome.Err = ErrEnvironmentMismatch
-		result.skip(outcome)
-		return
+// processEvent routes one event to its handler. It returns the reason the event
+// was acknowledged without changes (nil when it was applied), or an error when it
+// has to be retried. De-duplication is not a step here: it happens inside the
+// handler's single atomic write, together with the state change.
+func (s *SubscriptionService) processEvent(ctx context.Context, event creem.Event) (skipped, failure error) {
+	apply := s.handlerFor(event.Type)
+	if apply == nil {
+		return notActionableReason(event.Type), nil
 	}
-
-	handle := s.handlerFor(event.Type)
-	if handle == nil {
-		outcome.Err = notActionableReason(event.Type)
-		result.skip(outcome)
-		return
-	}
-
 	// An actionable event without an ID cannot be claimed, so applying it would
-	// give up idempotency entirely. Fail it instead: nothing is written and the
-	// provider redelivers.
+	// give up idempotency entirely. Fail it instead: nothing is written and Creem
+	// redelivers.
 	if event.ID == "" {
-		outcome.Err = errEventMissingID
-		result.Failed = append(result.Failed, outcome)
-		return
+		return nil, errEventMissingID
 	}
 
-	err := handle(ctx, event)
+	err := apply(ctx, event)
 	switch {
 	case err == nil:
-		result.acknowledge(event.ID)
-	case errors.Is(err, errEventDuplicate):
-		// Already applied under this ID; acknowledging stops the redelivery.
-		outcome.Err = err
-		result.skip(outcome)
-	case errors.Is(err, errEventSuperseded):
-		// The newer state already stands and the event is recorded as processed
-		// by the same statement, so acknowledging stops pointless retries.
-		outcome.Err = err
-		result.skip(outcome)
-	case errors.Is(err, ErrTaggedOwnerConflict), errors.Is(err, ErrUnprovenOrderTag),
-		errors.Is(err, ErrSubscriptionLinkConflict), errors.Is(err, model.ErrBillingAccountTaken):
-		// The event either cannot be shown to be ours or contradicts the row it
-		// names. A retry would only ask the same question again, so
-		// acknowledging drops the event; the handler logs all four loudly.
-		outcome.Err = err
-		result.skip(outcome)
-	case errors.Is(err, errForeignBillingAccount):
-		// Another product's subscription in the shared store. Nothing in Jobber
-		// will ever own it, so acknowledging is the only way to stop FastSpring
-		// redelivering it for good.
-		outcome.Err = err
-		result.skip(outcome)
+		return nil, nil
+	case isAcknowledgedSkip(err):
+		return err, nil
 	default:
-		// Nothing was claimed and nothing was written, so the retry gets a clean
-		// run at the event.
-		outcome.Err = err
-		result.Failed = append(result.Failed, outcome)
+		return nil, err
 	}
 }
 
-// notActionableReason says why an event Jobber subscribes to is not acted on,
-// so the one that is worth a person's attention is not filed with the routine
-// ones. Everything else is ordinary: an order completing says nothing the
-// subscription events have not already said.
+// isAcknowledgedSkip reports whether an outcome means "done, stop redelivering":
+// routine duplicates and replays, and the collisions no retry can resolve.
+func isAcknowledgedSkip(err error) bool {
+	return errors.Is(err, errEventDuplicate) ||
+		errors.Is(err, errEventSuperseded) ||
+		errors.Is(err, errForeignBillingEvent) ||
+		errors.Is(err, errEventNotActionable) ||
+		errors.Is(err, ErrEnvironmentMismatch) ||
+		errors.Is(err, model.ErrBillingAccountTaken)
+}
+
+// notActionableReason says why an event is not acted on, so the one that is worth
+// a person's attention is not filed with the routine ones.
 func notActionableReason(eventType string) error {
-	if eventType == fastspring.EventReturnCreated {
+	switch eventType {
+	case creem.EventRefundCreated, creem.EventDisputeCreated:
 		return ErrRefundNeedsReview
+	default:
+		return errEventNotActionable
 	}
-	return errEventNotActionable
 }
 
-// SkipReport turns the reason an event was acknowledged without changes into
-// the line to log for it, and says whether it is worth a person's attention.
-//
-// It lives beside the sentinels rather than in the HTTP handler because two
-// callers need the same judgement: the webhook endpoint and the reconciliation
-// sweep. When only the endpoint classified them, an event recovered by a sweep
-// — a refund, a forged tag, a subscriber paying twice — was reported as a bare
-// count and nothing else, which quietly undid the point of distinguishing them.
-//
-// Most skips are routine: a duplicate, a replay, an event type Jobber does not
-// act on, or another product's subscription in the shared store. The ones that
-// are not each mean something a person has to look at.
-func SkipReport(err error) (message string, needsAttention bool) {
+// SkipSeverity says how loudly an acknowledged-but-unapplied event is reported.
+type SkipSeverity int
+
+const (
+	// SkipRoutine is noise by design: a duplicate, a replay, an event type Jobber
+	// does not act on, another product's event.
+	SkipRoutine SkipSeverity = iota
+	// SkipNeedsReview did nothing wrong but a person should look: money moved and
+	// no subscription did.
+	SkipNeedsReview
+	// SkipLostEvent was dropped for good and will not be redelivered, so nothing
+	// but this report will ever say that a paying user may be on the wrong plan.
+	SkipLostEvent
+)
+
+// SkipReport turns the reason an event was acknowledged without changes into the
+// line to log for it and how loudly to log it.
+func SkipReport(err error) (message string, severity SkipSeverity) {
 	switch {
 	case errors.Is(err, ErrEnvironmentMismatch):
 		// This deployment is pointed at the wrong billing environment, and
 		// acknowledging loses the event for good.
-		return "Billing event dropped: environment mismatch", true
-	case errors.Is(err, ErrUnprovenOrderTag):
-		// Either a forged tag or a proof minted under a secret this deployment
-		// no longer holds. Never a normal purchase.
-		return "Billing event dropped: order tag names a user it cannot prove", true
-	case errors.Is(err, ErrTaggedOwnerConflict):
-		// An order claimed a user who is already paying for a different
-		// subscription, which a legitimate first checkout cannot produce.
-		return "Billing event dropped: order tag contradicts the subscription it names", true
-	case errors.Is(err, ErrSubscriptionLinkConflict):
-		// Somebody may be paying twice with only one of the two cancellable
-		// from Jobber.
-		return "Billing event dropped: user is already linked to another live subscription", true
+		return "Billing event dropped: environment mismatch", SkipLostEvent
 	case errors.Is(err, model.ErrBillingAccountTaken):
-		// Two local users behind one provider billing account; only a person
-		// can decide which one the purchase belongs to.
-		return "Billing event dropped: provider account is already linked to another user", true
+		// Two local users behind one provider customer; only a person can decide
+		// which one the purchase belongs to, and until then a paid purchase grants
+		// nothing.
+		return "Billing event dropped: provider customer is already linked to another user", SkipLostEvent
 	case errors.Is(err, ErrRefundNeedsReview):
-		// Nothing was dropped and nothing was wrong, but money left the account
-		// and no subscription moved because of it.
-		return "Billing refund observed in the shared store, no subscription changed by it", true
+		return "Billing refund or dispute observed, no subscription changed by it", SkipNeedsReview
 	default:
-		return "Billing event acknowledged without changes", false
+		return "Billing event acknowledged without changes", SkipRoutine
 	}
 }
 
-type eventHandler func(ctx context.Context, event fastspring.Event) error
+type eventHandler func(ctx context.Context, event creem.Event) error
 
 // handlerFor returns the handler for an event type, or nil when Jobber does not
 // act on it.
 //
-// order.completed is deliberately not actionable: entitlement is driven by the
-// subscription lifecycle events, which carry the account ID used to resolve the
-// buyer. Acting on the order too would duplicate the grant and race with
-// subscription.activated.
+// subscription.expired is deliberately absent: Creem's webhook reference keeps
+// the status `active` while it retries the charge, and says the subscription is
+// only over once a subscription.canceled follows. Its other pages describe expiry
+// as revoking access, so this is a go-live checklist item (ADR-0003).
 func (s *SubscriptionService) handlerFor(eventType string) eventHandler {
 	switch eventType {
-	case fastspring.EventSubscriptionActivated,
-		fastspring.EventSubscriptionUpdated,
-		fastspring.EventSubscriptionUncanceled,
-		fastspring.EventSubscriptionCanceled,
-		fastspring.EventSubscriptionDeactivated,
-		fastspring.EventSubscriptionPaused,
-		fastspring.EventSubscriptionResumed,
-		fastspring.EventSubscriptionChargeCompleted,
-		fastspring.EventSubscriptionChargeFailed,
-		fastspring.EventSubscriptionPaymentOverdue:
+	case creem.EventSubscriptionActive,
+		creem.EventSubscriptionPaid,
+		creem.EventSubscriptionUpdate,
+		creem.EventSubscriptionTrialing,
+		creem.EventSubscriptionPaused,
+		creem.EventSubscriptionScheduledCancel,
+		creem.EventSubscriptionCanceled,
+		creem.EventSubscriptionPastDue,
+		creem.EventSubscriptionUnpaid:
 		return s.applySubscriptionEvent
+	case creem.EventCheckoutCompleted:
+		return s.linkCompletedCheckout
 	default:
 		return nil
 	}
 }
 
 // applySubscriptionEvent maps a subscription lifecycle event onto the local row.
-func (s *SubscriptionService) applySubscriptionEvent(ctx context.Context, event fastspring.Event) error {
-	incoming, err := fastspring.ParseSubscription(event.Data)
+func (s *SubscriptionService) applySubscriptionEvent(ctx context.Context, event creem.Event) error {
+	incoming, err := creem.ParseSubscription(event.Object)
 	if err != nil {
+		return err
+	}
+	if err := s.checkEnvironment(incoming.HasMode, incoming.IsLive); err != nil {
 		return err
 	}
 
@@ -333,30 +235,58 @@ func (s *SubscriptionService) applySubscriptionEvent(ctx context.Context, event 
 		return err
 	}
 
-	status, err := statusForEvent(event.Type, incoming)
+	status, plan, err := s.entitlementFor(incoming)
 	if err != nil {
 		return err
 	}
 
-	plan := PlanFree
-	if status != StatusCancelled {
-		// An unrecognised product must never grant paid access. Failing here
-		// makes FastSpring retry, so a mis-typed product path can be corrected
-		// without losing the customer's purchase.
-		if plan, err = s.planForProductPath(incoming.ProductPath); err != nil {
-			return err
-		}
+	updated := buildSubscriptionUpdate(existing, incoming, status, plan, lifecycleTime(event, incoming))
+
+	// One statement claims the event and writes the state, so a failure can never
+	// record the event as processed while losing what it carried.
+	outcome, err := s.repo.ApplySubscriptionEvent(ctx, event.ID, event.Type, updated)
+	if err != nil {
+		return fmt.Errorf("failed to apply subscription event: %w", err)
+	}
+	return outcomeError(outcome, existing.UserID, incoming.ID, *updated.LastEventAt)
+}
+
+// entitlementFor decides the status and plan an event grants.
+func (s *SubscriptionService) entitlementFor(incoming *creem.Subscription) (status, plan string, err error) {
+	status, err = statusForSubscription(incoming)
+	if err != nil {
+		return "", "", err
+	}
+	if status == StatusCancelled {
+		// Ending access consults no product, so a catalog mistake can never keep
+		// someone subscribed.
+		return status, PlanFree, nil
 	}
 
-	// FastSpring reports `begin` (subscription start) and `next` (next charge
-	// date) rather than an explicit current period; `next` is what the UI shows
-	// as the renewal date. An ended subscription has no current period at all.
-	periodStart, periodEnd := incoming.Begin, incoming.Next
+	// An unrecognised product must never grant paid access. Failing here makes
+	// Creem retry, so a mis-typed product ID can be corrected without losing the
+	// customer's purchase.
+	plan, err = s.planForProductID(incoming.ProductID)
+	if err != nil {
+		return "", "", err
+	}
+	return status, plan, nil
+}
+
+// buildSubscriptionUpdate assembles the row the atomic write applies.
+//
+// A field the payload omits keeps its stored value: some Creem samples carry no
+// period dates, and writing them as nil would erase the renewal date the UI shows.
+// An ended subscription has no current period at all.
+func buildSubscriptionUpdate(
+	existing *model.Subscription, incoming *creem.Subscription, status, plan string, eventAt time.Time,
+) *model.Subscription {
+	periodStart := firstTime(incoming.CurrentPeriodStart, existing.CurrentPeriodStart)
+	periodEnd := firstTime(incoming.CurrentPeriodEnd, existing.CurrentPeriodEnd)
 	if status == StatusCancelled {
 		periodStart, periodEnd = nil, nil
 	}
 
-	eventAt := lifecycleTime(event, incoming)
 	updated := &model.Subscription{
 		UserID:                 existing.UserID,
 		ExternalSubscriptionID: &incoming.ID,
@@ -365,278 +295,197 @@ func (s *SubscriptionService) applySubscriptionEvent(ctx context.Context, event 
 		Plan:                   plan,
 		CurrentPeriodStart:     periodStart,
 		CurrentPeriodEnd:       periodEnd,
-		CancelAt:               pendingCancelAt(status, incoming),
+		CancelAt:               pendingCancelAt(status, incoming, periodEnd),
 		LastEventAt:            &eventAt,
 	}
-	if incoming.AccountID != "" {
-		updated.ExternalAccountID = &incoming.AccountID
+	if incoming.CustomerID != "" {
+		updated.ExternalAccountID = &incoming.CustomerID
 	}
+	return updated
+}
 
-	// One statement claims the event and writes the state, so a failure can
-	// never record the event as processed while losing what it carried.
-	outcome, err := s.repo.ApplySubscriptionEvent(ctx, event.ID, event.Type, updated)
-	if err != nil {
-		return fmt.Errorf("failed to apply subscription event: %w", err)
+func firstTime(preferred, fallback *time.Time) *time.Time {
+	if preferred != nil {
+		return preferred
 	}
+	return fallback
+}
+
+// outcomeError translates what the atomic write did into the error (or nil) the
+// pipeline classifies.
+func outcomeError(outcome model.WebhookApplyOutcome, userID, subscriptionID string, eventAt time.Time) error {
 	switch outcome {
 	case model.WebhookDuplicate:
 		return errEventDuplicate
 	case model.WebhookSuperseded:
 		return fmt.Errorf("%w (event changed at %s)", errEventSuperseded, eventAt.Format(time.RFC3339))
 	case model.WebhookAccountConflict:
-		// Two local users behind one provider billing account. Nothing was
-		// written; a person has to decide which account the buyer meant.
+		// Two local users behind one provider customer. Nothing was written; a
+		// person has to decide which one the buyer meant.
 		return fmt.Errorf("%w: user %q, event carries subscription %q",
-			model.ErrBillingAccountTaken, existing.UserID, incoming.ID)
+			model.ErrBillingAccountTaken, userID, subscriptionID)
 	case model.WebhookLinkConflict:
 		// Deliberately not the subscription the row holds: that value was read
 		// before the write refused, so reporting it could name state that has
 		// since moved on. What is certain is the user and the event.
-		return fmt.Errorf("%w: user %q, event carries %q",
-			ErrSubscriptionLinkConflict, existing.UserID, incoming.ID)
+		return fmt.Errorf("%w: user %q, event carries %q", ErrSubscriptionLinkConflict, userID, subscriptionID)
 	default:
 		return nil
 	}
 }
 
-// lifecycleTime is the moment the provider says the subscription changed, which
-// is what orders lifecycle events against each other.
+// linkCompletedCheckout records which Creem customer a finished checkout belongs
+// to, using the user ID Jobber put in the checkout's metadata.
 //
-// The envelope's `created` is only a fallback for payloads that carry no
-// `changed` (the charge events). A manual resend arrives in a fresh envelope —
-// new event ID, new `created` — while still describing the original change, so
-// ordering on the envelope would let stale state overwrite newer state.
-func lifecycleTime(event fastspring.Event, sub *fastspring.Subscription) time.Time {
-	if sub.ChangedAt != nil {
-		return *sub.ChangedAt
+// It grants nothing — entitlement comes from the subscription events alone — but
+// it gives later events a second way to find the row (the customer), for the case
+// where one of them arrives without the metadata. It is idempotent, so it needs
+// no event claim.
+func (s *SubscriptionService) linkCompletedCheckout(ctx context.Context, event creem.Event) error {
+	checkout, err := creem.ParseCompletedCheckout(event.Object)
+	if err != nil {
+		return err
+	}
+	if err := s.checkEnvironment(checkout.HasMode, checkout.IsLive); err != nil {
+		return err
+	}
+
+	userID, hasUser := userIDFromMetadata(checkout.Metadata)
+	if !hasUser || !s.isOwnProduct(checkout.ProductID) {
+		return errForeignBillingEvent
+	}
+	if checkout.CustomerID == "" {
+		return errEventNotActionable
+	}
+
+	return s.repo.LinkExternalAccount(ctx, userID, checkout.CustomerID)
+}
+
+// checkEnvironment refuses an object from the other billing mode. A payload with
+// no mode at all cannot be placed, so it is let through rather than guessed at.
+func (s *SubscriptionService) checkEnvironment(hasMode, isLive bool) error {
+	if hasMode && isLive != s.cfg.IsLive() {
+		return ErrEnvironmentMismatch
+	}
+	return nil
+}
+
+// isOwnProduct reports whether a product ID is one of Jobber's configured plans.
+func (s *SubscriptionService) isOwnProduct(productID string) bool {
+	_, err := s.planForProductID(productID)
+	return err == nil
+}
+
+// lifecycleTime is the moment the provider says the subscription last changed,
+// which is what orders lifecycle events against each other.
+//
+// The envelope's `created_at` is only a fallback. A manual resend arrives in a
+// fresh envelope — new event ID, new timestamp — while still describing the
+// original state, so ordering on the envelope would let stale state overwrite
+// newer state. The two clocks are not comparable, so a row that has seen both
+// kinds can misorder; the go-live checklist confirms `updated_at` is always set.
+func lifecycleTime(event creem.Event, sub *creem.Subscription) time.Time {
+	if sub.UpdatedAt != nil {
+		return *sub.UpdatedAt
 	}
 	return event.CreatedAt()
 }
 
 // resolveOwner finds the local subscription row a provider event belongs to.
 //
-// The hops, in order: the provider subscription ID already on a row, the proven
-// order tag, the provider account ID already on a row, and the custom lookup key
-// Jobber set on the FastSpring account.
+// The hops, in order: the provider subscription ID already on a row (exact, and
+// what every event after the first resolves on), the user ID Jobber put in the
+// checkout metadata, and the provider customer ID already on a row.
 //
-// Three of them read a value Jobber itself recorded. The order tag is the one
-// whose value arrives *inside* the event, and the payload alone does not say who
-// put it there. The signature proves FastSpring sent the body; it does not prove
-// that Jobber, rather than a visitor using the storefront's own
-// `fastspring.builder.tag()`, wrote the tag. So the tag is accepted only with the
-// MAC that Jobber mints for it, which no unauthenticated buyer can produce — see
-// provenTaggedUserID and ordertag.go.
+// The product is checked before the customer hop only. The metadata names a user
+// that Jobber's own server wrote at checkout creation, so it stands for a
+// purchase of ours even when the product IDs were reconfigured since (that case
+// then fails and is retried, rather than being dropped). The customer hop
+// identifies a *person*, not a purchase: without the check, another product sold
+// to a customer who is already linked here would resolve to that user and be
+// applied, or retried for a day, as if it were theirs.
 //
-// # Why the tag outranks the account
-//
-// Once it has passed that MAC, the tag is the *strongest* evidence in the
-// payload, and the only evidence bound to this one order: it names the user
-// whose authenticated session created this checkout, and nothing else. The
-// account ID is weaker on both counts. It is recorded per *buyer*, not per
-// order, and FastSpring reuses one account across purchases made with the same
-// contact — so two local users who share an email can end up behind one account,
-// and the account hop would then hand one user's purchase to the other. The
-// subscription ID (hop 1) stays above the tag because it is exact and is what
-// every event after the first resolves on.
-//
-// The tag also runs before *any* account handling, including the guard for an
-// event that carries no account at all. That guard used to sit above it, which
-// made the one hop designed to link a first purchase unreachable for exactly the
-// payloads most likely to need it. Resolving off the payload alone also keeps
-// the grant independent of a second API call that could be down when the
-// purchase lands.
-func (s *SubscriptionService) resolveOwner(ctx context.Context, incoming *fastspring.Subscription) (*model.Subscription, error) {
-	if incoming.ID != "" {
-		sub, err := s.repo.GetByExternalSubscriptionID(ctx, incoming.ID)
-		if err == nil {
-			return sub, nil
-		}
-		if !errors.Is(err, model.ErrSubscriptionNotFound) {
-			return nil, err
-		}
-	}
-
-	userID, err := s.provenTaggedUserID(incoming)
-	if err != nil {
-		return nil, err
-	}
-	if userID != "" {
-		return s.resolveOwnerByOrderTag(ctx, incoming, userID)
-	}
-
-	// No account to read and no tag that named anyone: nothing identifies this
-	// event yet. Retryable rather than foreign — a payload shape that hid the
-	// account is our bug to fix, not somebody else's customer.
-	if incoming.AccountID == "" {
-		return nil, fmt.Errorf("cannot resolve subscription %q: %w", incoming.ID, model.ErrSubscriptionNotFound)
-	}
-
-	sub, err := s.repo.GetByExternalAccountID(ctx, incoming.AccountID)
+// An event that identifies nobody is retryable: a payload for our own product that
+// we failed to place is our bug to fix, and checkout.completed may still be on its
+// way to supply the missing link.
+func (s *SubscriptionService) resolveOwner(ctx context.Context, incoming *creem.Subscription) (*model.Subscription, error) {
+	sub, err := s.repo.GetByExternalSubscriptionID(ctx, incoming.ID)
 	if err == nil {
 		return sub, nil
 	}
 	if !errors.Is(err, model.ErrSubscriptionNotFound) {
-		return nil, err
+		return nil, fmt.Errorf("failed to look up subscription %q: %w", incoming.ID, err)
 	}
 
-	return s.resolveOwnerByLookupKey(ctx, incoming.AccountID)
+	if userID, ok := userIDFromMetadata(incoming.Metadata); ok {
+		sub, err := s.repo.GetByUserID(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load the user named by subscription %q: %w", incoming.ID, err)
+		}
+		return sub, nil
+	}
+
+	if !s.isOwnProduct(incoming.ProductID) {
+		return nil, errForeignBillingEvent
+	}
+
+	if incoming.CustomerID != "" {
+		sub, err := s.repo.GetByExternalAccountID(ctx, incoming.CustomerID)
+		if err == nil {
+			return sub, nil
+		}
+		if !errors.Is(err, model.ErrSubscriptionNotFound) {
+			return nil, fmt.Errorf("failed to look up customer of subscription %q: %w", incoming.ID, err)
+		}
+	}
+
+	return nil, fmt.Errorf("cannot resolve subscription %q: %w", incoming.ID, model.ErrSubscriptionNotFound)
 }
 
-// provenTaggedUserID reads the owning user out of the event's own order tags,
-// but only where the claim is both ours to act on and provably ours to begin
-// with. Two gates, and the order matters:
-//
-//   - the event must be for one of Jobber's own catalog products. The FluxLab
-//     store sells more than Jobber, and a purchase of someone else's product must
-//     never claim a Jobber user however its order is tagged. Checked first, so a
-//     foreign product's tags are not read at all.
-//   - the claim must carry a proof that verifies against this deployment's
-//     secret for exactly the user ID it names. Anyone can write the ID —
-//     `fastspring.builder.tag()` is part of the storefront's own client library —
-//     but only Jobber's server can write the MAC over it.
-//
-// An event that makes no claim (no user tag) returns "" and falls through to the
-// account lookup key, which is where every foreign order in the shared store
-// ends up. A claim that fails the proof does not fall through: it returns
-// ErrUnprovenOrderTag, because an event for a Jobber product naming a Jobber user
-// that Jobber cannot show it wrote is an integrity anomaly, not a routine miss.
-func (s *SubscriptionService) provenTaggedUserID(incoming *fastspring.Subscription) (string, error) {
-	if _, err := s.planForProductPath(incoming.ProductPath); err != nil {
-		return "", nil
-	}
-	return provenOrderTagUserID(s.cfg.WebhookSecret, incoming.Tags)
-}
-
-// resolveOwnerByOrderTag loads the row a proven order tag names, refusing to
-// hand the event to a user who is already paying for a different subscription.
-//
-// The tag is written once per checkout and a user holding a live subscription
-// cannot start another one, so a row that already has one contradicts the tag.
-// Applying the event anyway would overwrite the row's single
-// external_subscription_id and strand the one that user actually pays for, so
-// the conflict is reported instead — acknowledged, never applied.
-//
-// This guard survives the proof: a buyer can replay their own proof onto a
-// storefront purchase Jobber never brokered, and this is what stops that
-// purchase from repointing a subscription they are already paying for.
-//
-// It is a diagnosis, not the invariant. The invariant itself lives in the
-// atomic write, which refuses the same replacement under a row lock for every
-// hop — this read cannot, because the row it checks could change before the
-// write lands. What the hop adds is the name of the suspicious input: an order
-// tag contradicting the row it names is an integrity signal about the tag
-// channel, and it is worth telling apart from a link conflict Jobber's own
-// flows produced.
-//
-// A tag naming a user with no row at all stays retryable, exactly like a Jobber
-// lookup key whose user row is missing: that is a link to repair, not somebody
-// else's customer.
-func (s *SubscriptionService) resolveOwnerByOrderTag(
-	ctx context.Context, incoming *fastspring.Subscription, userID string,
-) (*model.Subscription, error) {
-	sub, err := s.repo.GetByUserID(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	if holdsLiveProviderSubscription(sub) {
-		return nil, fmt.Errorf("%w: user %q holds %q, event carries %q",
-			ErrTaggedOwnerConflict, userID, *sub.ExternalSubscriptionID, incoming.ID)
-	}
-	return sub, nil
-}
-
-// resolveOwnerByLookupKey is the last hop: it reads back the custom lookup key
-// FastSpring stored from the session's external account ID and decodes the user
-// ID from it. For this store that key is absent — the observed account carries a
-// `lookup` holding only `global` — so in practice the hop resolves nothing and
-// exists for the day the field is populated.
-//
-// It is also the last word on whether a purchase is foreign. The store is shared
-// with the other products sold from the FluxLab account, so their subscription
-// events arrive here as well; an event that made no order-tag claim *and* whose
-// account carries no Jobber lookup key is one of theirs, and is reported
-// as errForeignBillingAccount — acknowledged rather than retried. The two
-// failure modes around it stay retryable on purpose: a GetAccount error is
-// transient, and a Jobber key whose user row is missing is a link to repair, not
-// someone else's customer.
-//
-// https://developer.fastspring.com/reference/retrieve-an-account
-func (s *SubscriptionService) resolveOwnerByLookupKey(ctx context.Context, accountID string) (*model.Subscription, error) {
-	account, err := s.billing.GetAccount(ctx, accountID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to look up billing account %q: %w", accountID, err)
-	}
-
-	userID, ok := userIDFromLookupKey(account.Lookup.Custom)
+// userIDFromMetadata reads the Jobber user ID out of checkout metadata. Anything
+// that is not a well-formed UUID is treated as absent, so a malformed value can
+// never reach a query.
+func userIDFromMetadata(metadata map[string]string) (string, bool) {
+	raw, ok := metadata[metadataUserIDKey]
 	if !ok {
-		return nil, fmt.Errorf("billing account %q carries no Jobber lookup key: %w", accountID, errForeignBillingAccount)
+		return "", false
 	}
-	return s.repo.GetByUserID(ctx, userID)
+	parsed, err := uuid.Parse(raw)
+	if err != nil {
+		return "", false
+	}
+	return parsed.String(), true
 }
 
-// statusForEvent maps a provider state onto an internal status.
+// statusForSubscription maps a Creem subscription status onto an internal one.
 //
-// The rules are ordered, and the order is the contract:
-//  1. `deactivated` ends access, whatever the event says;
-//  2. an explicit pause/resume beats the payload's `active` flag, because
-//     FastSpring reports a paused subscription as inactive and a pause is not
-//     a cancellation;
-//  3. only then does a generic `active: false` cancel;
-//  4. dunning notices downgrade an otherwise active subscription to past due.
-func statusForEvent(eventType string, sub *fastspring.Subscription) (string, error) {
-	// Deactivation wins over everything: a subscription the provider reports as
-	// deactivated must never be revived by a late payment notice or a replay.
-	if sub.State == fastspring.StateDeactivated {
-		return StatusCancelled, nil
-	}
-
-	switch eventType {
-	// A pause suspends billing, so paid access stops even if the payload's state
-	// has not caught up yet. It is checked before `active` because FastSpring
-	// reports a paused subscription as `active: false`, and reading that as a
-	// cancellation would strip the remembered plan off the row and lose the
-	// customer's purchase on resume. effectivePlan drops a paused paid plan back
-	// to free limits, so a pause still costs the buyer their paid quotas.
-	case fastspring.EventSubscriptionPaused:
-		return StatusPaused, nil
-	// The mirror image: a resume restores access even if the payload's `active`
-	// flag is still catching up with the un-pause.
-	case fastspring.EventSubscriptionResumed:
+// `scheduled_cancel` keeps access: the subscriber cancelled but has paid through
+// the end of the period. `unpaid` means collection failed for good, so it is
+// treated like a pause — the purchased plan stays on the row, so recovery gives
+// it back, but paid quotas stop. An unrecognised status fails the event rather
+// than guessing.
+func statusForSubscription(sub *creem.Subscription) (string, error) {
+	switch sub.Status {
+	case creem.StatusActive, creem.StatusTrialing, creem.StatusScheduledCancel:
 		return StatusActive, nil
-	}
-
-	// Any other event on a subscription the provider calls inactive is an
-	// ending, not a dunning notice.
-	if sub.Active != nil && !*sub.Active {
-		return StatusCancelled, nil
-	}
-
-	// These events report a billing problem while the provider state is still
-	// active, so the state alone would hide the dunning period.
-	switch eventType {
-	case fastspring.EventSubscriptionPaymentOverdue, fastspring.EventSubscriptionChargeFailed:
+	case creem.StatusPastDue:
 		return StatusPastDue, nil
-	}
-
-	switch sub.State {
-	case fastspring.StateActive, fastspring.StateTrial, fastspring.StateCanceled:
-		// `canceled` means a cancellation is scheduled; access runs to the
-		// deactivation date.
-		return StatusActive, nil
-	case fastspring.StateOverdue:
-		return StatusPastDue, nil
-	case fastspring.StatePaused:
+	case creem.StatusPaused, creem.StatusUnpaid:
 		return StatusPaused, nil
+	case creem.StatusCanceled:
+		return StatusCancelled, nil
 	default:
-		return "", fmt.Errorf("unrecognised subscription state %q", sub.State)
+		return "", fmt.Errorf("unrecognised subscription status %q", sub.Status)
 	}
 }
 
 // pendingCancelAt returns the date access ends, but only while a cancellation is
-// actually scheduled. Any other state clears a previously stored date.
-func pendingCancelAt(status string, sub *fastspring.Subscription) *time.Time {
-	if status == StatusCancelled || sub.State != fastspring.StateCanceled {
+// actually scheduled. Any other status clears a previously stored date. The
+// period end is passed in already merged with the stored one, so a payload that
+// omits it still yields a date instead of a cancellation the UI cannot show.
+func pendingCancelAt(status string, sub *creem.Subscription, periodEnd *time.Time) *time.Time {
+	if status == StatusCancelled || sub.Status != creem.StatusScheduledCancel {
 		return nil
 	}
-	return sub.Deactivation
+	return periodEnd
 }

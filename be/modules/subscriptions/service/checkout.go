@@ -6,51 +6,46 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-	"time"
 
-	"github.com/andreypavlenko/jobber/modules/subscriptions/fastspring"
+	"github.com/andreypavlenko/jobber/modules/subscriptions/creem"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
 )
 
-// accountLookupPrefix namespaces the merchant-owned account key Jobber sets on
-// every FastSpring account. It is sent as the session's
-// `customer.externalAccountId` and read back as the account's `lookup.custom`,
-// which is what makes the webhook fallback work. FastSpring requires an
-// alphanumeric key of at least four characters, so the user UUID travels
-// without its hyphens.
-const accountLookupPrefix = "jobber-"
+// metadataUserIDKey names the checkout metadata entry that carries the local user
+// ID. Creem echoes metadata back on the checkout's webhook events, which is how a
+// first purchase is linked to the user who started it.
+const metadataUserIDKey = "jobber_user_id"
 
-// CreateCheckoutSession creates a FastSpring checkout session for the
-// authenticated user and returns the session id the Store Builder Library popup
-// opens.
+// checkoutSuccessPath is where Creem sends the buyer after paying. The frontend
+// reads the `subscription` parameter (Settings and AppLayout), so the two must
+// agree; Creem appends its own query parameters, which are ignored.
+const checkoutSuccessPath = "/settings?subscription=success"
+
+// CheckoutSuccessURL builds the success_url for a public base URL.
+func CheckoutSuccessURL(publicBaseURL string) string {
+	return strings.TrimRight(publicBaseURL, "/") + checkoutSuccessPath
+}
+
+// CreateCheckoutSession creates a Creem hosted checkout for the authenticated user
+// and returns the URL the browser is sent to.
 //
 // Purchase-to-user linking is entirely server-side:
-//  1. this call sends the user's own contact details, a merchant-owned external
-//     account ID derived from their UUID, and the same UUID as an order tag —
-//     carrying the proof that this server wrote it (see ordertag.go);
-//  2. FastSpring answers with the account ID the session is bound to — but only
-//     for a buyer who already has one. A first-time buyer's account is created
-//     during checkout, so this field comes back empty;
-//  3. whatever account ID did come back is stored on the user's subscription row
-//     (plan untouched), so an abandoned checkout grants nothing;
-//  4. the subscription.activated webhook then resolves the buyer through that
-//     account ID, or — for the first purchase, where there was none to store —
-//     through the order tag, whose proof is what separates the tag this call
-//     wrote from one a storefront visitor wrote for themselves.
+//  1. this call sends the user's own email and name from their record, and their
+//     UUID as checkout metadata. The metadata is written with the API key, and the
+//     hosted checkout page offers the buyer no way to edit it, so unlike an
+//     identifier chosen in the browser it needs no further proof;
+//  2. the subscription.* and checkout.completed webhooks echo that metadata back,
+//     and the webhook handler resolves the owner from it;
+//  3. nothing is granted here — the plan only changes when a webhook lands, so an
+//     abandoned checkout costs nothing.
 //
-// No user identifier is ever accepted from the browser, and no checkout URL
-// goes back to it: the browser receives an opaque session id and hands it to the
-// popup, so there is nothing to navigate to and nothing to tamper with.
+// No user identifier is ever accepted from the browser.
 //
-// https://developer.fastspring.com/reference/sessions-overview
-// https://developer.fastspring.com/reference/createsession
+// https://docs.creem.io/api-reference/endpoint/create-checkout
 func (s *SubscriptionService) CreateCheckoutSession(ctx context.Context, userID, plan string) (*model.CheckoutSessionDTO, error) {
-	productPath, err := s.productPathForPlan(plan)
+	productID, err := s.productIDForPlan(plan)
 	if err != nil {
 		return nil, err
-	}
-	if s.cfg.CheckoutPath == "" {
-		return nil, errors.New("checkout path is not configured")
 	}
 	if err := s.ensureNotAlreadySubscribed(ctx, userID); err != nil {
 		return nil, err
@@ -60,61 +55,34 @@ func (s *SubscriptionService) CreateCheckoutSession(ctx context.Context, userID,
 	if err != nil {
 		return nil, fmt.Errorf("failed to load buyer contact: %w", err)
 	}
-
-	tags, err := orderTags(s.cfg.WebhookSecret, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare checkout session: %w", err)
+	// The webhook that grants the plan writes into this row, so it has to exist.
+	if err := s.repo.EnsureFree(ctx, userID); err != nil {
+		return nil, fmt.Errorf("failed to prepare subscription row: %w", err)
 	}
 
-	first, last := contact.FirstLast()
-	session, err := s.billing.CreateSession(ctx, s.cfg.CheckoutPath, fastspring.SessionRequest{
-		// Sent explicitly rather than inherited from the store, so a test
-		// deployment can never open a live checkout.
-		Live:   s.cfg.IsLive(),
-		Locale: checkoutLocale(contact.Locale),
-		Customer: &fastspring.SessionCustomer{
-			ExternalAccountID: accountLookupKey(userID),
-			BillToContact: &fastspring.SessionContact{
-				FirstName: first,
-				LastName:  last,
-				Email:     contact.Email,
-			},
-		},
-		OrderTags: tags,
-		Cart: fastspring.SessionCart{
-			LineItems: []fastspring.SessionLineItem{{ProductPath: productPath, Quantity: 1}},
-		},
+	checkout, err := s.billing.CreateCheckout(ctx, creem.CheckoutRequest{
+		ProductID:  productID,
+		SuccessURL: s.cfg.SuccessURL,
+		Customer:   &creem.CheckoutCustomer{Email: contact.Email, Name: contact.Name},
+		Metadata:   map[string]string{metadataUserIDKey: userID},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create checkout session: %w", err)
+		return nil, fmt.Errorf("failed to create checkout: %w", err)
 	}
 
-	if !session.IsReady() {
-		return nil, fmt.Errorf("checkout session %q is not ready for checkout: statuses [%s]",
-			session.ID, session.CheckoutStatusString())
+	checkoutURL, err := validatedHTTPSURL(checkout.CheckoutURL)
+	if err != nil {
+		// The URL itself stays out of the message: it is a live session link.
+		return nil, fmt.Errorf("checkout %q has an unusable URL: %w", checkout.ID, err)
 	}
-	// Link before returning the session: the webhook can arrive before the popup
-	// even closes, and it resolves the user through this account ID. A first-time
-	// buyer has no account yet, so there is simply nothing to link — the order
-	// tag covers that case on the webhook side.
-	if session.Customer.AccountID != "" {
-		if err := s.repo.LinkExternalAccount(ctx, userID, session.Customer.AccountID); err != nil {
-			return nil, fmt.Errorf("failed to link billing account: %w", err)
-		}
-	}
-
-	dto := &model.CheckoutSessionDTO{SessionID: session.ID}
-	if expires, ok := session.ExpiresAt(); ok {
-		dto.ExpiresAt = expires.Format(time.RFC3339)
-	}
-	return dto, nil
+	return &model.CheckoutSessionDTO{CheckoutURL: checkoutURL}, nil
 }
 
 // ChangePlan switches an existing subscription to another plan, prorated.
 //
-// https://developer.fastspring.com/reference/update-a-subscription
+// https://docs.creem.io/api-reference/endpoint/upgrade-subscription
 func (s *SubscriptionService) ChangePlan(ctx context.Context, userID, newPlan string) error {
-	productPath, err := s.productPathForPlan(newPlan)
+	productID, err := s.productIDForPlan(newPlan)
 	if err != nil {
 		return err
 	}
@@ -124,34 +92,33 @@ func (s *SubscriptionService) ChangePlan(ctx context.Context, userID, newPlan st
 		return err
 	}
 
-	if err := s.billing.ChangeSubscriptionProduct(ctx, subscriptionID, productPath); err != nil {
+	if err := s.billing.UpgradeSubscription(ctx, subscriptionID, productID); err != nil {
 		return fmt.Errorf("failed to change plan: %w", err)
 	}
-	// The resulting subscription.updated webhook is what actually moves the
-	// local plan, keeping provider state as the single source of truth.
+	// The resulting subscription.update webhook is what actually moves the local
+	// plan, keeping provider state as the single source of truth.
 	return nil
 }
 
 // CancelSubscription schedules cancellation at the end of the current billing
-// period. Access continues until FastSpring deactivates the subscription.
+// period. Access continues until Creem ends the subscription.
 //
-// https://developer.fastspring.com/reference/cancel-a-subscription
+// https://docs.creem.io/api-reference/endpoint/cancel-subscription
 func (s *SubscriptionService) CancelSubscription(ctx context.Context, userID string) error {
 	subscriptionID, err := s.externalSubscriptionID(ctx, userID)
 	if err != nil {
 		return err
 	}
 
-	if err := s.billing.CancelSubscription(ctx, subscriptionID, true); err != nil {
+	if err := s.billing.CancelSubscriptionAtPeriodEnd(ctx, subscriptionID); err != nil {
 		return fmt.Errorf("failed to cancel subscription: %w", err)
 	}
 	return nil
 }
 
-// CreatePortalSession returns a pre-authenticated Account Management Portal URL
-// for the user, landing on the Subscriptions tab.
+// CreatePortalSession returns a login link to the Creem customer portal.
 //
-// https://developer.fastspring.com/reference/retrieve-authenticated-account-management-url
+// https://docs.creem.io/features/customer-portal
 func (s *SubscriptionService) CreatePortalSession(ctx context.Context, userID string) (string, error) {
 	sub, err := s.repo.GetByUserID(ctx, userID)
 	if err != nil {
@@ -161,51 +128,39 @@ func (s *SubscriptionService) CreatePortalSession(ctx context.Context, userID st
 		return "", model.ErrNoActiveSubscription
 	}
 
-	portalURL, err := s.billing.AuthenticateAccount(ctx, *sub.ExternalAccountID)
+	link, err := s.billing.CustomerPortalLink(ctx, *sub.ExternalAccountID)
 	if err != nil {
 		return "", fmt.Errorf("failed to create portal session: %w", err)
 	}
-	portalURL, err = validatedPortalURL(portalURL)
+	portalURL, err := validatedHTTPSURL(link)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("portal session has an unusable URL: %w", err)
 	}
-	parsedPortalURL, err := url.Parse(portalURL)
-	if err != nil {
-		return "", fmt.Errorf("validated portal session URL became unparseable: %w", err)
-	}
-	if parsedPortalURL.Fragment != "" {
-		return portalURL, nil
-	}
-	// "#/subscriptions" is the portal's own client-side route, so the buyer lands
-	// on their subscriptions rather than the account overview. Preserve any route
-	// FastSpring already supplied instead of producing a second fragment marker.
-	return portalURL + "#/subscriptions", nil
+	return portalURL, nil
 }
 
-// validatedPortalURL accepts only an absolute HTTPS URL. The browser is sent
-// straight here, so a scheme like javascript: or a relative value must never
-// reach window.location.
+// validatedHTTPSURL accepts only an absolute HTTPS URL with no credentials in it.
+// The browser is sent straight to it, so a scheme like javascript: or a relative
+// value must never reach window.location, and `https://creem.io@evil.example`
+// must not pass for a creem.io address.
 //
-// The host is deliberately *not* pinned. The Account Management Portal is the
-// one flow that still navigates the current tab (checkout itself is a popup, so
-// it navigates nothing). It is served from the storefront, and a FastSpring storefront
-// can run on a merchant's own custom domain — no documented host contract fixes
-// it to *.onfastspring.com. Inventing a whitelist here would break the moment a
-// custom domain is configured in the dashboard, so the actual host is a
-// verification item on the go-live checklist (ADR-0002) rather than a guess
-// hardcoded in the service.
-func validatedPortalURL(raw string) (string, error) {
+// The host is deliberately not pinned: the URL comes from Creem's API over TLS
+// with our own key, and no documented contract fixes the host family.
+func validatedHTTPSURL(raw string) (string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
-		return "", errors.New("portal session carried no URL")
+		return "", errors.New("no URL")
 	}
 
 	parsed, err := url.Parse(trimmed)
 	if err != nil {
-		return "", fmt.Errorf("portal session URL is unparseable: %w", err)
+		return "", errors.New("unparseable URL")
 	}
 	if !strings.EqualFold(parsed.Scheme, "https") || parsed.Host == "" {
-		return "", fmt.Errorf("portal session URL is not absolute HTTPS: %q", trimmed)
+		return "", errors.New("not an absolute HTTPS URL")
+	}
+	if parsed.User != nil {
+		return "", errors.New("URL carries credentials")
 	}
 	return trimmed, nil
 }
@@ -245,7 +200,7 @@ func (s *SubscriptionService) ensureNotAlreadySubscribed(ctx context.Context, us
 }
 
 // holdsLiveProviderSubscription reports whether a row already points at a
-// provider subscription that is still alive at FastSpring.
+// provider subscription that is still alive at Creem.
 //
 // `active`, `past_due`, `paused` and a scheduled cancellation (`active` with
 // `cancel_at`) all still bill, so all four count as live. Only two rows have
@@ -269,65 +224,4 @@ func (s *SubscriptionService) externalSubscriptionID(ctx context.Context, userID
 		return "", model.ErrNoActiveSubscription
 	}
 	return *sub.ExternalSubscriptionID, nil
-}
-
-// accountLookupKey derives the merchant-owned FastSpring account key from a
-// user UUID.
-func accountLookupKey(userID string) string {
-	return accountLookupPrefix + strings.ReplaceAll(userID, "-", "")
-}
-
-// userIDFromLookupKey reverses accountLookupKey, restoring the UUID hyphens.
-// It returns false for any key Jobber did not create.
-func userIDFromLookupKey(key string) (string, bool) {
-	const hexLen = 32
-	hex, ok := strings.CutPrefix(key, accountLookupPrefix)
-	if !ok || len(hex) != hexLen {
-		return "", false
-	}
-	for _, c := range hex {
-		if !isHexDigit(c) {
-			return "", false
-		}
-	}
-	return fmt.Sprintf("%s-%s-%s-%s-%s", hex[0:8], hex[8:12], hex[12:16], hex[16:20], hex[20:32]), true
-}
-
-func isHexDigit(c rune) bool {
-	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
-}
-
-// FastSpring checkout languages, as two-letter codes. The session endpoint
-// documents `locale` as a standard 2-letter language code and its language map
-// lists the codes a storefront can render; a regional tag like "en_US" is not
-// one of them.
-//
-// https://developer.fastspring.com/reference/createsession
-const (
-	localeEnglish = "en"
-	localeRussian = "ru"
-)
-
-// checkoutLocale maps a Jobber UI locale onto the FastSpring checkout language.
-// An unknown locale falls back to English rather than forwarding a code the
-// provider does not render.
-//
-// Ukrainian has no FastSpring checkout language of its own — "uk" is absent from
-// the documented set — so a Ukrainian buyer cannot be shown a Ukrainian
-// checkout whatever this returns. The choice is only which of the languages the
-// storefront *can* render they are shown instead, and it is English.
-//
-// Russian is the closer language and was the first reading of FastSpring's own
-// regional default. It is still the wrong default to ship: for this audience,
-// putting a payment form in Russian in front of a Ukrainian buyer is a reason
-// to close the tab, and a checkout nobody completes costs more than one they
-// have to read in a second language. English is the neutral option and the one
-// the rest of the app already falls back to.
-func checkoutLocale(locale string) string {
-	switch strings.ToLower(strings.TrimSpace(locale)) {
-	case "ru":
-		return localeRussian
-	default:
-		return localeEnglish
-	}
 }

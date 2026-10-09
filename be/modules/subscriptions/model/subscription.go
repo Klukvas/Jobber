@@ -2,7 +2,6 @@ package model
 
 import (
 	"errors"
-	"strings"
 	"time"
 )
 
@@ -22,23 +21,21 @@ var (
 	// and leave it billing invisibly — plan changes must go through the provider
 	// subscription instead.
 	ErrAlreadySubscribed = errors.New("user already has a provider subscription")
-	// ErrBillingAccountTaken is returned when the provider account a checkout
+	// ErrBillingAccountTaken is returned when the provider customer a checkout
 	// resolved to is already linked to a *different* local user.
 	//
-	// The provider records an account per buyer contact, not per purchase, so
-	// two Jobber users who check out with one email can land on one account.
 	// external_account_id is unique for a reason — it is a server-side link
-	// between a purchase and a user — so the checkout is refused rather than
-	// pointing one account at two people. It is its own error because nobody
-	// can resolve it from the app: it needs a human to decide which account the
-	// buyer actually meant.
-	ErrBillingAccountTaken = errors.New("provider billing account is already linked to another user")
+	// between a purchase and a user — so the purchase is refused rather than
+	// pointing one customer at two people. It is its own error because nobody can
+	// resolve it from the app: it needs a human to decide which user the buyer
+	// actually meant.
+	ErrBillingAccountTaken = errors.New("provider customer is already linked to another user")
 )
 
 // Subscription represents a user's subscription record.
 //
-// The external IDs are provider-neutral: with FastSpring they hold the
-// subscription ID and the customer account ID respectively.
+// The external IDs are provider-neutral: with Creem they hold the subscription ID
+// and the customer ID respectively.
 type Subscription struct {
 	ID                     string
 	UserID                 string
@@ -50,11 +47,11 @@ type Subscription struct {
 	CurrentPeriodEnd       *time.Time
 	CancelAt               *time.Time
 	// LastEventAt is the provider's own timestamp for the newest subscription
-	// *state change* applied to this row — the payload's `data.changed`, not the
-	// moment the webhook was created or delivered. (The charge events carry no
-	// `changed`, so those fall back to the envelope's `created`.) The
-	// distinction is the point: a manual resend arrives in a fresh envelope with
-	// a fresh `created`, and using that would let it overwrite newer state.
+	// *state change* applied to this row — the object's `updated_at`, not the
+	// moment the webhook was created or delivered. (An object without it falls
+	// back to the envelope's `created_at`.) The distinction is the point: a
+	// manual resend arrives in a fresh envelope with a fresh timestamp, and using
+	// that would let it overwrite newer state.
 	// An event is applied only when it is *strictly* newer, so neither a replay
 	// nor a second event describing the same change can undo what already stands.
 	LastEventAt *time.Time
@@ -197,32 +194,21 @@ func (s *Subscription) ToDTO(usage Usage) *SubscriptionDTO {
 	return dto
 }
 
-// CheckoutConfigDTO tells the frontend which billing provider is wired up, which
-// plans are purchasable, and which storefront the provider's popup script must
-// be pointed at. It deliberately carries no credentials, no API keys and no
-// catalog product paths: checkout sessions are created server-side.
+// CheckoutConfigDTO tells the frontend which billing provider is wired up and
+// which plans are purchasable. It deliberately carries no credentials, no API keys
+// and no product IDs: checkouts are created server-side.
 type CheckoutConfigDTO struct {
-	Provider    string `json:"provider"`
-	Environment string `json:"environment"`
-	// Storefront is the popup storefront the browser loads the provider's
-	// Store Builder Library against, as "<host>/<popup-checkout-id>". It is
-	// *derived* from the configured checkout path and the environment, never
-	// configured separately, so the two cannot drift apart. Empty means the
-	// checkout is not openable and the frontend must not offer it.
-	Storefront string   `json:"storefront"`
-	Plans      []string `json:"plans"`
+	Provider    string   `json:"provider"`
+	Environment string   `json:"environment"`
+	Plans       []string `json:"plans"`
 }
 
-// CheckoutSessionDTO holds a provider checkout session for the popup to open.
-//
-// There is deliberately no URL: the popup takes the opaque session id, so the
-// browser is never handed a page to navigate to.
+// CheckoutSessionDTO holds the hosted checkout URL the browser is sent to.
 type CheckoutSessionDTO struct {
-	SessionID string `json:"session_id"`
-	ExpiresAt string `json:"expires_at,omitempty"`
+	CheckoutURL string `json:"checkout_url"`
 }
 
-// PortalSessionDTO holds the authenticated customer account portal URL.
+// PortalSessionDTO holds the customer portal login URL.
 type PortalSessionDTO struct {
 	URL string `json:"url"`
 }
@@ -239,24 +225,9 @@ type CheckoutSessionRequest struct {
 }
 
 // UserContact carries the buyer details handed to the billing provider when a
-// checkout session is created. Sourced from the authenticated user record, never
-// from the client.
+// checkout is created. Sourced from the authenticated user record, never from the
+// client.
 type UserContact struct {
-	Email  string
-	Name   string
-	Locale string
-}
-
-// FirstLast splits the stored display name into the first/last pair the billing
-// provider expects. A single-word name becomes the first name only.
-func (c UserContact) FirstLast() (first, last string) {
-	fields := strings.Fields(c.Name)
-	switch len(fields) {
-	case 0:
-		return "", ""
-	case 1:
-		return fields[0], ""
-	default:
-		return fields[0], strings.Join(fields[1:], " ")
-	}
+	Email string
+	Name  string
 }
