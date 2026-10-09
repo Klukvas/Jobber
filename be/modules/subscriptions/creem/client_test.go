@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/andreypavlenko/jobber/internal/platform/circuitbreaker"
 	"github.com/stretchr/testify/assert"
@@ -239,6 +240,34 @@ func TestClient_Errors(t *testing.T) {
 		require.NoError(t, client.UpgradeSubscription(context.Background(), "sub_1", "prod_1"),
 			"the breaker must still be closed after the caller's own cancellations")
 		assert.EqualValues(t, 1, calls.Load())
+	})
+
+	t.Run("a timeout still counts against Creem, unlike a caller giving up", func(t *testing.T) {
+		// Only context.Canceled is neutral. A deadline that expires while Creem
+		// does not answer is exactly the failure the breaker exists to catch.
+		var calls atomic.Int32
+		release := make(chan struct{})
+		t.Cleanup(func() { close(release) })
+		client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			// The server only notices a vanished client once the body is read.
+			_, _ = io.Copy(io.Discard, r.Body)
+			select {
+			case <-r.Context().Done():
+			case <-release:
+			}
+		})
+
+		for i := 0; i < breakerFailureThreshold+2; i++ {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+			err := client.UpgradeSubscription(ctx, "sub_1", "prod_1")
+			cancel()
+			require.Error(t, err)
+		}
+
+		assert.EqualValues(t, breakerFailureThreshold, calls.Load(),
+			"the breaker must open after the threshold of timeouts and refuse the rest")
+		assert.ErrorIs(t, client.UpgradeSubscription(context.Background(), "sub_1", "prod_1"), circuitbreaker.ErrCircuitOpen)
 	})
 
 	t.Run("repeated server faults open the breaker instead of hammering Creem", func(t *testing.T) {
