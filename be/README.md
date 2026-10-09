@@ -24,7 +24,7 @@ This is a **modular monolith** designed with clear module boundaries for future 
 - **Storage**: S3-compatible (Hetzner Object Storage)
 - **AI**: Anthropic Claude SDK (job import parsing, match score)
 - **Calendar**: Google Calendar v3 OAuth2
-- **Payments**: FastSpring (Merchant of Record; signed subscription webhooks)
+- **Payments**: Creem (Merchant of Record; hosted checkout redirect, signed subscription webhooks)
 
 ## Project Structure
 
@@ -55,7 +55,7 @@ jobber/
 │   ├── calendar/         # Google Calendar OAuth2 integration
 │   ├── jobimport/        # Import jobs by URL (JSON-LD + Claude AI)
 │   ├── matchscore/       # AI resume-to-job matching + cache
-│   ├── subscriptions/    # Plans, billing, FastSpring webhooks
+│   ├── subscriptions/    # Plans, billing, Creem webhooks
 │   ├── reminders/        # Reminder system (model + repository)
 │   └── tags/             # Tagging system (model + repository)
 ├── migrations/           # Database schema (golang-migrate)
