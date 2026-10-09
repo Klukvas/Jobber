@@ -1,3 +1,8 @@
+> **Superseded by [ADR-0003](0003-creem-billing.md).** Billing moved to Creem and
+> the FastSpring integration described below has been removed. Kept as the record
+> of why the order-tag proof, the account read-back and the reconciliation sweep
+> existed.
+
 # Billing runs on FastSpring, with purchases linked to users server-side
 
 Jobber's billing provider is **FastSpring** (Merchant of Record). Paddle is
