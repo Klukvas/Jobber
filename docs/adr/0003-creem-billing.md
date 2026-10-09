@@ -117,13 +117,29 @@ These guards were never about FastSpring and are unchanged:
   can misorder; the checklist confirms `updated_at` is always present.
 - **One subscriber, one subscription**: a second checkout is refused with
   `409 ALREADY_SUBSCRIBED`, and the atomic write refuses to replace a still-billing
-  `external_subscription_id` (`ErrSubscriptionLinkConflict`). That refusal is
-  **retried (HTTP 500), not acknowledged**: the usual cause is a delayed
-  cancellation of the old subscription, and a redelivery after it lands applies
-  the new one by itself. Acknowledging would lose a paying user's new plan for
-  good. If the old subscription really is alive the retries run out after 24
-  hours and each attempt is logged at `error` — the signal that somebody may be
-  paying twice. The UI routes a subscriber to change-plan.
+  `external_subscription_id` (`ErrSubscriptionLinkConflict`). What happens next
+  depends on whether a redelivery could ever do better:
+  - a **non-cancellation newer than the row is retried (HTTP 500)**: the usual
+    cause is a delayed cancellation of the old subscription, and once it lands the
+    same event applies by itself. Acknowledging would lose a paying user's new
+    plan. If the old subscription really is alive the retries run out after 24
+    hours, each attempt logged at `error` — the signal that somebody may be paying
+    twice;
+  - a **cancellation** is acknowledged (`errNothingToEnd`, `info`): it is the replay
+    of an old subscription's cancel, or the cancel of a second subscription that was
+    never linked, and there is nothing in Jobber to end;
+  - a paid event **not newer than the row** is acknowledged and flagged at `warn`
+    (`errSecondSubscription`): the older state can never win, and it is what a user
+    paying for two subscriptions looks like.
+
+  The same flag is raised when a replacement subscription loses the ordering guard
+  to the *previous* subscription's later cancellation (S2's events carry
+  `updated_at` T2, S1 was cancelled at T3 > T2). Ordering across two subscriptions
+  is meaningless, but relaxing it would let a replay of an old subscription's
+  event resurrect it, which is worse; the flag makes the loss visible instead.
+  This only arises when a user buys a second subscription outside the app while
+  one is live (the app refuses with 409). The UI routes a subscriber to
+  change-plan.
 - **Environment guard**: an object whose `mode` disagrees with `CREEM_ENVIRONMENT`
   (`prod` = live; `test` and `sandbox` = test; the webhook reference's samples also
   show `local`, treated as test) is acknowledged and never applied, logged at
@@ -134,11 +150,27 @@ These guards were never about FastSpring and are unchanged:
 - **Unknown product never pays**: an `active` event for a product that is neither
   configured plan fails and is retried.
 - `external_account_id` keeps its partial UNIQUE index (one Creem customer ↔ one
-  user); a collision is `ErrBillingAccountTaken`, acknowledged and logged at `warn`.
+  user); a collision is `ErrBillingAccountTaken`, acknowledged and logged at
+  `error` (that purchase grants nothing until a person decides).
+- **A user with no `subscriptions` row** is created one (`EnsureFree`) when a
+  checkout's metadata names them, so a customer who paid is not retried into the
+  ground over a missing row. A user who **no longer exists** (FK violation) is
+  acknowledged and logged at `error` (`model.ErrUserNotFound`): no retry brings an
+  account back.
+- **A payload that omits its period** keeps the stored one only while the stored
+  end is still ahead of the event. A stale stored end (renewals that carried no
+  dates never advanced it) is dropped rather than turned into a cancellation date
+  in the past. A customer the event does not carry is left untouched by the write.
 
 ### "Unresolvable" is two different things
 
-An event that carries no Jobber metadata and whose customer is not linked is
+The metadata is checked first (it is written by our server, so it stands for a
+purchase of ours even if product IDs were reconfigured since: such an event fails
+and is retried, never dropped). Only **after** it does the product matter: an
+event with no Jobber metadata is **foreign** when its product is not Jobber's,
+*including* when its customer is already linked here — the customer identifies a
+person, not a purchase, and another product they bought must never be applied to
+their Jobber row. Such an event is acknowledged and dropped. Otherwise it is
 **foreign** when its product is not Jobber's (the Creem account may sell other
 things) and is acknowledged and dropped. When the product *is* ours it is
 **retryable**: a payload for our own product that we
@@ -151,13 +183,17 @@ Creem treats `200` as delivered and retries anything else. So: applied, duplicat
 superseded and deliberately skipped events answer `200`; a failed event answers
 `500`; a bad signature or unparseable body answers `400`; a body over 1 MiB answers
 `413` before it is hashed; a missing webhook secret answers `503` (our
-misconfiguration must not look like a client error).
+misconfiguration must not look like a client error — in production it is
+unreachable, since startup refuses to boot without the secret when ingestion is
+on). With ingestion switched off the route is not registered at all and answers
+`404`, which Creem retries as a failure for 24 hours.
 
 Dropped-for-good events are logged at **`error`**, because Creem never redelivers
 them and the log is the only trace that a paying user may be on the wrong plan:
 an environment mismatch, and a Creem customer already linked to another user
 (`ErrBillingAccountTaken`, which means that purchase grants nothing until a person
-decides). Refunds and disputes log at `warn`; routine skips at `info`.
+decides), and a user who no longer exists. A refund or dispute and a paid event
+for a second subscription log at `warn`; routine skips at `info`.
 
 ## There is no reconciliation sweep, on purpose
 
@@ -167,7 +203,8 @@ after 24 hours. A deployment that is down, unreachable or holding a stale secret
 for longer than that **keeps subscription rows nothing will correct**.
 
 Mitigations in place: webhook failures are logged at `error`; the webhook route
-is rate limited fail-open so a throttle never turns into a lost event; and a
+is rate limited fail-open so a throttle never turns into a lost event (the Redis
+call is bounded to 300 ms, so an unreachable Redis does not hold deliveries); and a
 **scheduled cancellation whose end date passed more than 48 hours ago stops
 counting as paid** (`effectivePlan`), so a lost `subscription.canceled` cannot
 keep a paid plan forever. Two days outlasts any late or retried delivery. Other
@@ -209,7 +246,8 @@ mechanism to maintain before there is a single paying user.
 | `CREEM_API_KEY` | required when `FEATURE_PAYMENTS_ENABLED=true`; test and live keys differ |
 | `CREEM_WEBHOOK_SECRET` | required when webhook ingestion is on; the server refuses to start without it |
 | `CREEM_ENVIRONMENT` | `test` (default) → `test-api.creem.io`, `live` → `api.creem.io` |
-| `CREEM_PRO_PRODUCT_ID`, `CREEM_ENTERPRISE_PRODUCT_ID` | no defaults; an empty one means that plan is not purchasable |
+| `CREEM_PRO_PRODUCT_ID`, `CREEM_ENTERPRISE_PRODUCT_ID` | no defaults; an empty one means that plan is not purchasable. At least one is required when payments **or** webhook ingestion is on, or the server refuses to start |
+| `TRUSTED_PROXIES` | optional comma-separated IPs/CIDRs whose `X-Forwarded-For` is honoured; empty keeps gin's trust-all default |
 
 `FEATURE_PAYMENTS_ENABLED` (new purchases and plan management) and
 `FEATURE_BILLING_WEBHOOK_ENABLED` (ingestion, defaults to the payments flag) stay
@@ -268,6 +306,13 @@ navigation, not a script, frame, request or form post.
   plan.
 - [ ] **Re-subscribing after a cancellation** (a new subscription id) replaces the old
   link and grants the plan.
+- [ ] **The checkout and portal hosts.** The frontend only navigates to `creem.io` and
+  `*.creem.io` (`BILLING_HOST_SUFFIX` in `fe/src/features/subscription/safeHttpsUrl.ts`).
+  Confirm the real `checkout_url` and portal link hosts in the first test-mode
+  purchase; a different (custom) domain would be refused with the generic checkout
+  error until the constant is updated.
+- [ ] **A user with no `subscriptions` row** that pays ends up on the plan (covered by
+  tests; confirm once against a real account created before registration wrote a row).
 - [ ] **Delete the stale GitHub Secrets**: all `FASTSPRING_*` and the earlier
   `PADDLE_*`, and add the five `CREEM_*` ones.
 - [ ] **Legal pages** (Terms, Privacy, Refund) name Creem as Merchant of Record —
@@ -279,9 +324,13 @@ navigation, not a script, frame, request or form post.
   can be reversed with a resume endpoint, but we have not confirmed its path or
   wired it; today the subscriber does that in the Creem portal, and a new checkout
   is refused with `ALREADY_SUBSCRIBED` in the meantime.
-- **The subscription DTO shows the stored plan**, not the effective one: a paused
-  or lapsed subscription still *displays* its plan while enforcement uses the
-  effective plan. This predates the move to Creem.
+- **A second subscription bought outside the app** while one is live can be lost
+  (see the link-conflict rules above). Recovery needs a new event for the second
+  subscription (a plan change, the next renewal) or a manual fix of the row.
+- **The `TRUSTED_PROXIES` default keeps gin's behaviour** (every proxy trusted, so
+  `X-Forwarded-For` can be rotated to dodge per-IP limits, including the webhook
+  route's). It is configurable now; set it in production once the proxy's address
+  is known. It affects every rate limiter, not just billing.
 - **`Incomplete`** appears on Creem's introduction page (23 hours to pay) but is not
   in the API's status enum or event list; an unrecognised status fails the event
   and is retried until Creem gives up.
