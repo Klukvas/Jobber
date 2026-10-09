@@ -30,6 +30,10 @@ var (
 	// resolve it from the app: it needs a human to decide which user the buyer
 	// actually meant.
 	ErrBillingAccountTaken = errors.New("provider customer is already linked to another user")
+	// ErrUserNotFound is returned when a purchase names a user who no longer
+	// exists. Nothing can be granted to them and no retry will bring the account
+	// back, so it is its own terminal outcome rather than a transient failure.
+	ErrUserNotFound = errors.New("user does not exist")
 )
 
 // Subscription represents a user's subscription record.
@@ -54,6 +58,8 @@ type Subscription struct {
 	// that would let it overwrite newer state.
 	// An event is applied only when it is *strictly* newer, so neither a replay
 	// nor a second event describing the same change can undo what already stands.
+	// The one exception is a cancellation that ties: ending access is applied
+	// even when Creem did not bump the timestamp since the last payment.
 	LastEventAt *time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
@@ -168,17 +174,17 @@ func GetLimitsForPlan(plan string) PlanLimits {
 	}
 }
 
-// IsActive returns true if the subscription grants paid-plan access.
-func (s *Subscription) IsActive() bool {
-	return (s.Plan == "pro" || s.Plan == "enterprise") && (s.Status == "active" || s.Status == "past_due")
-}
-
 // ToDTO converts a Subscription to SubscriptionDTO with usage counts.
-func (s *Subscription) ToDTO(usage Usage) *SubscriptionDTO {
+//
+// limitsPlan is the plan whose limits apply right now. It is passed in because
+// that is a billing decision (a paused or lapsed subscription keeps the plan it
+// bought but is held to free limits) and the response must show the limits the
+// backend actually enforces, not the ones the stored plan would imply.
+func (s *Subscription) ToDTO(usage Usage, limitsPlan string) *SubscriptionDTO {
 	dto := &SubscriptionDTO{
 		Plan:   s.Plan,
 		Status: s.Status,
-		Limits: GetLimitsForPlan(s.Plan),
+		Limits: GetLimitsForPlan(limitsPlan),
 		Usage:  usage,
 	}
 

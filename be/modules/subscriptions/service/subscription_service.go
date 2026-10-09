@@ -90,7 +90,15 @@ func (s *SubscriptionService) GetSubscription(ctx context.Context, userID string
 		return nil, fmt.Errorf("failed to get usage: %w", err)
 	}
 
-	return sub.ToDTO(usage), nil
+	dto := sub.ToDTO(usage, s.effectivePlanOf(sub))
+	if s.scheduledCancelLapsed(sub) {
+		// The cancellation date passed and the webhook that should have ended the
+		// subscription never arrived. Show what enforcement already applies, as the
+		// cancellation itself would have: free, cancelled, no period.
+		dto.Plan, dto.Status = PlanFree, StatusCancelled
+		dto.CurrentPeriodEnd, dto.CancelAt = nil, nil
+	}
+	return dto, nil
 }
 
 // GetCheckoutConfig tells the frontend which provider and plans are live. It
@@ -150,11 +158,7 @@ func (s *SubscriptionService) planForProductID(productID string) (string, error)
 }
 
 // effectivePlan resolves the plan whose limits actually apply right now for a
-// user. Paid quotas only apply while the subscription is actually paying: a
-// paused/cancelled paid plan falls back to free (past_due keeps a grace
-// window, matching Subscription.IsActive semantics), and so does a scheduled
-// cancellation whose end date is long past. A missing subscription row is
-// treated as the free plan.
+// user. A missing subscription row is treated as the free plan.
 func (s *SubscriptionService) effectivePlan(ctx context.Context, userID string) (string, error) {
 	sub, err := s.repo.GetByUserID(ctx, userID)
 	if err != nil {
@@ -163,13 +167,24 @@ func (s *SubscriptionService) effectivePlan(ctx context.Context, userID string) 
 		}
 		return "", fmt.Errorf("failed to get subscription: %w", err)
 	}
+	return s.effectivePlanOf(sub), nil
+}
+
+// effectivePlanOf is the plan whose limits apply to a stored subscription.
+// Paid quotas only apply while the subscription is actually paying: a
+// paused/cancelled paid plan falls back to free (past_due keeps a grace window),
+// and so does a scheduled cancellation whose end date is long past.
+//
+// Every place that enforces or reports limits goes through here, so what the
+// user is shown can never disagree with what the backend enforces.
+func (s *SubscriptionService) effectivePlanOf(sub *model.Subscription) string {
 	if sub.Plan != PlanFree && sub.Status != StatusActive && sub.Status != StatusPastDue {
-		return PlanFree, nil
+		return PlanFree
 	}
 	if s.scheduledCancelLapsed(sub) {
-		return PlanFree, nil
+		return PlanFree
 	}
-	return sub.Plan, nil
+	return sub.Plan
 }
 
 // scheduledCancelLapsed reports whether a cancellation date passed long enough
