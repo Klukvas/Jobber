@@ -15,7 +15,7 @@ type MockStageTemplateRepository struct {
 	CreateFunc  func(ctx context.Context, template *model.StageTemplate) error
 	GetByIDFunc func(ctx context.Context, userID, templateID string) (*model.StageTemplate, error)
 	ListFunc    func(ctx context.Context, userID string, limit, offset int) ([]*model.StageTemplate, int, error)
-	UpdateFunc  func(ctx context.Context, template *model.StageTemplate) error
+	UpdateFunc  func(ctx context.Context, userID, templateID string, patch *model.StageTemplatePatch) (*model.StageTemplate, error)
 	ReorderFunc func(ctx context.Context, userID string, orderedIDs []string) error
 	DeleteFunc  func(ctx context.Context, userID, templateID string) error
 }
@@ -41,11 +41,29 @@ func (m *MockStageTemplateRepository) List(ctx context.Context, userID string, l
 	return nil, 0, nil
 }
 
-func (m *MockStageTemplateRepository) Update(ctx context.Context, template *model.StageTemplate) error {
+func (m *MockStageTemplateRepository) Update(ctx context.Context, userID, templateID string, patch *model.StageTemplatePatch) (*model.StageTemplate, error) {
 	if m.UpdateFunc != nil {
-		return m.UpdateFunc(ctx, template)
+		return m.UpdateFunc(ctx, userID, templateID, patch)
 	}
-	return nil
+	return applyStageTemplatePatch(&model.StageTemplate{ID: templateID, UserID: userID}, patch), nil
+}
+
+// applyStageTemplatePatch mimics what the real field-scoped UPDATE does: it
+// copies the stored row and writes only the fields the patch carries. Tests use
+// it so they assert the patch the service built, not the mock's own idea of an
+// update.
+func applyStageTemplatePatch(stored *model.StageTemplate, patch *model.StageTemplatePatch) *model.StageTemplate {
+	updated := *stored
+	if patch.Name != nil {
+		updated.Name = *patch.Name
+	}
+	if patch.Order != nil {
+		updated.Order = *patch.Order
+	}
+	if patch.Kind != nil {
+		updated.Kind = *patch.Kind
+	}
+	return &updated
 }
 
 func (m *MockStageTemplateRepository) Reorder(ctx context.Context, userID string, orderedIDs []string) error {

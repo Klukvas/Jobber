@@ -140,11 +140,20 @@ vi.mock("@/services/resumeBuilderService", () => ({
 }));
 
 vi.mock("@/features/resume-builder/hooks/useAutoSave", () => ({
-  useAutoSave: vi.fn(),
+  useAutoSave: () => ({
+    save: vi.fn().mockResolvedValue(undefined),
+    flush: vi.fn().mockResolvedValue(undefined),
+  }),
 }));
 
 vi.mock("@/features/resume-builder/hooks/useSectionPersistence", () => ({
   initServerIds: vi.fn(),
+  reconcilePendingSectionMutations: (resume: unknown) => resume,
+}));
+
+vi.mock("@/features/resume-builder/lib/resumeDocumentSync", () => ({
+  reconcileLoadedResume: (resume: unknown) => ({ resume, unsaved: "none" }),
+  enqueueOutgoingResumeSave: vi.fn(),
 }));
 
 vi.mock("@/features/resume-builder/components/preview/PreviewPanel", () => ({
@@ -275,6 +284,26 @@ describe("ResumeBuilderEditor", () => {
       expect(
         screen.getByText("resumeBuilder.backToList"),
       ).toBeInTheDocument();
+    });
+
+    // Opening a resume again refetches it. A refetch that fails next to a
+    // payload the editor already has must not take the document away — the
+    // customer would lose the screen their unsaved work is on.
+    it("keeps the open resume when a refetch fails", () => {
+      mockQueryState.data = mockResume;
+      mockQueryState.error = new ApiError("boom", "INTERNAL_ERROR", 500);
+      render(<ResumeBuilderEditor />);
+
+      expect(screen.getByText("Test Resume")).toBeInTheDocument();
+      expect(screen.queryByText("Server error")).not.toBeInTheDocument();
+    });
+
+    it("reports a resume the server says is gone, payload or not", () => {
+      mockQueryState.data = mockResume;
+      mockQueryState.error = new ApiError("nope", "NOT_FOUND", 404);
+      render(<ResumeBuilderEditor />);
+
+      expect(screen.getByText("resumeBuilder.notFound")).toBeInTheDocument();
     });
   });
 });

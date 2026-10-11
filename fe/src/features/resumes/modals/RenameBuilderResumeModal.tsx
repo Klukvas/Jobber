@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { resumeBuilderService } from "@/services/resumeBuilderService";
+import { resumeQueryKeys } from "@/shared/lib/resumeQueryKeys";
 import {
   Dialog,
   DialogContent,
@@ -38,8 +39,9 @@ function ModalContent({
     mutationFn: (newTitle: string) =>
       resumeBuilderService.update(resume.id, { title: newTitle }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["resume-builders"] });
-      queryClient.invalidateQueries({ queryKey: ["resumes-combined"] });
+      queryClient.invalidateQueries({
+        queryKey: resumeQueryKeys.builderList(),
+      });
       showSuccessNotification(t("resumes.updateSuccess"));
       onOpenChange(false);
     },

@@ -6,11 +6,14 @@ import { useTranslation } from "react-i18next";
 import { ArrowLeft, Loader2, Palette, X } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { Sheet } from "@/shared/ui/Sheet";
-import { resumeBuilderService } from "@/services/resumeBuilderService";
 import { useStore } from "zustand";
 import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
 import { useAutoSave } from "@/features/resume-builder/hooks/useAutoSave";
-import { initServerIds } from "@/features/resume-builder/hooks/useSectionPersistence";
+import {
+  enqueueOutgoingResumeSave,
+  fetchResumeDocument,
+  reconcileLoadedResume,
+} from "@/features/resume-builder/lib/resumeDocumentSync";
 import { PreviewPanel } from "@/features/resume-builder/components/preview/PreviewPanel";
 import { PreviewErrorBoundary } from "@/features/resume-builder/components/PreviewErrorBoundary";
 import { SaveIndicator } from "@/features/resume-builder/components/SaveIndicator";
@@ -20,6 +23,7 @@ import { AIAssistantPanel } from "@/features/resume-builder/components/AIAssista
 import { ATSCheckerPanel } from "@/features/resume-builder/components/ATSCheckerPanel";
 import { ContentLibraryPanel } from "@/features/resume-builder/components/ContentLibraryPanel";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
+import { resumeQueryKeys } from "@/shared/lib/resumeQueryKeys";
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
 import { cn } from "@/shared/lib/utils";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -31,6 +35,8 @@ export default function ResumeBuilderEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const setResume = useResumeBuilderStore((s) => s.setResume);
+  const setSaveStatus = useResumeBuilderStore((s) => s.setSaveStatus);
+  const markDirty = useResumeBuilderStore((s) => s.markDirty);
   const resume = useResumeBuilderStore((s) => s.resume);
   const { clear } = useStore(useResumeBuilderStore.temporal);
 
@@ -43,7 +49,13 @@ export default function ResumeBuilderEditorPage() {
   const isDirty = useResumeBuilderStore((s) => s.isDirty);
 
   usePageMeta({ titleKey: "resumeBuilder.editor", noindex: true });
-  useAutoSave();
+  const { flush } = useAutoSave();
+
+  const handleRetrySave = useCallback(() => {
+    void flush().catch(() => {
+      // The failure is already on screen through saveStatus.
+    });
+  }, [flush]);
 
   // Warn user about unsaved changes before leaving
   useEffect(() => {
@@ -55,19 +67,39 @@ export default function ResumeBuilderEditorPage() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
 
+  // The fetch goes through the sync module, which dates the request: a
+  // response the server composed before a save of this client's must not
+  // replace it, however late it arrives.
   const { isLoading, error, data } = useQuery({
-    queryKey: ["resume-builder", id],
-    queryFn: () => resumeBuilderService.getById(id!),
+    queryKey: resumeQueryKeys.builderDetail(id!),
+    queryFn: () => fetchResumeDocument(id!),
     enabled: !!id,
   });
 
   useEffect(() => {
-    if (data) {
-      setResume(data);
-      initServerIds(data);
-      clear();
-    }
-  }, [data, setResume, clear]);
+    if (!data) return;
+
+    // Opening another resume from here — a job screen's link, the browser's
+    // history — changes the route parameter without unmounting this page, so
+    // the auto-save unmount flush never runs. The document on its way out is
+    // handed to its queue first, while the store still holds it.
+    enqueueOutgoingResumeSave(data.id);
+
+    // The payload never replaces work the server has not got: section writes
+    // still on their way, edits typed while it was being fetched, the draft a
+    // failed save left behind, and a cache entry older than this editor's own
+    // last save are all reconciled — along with the known server ids, which are
+    // seeded from the payload only when it is the newer one.
+    const { resume: reconciled, unsaved } = reconcileLoadedResume(data);
+    setResume(reconciled);
+    clear();
+
+    // `setResume` opens the document as stored. Anything the server has not
+    // accepted has to stay dirty so auto-save retries it, and a write that
+    // failed has to say so instead of looking saved.
+    if (unsaved !== "none") markDirty();
+    if (unsaved === "failed") setSaveStatus("error");
+  }, [data, setResume, setSaveStatus, markDirty, clear]);
 
   const handleTogglePanel = useCallback((panel: SidePanel) => {
     setActivePanel((current) => (current === panel ? null : panel));
@@ -108,11 +140,17 @@ export default function ResumeBuilderEditorPage() {
     );
   }
 
-  if (error) {
-    // ApiError carries the status flat. Reaching for `error.response.status`
-    // always found undefined, so a 403 and a 500 both told the customer the
-    // resume did not exist.
-    const status = error instanceof ApiError ? error.status : undefined;
+  // ApiError carries the status flat. Reaching for `error.response.status`
+  // always found undefined, so a 403 and a 500 both told the customer the
+  // resume did not exist.
+  const status = error instanceof ApiError ? error.status : undefined;
+  // Opening a resume again refetches it, and a refetch that fails leaves
+  // `error` set next to a payload this editor already has. Reporting that the
+  // resume does not exist would be wrong then — and would take away a document
+  // whose save may still be on its way. Only the server saying the resume is
+  // gone, or not this customer's, is final.
+  const resumeIsGone = status === 404 || status === 403;
+  if (error && (resumeIsGone || !data)) {
     let message = t("resumeBuilder.notFound");
     if (status === 403) {
       message = t("common.accessDenied", "Access denied");
@@ -196,7 +234,7 @@ export default function ResumeBuilderEditorPage() {
         </div>
 
         <div className="shrink-0">
-          <SaveIndicator />
+          <SaveIndicator onRetry={handleRetrySave} />
         </div>
       </div>
 

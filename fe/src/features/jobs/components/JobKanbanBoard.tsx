@@ -29,20 +29,19 @@ import {
   JobMobileAccordion,
   type MobileColumnData,
 } from "./JobMobileAccordion";
-import type {
-  JobDTO,
-  PaginatedResponse,
-  StageTemplateDTO,
-} from "@/shared/types/api";
-
-export const JOBS_KANBAN_QUERY_KEY = ["jobs", "kanban"] as const;
+import {
+  findBoardJob,
+  mapBoardJob,
+  type JobBoardData,
+} from "@/features/jobs/hooks/useJobBoardQuery";
+import type { JobDTO, StageTemplateDTO } from "@/shared/types/api";
 
 // Cards with no column assigned yet gather in a leading "No stage" column.
 export const NO_STAGE_COLUMN_ID = "__no_stage__";
 
 interface JobKanbanBoardProps {
   jobs: JobDTO[];
-  // Exact React Query key the board's data lives under, so optimistic move
+  // Exact React Query key the board's pages live under, so optimistic move
   // updates and invalidation target the currently-filtered board.
   queryKey: QueryKey;
   onAddComment: (job: JobDTO) => void;
@@ -107,15 +106,8 @@ export function JobKanbanBoard({
     onSuccess: (data) => {
       // Fold in the authoritative card so the optimistic guess converges to
       // the server truth before the reconciling refetch lands.
-      queryClient.setQueryData<PaginatedResponse<JobDTO>>(
-        queryKey,
-        (oldData) =>
-          oldData
-            ? {
-                ...oldData,
-                items: oldData.items.map((j) => (j.id === data.id ? data : j)),
-              }
-            : oldData,
+      queryClient.setQueryData<JobBoardData>(queryKey, (oldData) =>
+        mapBoardJob(oldData, data.id, () => data),
       );
       showSuccessNotification(t("jobs.board.moveSuccess"));
       setFlashId(data.id);
@@ -159,9 +151,8 @@ export function JobKanbanBoard({
       const template = stageTemplates.find((tpl) => tpl.id === targetColumn);
       if (!template) return;
 
-      const previous =
-        queryClient.getQueryData<PaginatedResponse<JobDTO>>(queryKey);
-      const currentJob = previous?.items.find((j) => j.id === jobId);
+      const previous = queryClient.getQueryData<JobBoardData>(queryKey);
+      const currentJob = findBoardJob(previous, jobId);
       if (!currentJob) return;
       if (currentJob.current_stage_template_id === template.id) return;
 
@@ -170,23 +161,12 @@ export function JobKanbanBoard({
       // slot in the new column instead of flying back to the old one. Doing
       // this in onMutate is too late — its `await cancelQueries` defers the
       // write past the measurement.
-      queryClient.setQueryData<PaginatedResponse<JobDTO>>(
-        queryKey,
-        (oldData) =>
-          oldData
-            ? {
-                ...oldData,
-                items: oldData.items.map((j) =>
-                  j.id === jobId
-                    ? {
-                        ...j,
-                        current_stage_template_id: template.id,
-                        current_stage_name: template.name,
-                      }
-                    : j,
-                ),
-              }
-            : oldData,
+      queryClient.setQueryData<JobBoardData>(queryKey, (oldData) =>
+        mapBoardJob(oldData, jobId, (job) => ({
+          ...job,
+          current_stage_template_id: template.id,
+          current_stage_name: template.name,
+        })),
       );
 
       moveJob({
@@ -262,7 +242,7 @@ interface MoveVars {
   stageTemplateId: string;
   // Cache snapshot taken before the optimistic write in handleDragEnd, kept
   // for rollback when the server rejects the move.
-  previous?: PaginatedResponse<JobDTO>;
+  previous?: JobBoardData;
 }
 
 // ColumnData is the same shape as MobileColumnData — re-export for consumers

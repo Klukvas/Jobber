@@ -16,6 +16,18 @@ import (
 
 var errDB = errors.New("boom: db failure")
 
+// nilStrPtrMatcher matches a nil *string SQL argument, i.e. a value the
+// repository decided to write as NULL. It implements pgxmock's Argument
+// interface.
+type nilStrPtrMatcher struct{}
+
+func (nilStrPtrMatcher) Match(v interface{}) bool {
+	p, ok := v.(*string)
+	return ok && p == nil
+}
+
+func nilStrPtrArg() nilStrPtrMatcher { return nilStrPtrMatcher{} }
+
 func newJobRepo(t *testing.T) (*JobRepository, pgxmock.PgxPoolIface) {
 	t.Helper()
 	mock, err := pgxmock.NewPool()
@@ -125,57 +137,165 @@ func TestJobRepository_GetByID(t *testing.T) {
 }
 
 func TestJobRepository_Update(t *testing.T) {
-	t.Run("updates job successfully", func(t *testing.T) {
+	// The columns the field-scoped UPDATE returns, in order.
+	returning := []string{
+		"id", "user_id", "company_id", "title", "source", "url", "description",
+		"is_favorite", "is_archived", "applied_at", "resume_id", "resume_builder_id",
+		"current_stage_template_id", "current_stage_id", "created_at", "updated_at",
+	}
+	updatedRow := func(title string, archived bool) *pgxmock.Rows {
+		now := time.Now()
+		stageID := "stage-wishlist"
+		return pgxmock.NewRows(returning).AddRow(
+			"job-1", "user-123", nil, title, nil, nil, nil,
+			false, archived, nil, nil, nil,
+			&stageID, nil, now, now,
+		)
+	}
+
+	t.Run("writes only the patched fields and returns the stored row", func(t *testing.T) {
 		repo, mock := newJobRepo(t)
-		job := &model.Job{ID: "job-1", UserID: "user-123", Title: "Updated Title", IsArchived: true}
+		title := "Updated Title"
+		archived := true
 
-		mock.ExpectExec("UPDATE jobs").
-			WithArgs(
-				job.ID, job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Description,
-				job.IsArchived, job.AppliedAt, job.ResumeID, job.ResumeBuilderID,
-				job.CurrentStageTemplateID, pgxmock.AnyArg(),
-			).
-			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+		// updated_at ($3) plus title ($4) and is_archived ($5) — and nothing
+		// else: applied_at and current_stage_template_id belong to the
+		// pipeline and must not appear in this statement.
+		mock.ExpectQuery(`UPDATE jobs SET updated_at = \$3, title = \$4, is_archived = \$5`).
+			WithArgs("job-1", "user-123", pgxmock.AnyArg(), title, archived).
+			WillReturnRows(updatedRow(title, archived))
 
-		err := repo.Update(context.Background(), job)
+		job, err := repo.Update(context.Background(), "user-123", "job-1",
+			&model.JobPatch{Title: &title, IsArchived: &archived})
+
+		require.NoError(t, err)
+		require.NotNil(t, job)
+		assert.Equal(t, title, job.Title)
+		assert.True(t, job.IsArchived)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("an empty company id is written as NULL", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+		clear := ""
+
+		mock.ExpectQuery(`UPDATE jobs SET updated_at = \$3, company_id = \$4`).
+			WithArgs("job-1", "user-123", pgxmock.AnyArg(), nilStrPtrArg()).
+			WillReturnRows(updatedRow("Title", false))
+
+		job, err := repo.Update(context.Background(), "user-123", "job-1", &model.JobPatch{CompanyID: &clear})
+
+		require.NoError(t, err)
+		assert.Nil(t, job.CompanyID)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("an empty patch still bumps updated_at only", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+
+		mock.ExpectQuery(`UPDATE jobs SET updated_at = \$3\s`).
+			WithArgs("job-1", "user-123", pgxmock.AnyArg()).
+			WillReturnRows(updatedRow("Title", false))
+
+		_, err := repo.Update(context.Background(), "user-123", "job-1", &model.JobPatch{})
 
 		require.NoError(t, err)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("returns not found when zero rows affected", func(t *testing.T) {
+	t.Run("returns not found when no row matches", func(t *testing.T) {
 		repo, mock := newJobRepo(t)
-		job := &model.Job{ID: "nonexistent", UserID: "user-123", Title: "Test"}
+		title := "Test"
 
-		mock.ExpectExec("UPDATE jobs").
-			WithArgs(
-				job.ID, job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Description,
-				job.IsArchived, job.AppliedAt, job.ResumeID, job.ResumeBuilderID,
-				job.CurrentStageTemplateID, pgxmock.AnyArg(),
-			).
-			WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+		mock.ExpectQuery("UPDATE jobs SET").
+			WithArgs("nonexistent", "user-123", pgxmock.AnyArg(), title).
+			WillReturnError(pgx.ErrNoRows)
 
-		err := repo.Update(context.Background(), job)
+		job, err := repo.Update(context.Background(), "user-123", "nonexistent", &model.JobPatch{Title: &title})
 
+		assert.Nil(t, job)
 		assert.ErrorIs(t, err, model.ErrJobNotFound)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("propagates db error", func(t *testing.T) {
 		repo, mock := newJobRepo(t)
-		job := &model.Job{ID: "job-1", UserID: "user-123", Title: "X"}
+		title := "X"
 
-		mock.ExpectExec("UPDATE jobs").
-			WithArgs(
-				job.ID, job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Description,
-				job.IsArchived, job.AppliedAt, job.ResumeID, job.ResumeBuilderID,
-				job.CurrentStageTemplateID, pgxmock.AnyArg(),
-			).
+		mock.ExpectQuery("UPDATE jobs SET").
+			WithArgs("job-1", "user-123", pgxmock.AnyArg(), title).
 			WillReturnError(errDB)
 
-		err := repo.Update(context.Background(), job)
+		_, err := repo.Update(context.Background(), "user-123", "job-1", &model.JobPatch{Title: &title})
 
 		assert.ErrorIs(t, err, errDB)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestJobRepository_CreateWithInitialStage(t *testing.T) {
+	t.Run("writes the card, its first history row and the pointer in one transaction", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+		stageTemplateID := "stage-applied"
+		appliedAt := time.Now().UTC().AddDate(0, 0, -3)
+		job := &model.Job{
+			UserID:                 "user-123",
+			Title:                  "Software Engineer",
+			CurrentStageTemplateID: &stageTemplateID,
+			AppliedAt:              &appliedAt,
+		}
+		stage := &model.JobStage{StageTemplateID: stageTemplateID, Status: "active", StartedAt: appliedAt}
+
+		mock.ExpectBegin()
+		mock.ExpectExec("INSERT INTO jobs").
+			WithArgs(
+				pgxmock.AnyArg(), job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Description,
+				job.IsArchived, job.AppliedAt, job.ResumeID, job.ResumeBuilderID,
+				job.CurrentStageTemplateID, pgxmock.AnyArg(), pgxmock.AnyArg(),
+			).
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		mock.ExpectExec("INSERT INTO job_stages").
+			WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), stageTemplateID, "active", 0, appliedAt, pgxmock.AnyArg()).
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2`).
+			WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).
+			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+		mock.ExpectCommit()
+
+		err := repo.CreateWithInitialStage(context.Background(), job, stage)
+
+		require.NoError(t, err)
+		assert.NotEmpty(t, job.ID)
+		assert.NotEmpty(t, stage.ID)
+		assert.Equal(t, job.ID, stage.JobID)
+		require.NotNil(t, job.CurrentStageID)
+		assert.Equal(t, stage.ID, *job.CurrentStageID)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("rolls back when the history row cannot be written", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+		stageTemplateID := "stage-applied"
+		job := &model.Job{UserID: "user-123", Title: "X", CurrentStageTemplateID: &stageTemplateID}
+		stage := &model.JobStage{StageTemplateID: stageTemplateID, Status: "active", StartedAt: time.Now().UTC()}
+
+		anyArgs := make([]any, 14)
+		for i := range anyArgs {
+			anyArgs[i] = pgxmock.AnyArg()
+		}
+
+		mock.ExpectBegin()
+		mock.ExpectExec("INSERT INTO jobs").WithArgs(anyArgs...).WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		mock.ExpectExec("INSERT INTO job_stages").
+			WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
+				pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
+			WillReturnError(errDB)
+		mock.ExpectRollback()
+
+		err := repo.CreateWithInitialStage(context.Background(), job, stage)
+
+		assert.ErrorIs(t, err, errDB)
+		assert.Nil(t, job.CurrentStageID)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 }

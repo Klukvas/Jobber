@@ -37,18 +37,28 @@ import { EditStageTemplateModal } from "@/features/stages/modals/EditStageTempla
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { showErrorNotification } from "@/shared/lib/notifications";
 import { ApiError } from "@/services/api";
-import type { StageTemplateDTO } from "@/shared/types/api";
+import {
+  stageKindLabelKey,
+  stageKindOf,
+} from "@/features/stages/lib/stageKinds";
+import type { StageKind, StageTemplateDTO } from "@/shared/types/api";
 
 // The user's ordered stage templates ARE the single pipeline. Recommended
-// stages are common Huntr-style columns, listed in pipeline order.
-const RECOMMENDED_STAGES: { nameKey: string; order: number }[] = [
-  { nameKey: "stages.wishlist", order: 1 },
-  { nameKey: "stages.applied", order: 2 },
-  { nameKey: "stages.phoneScreen", order: 3 },
-  { nameKey: "stages.technicalInterview", order: 4 },
-  { nameKey: "stages.onsiteInterview", order: 5 },
-  { nameKey: "stages.offer", order: 6 },
-  { nameKey: "stages.rejected", order: 7 },
+// stages are common Huntr-style columns, listed in pipeline order. Each one
+// carries the kind it obviously is, so a pipeline built from these buttons
+// reports correctly without the user having to classify anything by hand.
+const RECOMMENDED_STAGES: {
+  nameKey: string;
+  order: number;
+  kind: StageKind;
+}[] = [
+  { nameKey: "stages.wishlist", order: 1, kind: "saved" },
+  { nameKey: "stages.applied", order: 2, kind: "applied" },
+  { nameKey: "stages.phoneScreen", order: 3, kind: "response" },
+  { nameKey: "stages.technicalInterview", order: 4, kind: "interview" },
+  { nameKey: "stages.onsiteInterview", order: 5, kind: "interview" },
+  { nameKey: "stages.offer", order: 6, kind: "offer" },
+  { nameKey: "stages.rejected", order: 7, kind: "rejected" },
 ];
 
 export default function StageTemplates() {
@@ -113,8 +123,12 @@ export default function StageTemplates() {
     }
   };
 
-  const handleAddRecommended = (nameKey: string, order: number) => {
-    createMutation.mutate({ name: t(nameKey), order });
+  const handleAddRecommended = (
+    nameKey: string,
+    order: number,
+    kind: StageKind,
+  ) => {
+    createMutation.mutate({ name: t(nameKey), order, kind });
   };
 
   const handleAddAllRecommended = () => {
@@ -126,7 +140,11 @@ export default function StageTemplates() {
       const allNames = getAllTranslations(rec.nameKey);
       const alreadyExists = allNames.some((n) => existingNames.has(n));
       if (!alreadyExists) {
-        createMutation.mutate({ name: t(rec.nameKey), order: rec.order });
+        createMutation.mutate({
+          name: t(rec.nameKey),
+          order: rec.order,
+          kind: rec.kind,
+        });
       }
     });
   };
@@ -221,7 +239,9 @@ export default function StageTemplates() {
                   variant={added ? "secondary" : "outline"}
                   size="sm"
                   disabled={added || createMutation.isPending}
-                  onClick={() => handleAddRecommended(rec.nameKey, rec.order)}
+                  onClick={() =>
+                    handleAddRecommended(rec.nameKey, rec.order, rec.kind)
+                  }
                 >
                   {added ? (
                     <Check className="h-4 w-4" />
@@ -282,7 +302,16 @@ export default function StageTemplates() {
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
                     {index + 1}
                   </div>
-                  <CardTitle className="text-lg">{stage.name}</CardTitle>
+                  <div className="flex flex-col">
+                    <CardTitle className="text-lg">{stage.name}</CardTitle>
+                    {/* What the column means to analytics. Visible because a
+                        custom column starts as "Other" and counts towards
+                        nothing — the user has to be able to see that and fix
+                        it from the edit dialog. */}
+                    <span className="text-xs text-muted-foreground">
+                      {t(stageKindLabelKey(stageKindOf(stage)))}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <Button

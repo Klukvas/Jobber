@@ -37,44 +37,58 @@ func NewAnalyticsRepositoryWithPool(pool DBPool) *AnalyticsRepository {
 // (current_stage_template_id = X) OR it recorded a job_stages row for X — so
 // progress still counts even after the card later moved on. Archived cards
 // (is_archived = true) are hidden from every metric.
+//
+// What a column MEANS comes from stage_templates.kind, never from its label or
+// its position. The label is the user's: renaming "Technical Interview" to
+// "Onsite loop" used to make it stop counting as an interview, while a custom
+// "Follow-up reminder" column counted as a reply from the employer purely by
+// sitting after the first column. Kinds are also why reordering the board
+// cannot move a card between metrics.
+
+// responseKinds are the column kinds that mean the employer came back — a
+// reply, an interview, an offer or a rejection (a rejection is still a
+// response, just a negative one).
+//
+// Mirrors model.StageKind.IsResponse() in the jobs module; stage_kind_test.go
+// fails if the two ever drift apart. Compile-time constant — no user input is
+// interpolated into any query in this file.
+const responseKinds = `('response', 'interview', 'offer', 'rejected')`
 
 // respondedPredicate is the single definition of "this card got a response":
-// it reached a pipeline column ordered after the user's first one, either by
-// sitting there now or by having recorded a job_stages row for it.
+// it reached a column of a response kind, either by sitting there now or by
+// having recorded a job_stages row for it.
 //
 // Shared verbatim by the overview, resume-effectiveness and source queries so
 // the three can never drift apart and report different response rates for the
-// same cards. Requires the jobs row to be aliased `j` and the `first_template`
-// CTE to be in scope. It is a compile-time constant — no user input is ever
-// interpolated into it.
+// same cards. Requires the jobs row to be aliased `j`.
 const respondedPredicate = `(
 			EXISTS (
 				SELECT 1 FROM job_stages js
 				JOIN stage_templates st ON st.id = js.stage_template_id
 				WHERE js.job_id = j.id
-				  AND st."order" > (SELECT "order" FROM first_template)
+				  AND st.kind IN ` + responseKinds + `
 			)
 			OR EXISTS (
 				SELECT 1 FROM stage_templates st
 				WHERE st.id = j.current_stage_template_id
-				  AND st."order" > (SELECT "order" FROM first_template)
+				  AND st.kind IN ` + responseKinds + `
 			)
 		)`
 
 // interviewPredicate is the same reached-a-column rule narrowed to interview
-// columns. It deliberately mirrors respondedPredicate's two branches: it used
-// to look at job_stages only, so a card sitting in "Interview" without a
-// recorded stage row counted as a response but not as an interview.
+// columns. It deliberately mirrors respondedPredicate's two branches: a card
+// sitting in an interview column without a recorded stage row must not count
+// as a response but not as an interview.
 const interviewPredicate = `(
 			EXISTS (
 				SELECT 1 FROM job_stages js
 				JOIN stage_templates st ON st.id = js.stage_template_id
-				WHERE js.job_id = j.id AND LOWER(st.name) LIKE '%interview%'
+				WHERE js.job_id = j.id AND st.kind = 'interview'
 			)
 			OR EXISTS (
 				SELECT 1 FROM stage_templates st
 				WHERE st.id = j.current_stage_template_id
-				  AND LOWER(st.name) LIKE '%interview%'
+				  AND st.kind = 'interview'
 			)
 		)`
 
@@ -92,29 +106,21 @@ const interviewPredicate = `(
 // a card with no column at all belonged to neither bucket, so Total could read
 // 23 next to Active 23 and Closed 3.
 //
-//   - rejected = 0 (rejection was a status; it no longer exists)
-//   - response_rate = share of ACTIVE cards that reached beyond the FIRST
+//   - rejected = non-archived cards sitting in a column of kind 'rejected'
+//   - response_rate = share of ACTIVE cards that reached a response-kind
 //     column. Archived cards are excluded from every rate, as everywhere else.
-//   - avg_days_to_first_response = avg days from card creation to the first
-//     job_stages row past the first column
+//   - avg_days_to_first_response = avg days from the application (applied_at,
+//     falling back to card creation for a card that was never applied to) to
+//     the first job_stages row in a response-kind column
 func (r *AnalyticsRepository) GetOverview(ctx context.Context, userID string) (*model.OverviewAnalytics, error) {
 	query := `
-		WITH first_template AS (
-			-- The first pipeline column (lowest "order"). "Beyond first" means
-			-- any stage template ordered after it.
-			SELECT id, "order"
-			FROM stage_templates
-			WHERE user_id = $1
-			ORDER BY "order" ASC, name ASC
-			LIMIT 1
-		),
-		all_cards AS (
-			SELECT j.id, j.created_at, j.current_stage_template_id, j.is_archived
+		WITH all_cards AS (
+			SELECT j.id, j.created_at, j.applied_at, j.current_stage_template_id, j.is_archived
 			FROM jobs j
 			WHERE j.user_id = $1
 		),
 		cards AS (
-			SELECT id, created_at, current_stage_template_id
+			SELECT id, created_at, applied_at, current_stage_template_id
 			FROM all_cards
 			WHERE is_archived = false
 		),
@@ -131,24 +137,36 @@ func (r *AnalyticsRepository) GetOverview(ctx context.Context, userID string) (*
 		response_stats AS (
 			SELECT COUNT(*) AS apps_with_response FROM responded
 		),
+		rejected_stats AS (
+			-- Cards whose current column means "rejected". Reading the kind
+			-- (not the name) is what keeps a renamed column counted.
+			SELECT COUNT(*) AS rejected
+			FROM cards c
+			JOIN stage_templates st ON st.id = c.current_stage_template_id
+			WHERE st.kind = 'rejected'
+		),
 		first_response_time AS (
-			-- Days from card creation to the first stage entered beyond the
-			-- first column.
-			SELECT AVG(EXTRACT(EPOCH FROM (fr.started_at - c.created_at)) / 86400) AS avg_days
+			-- Days from the application to the first response-kind column the
+			-- card entered. GREATEST(..., 0) guards the one case where the two
+			-- can invert: a user back-dating applied_at after the fact.
+			SELECT AVG(GREATEST(
+				EXTRACT(EPOCH FROM (fr.started_at - COALESCE(c.applied_at, c.created_at))) / 86400,
+				0
+			)) AS avg_days
 			FROM cards c
 			JOIN (
 				SELECT DISTINCT ON (js.job_id)
 					js.job_id, js.started_at
 				FROM job_stages js
 				JOIN stage_templates st ON st.id = js.stage_template_id
-				WHERE st."order" > (SELECT "order" FROM first_template)
-				ORDER BY js.job_id, st."order" ASC, js.started_at ASC
+				WHERE st.kind IN ` + responseKinds + `
+				ORDER BY js.job_id, js.started_at ASC
 			) fr ON fr.job_id = c.id
 		)
 		SELECT
 			COALESCE(card_stats.active, 0) AS active_applications,
 			COALESCE(card_stats.closed, 0) AS closed_applications,
-			0 AS rejected_applications,
+			COALESCE(rejected_stats.rejected, 0) AS rejected_applications,
 			CASE
 				WHEN card_stats.active > 0 THEN
 					ROUND((response_stats.apps_with_response::numeric / card_stats.active) * 100, 2)
@@ -157,6 +175,7 @@ func (r *AnalyticsRepository) GetOverview(ctx context.Context, userID string) (*
 			COALESCE(ROUND(first_response_time.avg_days::numeric, 2), 0) AS avg_days_to_first_response
 		FROM card_stats
 		CROSS JOIN response_stats
+		CROSS JOIN rejected_stats
 		CROSS JOIN first_response_time
 	`
 
@@ -380,14 +399,7 @@ func (r *AnalyticsRepository) GetStageTime(ctx context.Context, userID string) (
 // event. "Interviews" is interviewPredicate. Archived cards are excluded.
 func (r *AnalyticsRepository) GetResumeEffectiveness(ctx context.Context, userID string) (*model.ResumeAnalytics, error) {
 	query := `
-		WITH first_template AS (
-			SELECT "order"
-			FROM stage_templates
-			WHERE user_id = $1
-			ORDER BY "order" ASC, name ASC
-			LIMIT 1
-		),
-		resume_stats AS (
+		WITH resume_stats AS (
 			SELECT
 				r.id AS resume_id,
 				r.title AS resume_title,
@@ -449,14 +461,7 @@ func (r *AnalyticsRepository) GetResumeEffectiveness(ctx context.Context, userID
 // resume-effectiveness rates. Archived cards are excluded.
 func (r *AnalyticsRepository) GetSourceAnalytics(ctx context.Context, userID string) (*model.SourceAnalytics, error) {
 	query := `
-		WITH first_template AS (
-			SELECT "order"
-			FROM stage_templates
-			WHERE user_id = $1
-			ORDER BY "order" ASC, name ASC
-			LIMIT 1
-		),
-		source_stats AS (
+		WITH source_stats AS (
 			SELECT
 				COALESCE(NULLIF(j.source, ''), 'Unknown') AS source_name,
 				COUNT(DISTINCT j.id) AS applications_count,

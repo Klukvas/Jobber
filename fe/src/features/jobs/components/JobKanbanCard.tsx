@@ -2,6 +2,7 @@ import { memo } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { useNavigate } from "react-router-dom";
 import { JobCardBase } from "./JobCardBase";
+import { useJobsListReturnState } from "@/features/jobs/lib/jobsListReturn";
 import type { JobDTO } from "@/shared/types/api";
 
 interface JobKanbanCardProps {
@@ -20,6 +21,8 @@ export const JobKanbanCard = memo(function JobKanbanCard({
   onDelete,
 }: JobKanbanCardProps) {
   const navigate = useNavigate();
+  // So the detail page's Back returns to this board, filters and all.
+  const returnState = useJobsListReturnState();
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
       id: job.id,
@@ -34,7 +37,8 @@ export const JobKanbanCard = memo(function JobKanbanCard({
     <JobCardBase
       job={job}
       onTitleClick={() => {
-        if (!isDragging) navigate(`/app/jobs/${job.id}`);
+        if (!isDragging)
+          navigate(`/app/jobs/${job.id}`, { state: returnState });
       }}
       onAddComment={onAddComment}
       onAddStage={onAddStage}

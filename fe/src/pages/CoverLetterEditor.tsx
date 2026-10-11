@@ -16,8 +16,14 @@ import {
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { Sheet } from "@/shared/ui/Sheet";
-import { coverLetterService } from "@/services/coverLetterService";
+import { ApiError } from "@/services/api";
 import { useCoverLetterStore } from "@/stores/coverLetterStore";
+import {
+  enqueueOutgoingCoverLetterSave,
+  fetchCoverLetterDocument,
+  reconcileLoadedCoverLetter,
+} from "@/features/cover-letter/lib/coverLetterDocumentSync";
+import { coverLetterQueryKeys } from "@/features/cover-letter/lib/coverLetterQueryKeys";
 import { useAutoSaveCoverLetter } from "@/features/cover-letter/hooks/useAutoSaveCoverLetter";
 import { useExportCoverLetterPDF } from "@/features/cover-letter/hooks/useExportCoverLetterPDF";
 import { useExportCoverLetterDOCX } from "@/features/cover-letter/hooks/useExportCoverLetterDOCX";
@@ -108,33 +114,56 @@ export default function CoverLetterEditorPage() {
   const coverLetter = useCoverLetterStore((s) => s.coverLetter);
   const updateField = useCoverLetterStore((s) => s.updateField);
   const updateFields = useCoverLetterStore((s) => s.updateFields);
+  const markDirty = useCoverLetterStore((s) => s.markDirty);
+  const setSaveStatus = useCoverLetterStore((s) => s.setSaveStatus);
   const [showAI, setShowAI] = useState(false);
   const [showFullPreview, setShowFullPreview] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showColorDropdown, setShowColorDropdown] = useState(false);
   const [localColorInput, setLocalColorInput] = useState("");
+  const [isSyncing, setIsSyncing] = useState(false);
   const colorDropdownRef = useRef<HTMLDivElement>(null);
 
   const isDesktop = useMediaQuery("(min-width: 1024px)");
 
   usePageMeta({ titleKey: "coverLetter.editor", noindex: true });
-  useAutoSaveCoverLetter();
+  const { flush } = useAutoSaveCoverLetter();
   const exportPDF = useExportCoverLetterPDF();
   const exportDOCX = useExportCoverLetterDOCX();
   const { undo, redo, canUndo, canRedo } = useUndoRedoCoverLetter();
 
+  // The same key factory the auto-save queue invalidates through, so a stored
+  // save and the entry this editor reads can never drift apart. The fetch goes
+  // through the sync module as well, which dates the request so a response
+  // that predates a save of this client's cannot replace it.
   const { isLoading, error, data } = useQuery({
-    queryKey: ["cover-letter", id],
-    queryFn: () => coverLetterService.getById(id!),
+    queryKey: coverLetterQueryKeys.detail(id ?? ""),
+    queryFn: () => fetchCoverLetterDocument(id!),
     enabled: !!id,
   });
 
   useEffect(() => {
-    if (data) {
-      setCoverLetter(data);
-      useCoverLetterStore.temporal.getState().clear();
-    }
-  }, [data, setCoverLetter]);
+    if (!data) return;
+
+    // Opening another letter from here changes the route parameter without
+    // unmounting this page, so the auto-save unmount flush never runs. The
+    // letter on its way out is handed to its queue first, while the store
+    // still holds it.
+    enqueueOutgoingCoverLetterSave(data.id);
+
+    // Edits typed while the payload was being fetched, the draft a failed save
+    // left behind, and a cache entry older than this editor's own last save are
+    // all reconciled here — the raw payload used to replace them.
+    const { coverLetter: reconciled, unsaved } =
+      reconcileLoadedCoverLetter(data);
+    setCoverLetter(reconciled);
+    useCoverLetterStore.temporal.getState().clear();
+
+    // `setCoverLetter` opens the letter as stored, so unsaved work has to be
+    // marked dirty again for auto-save to retry it.
+    if (unsaved !== "none") markDirty();
+    if (unsaved === "failed") setSaveStatus("error");
+  }, [data, setCoverLetter, markDirty, setSaveStatus]);
 
   useEffect(() => {
     if (!showColorDropdown) return;
@@ -158,8 +187,38 @@ export default function CoverLetterEditorPage() {
   );
   const handleClosePreview = useCallback(() => setShowFullPreview(false), []);
 
-  const handleExportPDF = useCallback(() => {
+  const handleRetrySave = useCallback(() => {
+    void flush().catch(() => {
+      // The failure is already on screen through saveStatus.
+    });
+  }, [flush]);
+
+  /**
+   * Stores everything the editor holds before the server renders the letter.
+   *
+   * The export runs from the stored document, so exporting mid-debounce used
+   * to hand the customer the previous version of their letter.
+   */
+  const syncBeforeExport = useCallback(async (): Promise<boolean> => {
+    setIsSyncing(true);
+    try {
+      await flush();
+      return true;
+    } catch {
+      return false;
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [flush]);
+
+  const handleExportPDF = useCallback(async () => {
     if (!coverLetter) return;
+
+    if (!(await syncBeforeExport())) {
+      showErrorNotification(t("coverLetter.saveFailed"));
+      return;
+    }
+
     exportPDF.mutate(coverLetter.id, {
       onSuccess: (blob) => {
         const url = URL.createObjectURL(blob);
@@ -178,10 +237,16 @@ export default function CoverLetterEditorPage() {
         );
       },
     });
-  }, [coverLetter, exportPDF, t]);
+  }, [coverLetter, exportPDF, syncBeforeExport, t]);
 
-  const handleExportDOCX = useCallback(() => {
+  const handleExportDOCX = useCallback(async () => {
     if (!coverLetter) return;
+
+    if (!(await syncBeforeExport())) {
+      showErrorNotification(t("coverLetter.saveFailed"));
+      return;
+    }
+
     exportDOCX.mutate(coverLetter.id, {
       onSuccess: (blob) => {
         const url = URL.createObjectURL(blob);
@@ -200,7 +265,7 @@ export default function CoverLetterEditorPage() {
         );
       },
     });
-  }, [coverLetter, exportDOCX, t]);
+  }, [coverLetter, exportDOCX, syncBeforeExport, t]);
 
   if (isLoading) {
     return (
@@ -210,7 +275,14 @@ export default function CoverLetterEditorPage() {
     );
   }
 
-  if (error || !coverLetter) {
+  // Opening a letter again refetches it, and a refetch that fails leaves
+  // `error` set next to a payload this editor already has. Reporting that the
+  // letter does not exist would be wrong then — and would take away a document
+  // whose save may still be on its way. Only the server saying the letter is
+  // gone, or not this customer's, is final.
+  const letterIsGone =
+    error instanceof ApiError && (error.status === 404 || error.status === 403);
+  if (!coverLetter || (error && (letterIsGone || !data))) {
     return (
       <div className="flex h-[calc(100vh-8rem)] flex-col items-center justify-center gap-4">
         <p className="text-muted-foreground">{t("coverLetter.notFound")}</p>
@@ -269,7 +341,7 @@ export default function CoverLetterEditorPage() {
               {t("coverLetter.ai.title")}
             </span>
           </Button>
-          <CoverLetterSaveIndicator />
+          <CoverLetterSaveIndicator onRetry={handleRetrySave} />
         </div>
       </div>
 
@@ -434,8 +506,8 @@ export default function CoverLetterEditorPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={handleExportPDF}
-          disabled={exportPDF.isPending}
+          onClick={() => void handleExportPDF()}
+          disabled={exportPDF.isPending || isSyncing}
         >
           <Download className="h-4 w-4" />
           <span className="hidden sm:inline">{t("coverLetter.exportPDF")}</span>
@@ -445,8 +517,8 @@ export default function CoverLetterEditorPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={handleExportDOCX}
-          disabled={exportDOCX.isPending}
+          onClick={() => void handleExportDOCX()}
+          disabled={exportDOCX.isPending || isSyncing}
         >
           <Download className="h-4 w-4" />
           <span className="hidden sm:inline">

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/andreypavlenko/jobber/modules/jobs/model"
@@ -21,18 +22,20 @@ func NewStageTemplateRepository(pool PgxDB) *StageTemplateRepository {
 }
 
 func (r *StageTemplateRepository) Create(ctx context.Context, template *model.StageTemplate) error {
-	// phase column (kept transiently in DB with a default) is intentionally not written.
 	query := `
-		INSERT INTO stage_templates (id, user_id, name, "order", created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO stage_templates (id, user_id, name, "order", kind, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 
 	template.ID = uuid.New().String()
+	if !template.Kind.IsValid() {
+		template.Kind = model.StageKindOther
+	}
 	now := time.Now().UTC()
 	template.CreatedAt = now
 	template.UpdatedAt = now
 
-	_, err := r.pool.Exec(ctx, query, template.ID, template.UserID, template.Name, template.Order, template.CreatedAt, template.UpdatedAt)
+	_, err := r.pool.Exec(ctx, query, template.ID, template.UserID, template.Name, template.Order, string(template.Kind), template.CreatedAt, template.UpdatedAt)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -45,14 +48,18 @@ func (r *StageTemplateRepository) Create(ctx context.Context, template *model.St
 
 func (r *StageTemplateRepository) GetByID(ctx context.Context, userID, templateID string) (*model.StageTemplate, error) {
 	query := `
-		SELECT id, user_id, name, "order", created_at, updated_at
+		SELECT id, user_id, name, "order", kind, created_at, updated_at
 		FROM stage_templates WHERE id = $1 AND user_id = $2
 	`
 
 	template := &model.StageTemplate{}
+	// kind is scanned as a plain string and converted, so the model keeps its
+	// own enum type without depending on driver-side type mapping.
+	var kind string
 	err := r.pool.QueryRow(ctx, query, templateID, userID).Scan(
-		&template.ID, &template.UserID, &template.Name, &template.Order, &template.CreatedAt, &template.UpdatedAt,
+		&template.ID, &template.UserID, &template.Name, &template.Order, &kind, &template.CreatedAt, &template.UpdatedAt,
 	)
+	template.Kind = model.StageKind(kind)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -73,7 +80,7 @@ func (r *StageTemplateRepository) List(ctx context.Context, userID string, limit
 
 	// The user's pipeline, in column order.
 	query := `
-		SELECT id, user_id, name, "order", created_at, updated_at
+		SELECT id, user_id, name, "order", kind, created_at, updated_at
 		FROM stage_templates WHERE user_id = $1
 		ORDER BY "order" ASC, created_at ASC
 		LIMIT $2 OFFSET $3
@@ -88,33 +95,78 @@ func (r *StageTemplateRepository) List(ctx context.Context, userID string, limit
 	var templates []*model.StageTemplate
 	for rows.Next() {
 		template := &model.StageTemplate{}
-		if err := rows.Scan(&template.ID, &template.UserID, &template.Name, &template.Order, &template.CreatedAt, &template.UpdatedAt); err != nil {
+		var kind string
+		if err := rows.Scan(&template.ID, &template.UserID, &template.Name, &template.Order, &kind, &template.CreatedAt, &template.UpdatedAt); err != nil {
 			return nil, 0, err
 		}
+		template.Kind = model.StageKind(kind)
 		templates = append(templates, template)
 	}
 	return templates, total, rows.Err()
 }
 
-func (r *StageTemplateRepository) Update(ctx context.Context, template *model.StageTemplate) error {
-	query := `
-		UPDATE stage_templates SET name = $3, "order" = $4, updated_at = $5
-		WHERE id = $1 AND user_id = $2
-	`
+// Update writes exactly the fields the patch carries and returns the resulting
+// row.
+//
+// Field-scoped on purpose. The old whole-row UPDATE wrote name, "order" and
+// kind from a copy read moments earlier, so a rename and a reclassification
+// that overlapped lost one of the two: whichever statement committed second
+// carried the other's pre-edit value back over the column. Name, order and kind
+// are three independent things — the user's label, the user's position and the
+// meaning every analytics rule reads — and each is written only when asked for.
+//
+// Column names come from compile-time literals; every value is a bound
+// parameter.
+func (r *StageTemplateRepository) Update(ctx context.Context, userID, templateID string, patch *model.StageTemplatePatch) (*model.StageTemplate, error) {
+	// $1/$2 scope the row to its owner; updated_at is always written, so the
+	// SET list is never empty.
+	args := []any{templateID, userID, time.Now().UTC()}
+	sets := []string{"updated_at = $3"}
 
-	template.UpdatedAt = time.Now().UTC()
-	result, err := r.pool.Exec(ctx, query, template.ID, template.UserID, template.Name, template.Order, template.UpdatedAt)
+	set := func(column string, value any) {
+		args = append(args, value)
+		sets = append(sets, fmt.Sprintf("%s = $%d", column, len(args)))
+	}
+
+	if patch.Name != nil {
+		set("name", *patch.Name)
+	}
+	if patch.Order != nil {
+		set(`"order"`, *patch.Order)
+	}
+	if patch.Kind != nil {
+		// Same guard as Create: an unrecognized kind is stored as the
+		// unclassified default rather than as a value no rule matches.
+		kind := *patch.Kind
+		if !kind.IsValid() {
+			kind = model.StageKindOther
+		}
+		set("kind", string(kind))
+	}
+
+	query := fmt.Sprintf(`
+		UPDATE stage_templates SET %s
+		WHERE id = $1 AND user_id = $2
+		RETURNING id, user_id, name, "order", kind, created_at, updated_at
+	`, strings.Join(sets, ", "))
+
+	template := &model.StageTemplate{}
+	var kind string
+	err := r.pool.QueryRow(ctx, query, args...).Scan(
+		&template.ID, &template.UserID, &template.Name, &template.Order, &kind, &template.CreatedAt, &template.UpdatedAt,
+	)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return model.ErrStageTemplateNameExists
+			return nil, model.ErrStageTemplateNameExists
 		}
-		return err
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, model.ErrStageTemplateNotFound
+		}
+		return nil, err
 	}
-	if result.RowsAffected() == 0 {
-		return model.ErrStageTemplateNotFound
-	}
-	return nil
+	template.Kind = model.StageKind(kind)
+	return template, nil
 }
 
 // Reorder sets a new column order for the user's pipeline. orderedIDs must be

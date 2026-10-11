@@ -47,3 +47,16 @@ func (nilTimePtrMatcher) Match(v interface{}) bool {
 }
 
 func nilTimePtrArg() nilTimePtrMatcher { return nilTimePtrMatcher{} }
+
+// timePtrMatcher matches a *time.Time SQL argument equal to want — used to
+// assert a timestamp was carried over rather than re-stamped.
+type timePtrMatcher struct {
+	want time.Time
+}
+
+func (m timePtrMatcher) Match(v interface{}) bool {
+	p, ok := v.(*time.Time)
+	return ok && p != nil && p.Equal(m.want)
+}
+
+func timePtrArg(want time.Time) timePtrMatcher { return timePtrMatcher{want: want} }

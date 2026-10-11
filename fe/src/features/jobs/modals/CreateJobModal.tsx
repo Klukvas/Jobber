@@ -14,6 +14,8 @@ import type {
   CreateJobRequest,
   UpdateJobRequest,
 } from "@/shared/types/api";
+import { jobUpdatePayload } from "@/features/jobs/hooks/useJobDetailMutations";
+import { resumeQueryKeys } from "@/shared/lib/resumeQueryKeys";
 import {
   Dialog,
   DialogContent,
@@ -39,8 +41,30 @@ interface CreateJobModalProps {
   onCreated?: (job: JobDTO) => void;
 }
 
+/**
+ * Today as the date field spells it, in the user's own timezone.
+ *
+ * `toISOString().slice(0, 10)` is UTC: east of Greenwich it offers tomorrow in
+ * the evening, west of it yesterday in the morning.
+ */
 function todayISODate(): string {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+/**
+ * The chosen day as an RFC3339 instant, which is what the API takes.
+ *
+ * A `type="date"` field normally hands over `YYYY-MM-DD` or an empty string,
+ * but it is still a text input underneath: anything unparseable falls back to
+ * now rather than throwing out of the submit handler on `toISOString`.
+ */
+function appliedAtFromDateInput(value: string): string {
+  const chosen = value ? new Date(`${value}T00:00:00`) : null;
+  if (chosen && !Number.isNaN(chosen.getTime())) return chosen.toISOString();
+  return new Date().toISOString();
 }
 
 // Inner content component that resets state when key changes
@@ -78,7 +102,7 @@ function ModalContent({
   });
 
   const { data: builderResumes } = useQuery({
-    queryKey: ["resume-builder"],
+    queryKey: resumeQueryKeys.builderList(),
     queryFn: () => resumeBuilderService.list(),
     enabled: open && !isEditMode,
   });
@@ -114,15 +138,17 @@ function ModalContent({
     if (!title) return;
 
     if (isEditMode && job) {
+      // Empty strings stay empty strings: the form holds every field, so a
+      // cleared one is the user erasing it, not an absent value.
       updateMutation.mutate({
         id: job.id,
-        data: {
+        data: jobUpdatePayload({
           title,
-          company_id: companyId || undefined,
-          url: url || undefined,
-          source: source || undefined,
-          description: description || undefined,
-        },
+          company_id: companyId,
+          url,
+          source,
+          description,
+        }),
       });
       return;
     }
@@ -138,9 +164,7 @@ function ModalContent({
     if (alreadyApplied) {
       // Marking a job as already-applied just records the applied date; the
       // backend places the card in the appropriate column.
-      request.applied_at = appliedDate
-        ? new Date(`${appliedDate}T00:00:00`).toISOString()
-        : new Date().toISOString();
+      request.applied_at = appliedAtFromDateInput(appliedDate);
       if (selectedResume.startsWith("uploaded:")) {
         request.resume_id = selectedResume.slice("uploaded:".length);
       } else if (selectedResume.startsWith("builder:")) {

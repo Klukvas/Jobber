@@ -225,3 +225,167 @@ describe("EditStageTemplateModal — behavior", () => {
     await waitFor(() => expect(mockShowError).toHaveBeenCalledWith("nope"));
   });
 });
+
+/**
+ * A column's *meaning* is separate from its name and its position: analytics
+ * counts kinds, so renaming "Technical Interview" or dragging it one slot left
+ * must not change what it counts. A column the user invents starts as "Other",
+ * which counts towards nothing until they classify it here.
+ */
+describe("stage kind", () => {
+  it("starts a custom stage as Other and sends no kind for it", async () => {
+    const user = userEvent.setup();
+    mockCreate.mockResolvedValue({ ...template, id: "new" });
+    renderWithClient(
+      <CreateStageTemplateModal open={true} onOpenChange={vi.fn()} />,
+    );
+
+    expect(screen.getByLabelText("stages.kind")).toHaveValue("other");
+
+    await user.type(screen.getByLabelText(/stages\.stageName/), "Follow-up");
+    await user.type(screen.getByLabelText(/stages\.order/), "8");
+    await user.click(screen.getByRole("button", { name: "common.create" }));
+
+    // Omitted, because omitted *is* "other" on the server — the column simply
+    // carries no analytics meaning yet.
+    await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
+    expect(mockCreate.mock.calls[0][0]).toEqual({
+      name: "Follow-up",
+      order: 8,
+    });
+  });
+
+  it("offers every kind and sends the one the user picks", async () => {
+    const user = userEvent.setup();
+    mockCreate.mockResolvedValue({ ...template, id: "new" });
+    renderWithClient(
+      <CreateStageTemplateModal open={true} onOpenChange={vi.fn()} />,
+    );
+
+    const select = screen.getByLabelText("stages.kind");
+    expect(
+      Array.from(select.querySelectorAll("option")).map((o) => o.value),
+    ).toEqual([
+      "saved",
+      "applied",
+      "response",
+      "interview",
+      "offer",
+      "rejected",
+      "other",
+    ]);
+
+    await user.type(screen.getByLabelText(/stages\.stageName/), "Onsite loop");
+    await user.type(screen.getByLabelText(/stages\.order/), "4");
+    await user.selectOptions(select, "interview");
+    await user.click(screen.getByRole("button", { name: "common.create" }));
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
+    expect(mockCreate.mock.calls[0][0]).toEqual({
+      name: "Onsite loop",
+      order: 4,
+      kind: "interview",
+    });
+  });
+
+  it("keeps the kind when the stage is only renamed", async () => {
+    const user = userEvent.setup();
+    mockUpdate.mockResolvedValue(template);
+    renderWithClient(
+      <EditStageTemplateModal
+        open={true}
+        onOpenChange={vi.fn()}
+        template={{ ...template, kind: "interview" }}
+      />,
+    );
+
+    expect(screen.getByLabelText("stages.kind")).toHaveValue("interview");
+
+    const nameInput = screen.getByLabelText(/stages\.name/);
+    await user.clear(nameInput);
+    await user.type(nameInput, "Onsite loop");
+    await user.click(screen.getByRole("button", { name: "common.save" }));
+
+    // No kind in the payload: a rename is not a reclassification, and the
+    // server leaves an omitted kind alone.
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith("st-1", {
+        name: "Onsite loop",
+        order: 2,
+      }),
+    );
+  });
+
+  it("keeps the kind when the stage is only reordered", async () => {
+    const user = userEvent.setup();
+    mockUpdate.mockResolvedValue(template);
+    renderWithClient(
+      <EditStageTemplateModal
+        open={true}
+        onOpenChange={vi.fn()}
+        template={{ ...template, kind: "response" }}
+      />,
+    );
+
+    const orderInput = screen.getByLabelText(/stages\.order/);
+    await user.clear(orderInput);
+    await user.type(orderInput, "5");
+    await user.click(screen.getByRole("button", { name: "common.save" }));
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith("st-1", {
+        name: "Phone Screen",
+        order: 5,
+      }),
+    );
+  });
+
+  it("sends the new kind when the user reclassifies the stage", async () => {
+    const user = userEvent.setup();
+    mockUpdate.mockResolvedValue(template);
+    renderWithClient(
+      <EditStageTemplateModal
+        open={true}
+        onOpenChange={vi.fn()}
+        template={{ ...template, kind: "other" }}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText("stages.kind"), "response");
+    await user.click(screen.getByRole("button", { name: "common.save" }));
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith("st-1", {
+        name: "Phone Screen",
+        order: 2,
+        kind: "response",
+      }),
+    );
+  });
+
+  // A column written before kinds existed arrives without one.
+  it("reads a stage with no kind as Other and lets it be classified", async () => {
+    const user = userEvent.setup();
+    mockUpdate.mockResolvedValue(template);
+    renderWithClient(
+      <EditStageTemplateModal
+        open={true}
+        onOpenChange={vi.fn()}
+        template={template}
+      />,
+    );
+
+    expect(screen.getByLabelText("stages.kind")).toHaveValue("other");
+
+    await user.selectOptions(screen.getByLabelText("stages.kind"), "interview");
+    await user.click(screen.getByRole("button", { name: "common.save" }));
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith("st-1", {
+        name: "Phone Screen",
+        order: 2,
+        kind: "interview",
+      }),
+    );
+  });
+});

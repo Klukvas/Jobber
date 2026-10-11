@@ -59,14 +59,13 @@ func TestJobService_ListStageTemplates_Error(t *testing.T) {
 }
 
 func TestJobService_UpdateStageTemplate_OrderOnly(t *testing.T) {
-	// Updating only the order leaves the name untouched.
-	existing := &model.StageTemplate{ID: "s1", UserID: "user-1", Name: "Screening", Order: 2}
-	var saved *model.StageTemplate
+	// Updating only the order leaves the name out of the write entirely.
+	stored := &model.StageTemplate{ID: "s1", UserID: "user-1", Name: "Screening", Order: 2}
+	var saved *model.StageTemplatePatch
 	tmplRepo := &MockStageTemplateRepository{
-		GetByIDFunc: func(ctx context.Context, uid, tid string) (*model.StageTemplate, error) { return existing, nil },
-		UpdateFunc: func(ctx context.Context, tmpl *model.StageTemplate) error {
-			saved = tmpl
-			return nil
+		UpdateFunc: func(ctx context.Context, uid, tid string, patch *model.StageTemplatePatch) (*model.StageTemplate, error) {
+			saved = patch
+			return applyStageTemplatePatch(stored, patch), nil
 		},
 	}
 	svc := newServiceWithTemplates(&MockJobRepository{}, tmplRepo)
@@ -76,16 +75,18 @@ func TestJobService_UpdateStageTemplate_OrderOnly(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, saved)
-	assert.Equal(t, "Screening", saved.Name) // unchanged
-	assert.Equal(t, 5, saved.Order)
+	assert.Nil(t, saved.Name) // not in the statement
+	require.NotNil(t, saved.Order)
+	assert.Equal(t, 5, *saved.Order)
+	assert.Equal(t, "Screening", dto.Name)
 	assert.Equal(t, 5, dto.Order)
 }
 
 func TestJobService_UpdateStageTemplate_RepoUpdateError(t *testing.T) {
-	existing := &model.StageTemplate{ID: "s1", UserID: "user-1", Name: "Screening"}
 	tmplRepo := &MockStageTemplateRepository{
-		GetByIDFunc: func(ctx context.Context, uid, tid string) (*model.StageTemplate, error) { return existing, nil },
-		UpdateFunc:  func(ctx context.Context, tmpl *model.StageTemplate) error { return errors.New("update boom") },
+		UpdateFunc: func(ctx context.Context, uid, tid string, patch *model.StageTemplatePatch) (*model.StageTemplate, error) {
+			return nil, errors.New("update boom")
+		},
 	}
 	svc := newServiceWithTemplates(&MockJobRepository{}, tmplRepo)
 

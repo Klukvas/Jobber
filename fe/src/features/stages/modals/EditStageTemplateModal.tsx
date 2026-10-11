@@ -17,9 +17,20 @@ import {
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { Label } from "@/shared/ui/Label";
+import { Select } from "@/shared/ui/Select";
 import { Loader2 } from "lucide-react";
 import { ApiError } from "@/services/api";
-import type { StageTemplateDTO } from "@/shared/types/api";
+import {
+  DEFAULT_STAGE_KIND,
+  STAGE_KIND_OPTIONS,
+  stageKindLabelKey,
+  stageKindOf,
+} from "@/features/stages/lib/stageKinds";
+import type {
+  StageKind,
+  StageTemplateDTO,
+  UpdateStageTemplateRequest,
+} from "@/shared/types/api";
 
 interface EditStageTemplateModalProps {
   open: boolean;
@@ -36,16 +47,18 @@ export function EditStageTemplateModal({
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [order, setOrder] = useState("");
+  const [kind, setKind] = useState<StageKind>(DEFAULT_STAGE_KIND);
   const [prevTemplateId, setPrevTemplateId] = useState<string | null>(null);
 
   if (template && template.id !== prevTemplateId) {
     setPrevTemplateId(template.id);
     setName(template.name);
     setOrder(String(template.order));
+    setKind(stageKindOf(template));
   }
 
   const updateMutation = useMutation({
-    mutationFn: (data: { name: string; order: number }) =>
+    mutationFn: (data: UpdateStageTemplateRequest) =>
       stageTemplatesService.update(template!.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stage-templates"] });
@@ -70,6 +83,9 @@ export function EditStageTemplateModal({
       updateMutation.mutate({
         name,
         order: parseInt(order),
+        // Only an explicit reclassification travels: a rename or a reorder
+        // must leave what the column *means* exactly as it was.
+        ...(kind !== stageKindOf(template) ? { kind } : {}),
       });
     }
   };
@@ -102,6 +118,23 @@ export function EditStageTemplateModal({
                 onChange={(e) => setOrder(e.target.value)}
                 required
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-kind">{t("stages.kind")}</Label>
+              <Select
+                id="edit-kind"
+                value={kind}
+                onChange={(e) => setKind(e.target.value as StageKind)}
+              >
+                {STAGE_KIND_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {t(stageKindLabelKey(option))}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {t("stages.kindDescription")}
+              </p>
             </div>
           </div>
           <DialogFooter>

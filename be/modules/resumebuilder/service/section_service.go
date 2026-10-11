@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/andreypavlenko/jobber/modules/resumebuilder/model"
+	"github.com/andreypavlenko/jobber/modules/resumebuilder/ports"
 )
 
 // --- Contact ---
@@ -542,7 +543,9 @@ func (s *ResumeBuilderService) UpdateSectionOrder(ctx context.Context, userID, r
 		}
 	}
 
-	if err := s.repo.UpsertSectionOrder(ctx, resumeBuilderID, orders); err != nil {
+	if err := s.repo.RunInTransaction(ctx, func(txRepo ports.ResumeBuilderRepository) error {
+		return txRepo.UpsertSectionOrder(ctx, resumeBuilderID, orders)
+	}); err != nil {
 		return nil, err
 	}
 

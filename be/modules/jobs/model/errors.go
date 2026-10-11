@@ -34,6 +34,10 @@ var (
 	// ErrStageNameRequired is returned when a stage template name is empty
 	ErrStageNameRequired = errors.New("stage name is required")
 
+	// ErrInvalidStageKind is returned when a stage template kind is not one of
+	// the known semantic kinds
+	ErrInvalidStageKind = errors.New("invalid stage kind")
+
 	// ErrReorderMismatch is returned when a reorder request doesn't match the user's stages
 	ErrReorderMismatch = errors.New("reorder list does not match the user's stages")
 
@@ -58,6 +62,7 @@ const (
 	CodeJobStageNotFound        ErrorCode = "JOB_STAGE_NOT_FOUND"
 	CodeInvalidStatus           ErrorCode = "INVALID_STATUS"
 	CodeStageNameRequired       ErrorCode = "STAGE_NAME_REQUIRED"
+	CodeInvalidStageKind        ErrorCode = "INVALID_STAGE_KIND"
 	CodeReorderMismatch         ErrorCode = "REORDER_MISMATCH"
 	CodeBothResumeTypesSet      ErrorCode = "BOTH_RESUME_TYPES_SET"
 	CodeResumeNotFound          ErrorCode = "RESUME_NOT_FOUND"
@@ -96,6 +101,8 @@ func GetErrorCode(err error) ErrorCode {
 		return CodeInvalidStatus
 	case errors.Is(err, ErrStageNameRequired):
 		return CodeStageNameRequired
+	case errors.Is(err, ErrInvalidStageKind):
+		return CodeInvalidStageKind
 	case errors.Is(err, ErrReorderMismatch):
 		return CodeReorderMismatch
 	case errors.Is(err, ErrBothResumeTypesSet):
@@ -130,6 +137,8 @@ func GetErrorMessage(err error) string {
 		return "Invalid status"
 	case errors.Is(err, ErrStageNameRequired):
 		return "Stage name is required"
+	case errors.Is(err, ErrInvalidStageKind):
+		return "Stage kind must be one of: saved, applied, response, interview, offer, rejected, other"
 	case errors.Is(err, ErrReorderMismatch):
 		return "The reorder list must contain exactly the user's stages"
 	case errors.Is(err, ErrBothResumeTypesSet):

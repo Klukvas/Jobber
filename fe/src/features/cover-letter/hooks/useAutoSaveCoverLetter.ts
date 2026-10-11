@@ -1,90 +1,103 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCoverLetterStore } from "@/stores/coverLetterStore";
-import { coverLetterService } from "@/services/coverLetterService";
+import {
+  enqueueCoverLetterSave,
+  flushCoverLetterDocument,
+  forgetCoverLetterBaseline,
+  isCoverLetterSaving,
+  markCoverLetterLoaded,
+  saveCoverLetterNow,
+} from "../lib/coverLetterDocumentSync";
+import { coverLetterQueryKeys } from "../lib/coverLetterQueryKeys";
 
 const DEBOUNCE_MS = 1500;
 
+/**
+ * Debounced auto-save for the cover letter editor.
+ *
+ * Ordering lives in the document sync queue: saves for one letter run one at a
+ * time, an edit made while a request is in flight is sent straight after it,
+ * and the letter is only marked clean when the stored revision is the one on
+ * screen.
+ */
 export function useAutoSaveCoverLetter() {
   const coverLetter = useCoverLetterStore((s) => s.coverLetter);
   const isDirty = useCoverLetterStore((s) => s.isDirty);
-  const setSaveStatus = useCoverLetterStore((s) => s.setSaveStatus);
-  const markClean = useCoverLetterStore((s) => s.markClean);
+  const documentId = coverLetter?.id ?? null;
   const queryClient = useQueryClient();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const savingRef = useRef(false);
-  const prevCoverLetterRef = useRef<string>("");
+  const loadedIdRef = useRef<string | null>(null);
+
+  const persist = useCallback(async () => {
+    try {
+      await enqueueCoverLetterSave();
+      queryClient.invalidateQueries({ queryKey: coverLetterQueryKeys.list() });
+    } catch {
+      // Surfaced through saveStatus; the letter stays dirty.
+    }
+  }, [queryClient]);
 
   const save = useCallback(async () => {
-    const current = useCoverLetterStore.getState().coverLetter;
-    if (!current || savingRef.current) return;
+    await saveCoverLetterNow();
+    queryClient.invalidateQueries({ queryKey: coverLetterQueryKeys.list() });
+  }, [queryClient]);
 
-    savingRef.current = true;
-    setSaveStatus("saving");
+  const flush = useCallback(
+    () =>
+      documentId ? flushCoverLetterDocument(documentId) : Promise.resolve(),
+    [documentId],
+  );
 
-    try {
-      await coverLetterService.update(current.id, {
-        title: current.title,
-        template: current.template,
-        recipient_name: current.recipient_name,
-        recipient_title: current.recipient_title,
-        company_name: current.company_name,
-        company_address: current.company_address,
-        greeting: current.greeting,
-        paragraphs: current.paragraphs,
-        closing: current.closing,
-        font_family: current.font_family,
-        font_size: current.font_size,
-        primary_color: current.primary_color,
-        job_id: current.job_id,
-      });
+  // A newly opened letter defines what the server holds — unless the editor
+  // opened on top of unsaved work, in which case nothing may be assumed.
+  useEffect(() => {
+    if (!coverLetter || loadedIdRef.current === coverLetter.id) return;
+    loadedIdRef.current = coverLetter.id;
 
-      markClean();
-      setSaveStatus("saved");
-      queryClient.invalidateQueries({ queryKey: ["cover-letters"] });
-    } catch {
-      setSaveStatus("error");
-    } finally {
-      savingRef.current = false;
+    if (useCoverLetterStore.getState().isDirty) {
+      forgetCoverLetterBaseline(coverLetter.id);
+    } else {
+      markCoverLetterLoaded(coverLetter);
     }
-  }, [setSaveStatus, markClean, queryClient]);
+  }, [coverLetter]);
 
   useEffect(() => {
     if (!coverLetter || !isDirty) return;
 
-    const serialized = JSON.stringify(coverLetter);
-    if (serialized === prevCoverLetterRef.current) return;
-    prevCoverLetterRef.current = serialized;
-
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-    }
-
-    timerRef.current = setTimeout(save, DEBOUNCE_MS);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => void persist(), DEBOUNCE_MS);
 
     return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
+      if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [coverLetter, isDirty, save]);
+  }, [coverLetter, isDirty, persist]);
 
-  // Flush pending save on unmount (e.g. navigating back to list)
+  // There is no way to finish an async save during unload, so the browser is
+  // asked to confirm instead — and only while there is something to lose.
   useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-      const { isDirty: dirty } = useCoverLetterStore.getState();
-      if (dirty) {
-        save().catch(() => {
-          // Error state already surfaced via setSaveStatus("error")
-        });
-      }
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      const { isDirty: dirty, coverLetter: current } =
+        useCoverLetterStore.getState();
+      if (!dirty && !(current && isCoverLetterSaving(current.id))) return;
+      event.preventDefault();
+      event.returnValue = "";
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, []);
 
-  return { save };
+  // Flush pending changes on SPA navigation (component unmount). The queue is
+  // not tied to this component, so the request outlives it.
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      const { isDirty: dirty, coverLetter: current } =
+        useCoverLetterStore.getState();
+      if (dirty && current) void persist();
+    };
+  }, [persist]);
+
+  return { save, flush };
 }

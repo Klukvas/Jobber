@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { jobsService } from "@/services/jobsService";
@@ -31,6 +31,8 @@ import { AddStageModal } from "@/features/jobs/modals/AddStageModal";
 import { PricingModal } from "@/features/subscription/components/PricingModal";
 import { ArrowLeft, Loader2, Plus } from "lucide-react";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
+import { jobsListReturnPath } from "@/features/jobs/lib/jobsListReturn";
+import { resumeQueryKeys } from "@/shared/lib/resumeQueryKeys";
 import { stageTemplatesService } from "@/services/stageTemplatesService";
 import {
   fieldsFromJob,
@@ -45,6 +47,9 @@ export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  // The list URL this card was opened from — page, search, sort and filters
+  // included. A card opened from page 3 of a filtered search comes back to it.
+  const backToList = jobsListReturnPath(useLocation().state);
 
   const [fields, setFields] = useState<EditableFields | null>(null);
   const [isAddStageModalOpen, setIsAddStageModalOpen] = useState(false);
@@ -96,7 +101,7 @@ export default function JobDetail() {
   });
 
   const { data: builderResumes } = useQuery({
-    queryKey: ["resume-builder"],
+    queryKey: resumeQueryKeys.builderList(),
     queryFn: () => resumeBuilderService.list(),
     enabled: !!id,
   });
@@ -170,7 +175,7 @@ export default function JobDetail() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <Button variant="ghost" onClick={() => navigate("/app/jobs")}>
+        <Button variant="ghost" onClick={() => navigate(backToList)}>
           <ArrowLeft className="h-4 w-4" />
           {t("jobs.backToJobs")}
         </Button>
@@ -182,7 +187,7 @@ export default function JobDetail() {
   if (isError || !job || !editableFields) {
     return (
       <div className="space-y-4">
-        <Button variant="ghost" onClick={() => navigate("/app/jobs")}>
+        <Button variant="ghost" onClick={() => navigate(backToList)}>
           <ArrowLeft className="h-4 w-4" />
           {t("jobs.backToJobs")}
         </Button>
@@ -202,7 +207,7 @@ export default function JobDetail() {
         isDirty={isDirty}
         canSave={!!editableFields.title.trim()}
         isSaving={updateMutation.isPending}
-        onBack={() => navigate("/app/jobs")}
+        onBack={() => navigate(backToList)}
         onSave={handleSave}
         onDiscard={handleDiscard}
         onToggleFavorite={() => toggleFavoriteMutation.mutate()}

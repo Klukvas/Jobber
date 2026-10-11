@@ -38,6 +38,7 @@ import {
   showErrorNotification,
 } from "@/shared/lib/notifications";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
+import { resumeQueryKeys } from "@/shared/lib/resumeQueryKeys";
 import {
   Dialog,
   DialogContent,
@@ -111,7 +112,9 @@ export default function Resumes() {
   const createBuilderMutation = useMutation({
     mutationFn: () => resumeBuilderService.create({}),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["resume-builders"] });
+      queryClient.invalidateQueries({
+        queryKey: resumeQueryKeys.builderList(),
+      });
       navigate(`/app/resume-builder/${data.id}`);
     },
     onError: (err) => {
@@ -128,7 +131,9 @@ export default function Resumes() {
   const duplicateBuilderMutation = useMutation({
     mutationFn: (id: string) => resumeBuilderService.duplicate(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["resume-builders"] });
+      queryClient.invalidateQueries({
+        queryKey: resumeQueryKeys.builderList(),
+      });
       showSuccessNotification(t("resumeBuilder.duplicated"));
     },
     onError: (err) => {
@@ -145,7 +150,9 @@ export default function Resumes() {
   const deleteBuilderMutation = useMutation({
     mutationFn: (id: string) => resumeBuilderService.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["resume-builders"] });
+      queryClient.invalidateQueries({
+        queryKey: resumeQueryKeys.builderList(),
+      });
       setDeleteBuilderTarget(null);
       showSuccessNotification(t("resumeBuilder.deleted"));
     },

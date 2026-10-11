@@ -20,7 +20,12 @@ vi.mock("@/services/coverLetterService", () => ({
   coverLetterService: { update: mockUpdate },
 }));
 
+// The sync module reaches the app's shared cache to refresh the letters list
+// after a rename, so the stand-in has to offer a client to construct as well.
 vi.mock("@tanstack/react-query", () => ({
+  QueryClient: class {
+    invalidateQueries = mockInvalidateQueries;
+  },
   useQueryClient: () => ({
     invalidateQueries: mockInvalidateQueries,
   }),
@@ -223,6 +228,22 @@ describe("useAutoSaveCoverLetter", () => {
     expect(mockStore.markClean).not.toHaveBeenCalled();
   });
 
+  it("stores the pending revision when the editor asks for a flush", async () => {
+    mockStore.coverLetter = createMockCoverLetter({ title: "Flush me" });
+    mockStore.isDirty = true;
+
+    const { result } = renderHook(() => useAutoSaveCoverLetter());
+
+    await act(async () => {
+      await result.current.flush();
+    });
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      "cl-1",
+      expect.objectContaining({ title: "Flush me" }),
+    );
+  });
+
   it("flushes pending save on unmount", async () => {
     mockStore.coverLetter = createMockCoverLetter();
     mockStore.isDirty = true;
@@ -236,5 +257,92 @@ describe("useAutoSaveCoverLetter", () => {
 
     // The unmount cleanup checks isDirty via getState() and calls save()
     expect(mockUpdate).toHaveBeenCalled();
+  });
+});
+
+describe("useAutoSaveCoverLetter — saves that overlap", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+    mockStore.coverLetter = null;
+    mockStore.isDirty = false;
+    mockStore.setSaveStatus = vi.fn();
+    mockStore.markClean = vi.fn();
+    mockUpdate.mockResolvedValue({});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function deferred() {
+    let resolve!: () => void;
+    const promise = new Promise<void>((resolvePromise) => {
+      resolve = resolvePromise;
+    });
+    return { promise, resolve };
+  }
+
+  // Editing during the request used to be lost: the save came back, marked the
+  // letter clean, and the newer paragraph was never sent.
+  it("sends an edit made while the save is in flight", async () => {
+    const inFlight = deferred();
+    const sentTitles: string[] = [];
+    mockUpdate.mockImplementation(
+      async (_id: string, data: { title: string }) => {
+        sentTitles.push(data.title);
+        if (sentTitles.length === 1) await inFlight.promise;
+        return {};
+      },
+    );
+    mockStore.coverLetter = createMockCoverLetter({ title: "First" });
+    mockStore.isDirty = true;
+
+    renderHook(() => useAutoSaveCoverLetter());
+
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+      await Promise.resolve();
+    });
+
+    mockStore.coverLetter = createMockCoverLetter({ title: "Second" });
+
+    await act(async () => {
+      inFlight.resolve();
+      await vi.runAllTimersAsync();
+    });
+
+    expect(sentTitles).toEqual(["First", "Second"]);
+    expect(mockStore.markClean).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not mark a letter clean when the editor moved to another one", async () => {
+    const inFlight = deferred();
+    mockUpdate.mockImplementation(async () => {
+      await inFlight.promise;
+      return {};
+    });
+    mockStore.coverLetter = createMockCoverLetter({ title: "Letter one" });
+    mockStore.isDirty = true;
+
+    renderHook(() => useAutoSaveCoverLetter());
+
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+      await Promise.resolve();
+    });
+
+    mockStore.coverLetter = createMockCoverLetter({
+      id: "cl-2",
+      title: "Letter two",
+    });
+
+    await act(async () => {
+      inFlight.resolve();
+      await vi.runAllTimersAsync();
+    });
+
+    expect(mockStore.markClean).not.toHaveBeenCalled();
+    expect(mockStore.setSaveStatus).not.toHaveBeenCalledWith("saved");
   });
 });

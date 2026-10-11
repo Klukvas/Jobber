@@ -143,8 +143,8 @@ func TestJobHandler_Update_GenericServiceError(t *testing.T) {
 		GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
 			return &model.Job{ID: jid, UserID: uid, Title: "T"}, nil
 		},
-		UpdateFunc: func(ctx context.Context, job *model.Job) error {
-			return assertAnErr
+		UpdateFunc: func(ctx context.Context, uid, jid string, patch *model.JobPatch) (*model.Job, error) {
+			return nil, assertAnErr
 		},
 	}
 	svc := newTestJobService(jobRepo)

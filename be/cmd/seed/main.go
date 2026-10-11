@@ -303,30 +303,30 @@ func main() {
 
 	// ── 3. stage templates (pipeline COLUMNS) ────────────────────────────
 	// Single-axis model: a card's state is the column (stage_template) it sits
-	// in. No `phase` here — it's gone from the app model and has a DB default,
-	// so it's deliberately left out of the INSERT.
+	// in. `kind` is the column's semantic meaning — what analytics reads, so
+	// renaming or reordering a column cannot change a metric.
 	//
 	// Column indices used throughout the pipeline section below:
 	//   0 Wishlist · 1 Applied · 2 Screening · 3 Technical Interview
 	//   4 Final Interview · 5 Offer · 6 Rejected
 	type stageTempl struct {
-		id, name string
-		order    int
+		id, name, kind string
+		order          int
 	}
 	stages := []stageTempl{
-		{newID(), "Wishlist", 0},
-		{newID(), "Applied", 1},
-		{newID(), "Screening", 2},
-		{newID(), "Technical Interview", 3},
-		{newID(), "Final Interview", 4},
-		{newID(), "Offer", 5},
-		{newID(), "Rejected", 6},
+		{newID(), "Wishlist", "saved", 0},
+		{newID(), "Applied", "applied", 1},
+		{newID(), "Screening", "response", 2},
+		{newID(), "Technical Interview", "interview", 3},
+		{newID(), "Final Interview", "interview", 4},
+		{newID(), "Offer", "offer", 5},
+		{newID(), "Rejected", "rejected", 6},
 	}
 	for _, s := range stages {
 		_, err = tx.Exec(ctx,
-			`INSERT INTO stage_templates (id, user_id, name, "order", created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, $5)`,
-			s.id, userID, s.name, s.order, daysAgo(115),
+			`INSERT INTO stage_templates (id, user_id, name, "order", kind, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, $6)`,
+			s.id, userID, s.name, s.order, s.kind, daysAgo(115),
 		)
 		must(err, "create stage template "+s.name)
 	}
@@ -730,20 +730,20 @@ func main() {
 	)
 	must(err, "create reviewer user")
 
-	// Reviewer pipeline COLUMNS — same single-axis model, no phase.
+	// Reviewer pipeline COLUMNS — same single-axis model, classified by kind.
 	// Indices: 0 Wishlist · 1 Applied · 2 Interview · 3 Offer · 4 Rejected
 	reviewerStages := []stageTempl{
-		{newID(), "Wishlist", 0},
-		{newID(), "Applied", 1},
-		{newID(), "Interview", 2},
-		{newID(), "Offer", 3},
-		{newID(), "Rejected", 4},
+		{newID(), "Wishlist", "saved", 0},
+		{newID(), "Applied", "applied", 1},
+		{newID(), "Interview", "interview", 2},
+		{newID(), "Offer", "offer", 3},
+		{newID(), "Rejected", "rejected", 4},
 	}
 	for _, s := range reviewerStages {
 		_, err = tx.Exec(ctx,
-			`INSERT INTO stage_templates (id, user_id, name, "order", created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, $5)`,
-			s.id, reviewerID, s.name, s.order, reviewerCreatedAt,
+			`INSERT INTO stage_templates (id, user_id, name, "order", kind, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, $6)`,
+			s.id, reviewerID, s.name, s.order, s.kind, reviewerCreatedAt,
 		)
 		must(err, "create reviewer stage "+s.name)
 	}

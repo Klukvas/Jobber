@@ -107,21 +107,52 @@ export interface UpdateStageRequest {
 // Stage Template
 // The user's ordered stage templates ARE the single pipeline. Each template
 // is a board column; a job sits in exactly one column at a time.
+
+/**
+ * What a pipeline column *means*, independent of its name and its position.
+ * The user owns the label and the order; analytics reads the kind, so renaming
+ * "Technical Interview" or dragging it one slot left never changes a metric.
+ *
+ * `other` carries no analytics meaning and is the default for a column the
+ * user invented — it under-reports rather than inventing responses.
+ */
+export const STAGE_KINDS = [
+  "saved",
+  "applied",
+  "response",
+  "interview",
+  "offer",
+  "rejected",
+  "other",
+] as const;
+
+export type StageKind = (typeof STAGE_KINDS)[number];
+
 export interface StageTemplateDTO {
   id: string;
   name: string;
   order: number;
+  /**
+   * Required on responses from a backend that knows about kinds. Optional here
+   * on purpose: a cached or pre-upgrade payload has no `kind`, and the UI falls
+   * back to "other" rather than rendering an empty dropdown.
+   */
+  kind?: StageKind;
   created_at: string;
 }
 
 export interface CreateStageTemplateRequest {
   name: string;
   order: number;
+  /** Omitted means "other" — the server's own default for a custom column. */
+  kind?: StageKind;
 }
 
 export interface UpdateStageTemplateRequest {
   name?: string;
   order?: number;
+  /** Omitted leaves the column's meaning alone: a rename is not a reclassify. */
+  kind?: StageKind;
 }
 
 // Full ordered list of stage-template ids — the single reorder write path.

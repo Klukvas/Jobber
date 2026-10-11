@@ -17,6 +17,7 @@ import (
 	"github.com/andreypavlenko/jobber/modules/jobs/ports"
 	"github.com/andreypavlenko/jobber/modules/jobs/service"
 	"github.com/gin-gonic/gin"
+	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -83,8 +84,8 @@ func (m *MockStageTemplateRepository) GetByID(ctx context.Context, userID, templ
 func (m *MockStageTemplateRepository) List(ctx context.Context, userID string, limit, offset int) ([]*model.StageTemplate, int, error) {
 	return []*model.StageTemplate{{ID: "stage-wishlist", UserID: userID, Name: "Wishlist", Order: 0}}, 1, nil
 }
-func (m *MockStageTemplateRepository) Update(ctx context.Context, template *model.StageTemplate) error {
-	return nil
+func (m *MockStageTemplateRepository) Update(ctx context.Context, userID, templateID string, patch *model.StageTemplatePatch) (*model.StageTemplate, error) {
+	return &model.StageTemplate{ID: templateID, UserID: userID, Name: "Wishlist", Order: 0}, nil
 }
 func (m *MockStageTemplateRepository) Reorder(ctx context.Context, userID string, orderedIDs []string) error {
 	return nil
@@ -100,13 +101,31 @@ type MockJobRepository struct {
 	CreateFunc            func(ctx context.Context, job *model.Job) error
 	GetByIDFunc           func(ctx context.Context, userID, jobID string) (*model.Job, error)
 	ListFunc              func(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.JobDTO, int, error)
-	UpdateFunc            func(ctx context.Context, job *model.Job) error
+	UpdateFunc            func(ctx context.Context, userID, jobID string, patch *model.JobPatch) (*model.Job, error)
 	DeleteFunc            func(ctx context.Context, userID, jobID string) error
 	ToggleFavoriteFunc    func(ctx context.Context, userID, jobID string) (bool, error)
 	GetLastActivityAtFunc func(ctx context.Context, jobID string) (time.Time, error)
+
+	// CreateWithInitialStageFunc overrides the create-with-history path;
+	// InitialStage captures the stage row that path was handed.
+	CreateWithInitialStageFunc func(ctx context.Context, job *model.Job, stage *model.JobStage) error
+	InitialStage               *model.JobStage
 }
 
 func (m *MockJobRepository) Create(ctx context.Context, job *model.Job) error {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, job)
+	}
+	return nil
+}
+
+// CreateWithInitialStage records the stage the card starts in, then delegates
+// to the same CreateFunc so a test only has to stub one creation path.
+func (m *MockJobRepository) CreateWithInitialStage(ctx context.Context, job *model.Job, stage *model.JobStage) error {
+	m.InitialStage = stage
+	if m.CreateWithInitialStageFunc != nil {
+		return m.CreateWithInitialStageFunc(ctx, job, stage)
+	}
 	if m.CreateFunc != nil {
 		return m.CreateFunc(ctx, job)
 	}
@@ -127,11 +146,11 @@ func (m *MockJobRepository) List(ctx context.Context, userID string, opts *ports
 	return nil, 0, nil
 }
 
-func (m *MockJobRepository) Update(ctx context.Context, job *model.Job) error {
+func (m *MockJobRepository) Update(ctx context.Context, userID, jobID string, patch *model.JobPatch) (*model.Job, error) {
 	if m.UpdateFunc != nil {
-		return m.UpdateFunc(ctx, job)
+		return m.UpdateFunc(ctx, userID, jobID, patch)
 	}
-	return nil
+	return &model.Job{ID: jobID, UserID: userID}, nil
 }
 
 func (m *MockJobRepository) Delete(ctx context.Context, userID, jobID string) error {
@@ -524,8 +543,8 @@ func TestJobHandler_Update(t *testing.T) {
 			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
 				return existingJob, nil
 			},
-			UpdateFunc: func(ctx context.Context, job *model.Job) error {
-				return nil
+			UpdateFunc: func(ctx context.Context, uid, jid string, patch *model.JobPatch) (*model.Job, error) {
+				return existingJob, nil
 			},
 		}
 
@@ -546,14 +565,16 @@ func TestJobHandler_Update(t *testing.T) {
 
 	t.Run("archives a job", func(t *testing.T) {
 		existingJob := &model.Job{ID: jobID, UserID: userID, Title: "Job Title"}
-		var saved *model.Job
+		var saved *model.JobPatch
 		mockRepo := &MockJobRepository{
 			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
 				return existingJob, nil
 			},
-			UpdateFunc: func(ctx context.Context, job *model.Job) error {
-				saved = job
-				return nil
+			UpdateFunc: func(ctx context.Context, uid, jid string, patch *model.JobPatch) (*model.Job, error) {
+				saved = patch
+				updated := *existingJob
+				updated.IsArchived = *patch.IsArchived
+				return &updated, nil
 			},
 		}
 
@@ -571,12 +592,14 @@ func TestJobHandler_Update(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		require.NotNil(t, saved)
-		assert.True(t, saved.IsArchived)
+		require.NotNil(t, saved.IsArchived)
+		assert.True(t, *saved.IsArchived)
 	})
 
 	t.Run("returns 404 when job not found", func(t *testing.T) {
+		// The field-scoped write is what notices the row is gone.
 		mockRepo := &MockJobRepository{
-			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
+			UpdateFunc: func(ctx context.Context, uid, jid string, patch *model.JobPatch) (*model.Job, error) {
 				return nil, model.ErrJobNotFound
 			},
 		}
@@ -615,7 +638,17 @@ func TestJobHandler_Move(t *testing.T) {
 			},
 		}
 
-		svc := newTestJobService(mockRepo)
+		// "Already in this column" is decided on the state read under the row
+		// lock, so even a no-op opens (and rolls back) a transaction.
+		pool := newMockPool(t)
+		pool.ExpectBegin()
+		pool.ExpectQuery(`SELECT current_stage_template_id, current_stage_id, applied_at`).
+			WithArgs(jobID, userID).
+			WillReturnRows(pgxmock.NewRows([]string{"current_stage_template_id", "current_stage_id", "applied_at"}).
+				AddRow(&stageID, nil, nil))
+		pool.ExpectRollback()
+
+		svc := service.NewJobService(pool, mockRepo, nil, defaultMockStageTemplateRepo, defaultMockCompanyRepo, nil, nil, defaultMockCommentRepo, nil, nil, nil)
 		handler := NewJobHandler(svc)
 
 		router := setupTestRouter()
@@ -628,6 +661,7 @@ func TestJobHandler_Move(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+		require.NoError(t, pool.ExpectationsWereMet())
 	})
 
 	t.Run("returns 400 for a missing stage template id", func(t *testing.T) {

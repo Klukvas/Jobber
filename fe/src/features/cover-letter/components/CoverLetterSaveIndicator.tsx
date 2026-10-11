@@ -2,7 +2,14 @@ import { useTranslation } from "react-i18next";
 import { Check, Loader2, AlertCircle } from "lucide-react";
 import { useCoverLetterStore } from "@/stores/coverLetterStore";
 
-export function CoverLetterSaveIndicator() {
+interface CoverLetterSaveIndicatorProps {
+  /** Retries the failed save; the failure text becomes the button. */
+  readonly onRetry?: () => void;
+}
+
+export function CoverLetterSaveIndicator({
+  onRetry,
+}: CoverLetterSaveIndicatorProps = {}) {
   const { t } = useTranslation();
   const saveStatus = useCoverLetterStore((s) => s.saveStatus);
 
@@ -22,10 +29,28 @@ export function CoverLetterSaveIndicator() {
         </span>
       );
     case "error":
+      // A failed save stays on screen until it succeeds, and offers the retry
+      // right there — the editor has no other way back from a lost request.
       return (
-        <span className="flex items-center gap-1.5 text-sm text-destructive">
-          <AlertCircle className="h-3.5 w-3.5" />
-          {t("coverLetter.saveFailed")}
+        <span
+          role="alert"
+          className="flex items-center gap-1.5 text-sm text-destructive"
+        >
+          {onRetry ? (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="flex items-center gap-1.5 underline-offset-2 hover:underline"
+            >
+              <AlertCircle className="h-3.5 w-3.5" />
+              {t("coverLetter.saveFailed")}
+            </button>
+          ) : (
+            <>
+              <AlertCircle className="h-3.5 w-3.5" />
+              {t("coverLetter.saveFailed")}
+            </>
+          )}
         </span>
       );
     default:

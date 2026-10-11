@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { resumeBuilderService } from "@/services/resumeBuilderService";
+import { resumeQueryKeys } from "@/shared/lib/resumeQueryKeys";
+import { fetchResumeDocument } from "../lib/resumeDocumentSync";
 import { TEMPLATE_MAP } from "../lib/templateRegistry";
 import { ProfessionalTemplate } from "./preview/ProfessionalTemplate";
 import { ResumePreviewProvider } from "./preview/ResumePreviewContext";
@@ -19,9 +20,12 @@ export function ResumeThumbnail({
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.25);
 
+  // Same cache entry as the editor, so the same tracked fetch: a thumbnail
+  // read that left before a save of the editor's must not be mistaken for a
+  // payload that contains it when the resume is opened again.
   const { data } = useQuery({
-    queryKey: ["resume-builder", resumeId],
-    queryFn: () => resumeBuilderService.getById(resumeId),
+    queryKey: resumeQueryKeys.builderDetail(resumeId),
+    queryFn: () => fetchResumeDocument(resumeId),
     staleTime: 5 * 60 * 1000,
   });
 

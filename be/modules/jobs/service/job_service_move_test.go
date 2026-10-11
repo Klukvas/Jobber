@@ -70,7 +70,8 @@ func TestMove_NoOp(t *testing.T) {
 	stageID := "stage-applied"
 
 	// Card already sits in the target column: Move must return an enriched DTO
-	// with no writes (no *pgxpool.Pool is available in this test).
+	// without writing anything. The check runs on the state read under the row
+	// lock, so the (rolled back) transaction is part of the expected flow.
 	job := &model.Job{
 		ID:                     "job-1",
 		UserID:                 userID,
@@ -82,9 +83,9 @@ func TestMove_NoOp(t *testing.T) {
 		GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
 			return job, nil
 		},
-		UpdateFunc: func(ctx context.Context, j *model.Job) error {
+		UpdateFunc: func(ctx context.Context, uid, jid string, patch *model.JobPatch) (*model.Job, error) {
 			t.Fatalf("no-op Move must not update the job")
-			return nil
+			return nil, nil
 		},
 	}
 	templateRepo := &MockStageTemplateRepository{
@@ -93,13 +94,19 @@ func TestMove_NoOp(t *testing.T) {
 		},
 	}
 
-	svc := newServiceWithTemplates(jobRepo, templateRepo)
+	mock := newPool(t)
+	mock.ExpectBegin()
+	expLockedJob(mock, &stageID, nil, nil)
+	mock.ExpectRollback()
+
+	svc := svcWith(mock, jobRepo, nil, templateRepo, nil)
 
 	dto, err := svc.Move(context.Background(), userID, "job-1", &model.MoveJobRequest{
 		StageTemplateID: stageID,
 	})
 
 	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
 	require.NotNil(t, dto)
 	assert.Equal(t, "job-1", dto.ID)
 	require.NotNil(t, dto.CurrentStageTemplateID)

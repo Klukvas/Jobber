@@ -8,6 +8,8 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter, useLocation } from "react-router-dom";
+import { JOBS_BOARD_PAGE_SIZE } from "@/features/jobs/hooks/useJobBoardQuery";
 import type { JobDTO, PaginatedResponse } from "@/shared/types/api";
 
 const mockList = vi.hoisted(() => vi.fn());
@@ -34,26 +36,6 @@ vi.mock("@/shared/lib/notifications", () => ({
 // Make debounce synchronous so search-driven queries fire immediately.
 vi.mock("@/shared/hooks/useDebounce", () => ({
   useDebounce: (v: string) => v,
-}));
-
-// Stands in for the URL. The company filter lives there, so tests drive it by
-// seeding these params rather than by rendering a real router.
-const mockSearchParams = vi.hoisted(() => ({
-  value: new URLSearchParams(),
-  setSpy: vi.fn(),
-}));
-
-vi.mock("react-router-dom", () => ({
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
-    <a href={to}>{children}</a>
-  ),
-  useSearchParams: () => [
-    mockSearchParams.value,
-    (next: URLSearchParams) => {
-      mockSearchParams.setSpy(next.toString());
-      mockSearchParams.value = next;
-    },
-  ],
 }));
 
 const mockCompanyGetById = vi.hoisted(() => vi.fn());
@@ -88,7 +70,6 @@ vi.mock("@/features/jobs/modals/AddStageModal", () => ({
 }));
 vi.mock("@/features/jobs/components/JobKanbanBoard", () => ({
   JobKanbanBoard: () => <div data-testid="kanban-board" />,
-  JOBS_KANBAN_QUERY_KEY: ["jobs", "kanban"],
 }));
 
 import JobsPage from "../Jobs";
@@ -115,13 +96,31 @@ function paginated(
   return { items, pagination: { total, limit: 20, offset: 0 } };
 }
 
-function renderPage() {
+/** Reads the URL the page is actually driving, parameters included. */
+function UrlProbe() {
+  const { pathname, search } = useLocation();
+  return <div data-testid="url">{`${pathname}${search}`}</div>;
+}
+
+function currentUrl(): string {
+  return screen.getByTestId("url").textContent ?? "";
+}
+
+/**
+ * A real router, not a stubbed `useSearchParams`: page, search, sort and the
+ * filters are URL state now, so the test has to exercise the thing that keeps
+ * them.
+ */
+function renderPage(entry = "/app/jobs") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <JobsPage />
+      <MemoryRouter initialEntries={[entry]}>
+        <JobsPage />
+        <UrlProbe />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -129,7 +128,6 @@ function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
-  mockSearchParams.value = new URLSearchParams();
   // default: banner already dismissed to keep the DOM small unless tested
   localStorage.setItem("jobber-ext-banner-dismissed", "true");
 });
@@ -319,10 +317,14 @@ describe("Jobs page", () => {
       screen.getByRole("button", { name: /jobs\.sortJobTitle/ }),
     );
 
-    // The board re-queries with the sort param (loading the full board).
+    // The board re-queries with the sort param, from its first page.
     await waitFor(() =>
       expect(mockList).toHaveBeenCalledWith(
-        expect.objectContaining({ sort: "title:desc", limit: 500 }),
+        expect.objectContaining({
+          sort: "title:desc",
+          limit: JOBS_BOARD_PAGE_SIZE,
+          offset: 0,
+        }),
         expect.anything(),
       ),
     );
@@ -402,15 +404,15 @@ describe("Jobs page", () => {
 // narrow, say so, and offer a way back to everything.
 describe("Jobs page — company filter", () => {
   const COMPANY_ID = "0149b69a-0000-4000-8000-000000000001";
+  const FILTERED = `/app/jobs?company_id=${COMPANY_ID}`;
 
   beforeEach(() => {
-    mockSearchParams.value = new URLSearchParams(`company_id=${COMPANY_ID}`);
     mockCompanyGetById.mockResolvedValue({ id: COMPANY_ID, name: "TechNova" });
   });
 
   it("passes the company filter to the API", async () => {
     mockList.mockResolvedValue(paginated([makeJob({ title: "Backend Dev" })]));
-    renderPage();
+    renderPage(FILTERED);
 
     await waitFor(() =>
       expect(mockList).toHaveBeenCalledWith(
@@ -422,7 +424,7 @@ describe("Jobs page — company filter", () => {
 
   it("shows a visible indicator naming the company", async () => {
     mockList.mockResolvedValue(paginated([makeJob({ title: "Backend Dev" })]));
-    renderPage();
+    renderPage(FILTERED);
 
     expect(
       await screen.findByText("jobs.filteredByCompany"),
@@ -432,23 +434,33 @@ describe("Jobs page — company filter", () => {
   it("clears the filter and drops the parameter from the URL", async () => {
     const user = userEvent.setup();
     mockList.mockResolvedValue(paginated([makeJob({ title: "Backend Dev" })]));
-    renderPage();
+    renderPage(FILTERED);
 
     await user.click(await screen.findByText("jobs.clearCompanyFilter"));
 
-    expect(mockSearchParams.setSpy).toHaveBeenCalledWith("");
+    await waitFor(() => expect(currentUrl()).toBe("/app/jobs"));
   });
 
   it("treats an empty filtered result as 'no matches', not a first-run account", async () => {
     mockList.mockResolvedValue(paginated([]));
-    renderPage();
+    renderPage(FILTERED);
 
     expect(await screen.findByText("jobs.noJobsForFilter")).toBeInTheDocument();
     expect(screen.queryByText("jobs.emptyTitle")).not.toBeInTheDocument();
   });
 
+  it("ignores a company_id that is not a UUID instead of filtering by junk", async () => {
+    mockList.mockResolvedValue(paginated([makeJob({ title: "Backend Dev" })]));
+    renderPage("/app/jobs?company_id=not-a-uuid");
+
+    await waitFor(() => expect(mockList).toHaveBeenCalled());
+    expect(mockList.mock.calls[0][0].company_id).toBeUndefined();
+    expect(
+      screen.queryByText("jobs.filteredByCompany"),
+    ).not.toBeInTheDocument();
+  });
+
   it("sends no company filter when the URL has none", async () => {
-    mockSearchParams.value = new URLSearchParams();
     mockList.mockResolvedValue(paginated([makeJob({ title: "Backend Dev" })]));
     renderPage();
 

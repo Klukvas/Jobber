@@ -33,7 +33,15 @@ export default defineConfig({
           if (id.includes("posthog-js")) return "posthog";
           if (id.includes("lucide-react") || id.includes("sonner"))
             return "ui-icons";
-          if (id.includes("zod") || id.includes("react-hook-form"))
+          // @hookform/resolvers has to land here too: its `zod` entry already
+          // matched "zod" and went into `forms`, while the shared root it
+          // imports stayed in `vendor` and itself imports react-hook-form —
+          // that closed a forms -> vendor -> forms chunk cycle.
+          if (
+            id.includes("zod") ||
+            id.includes("react-hook-form") ||
+            id.includes("@hookform")
+          )
             return "forms";
           if (id.includes("date-fns")) return "date";
           if (id.includes("dompurify") || id.includes("marked"))
