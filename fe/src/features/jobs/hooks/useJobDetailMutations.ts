@@ -9,7 +9,11 @@ import {
   showSuccessNotification,
   showErrorNotification,
 } from "@/shared/lib/notifications";
-import type { JobDTO, MatchScoreResponse } from "@/shared/types/api";
+import type {
+  JobDTO,
+  MatchScoreResponse,
+  UpdateJobRequest,
+} from "@/shared/types/api";
 
 export interface EditableFields {
   title: string;
@@ -37,6 +41,27 @@ export function hasChanges(fields: EditableFields, job: JobDTO): boolean {
     fields.source !== (job.source ?? "") ||
     fields.description !== (job.description ?? "")
   );
+}
+
+/**
+ * The PATCH body for an edited job.
+ *
+ * Only the fields the caller actually holds are sent, and they are sent
+ * verbatim: the API distinguishes an absent field (leave it alone) from an
+ * empty string (clear it), so mapping `""` to `undefined` here silently threw
+ * away every attempt to erase a company, URL, source, or description.
+ */
+export function jobUpdatePayload(
+  fields: Partial<EditableFields>,
+): UpdateJobRequest {
+  const payload: UpdateJobRequest = {};
+  if (fields.title !== undefined) payload.title = fields.title;
+  if (fields.company_id !== undefined) payload.company_id = fields.company_id;
+  if (fields.url !== undefined) payload.url = fields.url;
+  if (fields.source !== undefined) payload.source = fields.source;
+  if (fields.description !== undefined)
+    payload.description = fields.description;
+  return payload;
 }
 
 export function resumeSelectValue(job: JobDTO): string {
@@ -69,13 +94,7 @@ export function useJobDetailMutations({
 
   const updateMutation = useMutation({
     mutationFn: (data: Partial<EditableFields>) =>
-      jobsService.update(id!, {
-        title: data.title,
-        company_id: data.company_id || undefined,
-        url: data.url || undefined,
-        source: data.source || undefined,
-        description: data.description || undefined,
-      }),
+      jobsService.update(id!, jobUpdatePayload(data)),
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ["job", id] });
       queryClient.invalidateQueries({ queryKey: ["jobs"] });

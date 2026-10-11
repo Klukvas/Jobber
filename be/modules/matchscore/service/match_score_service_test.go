@@ -459,6 +459,9 @@ type MockJobRepository struct {
 }
 
 func (m *MockJobRepository) Create(ctx context.Context, job *jobModel.Job) error { return nil }
+func (m *MockJobRepository) CreateWithInitialStage(ctx context.Context, job *jobModel.Job, stage *jobModel.JobStage) error {
+	return nil
+}
 func (m *MockJobRepository) GetByID(ctx context.Context, uid, jid string) (*jobModel.Job, error) {
 	if m.GetByIDFunc != nil {
 		return m.GetByIDFunc(ctx, uid, jid)
@@ -468,8 +471,10 @@ func (m *MockJobRepository) GetByID(ctx context.Context, uid, jid string) (*jobM
 func (m *MockJobRepository) List(ctx context.Context, uid string, opts *jobPorts.ListOptions) ([]*jobModel.JobDTO, int, error) {
 	return nil, 0, nil
 }
-func (m *MockJobRepository) Update(ctx context.Context, job *jobModel.Job) error { return nil }
-func (m *MockJobRepository) Delete(ctx context.Context, uid, jid string) error   { return nil }
+func (m *MockJobRepository) Update(ctx context.Context, uid, jid string, patch *jobModel.JobPatch) (*jobModel.Job, error) {
+	return nil, nil
+}
+func (m *MockJobRepository) Delete(ctx context.Context, uid, jid string) error { return nil }
 func (m *MockJobRepository) ToggleFavorite(ctx context.Context, uid, jid string) (bool, error) {
 	return false, nil
 }

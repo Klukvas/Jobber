@@ -17,8 +17,15 @@ import {
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { Label } from "@/shared/ui/Label";
+import { Select } from "@/shared/ui/Select";
 import { Loader2 } from "lucide-react";
 import { ApiError } from "@/services/api";
+import {
+  DEFAULT_STAGE_KIND,
+  STAGE_KIND_OPTIONS,
+  stageKindLabelKey,
+} from "@/features/stages/lib/stageKinds";
+import type { StageKind } from "@/shared/types/api";
 
 interface CreateStageTemplateModalProps {
   open: boolean;
@@ -38,6 +45,8 @@ export function CreateStageTemplateModal({
   const [order, setOrder] = useState(
     initialOrder !== undefined ? String(initialOrder) : "",
   );
+  // A stage the user invents means nothing to analytics until they say so.
+  const [kind, setKind] = useState<StageKind>(DEFAULT_STAGE_KIND);
   const [prevOpen, setPrevOpen] = useState(open);
 
   // Sync the preselected order on each open (render-time state adjustment —
@@ -46,6 +55,7 @@ export function CreateStageTemplateModal({
     setPrevOpen(open);
     if (open) {
       setOrder(initialOrder !== undefined ? String(initialOrder) : "");
+      setKind(DEFAULT_STAGE_KIND);
     }
   }
 
@@ -76,6 +86,9 @@ export function CreateStageTemplateModal({
       createMutation.mutate({
         name,
         order: parseInt(order),
+        // An omitted kind already means "other" on the server, so the default
+        // selection travels as an omission rather than as redundant noise.
+        ...(kind !== DEFAULT_STAGE_KIND ? { kind } : {}),
       });
     }
   };
@@ -112,6 +125,23 @@ export function CreateStageTemplateModal({
               />
               <p className="text-xs text-muted-foreground">
                 {t("stages.orderDescription")}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="kind">{t("stages.kind")}</Label>
+              <Select
+                id="kind"
+                value={kind}
+                onChange={(e) => setKind(e.target.value as StageKind)}
+              >
+                {STAGE_KIND_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {t(stageKindLabelKey(option))}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {t("stages.kindDescription")}
               </p>
             </div>
           </div>

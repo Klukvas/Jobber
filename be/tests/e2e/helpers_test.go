@@ -183,6 +183,45 @@ func seedPipeline(t *testing.T, userID string, names ...string) map[string]strin
 	return ids
 }
 
+// pipelineColumn is one column of a seeded pipeline: its label and what it
+// means. Analytics reads the kind, so a test that exercises a metric has to say
+// what each column is.
+type pipelineColumn struct {
+	Name string
+	Kind string
+}
+
+// seedPipelineWithKinds seeds an ordered pipeline with explicit semantic kinds
+// and returns a name->id map.
+func seedPipelineWithKinds(t *testing.T, userID string, columns ...pipelineColumn) map[string]string {
+	t.Helper()
+	ids := make(map[string]string, len(columns))
+	for i, col := range columns {
+		id := uuid.New().String()
+		_, err := pool.Exec(context.Background(),
+			`INSERT INTO stage_templates (id, user_id, name, "order", kind, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
+			id, userID, col.Name, i, col.Kind,
+		)
+		require.NoError(t, err)
+		ids[col.Name] = id
+	}
+	return ids
+}
+
+// defaultKindPipeline is the starter pipeline every account is seeded with, as
+// a column/kind list.
+func defaultKindPipeline() []pipelineColumn {
+	return []pipelineColumn{
+		{Name: "Wishlist", Kind: "saved"},
+		{Name: "Applied", Kind: "applied"},
+		{Name: "Screening", Kind: "response"},
+		{Name: "Technical Interview", Kind: "interview"},
+		{Name: "Offer", Kind: "offer"},
+		{Name: "Rejected", Kind: "rejected"},
+	}
+}
+
 // createTestJob creates a job placed in stageTemplateID (empty = the user's first
 // column) optionally linked to companyID, asserts 201, and returns the created
 // job as a map.

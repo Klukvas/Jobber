@@ -39,7 +39,7 @@ func respondWithMappedError(c *gin.Context, err error) {
 	case model.CodeJobTitleRequired,
 		model.CodeInvalidStatus, model.CodeStageNameRequired,
 		model.CodeBothResumeTypesSet, model.CodeReorderMismatch,
-		model.CodeInvalidMoveTarget:
+		model.CodeInvalidMoveTarget, model.CodeInvalidStageKind:
 		statusCode = http.StatusBadRequest
 	case model.CodeStageTemplateInUse, model.CodeStageTemplateNameExists:
 		statusCode = http.StatusConflict
@@ -50,7 +50,7 @@ func respondWithMappedError(c *gin.Context, err error) {
 
 // Create godoc
 // @Summary Create a new job
-// @Description Create a new job card for the authenticated user. Without status/resume fields a "saved" (wishlist) card is created.
+// @Description Create a new job card for the authenticated user. Without stage_template_id or applied_at a "saved" (wishlist) card is created; applied_at (RFC3339) marks the card as already applied and places it in the applied column of the user's pipeline.
 // @Tags jobs
 // @Security BearerAuth
 // @Accept json
@@ -234,7 +234,7 @@ func splitSort(sort string) []string {
 
 // Update godoc
 // @Summary Update a job
-// @Description Update details or pipeline status of a specific job. Moving out of "saved" stamps applied_at; moving back clears it.
+// @Description Update a card's own fields. Only the fields present in the body change; an explicit empty string clears one. Pipeline position and applied_at are not editable here — use /jobs/{id}/move.
 // @Tags jobs
 // @Security BearerAuth
 // @Accept json
@@ -273,7 +273,7 @@ func (h *JobHandler) Update(c *gin.Context) {
 
 // Move godoc
 // @Summary Move a job on the unified board
-// @Description Atomically reposition a card: a stage target sets the stage and derives the status from the stage's phase; a phase target completes the current stage and sets the derived status
+// @Description Atomically move a card into a pipeline column: completes the card's open stage, appends a history row for the target column and stamps applied_at the first time the card leaves its first column
 // @Tags jobs
 // @Security BearerAuth
 // @Accept json

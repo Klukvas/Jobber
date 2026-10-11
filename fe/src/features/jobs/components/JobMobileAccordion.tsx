@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { JobCardBase } from "./JobCardBase";
+import { useJobsListReturnState } from "@/features/jobs/lib/jobsListReturn";
 import type { JobDTO } from "@/shared/types/api";
 
 export interface MobileColumnData {
@@ -32,10 +33,14 @@ const MobileCard = memo(function MobileCard({
   onDelete,
 }: MobileCardProps) {
   const navigate = useNavigate();
+  // So the detail page's Back returns to this board, filters and all.
+  const returnState = useJobsListReturnState();
   return (
     <JobCardBase
       job={job}
-      onTitleClick={() => navigate(`/app/jobs/${job.id}`)}
+      onTitleClick={() =>
+        navigate(`/app/jobs/${job.id}`, { state: returnState })
+      }
       onAddComment={onAddComment}
       onAddStage={onAddStage}
       onDelete={onDelete}

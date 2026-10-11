@@ -26,7 +26,7 @@ func TestJobService_SeedDefaultStageTemplates(t *testing.T) {
 		// One INSERT per default column (7 of them).
 		for range defaultPipeline {
 			mock.ExpectExec(`INSERT INTO stage_templates`).WithArgs(
-				pgxmock.AnyArg(), userID, pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
+				pgxmock.AnyArg(), userID, pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 			).WillReturnResult(pgxmock.NewResult("INSERT", 1))
 		}
 		mock.ExpectCommit()
@@ -41,8 +41,10 @@ func TestJobService_SeedDefaultStageTemplates(t *testing.T) {
 		mock := newPool(t)
 		mock.ExpectBegin()
 		for _, col := range defaultPipeline {
+			// Each starter column ships with its semantic kind, so renaming or
+			// reordering it later cannot change what analytics counts.
 			mock.ExpectExec(`INSERT INTO stage_templates`).WithArgs(
-				pgxmock.AnyArg(), userID, col.Name, col.Order, pgxmock.AnyArg(),
+				pgxmock.AnyArg(), userID, col.Name, col.Order, string(col.Kind), pgxmock.AnyArg(),
 			).WillReturnResult(pgxmock.NewResult("INSERT", 1))
 		}
 		mock.ExpectCommit()
@@ -66,14 +68,14 @@ func TestJobService_SeedDefaultStageTemplates(t *testing.T) {
 	t.Run("wraps an insert error and names the offending column", func(t *testing.T) {
 		mock := newPool(t)
 		mock.ExpectBegin()
-		anyFive := func() *pgxmock.ExpectedExec {
+		anyInsert := func() *pgxmock.ExpectedExec {
 			return mock.ExpectExec(`INSERT INTO stage_templates`).WithArgs(
-				pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
+				pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 			)
 		}
 		// First column inserts fine, the second fails.
-		anyFive().WillReturnResult(pgxmock.NewResult("INSERT", 1))
-		anyFive().WillReturnError(errors.New("duplicate key"))
+		anyInsert().WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		anyInsert().WillReturnError(errors.New("duplicate key"))
 
 		err := seedSvc(mock).SeedDefaultStageTemplates(context.Background(), userID)
 
@@ -88,7 +90,7 @@ func TestJobService_SeedDefaultStageTemplates(t *testing.T) {
 		mock.ExpectBegin()
 		for range defaultPipeline {
 			mock.ExpectExec(`INSERT INTO stage_templates`).WithArgs(
-				pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
+				pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 			).WillReturnResult(pgxmock.NewResult("INSERT", 1))
 		}
 		mock.ExpectCommit().WillReturnError(errors.New("commit boom"))

@@ -11,6 +11,7 @@ import (
 	"github.com/andreypavlenko/jobber/modules/jobs/ports"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // JobRepository implements ports.JobRepository
@@ -23,9 +24,68 @@ func NewJobRepository(pool PgxDB) *JobRepository {
 	return &JobRepository{pool: pool}
 }
 
-// Create creates a new job. The legacy `status` column is intentionally not
-// written (it keeps its DB default until migration 041 drops it).
+// execer is the write surface shared by the pool and a transaction, so the
+// INSERT statements can run either standalone or inside Begin/Commit.
+type execer interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+// Create creates a new job.
 func (r *JobRepository) Create(ctx context.Context, job *model.Job) error {
+	return insertJob(ctx, r.pool, job)
+}
+
+// CreateWithInitialStage creates a job that starts past the user's first
+// pipeline column together with the stage-history row for that column, in one
+// transaction, and points the card at it.
+//
+// A card created straight into "Applied" has entered that column, so the
+// history has to say so: without the row the funnel sees the card only through
+// its current column and time-to-response has no start timestamp to measure
+// from. On success stage.ID and job.CurrentStageID are populated.
+func (r *JobRepository) CreateWithInitialStage(ctx context.Context, job *model.Job, stage *model.JobStage) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin create-job transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback is a no-op after commit
+
+	if err := insertJob(ctx, tx, job); err != nil {
+		return err
+	}
+
+	stage.ID = uuid.New().String()
+	stage.JobID = job.ID
+	if stage.CreatedAt.IsZero() {
+		stage.CreatedAt = job.CreatedAt
+	}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO job_stages (id, job_id, stage_template_id, status, "order", started_at, completed_at, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, NULL, $7)`,
+		stage.ID, stage.JobID, stage.StageTemplateID, stage.Status, stage.Order, stage.StartedAt, stage.CreatedAt,
+	); err != nil {
+		return fmt.Errorf("insert initial job stage: %w", err)
+	}
+
+	// Separate statement: the FK in each direction forbids writing both
+	// pointers in a single INSERT.
+	if _, err := tx.Exec(ctx,
+		`UPDATE jobs SET current_stage_id = $2 WHERE id = $1`,
+		job.ID, stage.ID,
+	); err != nil {
+		return fmt.Errorf("point job at initial stage: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit create-job transaction: %w", err)
+	}
+
+	job.CurrentStageID = &stage.ID
+	return nil
+}
+
+// insertJob writes the job row and stamps its generated id and timestamps.
+func insertJob(ctx context.Context, db execer, job *model.Job) error {
 	query := `
 		INSERT INTO jobs (id, user_id, company_id, title, source, url, description,
 		                  is_archived, applied_at, resume_id, resume_builder_id,
@@ -38,7 +98,7 @@ func (r *JobRepository) Create(ctx context.Context, job *model.Job) error {
 	job.CreatedAt = now
 	job.UpdatedAt = now
 
-	_, err := r.pool.Exec(ctx, query,
+	_, err := db.Exec(ctx, query,
 		job.ID, job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Description,
 		job.IsArchived, job.AppliedAt, job.ResumeID, job.ResumeBuilderID,
 		job.CurrentStageTemplateID, job.CreatedAt, job.UpdatedAt,
@@ -249,32 +309,86 @@ func safeString(s *string) string {
 	return *s
 }
 
-// Update updates a job's editable fields (no status; column moves go through Move).
-func (r *JobRepository) Update(ctx context.Context, job *model.Job) error {
-	query := `
-		UPDATE jobs
-		SET company_id = $3, title = $4, source = $5, url = $6, description = $7,
-		    is_archived = $8, applied_at = $9, resume_id = $10, resume_builder_id = $11,
-		    current_stage_template_id = $12, updated_at = $13
+// Update writes exactly the fields the patch carries and returns the resulting
+// row.
+//
+// Field-scoped on purpose. The old whole-row UPDATE wrote every column from a
+// copy of the job read moments earlier, which made two concurrent PATCHes
+// overwrite each other's unrelated edits and let a plain "rename the card"
+// request stomp applied_at and current_stage_template_id — pipeline state that
+// Move/AddStage own and maintain under a row lock. Those columns are not
+// listed here at all.
+//
+// Column names come from compile-time literals; every value is a bound
+// parameter.
+func (r *JobRepository) Update(ctx context.Context, userID, jobID string, patch *model.JobPatch) (*model.Job, error) {
+	// $1/$2 scope the row to its owner; updated_at is always written, so the
+	// SET list is never empty.
+	args := []any{jobID, userID, time.Now().UTC()}
+	sets := []string{"updated_at = $3"}
+
+	set := func(column string, value any) {
+		args = append(args, value)
+		sets = append(sets, fmt.Sprintf("%s = $%d", column, len(args)))
+	}
+
+	if patch.CompanyID != nil {
+		set("company_id", nullableID(*patch.CompanyID))
+	}
+	if patch.ResumeID != nil {
+		set("resume_id", nullableID(*patch.ResumeID))
+	}
+	if patch.ResumeBuilderID != nil {
+		set("resume_builder_id", nullableID(*patch.ResumeBuilderID))
+	}
+	if patch.Title != nil {
+		set("title", *patch.Title)
+	}
+	if patch.Source != nil {
+		set("source", *patch.Source)
+	}
+	if patch.URL != nil {
+		set("url", *patch.URL)
+	}
+	if patch.Description != nil {
+		set("description", *patch.Description)
+	}
+	if patch.IsArchived != nil {
+		set("is_archived", *patch.IsArchived)
+	}
+
+	query := fmt.Sprintf(`
+		UPDATE jobs SET %s
 		WHERE id = $1 AND user_id = $2
-	`
+		RETURNING id, user_id, company_id, title, source, url, description,
+		          is_favorite, is_archived, applied_at, resume_id, resume_builder_id,
+		          current_stage_template_id, current_stage_id, created_at, updated_at
+	`, strings.Join(sets, ", "))
 
-	job.UpdatedAt = time.Now().UTC()
-
-	result, err := r.pool.Exec(ctx, query,
-		job.ID, job.UserID, job.CompanyID, job.Title, job.Source, job.URL, job.Description,
-		job.IsArchived, job.AppliedAt, job.ResumeID, job.ResumeBuilderID,
-		job.CurrentStageTemplateID, job.UpdatedAt,
+	job := &model.Job{}
+	err := r.pool.QueryRow(ctx, query, args...).Scan(
+		&job.ID, &job.UserID, &job.CompanyID, &job.Title, &job.Source, &job.URL, &job.Description,
+		&job.IsFavorite, &job.IsArchived, &job.AppliedAt, &job.ResumeID, &job.ResumeBuilderID,
+		&job.CurrentStageTemplateID, &job.CurrentStageID, &job.CreatedAt, &job.UpdatedAt,
 	)
 	if err != nil {
-		return err
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, model.ErrJobNotFound
+		}
+		return nil, err
 	}
 
-	if result.RowsAffected() == 0 {
-		return model.ErrJobNotFound
-	}
+	return job, nil
+}
 
-	return nil
+// nullableID turns the API's "an explicit empty string clears the link"
+// convention into a SQL NULL. The id columns are UUIDs, so writing an empty
+// string instead would fail the cast and surface as a 500.
+func nullableID(id string) *string {
+	if id == "" {
+		return nil
+	}
+	return &id
 }
 
 // ToggleFavorite toggles the favorite status of a job

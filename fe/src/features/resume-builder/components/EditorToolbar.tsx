@@ -17,6 +17,7 @@ import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
 import { useExportPDF } from "../hooks/useExportPDF";
 import { useExportDOCX } from "../hooks/useExportDOCX";
 import { useUndoRedo } from "../hooks/useUndoRedo";
+import { flushResumeDocument } from "../lib/resumeDocumentSync";
 import {
   showSuccessNotification,
   showErrorNotification,
@@ -45,6 +46,7 @@ export function EditorToolbar({
   const exportDOCX = useExportDOCX();
   const { undo, redo, canUndo, canRedo } = useUndoRedo();
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const exportBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -64,8 +66,34 @@ export function EditorToolbar({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showExportMenu]);
 
-  const handleExportPDF = useCallback(() => {
+  /**
+   * Gets every pending write to the server before the document is rendered.
+   *
+   * The export runs server-side from the stored document, so anything still in
+   * the debounce window — or a section create that failed earlier — would be
+   * missing from the file. Waiting for the current save alone is not enough.
+   */
+  const syncBeforeExport = useCallback(async (): Promise<boolean> => {
+    if (!resume) return false;
+
+    setIsSyncing(true);
+    try {
+      await flushResumeDocument(resume.id);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [resume]);
+
+  const handleExportPDF = useCallback(async () => {
     if (!resume) return;
+
+    if (!(await syncBeforeExport())) {
+      showErrorNotification(t("resumeBuilder.toolbar.exportError"));
+      return;
+    }
 
     exportPDF.mutate(resume.id, {
       onSuccess: (blob) => {
@@ -81,10 +109,15 @@ export function EditorToolbar({
         showErrorNotification(t("resumeBuilder.toolbar.exportError"));
       },
     });
-  }, [resume, exportPDF, t]);
+  }, [resume, exportPDF, syncBeforeExport, t]);
 
-  const handleExportDOCX = useCallback(() => {
+  const handleExportDOCX = useCallback(async () => {
     if (!resume) return;
+
+    if (!(await syncBeforeExport())) {
+      showErrorNotification(t("resumeBuilder.toolbar.exportDocxError"));
+      return;
+    }
 
     exportDOCX.mutate(resume.id, {
       onSuccess: (blob) => {
@@ -100,7 +133,9 @@ export function EditorToolbar({
         showErrorNotification(t("resumeBuilder.toolbar.exportDocxError"));
       },
     });
-  }, [resume, exportDOCX, t]);
+  }, [resume, exportDOCX, syncBeforeExport, t]);
+
+  const isExporting = exportPDF.isPending || exportDOCX.isPending || isSyncing;
 
   return (
     <div className="flex items-center gap-1 sm:gap-2">
@@ -139,9 +174,9 @@ export function EditorToolbar({
           variant="outline"
           size="sm"
           onClick={() => setShowExportMenu(!showExportMenu)}
-          disabled={exportPDF.isPending || exportDOCX.isPending || !resume}
+          disabled={isExporting || !resume}
         >
-          {exportPDF.isPending || exportDOCX.isPending ? (
+          {isExporting ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
               <span className="hidden sm:inline">
@@ -168,7 +203,7 @@ export function EditorToolbar({
               className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
               onClick={() => {
                 setShowExportMenu(false);
-                handleExportPDF();
+                void handleExportPDF();
               }}
             >
               <Download className="h-4 w-4" />
@@ -179,7 +214,7 @@ export function EditorToolbar({
               className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
               onClick={() => {
                 setShowExportMenu(false);
-                handleExportDOCX();
+                void handleExportDOCX();
               }}
             >
               <FileText className="h-4 w-4" />

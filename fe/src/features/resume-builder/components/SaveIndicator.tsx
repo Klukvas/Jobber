@@ -2,7 +2,12 @@ import { useTranslation } from "react-i18next";
 import { Check, Loader2, AlertCircle, CircleDot } from "lucide-react";
 import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
 
-export function SaveIndicator() {
+interface SaveIndicatorProps {
+  /** Retries the failed save; the failure text becomes the button. */
+  readonly onRetry?: () => void;
+}
+
+export function SaveIndicator({ onRetry }: SaveIndicatorProps = {}) {
   const { t } = useTranslation();
   const saveStatus = useResumeBuilderStore((s) => s.saveStatus);
   const isDirty = useResumeBuilderStore((s) => s.isDirty);
@@ -44,13 +49,28 @@ export function SaveIndicator() {
         </span>
       );
     case "error":
+      // A failed save stays on screen until it succeeds, and offers the retry
+      // right there — the editor has no other way back from a lost request.
       return (
         <span
           role="alert"
           className="flex items-center gap-1.5 text-sm text-destructive"
         >
-          <AlertCircle className="h-3.5 w-3.5" />
-          {t("resumeBuilder.saveFailed")}
+          {onRetry ? (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="flex items-center gap-1.5 underline-offset-2 hover:underline"
+            >
+              <AlertCircle className="h-3.5 w-3.5" />
+              {t("resumeBuilder.saveFailed")}
+            </button>
+          ) : (
+            <>
+              <AlertCircle className="h-3.5 w-3.5" />
+              {t("resumeBuilder.saveFailed")}
+            </>
+          )}
         </span>
       );
     default:

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/andreypavlenko/jobber/modules/resumebuilder/model"
+	"github.com/andreypavlenko/jobber/modules/resumebuilder/ports"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1105,6 +1106,59 @@ func TestSectionRepository_SectionOrder(t *testing.T) {
 		repo := newMockRepo(mock)
 		orders := []*model.SectionOrder{{SectionKey: "experience", SortOrder: 0, IsVisible: true}}
 		assert.Error(t, repo.UpsertSectionOrder(context.Background(), "rb-1", orders))
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Upsert rolls back all orders when a later write fails", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		mock.ExpectBegin()
+		mock.ExpectExec("INSERT INTO resume_section_orders").
+			WithArgs("rb-1", "experience", 0, true, "main").
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		mock.ExpectExec("INSERT INTO resume_section_orders").
+			WithArgs("rb-1", "education", 1, false, "sidebar").
+			WillReturnError(errors.New("second write failed"))
+		mock.ExpectRollback()
+
+		repo := newMockRepo(mock)
+		orders := []*model.SectionOrder{
+			{SectionKey: "experience", SortOrder: 0, IsVisible: true, Column: "main"},
+			{SectionKey: "education", SortOrder: 1, IsVisible: false, Column: "sidebar"},
+		}
+		err = repo.RunInTransaction(context.Background(), func(txRepo ports.ResumeBuilderRepository) error {
+			return txRepo.UpsertSectionOrder(context.Background(), "rb-1", orders)
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "second write failed")
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Upsert commits all orders when every write succeeds", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		mock.ExpectBegin()
+		mock.ExpectExec("INSERT INTO resume_section_orders").
+			WithArgs("rb-1", "experience", 0, true, "main").
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		mock.ExpectExec("INSERT INTO resume_section_orders").
+			WithArgs("rb-1", "education", 1, false, "main").
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		mock.ExpectCommit()
+
+		repo := newMockRepo(mock)
+		orders := []*model.SectionOrder{
+			{SectionKey: "experience", SortOrder: 0, IsVisible: true, Column: "main"},
+			{SectionKey: "education", SortOrder: 1, IsVisible: false},
+		}
+		err = repo.RunInTransaction(context.Background(), func(txRepo ports.ResumeBuilderRepository) error {
+			return txRepo.UpsertSectionOrder(context.Background(), "rb-1", orders)
+		})
+		require.NoError(t, err)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 

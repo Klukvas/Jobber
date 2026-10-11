@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { EditorToolbar } from "../EditorToolbar";
 import { createMockStoreState } from "./testHelpers";
@@ -7,6 +7,7 @@ import { createMockStoreState } from "./testHelpers";
 const mockState = createMockStoreState();
 const mockExportPDFMutate = vi.hoisted(() => vi.fn());
 const mockExportDOCXMutate = vi.hoisted(() => vi.fn());
+const mockFlushResume = vi.hoisted(() => vi.fn());
 let pdfPending = false;
 let docxPending = false;
 const mockShowSuccess = vi.hoisted(() => vi.fn());
@@ -32,6 +33,9 @@ vi.mock("../../hooks/useExportDOCX", () => ({
     mutate: mockExportDOCXMutate,
     isPending: docxPending,
   }),
+}));
+vi.mock("../../lib/resumeDocumentSync", () => ({
+  flushResumeDocument: mockFlushResume,
 }));
 vi.mock("../../hooks/useUndoRedo", () => ({
   useUndoRedo: () => ({
@@ -62,6 +66,7 @@ beforeEach(() => {
   Object.assign(mockState, createMockStoreState());
   pdfPending = false;
   docxPending = false;
+  mockFlushResume.mockResolvedValue(undefined);
   // jsdom's anchor.click() is a no-op but throws if it navigates; spy to be safe
   clickSpy = vi
     .spyOn(HTMLAnchorElement.prototype, "click")
@@ -119,7 +124,7 @@ describe("EditorToolbar export flow", () => {
     await user.click(getExportToggle());
     await user.click(screen.getByText("resumeBuilder.toolbar.exportPdf"));
 
-    expect(mockExportPDFMutate).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mockExportPDFMutate).toHaveBeenCalledTimes(1));
     expect(mockExportPDFMutate.mock.calls[0][0]).toBe("resume-1");
     expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
     expect(clickSpy).toHaveBeenCalledTimes(1);
@@ -138,8 +143,10 @@ describe("EditorToolbar export flow", () => {
     await user.click(getExportToggle());
     await user.click(screen.getByText("resumeBuilder.toolbar.exportPdf"));
 
-    expect(mockShowError).toHaveBeenCalledWith(
-      "resumeBuilder.toolbar.exportError",
+    await waitFor(() =>
+      expect(mockShowError).toHaveBeenCalledWith(
+        "resumeBuilder.toolbar.exportError",
+      ),
     );
   });
 
@@ -153,7 +160,7 @@ describe("EditorToolbar export flow", () => {
     await user.click(getExportToggle());
     await user.click(screen.getByText("resumeBuilder.toolbar.exportDocx"));
 
-    expect(mockExportDOCXMutate).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mockExportDOCXMutate).toHaveBeenCalledTimes(1));
     expect(mockShowSuccess).toHaveBeenCalledWith(
       "resumeBuilder.toolbar.exportDocxSuccess",
     );
@@ -169,8 +176,10 @@ describe("EditorToolbar export flow", () => {
     await user.click(getExportToggle());
     await user.click(screen.getByText("resumeBuilder.toolbar.exportDocx"));
 
-    expect(mockShowError).toHaveBeenCalledWith(
-      "resumeBuilder.toolbar.exportDocxError",
+    await waitFor(() =>
+      expect(mockShowError).toHaveBeenCalledWith(
+        "resumeBuilder.toolbar.exportDocxError",
+      ),
     );
   });
 
@@ -182,6 +191,62 @@ describe("EditorToolbar export flow", () => {
       .find((b) => b.textContent?.includes("resumeBuilder.toolbar.exporting"));
     expect(toggle).toBeDefined();
     expect(toggle).toBeDisabled();
+  });
+
+  // The server renders the export from the stored document, so exporting
+  // mid-debounce used to hand the customer the previous version of the resume.
+  it("waits for the document to be stored before exporting", async () => {
+    const user = userEvent.setup();
+    let releaseFlush!: () => void;
+    mockFlushResume.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseFlush = resolve;
+        }),
+    );
+    render(<EditorToolbar {...defaultProps} />);
+
+    await user.click(getExportToggle());
+    await user.click(screen.getByText("resumeBuilder.toolbar.exportPdf"));
+
+    expect(mockFlushResume).toHaveBeenCalledWith("resume-1");
+    expect(mockExportPDFMutate).not.toHaveBeenCalled();
+
+    releaseFlush();
+
+    await waitFor(() => expect(mockExportPDFMutate).toHaveBeenCalledTimes(1));
+  });
+
+  it("refuses the PDF export when the document cannot be stored", async () => {
+    const user = userEvent.setup();
+    mockFlushResume.mockRejectedValue(new Error("offline"));
+    render(<EditorToolbar {...defaultProps} />);
+
+    await user.click(getExportToggle());
+    await user.click(screen.getByText("resumeBuilder.toolbar.exportPdf"));
+
+    await waitFor(() =>
+      expect(mockShowError).toHaveBeenCalledWith(
+        "resumeBuilder.toolbar.exportError",
+      ),
+    );
+    expect(mockExportPDFMutate).not.toHaveBeenCalled();
+  });
+
+  it("refuses the DOCX export when the document cannot be stored", async () => {
+    const user = userEvent.setup();
+    mockFlushResume.mockRejectedValue(new Error("offline"));
+    render(<EditorToolbar {...defaultProps} />);
+
+    await user.click(getExportToggle());
+    await user.click(screen.getByText("resumeBuilder.toolbar.exportDocx"));
+
+    await waitFor(() =>
+      expect(mockShowError).toHaveBeenCalledWith(
+        "resumeBuilder.toolbar.exportDocxError",
+      ),
+    );
+    expect(mockExportDOCXMutate).not.toHaveBeenCalled();
   });
 
   it("does not export when there is no resume in the store", async () => {

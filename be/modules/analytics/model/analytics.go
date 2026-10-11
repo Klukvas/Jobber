@@ -3,10 +3,11 @@ package model
 // OverviewAnalytics contains high-level pipeline statistics.
 //
 // In the single-axis stage model there is no status, so the buckets are:
-//   - ActiveApplications  = cards currently sitting in a column
+//   - ActiveApplications  = cards that are not archived
 //   - ClosedApplications  = archived cards
-//   - RejectedApplications = always 0 (rejection was a status; it no longer
-//     exists). The field is retained for DTO/JSON stability.
+//   - RejectedApplications = non-archived cards sitting in a column whose kind
+//     is "rejected" (the column's kind, not its name — a renamed column still
+//     counts)
 type OverviewAnalytics struct {
 	TotalApplications      int     `json:"total_applications"`
 	ActiveApplications     int     `json:"active_applications"`

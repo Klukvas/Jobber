@@ -27,13 +27,20 @@ type MockJobRepository struct {
 	CreateFunc            func(ctx context.Context, job *jobModel.Job) error
 	GetByIDFunc           func(ctx context.Context, userID, jobID string) (*jobModel.Job, error)
 	ListFunc              func(ctx context.Context, userID string, opts *jobPorts.ListOptions) ([]*jobModel.JobDTO, int, error)
-	UpdateFunc            func(ctx context.Context, job *jobModel.Job) error
+	UpdateFunc            func(ctx context.Context, userID, jobID string, patch *jobModel.JobPatch) (*jobModel.Job, error)
 	DeleteFunc            func(ctx context.Context, userID, jobID string) error
 	ToggleFavoriteFunc    func(ctx context.Context, userID, jobID string) (bool, error)
 	GetLastActivityAtFunc func(ctx context.Context, jobID string) (time.Time, error)
 }
 
 func (m *MockJobRepository) Create(ctx context.Context, job *jobModel.Job) error {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, job)
+	}
+	return nil
+}
+
+func (m *MockJobRepository) CreateWithInitialStage(ctx context.Context, job *jobModel.Job, stage *jobModel.JobStage) error {
 	if m.CreateFunc != nil {
 		return m.CreateFunc(ctx, job)
 	}
@@ -54,11 +61,11 @@ func (m *MockJobRepository) List(ctx context.Context, userID string, opts *jobPo
 	return nil, 0, nil
 }
 
-func (m *MockJobRepository) Update(ctx context.Context, job *jobModel.Job) error {
+func (m *MockJobRepository) Update(ctx context.Context, userID, jobID string, patch *jobModel.JobPatch) (*jobModel.Job, error) {
 	if m.UpdateFunc != nil {
-		return m.UpdateFunc(ctx, job)
+		return m.UpdateFunc(ctx, userID, jobID, patch)
 	}
-	return nil
+	return nil, nil
 }
 
 func (m *MockJobRepository) Delete(ctx context.Context, userID, jobID string) error {

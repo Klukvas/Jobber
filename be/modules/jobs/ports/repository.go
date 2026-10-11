@@ -28,9 +28,14 @@ type ListOptions struct {
 // JobRepository defines the interface for job data access
 type JobRepository interface {
 	Create(ctx context.Context, job *model.Job) error
+	// CreateWithInitialStage creates the card together with the stage-history
+	// row for the column it starts in, atomically.
+	CreateWithInitialStage(ctx context.Context, job *model.Job, stage *model.JobStage) error
 	GetByID(ctx context.Context, userID, jobID string) (*model.Job, error)
 	List(ctx context.Context, userID string, opts *ListOptions) ([]*model.JobDTO, int, error)
-	Update(ctx context.Context, job *model.Job) error
+	// Update writes only the fields the patch carries and returns the stored
+	// row. It never touches pipeline-owned columns.
+	Update(ctx context.Context, userID, jobID string, patch *model.JobPatch) (*model.Job, error)
 	Delete(ctx context.Context, userID, jobID string) error
 	ToggleFavorite(ctx context.Context, userID, jobID string) (bool, error)
 	GetLastActivityAt(ctx context.Context, userID, jobID string) (time.Time, error)
@@ -41,7 +46,9 @@ type StageTemplateRepository interface {
 	Create(ctx context.Context, template *model.StageTemplate) error
 	GetByID(ctx context.Context, userID, templateID string) (*model.StageTemplate, error)
 	List(ctx context.Context, userID string, limit, offset int) ([]*model.StageTemplate, int, error)
-	Update(ctx context.Context, template *model.StageTemplate) error
+	// Update writes only the fields the patch carries and returns the stored
+	// row.
+	Update(ctx context.Context, userID, templateID string, patch *model.StageTemplatePatch) (*model.StageTemplate, error)
 	Reorder(ctx context.Context, userID string, orderedIDs []string) error
 	Delete(ctx context.Context, userID, templateID string) error
 }

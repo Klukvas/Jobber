@@ -1,9 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { StrictMode } from "react";
 import { renderHook, act } from "@testing-library/react";
 import { useAutoSave } from "./useAutoSave";
 import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
 import { resumeBuilderService } from "@/services/resumeBuilderService";
-import type { FullResumeDTO } from "@/shared/types/resume-builder";
+import type {
+  FullResumeDTO,
+  ResumeBuilderDTO,
+} from "@/shared/types/resume-builder";
 import { markServerIds } from "./useSectionPersistence";
 
 vi.mock("@/services/resumeBuilderService", () => ({
@@ -348,6 +352,100 @@ describe("useAutoSave", () => {
     });
 
     expect(resumeBuilderService.updateSectionOrder).not.toHaveBeenCalled();
+  });
+});
+
+describe("useAutoSave — saves that overlap", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    useResumeBuilderStore.setState({
+      resume: null,
+      isDirty: false,
+      saveStatus: "idle",
+    });
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function deferred() {
+    let resolve!: () => void;
+    const promise = new Promise<void>((resolvePromise) => {
+      resolve = resolvePromise;
+    });
+    return { promise, resolve };
+  }
+
+  // Typing during the request used to be lost: the save finished, marked the
+  // document clean, and the newer text was never sent.
+  it("sends a keystroke that lands while the debounced save is in flight", async () => {
+    const inFlight = deferred();
+    const sentTitles: string[] = [];
+    vi.mocked(resumeBuilderService.update).mockImplementation(
+      async (_id, data) => {
+        sentTitles.push(String(data.title));
+        if (sentTitles.length === 1) await inFlight.promise;
+        return {} as ResumeBuilderDTO;
+      },
+    );
+    useResumeBuilderStore.setState({
+      resume: makeResume({ title: "Mid-save first" }),
+      isDirty: true,
+    });
+    renderHook(() => useAutoSave());
+
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+      await Promise.resolve();
+    });
+
+    act(() => {
+      useResumeBuilderStore
+        .getState()
+        .updateDesign({ title: "Mid-save second" });
+    });
+
+    await act(async () => {
+      inFlight.resolve();
+      await vi.runAllTimersAsync();
+    });
+
+    expect(sentTitles).toEqual(["Mid-save first", "Mid-save second"]);
+    expect(useResumeBuilderStore.getState().isDirty).toBe(false);
+  });
+
+  it("saves pending work when the editor unmounts", async () => {
+    useResumeBuilderStore.setState({
+      resume: makeResume({ title: "Unmount me" }),
+      isDirty: true,
+    });
+    const { unmount } = renderHook(() => useAutoSave());
+
+    await act(async () => {
+      unmount();
+      await vi.runAllTimersAsync();
+    });
+
+    expect(resumeBuilderService.update).toHaveBeenCalledWith(
+      "resume-1",
+      expect.objectContaining({ title: "Unmount me" }),
+    );
+  });
+
+  it("saves once when React double-invokes the editor's effects", async () => {
+    useResumeBuilderStore.setState({
+      resume: makeResume({ title: "Strict mode" }),
+      isDirty: true,
+    });
+    renderHook(() => useAutoSave(), { wrapper: StrictMode });
+
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    expect(resumeBuilderService.update).toHaveBeenCalledTimes(1);
   });
 });
 

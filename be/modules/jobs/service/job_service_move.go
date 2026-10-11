@@ -12,11 +12,15 @@ import (
 
 // Move places a card into a pipeline column — the single write path for
 // pipeline position (board drag or the detail-page stage selector). It
-// completes the current active job_stages row (if any), appends a new active
+// completes the card's active job_stages row (if any), appends a new active
 // job_stages row for the target column (so history/funnel record the real
-// path), points the job at the target column, and — the first time a card
-// advances past its first column — stamps applied_at. Everything runs in one
-// transaction under a job-row lock.
+// path), points the job at the target column, and stamps applied_at when the
+// target column means the application is out (see job_service_applied.go).
+// Everything runs in one transaction under a job-row lock.
+//
+// The "already in this column" check happens inside the transaction, on the
+// state read under that lock: deciding it from the copy fetched beforehand made
+// a move race with another one and return success without writing anything.
 func (s *JobService) Move(ctx context.Context, userID, jobID string, req *model.MoveJobRequest) (*model.JobDTO, error) {
 	if req.StageTemplateID == "" {
 		return nil, model.ErrInvalidMoveTarget
@@ -31,11 +35,6 @@ func (s *JobService) Move(ctx context.Context, userID, jobID string, req *model.
 		return nil, err
 	}
 
-	// No-op: already in this column.
-	if job.CurrentStageTemplateID != nil && *job.CurrentStageTemplateID == template.ID {
-		return s.buildJobDTO(ctx, userID, job, false)
-	}
-
 	now := time.Now().UTC()
 
 	tx, err := s.pool.Begin(ctx)
@@ -45,47 +44,48 @@ func (s *JobService) Move(ctx context.Context, userID, jobID string, req *model.
 	defer tx.Rollback(ctx) //nolint:errcheck // rollback is a no-op after commit
 
 	// Serialize with AddStage/UpdateStage/DeleteStage on this job.
-	lockTag, err := tx.Exec(ctx, `SELECT id FROM jobs WHERE id = $1 FOR UPDATE`, job.ID)
+	state, err := lockJob(ctx, tx, userID, jobID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to lock job: %w", err)
-	}
-	if lockTag.RowsAffected() == 0 {
-		return nil, model.ErrJobNotFound
+		return nil, err
 	}
 
-	// Complete the current active stage — history stays intact.
-	if job.CurrentStageID != nil && *job.CurrentStageID != "" {
-		if _, err := tx.Exec(ctx,
-			`UPDATE job_stages SET status = 'completed', completed_at = $2 WHERE id = $1 AND status != 'completed' AND job_id = $3`,
-			*job.CurrentStageID, now, job.ID,
-		); err != nil {
-			return nil, fmt.Errorf("failed to complete current stage: %w", err)
-		}
+	// Already in this column: nothing to write. Return the card as it stands
+	// now — the locked read may differ from what the caller saw.
+	if state.InColumn(template.ID) {
+		job.CurrentStageTemplateID = state.CurrentStageTemplateID
+		job.CurrentStageID = state.CurrentStageID
+		job.AppliedAt = state.AppliedAt
+		// Release the lock before the fresh read: asking the pool for a second
+		// connection while this transaction still holds one is how a burst of
+		// concurrent moves starves the pool.
+		_ = tx.Rollback(ctx)
+		return s.buildJobDTO(ctx, userID, s.rereadJob(ctx, userID, job), false)
 	}
 
-	// Next order = max existing + 1 (under the lock).
-	var order int
-	if err := tx.QueryRow(ctx, `SELECT COALESCE(MAX("order"), -1) + 1 FROM job_stages WHERE job_id = $1`, job.ID).Scan(&order); err != nil {
-		return nil, fmt.Errorf("failed to compute stage order: %w", err)
+	// Complete whatever stage was open — history stays intact.
+	if err := completeOpenStages(ctx, tx, jobID, now, nil); err != nil {
+		return nil, err
+	}
+
+	order, err := nextStageOrder(ctx, tx, jobID)
+	if err != nil {
+		return nil, err
 	}
 
 	newStageID := uuid.New().String()
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO job_stages (id, job_id, stage_template_id, status, "order", started_at, completed_at, created_at)
 		 VALUES ($1, $2, $3, 'active', $4, $5, NULL, $5)`,
-		newStageID, job.ID, template.ID, order, now,
+		newStageID, jobID, template.ID, order, now,
 	); err != nil {
 		return nil, fmt.Errorf("failed to create stage: %w", err)
 	}
 
-	appliedAt := job.AppliedAt
-	if appliedAt == nil && template.Order > 0 {
-		appliedAt = &now
-	}
+	appliedAt := appliedAtAfterMove(state.AppliedAt, template, now)
 
 	if _, err := tx.Exec(ctx,
 		`UPDATE jobs SET current_stage_id = $2, current_stage_template_id = $3, applied_at = $4, updated_at = $5 WHERE id = $1`,
-		job.ID, newStageID, template.ID, appliedAt, now,
+		jobID, newStageID, template.ID, appliedAt, now,
 	); err != nil {
 		return nil, fmt.Errorf("failed to update job: %w", err)
 	}
@@ -94,7 +94,8 @@ func (s *JobService) Move(ctx context.Context, userID, jobID string, req *model.
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	// Reflect the new state on the in-memory job for the enriched DTO.
+	// Reflect the new state on the in-memory job, the fallback for the DTO if
+	// the re-read below cannot be served.
 	job.CurrentStageID = &newStageID
 	tmplID := template.ID
 	job.CurrentStageTemplateID = &tmplID
@@ -105,5 +106,29 @@ func (s *JobService) Move(ctx context.Context, userID, jobID string, req *model.
 		zap.String("stage", template.Name),
 		zap.String("user_id", userID))
 
-	return s.buildJobDTO(ctx, userID, job, false)
+	// The lock is gone with the commit, so the extra read cannot hold a
+	// connection hostage.
+	return s.buildJobDTO(ctx, userID, s.rereadJob(ctx, userID, job), false)
+}
+
+// rereadJob re-reads a card once its pipeline write has committed (or rolled
+// back as a no-op) and the row lock is released.
+//
+// The copy Move fetched before the transaction is a snapshot of the whole row.
+// A PATCH committing in that window changes title/source/description in the
+// database, and answering the move from the snapshot hands the client those old
+// values — which the frontend writes straight into its cache, so a rename
+// disappears on screen while the stored row is perfectly correct.
+//
+// A failed re-read is not worth failing a committed move over: the locally
+// updated copy still describes the pipeline change that was just written.
+func (s *JobService) rereadJob(ctx context.Context, userID string, local *model.Job) *model.Job {
+	fresh, err := s.repo.GetByID(ctx, userID, local.ID)
+	if err != nil {
+		s.log.Warn("failed to re-read job after move; answering from the local copy",
+			zap.String("job_id", local.ID),
+			zap.Error(err))
+		return local
+	}
+	return fresh
 }

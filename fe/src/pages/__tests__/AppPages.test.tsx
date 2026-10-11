@@ -77,6 +77,20 @@ vi.mock("@tanstack/react-query", () => ({
     error: null,
     refetch: vi.fn(),
   }),
+  // The Jobs board pages its cards in; these smoke tests only ever render the
+  // list view, so an idle infinite query is enough.
+  useInfiniteQuery: () => ({
+    data: undefined,
+    isLoading: false,
+    isFetching: false,
+    isLoadingError: false,
+    isFetchNextPageError: false,
+    isFetchingNextPage: false,
+    hasNextPage: false,
+    fetchNextPage: vi.fn(),
+    error: null,
+    refetch: vi.fn(),
+  }),
   useMutation: () => ({
     mutate: vi.fn(),
     mutateAsync: vi.fn(),

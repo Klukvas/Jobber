@@ -12,6 +12,8 @@ import (
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
 	"github.com/andreypavlenko/jobber/modules/jobs/model"
 	"github.com/andreypavlenko/jobber/modules/jobs/service"
+	"github.com/jackc/pgx/v5"
+	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +30,7 @@ type ConfigStageTemplateRepo struct {
 	CreateFunc  func(ctx context.Context, template *model.StageTemplate) error
 	GetByIDFunc func(ctx context.Context, userID, templateID string) (*model.StageTemplate, error)
 	ListFunc    func(ctx context.Context, userID string, limit, offset int) ([]*model.StageTemplate, int, error)
-	UpdateFunc  func(ctx context.Context, template *model.StageTemplate) error
+	UpdateFunc  func(ctx context.Context, userID, templateID string, patch *model.StageTemplatePatch) (*model.StageTemplate, error)
 	ReorderFunc func(ctx context.Context, userID string, orderedIDs []string) error
 	DeleteFunc  func(ctx context.Context, userID, templateID string) error
 }
@@ -51,11 +53,24 @@ func (m *ConfigStageTemplateRepo) List(ctx context.Context, userID string, limit
 	}
 	return []*model.StageTemplate{{ID: "stage-wishlist", UserID: userID, Name: "Wishlist", Order: 0}}, 1, nil
 }
-func (m *ConfigStageTemplateRepo) Update(ctx context.Context, t *model.StageTemplate) error {
+
+// Update mirrors the real field-scoped write: the default applies only the
+// fields the patch carries to a stored row and hands the result back.
+func (m *ConfigStageTemplateRepo) Update(ctx context.Context, userID, templateID string, patch *model.StageTemplatePatch) (*model.StageTemplate, error) {
 	if m.UpdateFunc != nil {
-		return m.UpdateFunc(ctx, t)
+		return m.UpdateFunc(ctx, userID, templateID, patch)
 	}
-	return nil
+	stored := &model.StageTemplate{ID: templateID, UserID: userID, Name: "Applied", Order: 1, Kind: model.StageKindApplied}
+	if patch.Name != nil {
+		stored.Name = *patch.Name
+	}
+	if patch.Order != nil {
+		stored.Order = *patch.Order
+	}
+	if patch.Kind != nil {
+		stored.Kind = *patch.Kind
+	}
+	return stored, nil
 }
 func (m *ConfigStageTemplateRepo) Reorder(ctx context.Context, userID string, orderedIDs []string) error {
 	if m.ReorderFunc != nil {
@@ -115,6 +130,30 @@ func (m *MockJobStageRepository) Delete(ctx context.Context, stageID, jobID stri
 // (and a nil pool — only the pool-free code paths are exercised here).
 func newStageJobService(jobRepo *MockJobRepository, stageRepo *MockJobStageRepository, tmplRepo *ConfigStageTemplateRepo) *service.JobService {
 	return service.NewJobService(nil, jobRepo, stageRepo, tmplRepo, defaultMockCompanyRepo, nil, nil, defaultMockCommentRepo, nil, nil, nil)
+}
+
+// newStageJobServiceWithPool is the same wiring with a mock pool, for the paths
+// that read the card's state inside a transaction.
+func newStageJobServiceWithPool(pool pgxmock.PgxPoolIface, jobRepo *MockJobRepository, stageRepo *MockJobStageRepository, tmplRepo *ConfigStageTemplateRepo) *service.JobService {
+	return service.NewJobService(pool, jobRepo, stageRepo, tmplRepo, defaultMockCompanyRepo, nil, nil, defaultMockCommentRepo, nil, nil, nil)
+}
+
+// newMockPool builds a pgxmock pool closed at test end.
+func newMockPool(t *testing.T) pgxmock.PgxPoolIface {
+	t.Helper()
+	pool, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+	return pool
+}
+
+// expectLockedJob sets up the "lock the card and read its state" query every
+// pipeline write starts with.
+func expectLockedJob(pool pgxmock.PgxPoolIface, jobID, userID string) {
+	pool.ExpectQuery(`SELECT current_stage_template_id, current_stage_id, applied_at`).
+		WithArgs(jobID, userID).
+		WillReturnRows(pgxmock.NewRows([]string{"current_stage_template_id", "current_stage_id", "applied_at"}).
+			AddRow(nil, nil, nil))
 }
 
 func decodeErr(t *testing.T, w *httptest.ResponseRecorder) httpPlatform.ErrorResponse {
@@ -386,12 +425,17 @@ func TestJobHandler_DeleteStage(t *testing.T) {
 				return &model.Job{ID: jid, UserID: uid}, nil
 			},
 		}
-		stageRepo := &MockJobStageRepository{
-			GetByIDFunc: func(ctx context.Context, sid, jid string) (*model.JobStage, error) {
-				return nil, model.ErrJobStageNotFound
-			},
-		}
-		svc := newStageJobService(jobRepo, stageRepo, &ConfigStageTemplateRepo{})
+		// The stage is now looked up inside the transaction, under the job
+		// lock — a stage fetched before the lock may already be gone.
+		pool := newMockPool(t)
+		pool.ExpectBegin()
+		expectLockedJob(pool, "j1", userID)
+		pool.ExpectQuery(`SELECT stage_template_id, status, "order"`).
+			WithArgs("missing", "j1").
+			WillReturnError(pgx.ErrNoRows)
+		pool.ExpectRollback()
+
+		svc := newStageJobServiceWithPool(pool, jobRepo, &MockJobStageRepository{}, &ConfigStageTemplateRepo{})
 		h := NewJobHandler(svc)
 		router := setupTestRouter()
 		router.DELETE("/jobs/:id/stages/:stageId", mockAuthMiddleware(userID), h.DeleteStage)
@@ -400,6 +444,7 @@ func TestJobHandler_DeleteStage(t *testing.T) {
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNotFound, w.Code)
 		assert.Equal(t, string(model.CodeJobStageNotFound), decodeErr(t, w).ErrorCode)
+		require.NoError(t, pool.ExpectationsWereMet())
 	})
 }
 
@@ -552,9 +597,11 @@ func TestJobHandler_UpdateStageTemplate(t *testing.T) {
 	userID := "user-123"
 
 	t.Run("updates template successfully", func(t *testing.T) {
+		var patched *model.StageTemplatePatch
 		tmpl := &ConfigStageTemplateRepo{
-			GetByIDFunc: func(ctx context.Context, uid, tid string) (*model.StageTemplate, error) {
-				return &model.StageTemplate{ID: tid, UserID: uid, Name: "Old", Order: 1}, nil
+			UpdateFunc: func(ctx context.Context, uid, tid string, patch *model.StageTemplatePatch) (*model.StageTemplate, error) {
+				patched = patch
+				return &model.StageTemplate{ID: tid, UserID: uid, Name: *patch.Name, Order: *patch.Order}, nil
 			},
 		}
 		svc := newStageJobService(&MockJobRepository{}, &MockJobStageRepository{}, tmpl)
@@ -572,6 +619,8 @@ func TestJobHandler_UpdateStageTemplate(t *testing.T) {
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &dto))
 		assert.Equal(t, "New Name", dto.Name)
 		assert.Equal(t, 3, dto.Order)
+		require.NotNil(t, patched)
+		assert.Nil(t, patched.Kind, "a body without a kind must not write one")
 	})
 
 	t.Run("401 without auth", func(t *testing.T) {
@@ -599,8 +648,9 @@ func TestJobHandler_UpdateStageTemplate(t *testing.T) {
 	})
 
 	t.Run("404 when template not found", func(t *testing.T) {
+		// The write reports it: no row matched the id/owner pair.
 		tmpl := &ConfigStageTemplateRepo{
-			GetByIDFunc: func(ctx context.Context, uid, tid string) (*model.StageTemplate, error) {
+			UpdateFunc: func(ctx context.Context, uid, tid string, patch *model.StageTemplatePatch) (*model.StageTemplate, error) {
 				return nil, model.ErrStageTemplateNotFound
 			},
 		}
@@ -618,8 +668,9 @@ func TestJobHandler_UpdateStageTemplate(t *testing.T) {
 
 	t.Run("400 when name blanked out", func(t *testing.T) {
 		tmpl := &ConfigStageTemplateRepo{
-			GetByIDFunc: func(ctx context.Context, uid, tid string) (*model.StageTemplate, error) {
-				return &model.StageTemplate{ID: tid, UserID: uid, Name: "Old", Order: 1}, nil
+			UpdateFunc: func(ctx context.Context, uid, tid string, patch *model.StageTemplatePatch) (*model.StageTemplate, error) {
+				t.Errorf("a blank name must not reach the repository")
+				return nil, nil
 			},
 		}
 		svc := newStageJobService(&MockJobRepository{}, &MockJobStageRepository{}, tmpl)

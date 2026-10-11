@@ -16,6 +16,8 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("react-router-dom", () => ({
   useNavigate: () => vi.fn(),
+  // Each card carries the list URL it was opened from.
+  useLocation: () => ({ pathname: "/app/jobs", search: "?page=2" }),
 }));
 
 // Keep the card trivial — we only care about accordion open/close behavior.

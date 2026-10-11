@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { SaveIndicator } from "./SaveIndicator";
 import { createMockStoreState } from "./__tests__/testHelpers";
 
@@ -104,5 +105,34 @@ describe("SaveIndicator — unsaved changes", () => {
     Object.assign(mockState, { isDirty: false, saveStatus: "saved" });
     render(<SaveIndicator />);
     expect(screen.getByText("resumeBuilder.saved")).toBeInTheDocument();
+  });
+});
+
+// A failed save is the one state the user cannot leave on their own — the
+// editor has to offer the way back.
+describe("SaveIndicator — retry", () => {
+  beforeEach(() => {
+    Object.assign(mockState, createMockStoreState(), { saveStatus: "error" });
+  });
+
+  it("turns the failure into a retry button", async () => {
+    const user = userEvent.setup();
+    const onRetry = vi.fn();
+    render(<SaveIndicator onRetry={onRetry} />);
+
+    await user.click(
+      screen.getByRole("button", { name: "resumeBuilder.saveFailed" }),
+    );
+
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays a plain message when no retry is offered", () => {
+    render(<SaveIndicator />);
+
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "resumeBuilder.saveFailed",
+    );
   });
 });

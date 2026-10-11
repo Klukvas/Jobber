@@ -73,13 +73,31 @@ type MockJobRepository struct {
 	CreateFunc            func(ctx context.Context, job *model.Job) error
 	GetByIDFunc           func(ctx context.Context, userID, jobID string) (*model.Job, error)
 	ListFunc              func(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.JobDTO, int, error)
-	UpdateFunc            func(ctx context.Context, job *model.Job) error
+	UpdateFunc            func(ctx context.Context, userID, jobID string, patch *model.JobPatch) (*model.Job, error)
 	DeleteFunc            func(ctx context.Context, userID, jobID string) error
 	ToggleFavoriteFunc    func(ctx context.Context, userID, jobID string) (bool, error)
 	GetLastActivityAtFunc func(ctx context.Context, jobID string) (time.Time, error)
+
+	// CreateWithInitialStageFunc overrides the create-with-history path;
+	// InitialStage captures the stage row that path was handed.
+	CreateWithInitialStageFunc func(ctx context.Context, job *model.Job, stage *model.JobStage) error
+	InitialStage               *model.JobStage
 }
 
 func (m *MockJobRepository) Create(ctx context.Context, job *model.Job) error {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, job)
+	}
+	return nil
+}
+
+// CreateWithInitialStage records the stage the card starts in, then delegates
+// to the same CreateFunc so a test only has to stub one creation path.
+func (m *MockJobRepository) CreateWithInitialStage(ctx context.Context, job *model.Job, stage *model.JobStage) error {
+	m.InitialStage = stage
+	if m.CreateWithInitialStageFunc != nil {
+		return m.CreateWithInitialStageFunc(ctx, job, stage)
+	}
 	if m.CreateFunc != nil {
 		return m.CreateFunc(ctx, job)
 	}
@@ -100,11 +118,11 @@ func (m *MockJobRepository) List(ctx context.Context, userID string, opts *ports
 	return nil, 0, nil
 }
 
-func (m *MockJobRepository) Update(ctx context.Context, job *model.Job) error {
+func (m *MockJobRepository) Update(ctx context.Context, userID, jobID string, patch *model.JobPatch) (*model.Job, error) {
 	if m.UpdateFunc != nil {
-		return m.UpdateFunc(ctx, job)
+		return m.UpdateFunc(ctx, userID, jobID, patch)
 	}
-	return nil
+	return &model.Job{ID: jobID, UserID: userID}, nil
 }
 
 func (m *MockJobRepository) Delete(ctx context.Context, userID, jobID string) error {
@@ -126,6 +144,54 @@ func (m *MockJobRepository) GetLastActivityAt(ctx context.Context, userID, jobID
 		return m.GetLastActivityAtFunc(ctx, jobID)
 	}
 	return time.Time{}, nil
+}
+
+// applyJobPatch mimics the repository's field-scoped UPDATE: only the fields
+// the patch carries are written, an empty id clears the link, and everything
+// else — including the pipeline columns — is left exactly as it was.
+func applyJobPatch(job *model.Job, patch *model.JobPatch) {
+	clearable := func(current *string, patched *string) *string {
+		if patched == nil {
+			return current
+		}
+		if *patched == "" {
+			return nil
+		}
+		return patched
+	}
+	job.CompanyID = clearable(job.CompanyID, patch.CompanyID)
+	job.ResumeID = clearable(job.ResumeID, patch.ResumeID)
+	job.ResumeBuilderID = clearable(job.ResumeBuilderID, patch.ResumeBuilderID)
+	if patch.Title != nil {
+		job.Title = *patch.Title
+	}
+	if patch.Source != nil {
+		job.Source = patch.Source
+	}
+	if patch.URL != nil {
+		job.URL = patch.URL
+	}
+	if patch.Description != nil {
+		job.Description = patch.Description
+	}
+	if patch.IsArchived != nil {
+		job.IsArchived = *patch.IsArchived
+	}
+}
+
+// patchingJobRepo returns a repo whose Update applies the patch to stored and
+// returns the result, the way the real field-scoped write does.
+func patchingJobRepo(stored *model.Job) *MockJobRepository {
+	return &MockJobRepository{
+		GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
+			return stored, nil
+		},
+		UpdateFunc: func(ctx context.Context, uid, jid string, patch *model.JobPatch) (*model.Job, error) {
+			applyJobPatch(stored, patch)
+			updated := *stored
+			return &updated, nil
+		},
+	}
 }
 
 // newServiceWithTemplates builds a JobService wired with a template repo that
@@ -449,14 +515,7 @@ func TestJobService_Update(t *testing.T) {
 			UpdatedAt: time.Now(),
 		}
 
-		mockRepo := &MockJobRepository{
-			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
-				return existingJob, nil
-			},
-			UpdateFunc: func(ctx context.Context, job *model.Job) error {
-				return nil
-			},
-		}
+		mockRepo := patchingJobRepo(existingJob)
 
 		svc := newServiceWithTemplates(mockRepo, &MockStageTemplateRepository{})
 		newTitle := "New Title"
@@ -489,16 +548,7 @@ func TestJobService_Update(t *testing.T) {
 
 	t.Run("archives a job", func(t *testing.T) {
 		existingJob := &model.Job{ID: jobID, UserID: userID, Title: "Job Title"}
-		var savedJob *model.Job
-		mockRepo := &MockJobRepository{
-			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
-				return existingJob, nil
-			},
-			UpdateFunc: func(ctx context.Context, job *model.Job) error {
-				savedJob = job
-				return nil
-			},
-		}
+		mockRepo := patchingJobRepo(existingJob)
 
 		svc := newServiceWithTemplates(mockRepo, &MockStageTemplateRepository{})
 		archive := true
@@ -507,22 +557,13 @@ func TestJobService_Update(t *testing.T) {
 		result, err := svc.Update(context.Background(), userID, jobID, req)
 
 		require.NoError(t, err)
-		assert.True(t, savedJob.IsArchived)
+		assert.True(t, existingJob.IsArchived)
 		assert.True(t, result.IsArchived)
 	})
 
 	t.Run("unarchives a job", func(t *testing.T) {
 		existingJob := &model.Job{ID: jobID, UserID: userID, Title: "Job Title", IsArchived: true}
-		var savedJob *model.Job
-		mockRepo := &MockJobRepository{
-			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
-				return existingJob, nil
-			},
-			UpdateFunc: func(ctx context.Context, job *model.Job) error {
-				savedJob = job
-				return nil
-			},
-		}
+		mockRepo := patchingJobRepo(existingJob)
 
 		svc := newServiceWithTemplates(mockRepo, &MockStageTemplateRepository{})
 		unarchive := false
@@ -531,13 +572,14 @@ func TestJobService_Update(t *testing.T) {
 		result, err := svc.Update(context.Background(), userID, jobID, req)
 
 		require.NoError(t, err)
-		assert.False(t, savedJob.IsArchived)
+		assert.False(t, existingJob.IsArchived)
 		assert.False(t, result.IsArchived)
 	})
 
 	t.Run("returns error when job not found", func(t *testing.T) {
+		// Nothing is read first: the field-scoped write reports the missing row.
 		mockRepo := &MockJobRepository{
-			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
+			UpdateFunc: func(ctx context.Context, uid, jid string, patch *model.JobPatch) (*model.Job, error) {
 				return nil, model.ErrJobNotFound
 			},
 		}
@@ -618,12 +660,7 @@ func TestJobService_Update_CacheInvalidation(t *testing.T) {
 
 	t.Run("invalidates cache when description changes", func(t *testing.T) {
 		cache := &MockCacheInvalidator{}
-		mockRepo := &MockJobRepository{
-			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
-				return existingJob(), nil
-			},
-			UpdateFunc: func(ctx context.Context, job *model.Job) error { return nil },
-		}
+		mockRepo := patchingJobRepo(existingJob())
 
 		svc := newSvc(mockRepo, cache)
 		desc := "New description"
@@ -638,12 +675,7 @@ func TestJobService_Update_CacheInvalidation(t *testing.T) {
 
 	t.Run("does not invalidate cache when description unchanged", func(t *testing.T) {
 		cache := &MockCacheInvalidator{}
-		mockRepo := &MockJobRepository{
-			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
-				return existingJob(), nil
-			},
-			UpdateFunc: func(ctx context.Context, job *model.Job) error { return nil },
-		}
+		mockRepo := patchingJobRepo(existingJob())
 
 		svc := newSvc(mockRepo, cache)
 		newTitle := "New Title"
@@ -661,12 +693,7 @@ func TestJobService_Update_CacheInvalidation(t *testing.T) {
 				return errors.New("cache unavailable")
 			},
 		}
-		mockRepo := &MockJobRepository{
-			GetByIDFunc: func(ctx context.Context, uid, jid string) (*model.Job, error) {
-				return existingJob(), nil
-			},
-			UpdateFunc: func(ctx context.Context, job *model.Job) error { return nil },
-		}
+		mockRepo := patchingJobRepo(existingJob())
 
 		svc := newSvc(mockRepo, cache)
 		desc := "New description"
@@ -843,14 +870,8 @@ func TestJobService_Update_CompanyValidation(t *testing.T) {
 	t.Run("allows clearing company ID with empty string", func(t *testing.T) {
 		existingJob := &model.Job{ID: jobID, UserID: userID, Title: "Job Title"}
 		emptyCompanyID := ""
-		mockRepo := &MockJobRepository{
-			GetByIDFunc: func(_ context.Context, _, _ string) (*model.Job, error) {
-				return existingJob, nil
-			},
-			UpdateFunc: func(_ context.Context, job *model.Job) error {
-				return nil
-			},
-		}
+		existingJob.CompanyID = &jobID // a link that the empty string must clear
+		mockRepo := patchingJobRepo(existingJob)
 		svc := newServiceWithTemplates(mockRepo, &MockStageTemplateRepository{})
 
 		result, err := svc.Update(context.Background(), userID, jobID, &model.UpdateJobRequest{
@@ -858,7 +879,8 @@ func TestJobService_Update_CompanyValidation(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		assert.NotNil(t, result)
+		require.NotNil(t, result)
+		assert.Nil(t, result.CompanyID, "an explicit empty company_id clears the link")
 	})
 
 	t.Run("updates all optional fields", func(t *testing.T) {
@@ -867,16 +889,7 @@ func TestJobService_Update_CompanyValidation(t *testing.T) {
 		url := "https://linkedin.com/jobs/123"
 		desc := "Job description"
 
-		var updatedJob *model.Job
-		mockRepo := &MockJobRepository{
-			GetByIDFunc: func(_ context.Context, _, _ string) (*model.Job, error) {
-				return existingJob, nil
-			},
-			UpdateFunc: func(_ context.Context, job *model.Job) error {
-				updatedJob = job
-				return nil
-			},
-		}
+		mockRepo := patchingJobRepo(existingJob)
 		svc := newServiceWithTemplates(mockRepo, &MockStageTemplateRepository{})
 
 		result, err := svc.Update(context.Background(), userID, jobID, &model.UpdateJobRequest{
@@ -887,9 +900,9 @@ func TestJobService_Update_CompanyValidation(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, &source, updatedJob.Source)
-		assert.Equal(t, &url, updatedJob.URL)
-		assert.Equal(t, &desc, updatedJob.Description)
+		assert.Equal(t, &source, result.Source)
+		assert.Equal(t, &url, result.URL)
+		assert.Equal(t, &desc, result.Description)
 	})
 
 	t.Run("returns error when repo update fails", func(t *testing.T) {
@@ -898,8 +911,8 @@ func TestJobService_Update_CompanyValidation(t *testing.T) {
 			GetByIDFunc: func(_ context.Context, _, _ string) (*model.Job, error) {
 				return existingJob, nil
 			},
-			UpdateFunc: func(_ context.Context, _ *model.Job) error {
-				return errors.New("update failed")
+			UpdateFunc: func(_ context.Context, _, _ string, _ *model.JobPatch) (*model.Job, error) {
+				return nil, errors.New("update failed")
 			},
 		}
 		svc := newServiceWithTemplates(mockRepo, &MockStageTemplateRepository{})

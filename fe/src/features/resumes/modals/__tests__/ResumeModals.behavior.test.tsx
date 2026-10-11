@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { resumeQueryKeys } from "@/shared/lib/resumeQueryKeys";
 import type { ResumeDTO } from "@/shared/types/api";
 import type { ResumeBuilderDTO } from "@/shared/types/resume-builder";
 import { CreateResumeModal } from "../CreateResumeModal";
@@ -510,6 +511,43 @@ describe("RenameBuilderResumeModal", () => {
 
     // trimmed empty -> mutation must not fire
     expect(mockBuilderUpdate).not.toHaveBeenCalled();
+  });
+
+  it("invalidates the shared builder list without sweeping cached details", async () => {
+    const user = userEvent.setup();
+    mockBuilderUpdate.mockResolvedValue(makeBuilder());
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData(resumeQueryKeys.builderList(), [makeBuilder()]);
+    queryClient.setQueryData(resumeQueryKeys.builderDetail("b-1"), {
+      ...makeBuilder(),
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RenameBuilderResumeModal
+          open={true}
+          onOpenChange={vi.fn()}
+          resume={makeBuilder()}
+        />
+      </QueryClientProvider>,
+    );
+
+    const input = screen.getByLabelText(/resumes\.titleLabel/);
+    await user.clear(input);
+    await user.type(input, "Renamed Builder");
+    await user.click(screen.getByRole("button", { name: "common.save" }));
+
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryState(resumeQueryKeys.builderList())?.isInvalidated,
+      ).toBe(true),
+    );
+    expect(
+      queryClient.getQueryState(resumeQueryKeys.builderDetail("b-1"))
+        ?.isInvalidated,
+    ).toBe(false);
   });
 
   it("surfaces a rename error", async () => {

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { CoverLetterSaveIndicator } from "../CoverLetterSaveIndicator";
 
 const mockStoreState = vi.hoisted(() => ({
@@ -54,5 +55,19 @@ describe("CoverLetterSaveIndicator", () => {
       .closest("span");
     expect(indicator).toBeInTheDocument();
     expect(indicator?.className).toContain("text-destructive");
+  });
+
+  // A failed save is the one state the user cannot leave on their own.
+  it("turns the failure into a retry button", async () => {
+    const user = userEvent.setup();
+    const onRetry = vi.fn();
+    mockStoreState.current = { saveStatus: "error" };
+    render(<CoverLetterSaveIndicator onRetry={onRetry} />);
+
+    await user.click(
+      screen.getByRole("button", { name: "coverLetter.saveFailed" }),
+    );
+
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

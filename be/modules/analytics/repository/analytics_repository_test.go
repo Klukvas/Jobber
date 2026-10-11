@@ -18,7 +18,7 @@ func TestAnalyticsRepository_GetOverview(t *testing.T) {
 	userID := "user-123"
 
 	t.Run("returns error when query fails", func(t *testing.T) {
-		mock.ExpectQuery("WITH first_template AS").
+		mock.ExpectQuery("WITH all_cards AS").
 			WithArgs(userID).
 			WillReturnError(assert.AnError)
 
@@ -55,7 +55,7 @@ func TestAnalyticsRepository_GetOverview(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				mock.ExpectQuery("WITH first_template AS").
+				mock.ExpectQuery("WITH all_cards AS").
 					WithArgs(userID).
 					WillReturnRows(pgxmock.NewRows(overviewColumns).
 						AddRow(tt.active, tt.closed, 0, 50.0, 3.5))
@@ -76,9 +76,9 @@ func TestAnalyticsRepository_GetOverview(t *testing.T) {
 	})
 
 	t.Run("returns overview analytics successfully", func(t *testing.T) {
-		mock.ExpectQuery("WITH first_template AS").
+		mock.ExpectQuery("WITH all_cards AS").
 			WithArgs(userID).
-			WillReturnRows(pgxmock.NewRows(overviewColumns).AddRow(5, 5, 0, 50.0, 3.5))
+			WillReturnRows(pgxmock.NewRows(overviewColumns).AddRow(5, 5, 2, 50.0, 3.5))
 
 		result, err := repo.GetOverview(context.Background(), userID)
 
@@ -86,7 +86,9 @@ func TestAnalyticsRepository_GetOverview(t *testing.T) {
 		assert.Equal(t, 10, result.TotalApplications)
 		assert.Equal(t, 5, result.ActiveApplications)
 		assert.Equal(t, 5, result.ClosedApplications)
-		assert.Equal(t, 0, result.RejectedApplications)
+		// Rejected is its own figure now: cards sitting in a rejected-kind
+		// column. It is not part of the total/active/closed partition.
+		assert.Equal(t, 2, result.RejectedApplications)
 		assert.Equal(t, 50.0, result.ResponseRate)
 		assert.Equal(t, 3.5, result.AvgDaysToFirstResponse)
 
@@ -94,7 +96,7 @@ func TestAnalyticsRepository_GetOverview(t *testing.T) {
 	})
 
 	t.Run("returns zero values for empty data", func(t *testing.T) {
-		mock.ExpectQuery("WITH first_template AS").
+		mock.ExpectQuery("WITH all_cards AS").
 			WithArgs(userID).
 			WillReturnRows(pgxmock.NewRows(overviewColumns).AddRow(0, 0, 0, 0.0, 0.0))
 

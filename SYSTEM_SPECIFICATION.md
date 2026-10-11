@@ -1,5 +1,12 @@
 # Jobber - System Specification
 
+> **Read Appendix I first for anything pipeline-related.** Sections 1–10 are the
+> historical record and still describe the phase-based board, the `status` enum
+> and the whole-row job update in places. Appendix I — "Current Implementation
+> (October 2026)" — states what the code actually does for the pipeline model,
+> the applied date, field-scoped PATCH, analytics, document autosave, paging and
+> cache keys, and wins wherever the two disagree.
+
 ## Document Purpose
 
 This document describes the complete architecture, features, and business logic of the Jobber system—a job application tracking platform. It serves as the canonical reference for understanding how the system works without reading code.
@@ -344,43 +351,53 @@ Jobber is a **job application tracking platform** that provides centralized mana
 
 ### Stage Template
 
-**Purpose:** Reusable stage definitions (e.g., "Phone Screen", "Onsite Interview")
+**Purpose:** One pipeline column. The user's ordered set of templates IS the
+pipeline, and a card sits in exactly one of them.
 
 **Key Fields:**
 - `id` (UUID)
 - `user_id` (owner)
-- `name` (e.g., "HR Screen", "Technical Interview")
-- `order` (suggested sequence, scoped within a phase)
-- `phase` (fixed system phase the stage belongs to: `wishlist | applied | in_progress | offer | rejected`; default `in_progress`. Migration 000036 added the column; 000037 added `rejected` as a full phase. Backfill: order=1 → applied, name ILIKE 'offer%' → offer, else in_progress)
+- `name` (the user's label, e.g. "HR Screen", "Onsite loop")
+- `order` (the user's column position; `POST /stage-templates/reorder` rewrites it)
+- `kind` (what the column MEANS: `saved | applied | response | interview | offer | rejected | other`, default `other`. Optional on input, always present on output. Migration 000047 added the column and replaced the dropped `phase`.)
 
 **Relationships:**
 - Belongs to: User
-- Has many: Application stages (via template reference)
+- Has many: job stages (via template reference), jobs (via `current_stage_template_id`)
 
 **Ownership Rules:**
-- User-specific (each user defines their own templates)
-- Reusable across multiple applications
-- Cannot delete if referenced by active application stages
-- Phases themselves are system-fixed and not user-editable
-- All five phases (including rejected) can carry stages — the phases mirror the full application lifecycle
+- User-specific (each user defines their own pipeline)
+- Cannot delete if referenced by job stages (FK restrict)
+- Name, order and kind are all user-editable; the kind *enum* is system-fixed
 
-**Phases & the unified board:** phases give users a single mental axis. The
-board renders base columns Wishlist/Applied/Offer/Rejected (always) plus the
-user's stage columns sorted by `(phase_rank, order)`. A card's status is
-DERIVED from position: wishlist→saved, applied/in_progress→applied,
-offer→offer, rejected→rejected; `on_hold` renders as a pause badge, archived
-as a filter. Registration seeds a starter set (Screening, Technical
-Interview, Final Interview — all in_progress; no Applied/Offer templates so
-base columns are not duplicated).
+**Name, order, kind — three separate things.** The label and the position belong
+to the user; the kind is what every rule reads. Renaming "Technical Interview"
+to "Onsite loop" used to make it stop counting as an interview, and a custom
+"Follow-up reminder" column counted as a reply from the employer purely by
+sitting after the first column. Both are fixed by reading `kind`: renaming and
+reordering a column never change what it means, what a metric counts, or
+whether landing there stamps `applied_at`. A custom column defaults to `other`,
+which carries no analytics weight until the user classifies it.
 
-**Atomic move (`POST /jobs/{id}/move`):** `{target: {type: "stage", stage_template_id} | {type: "phase", phase}}`.
-Stage target: completes the current stage, activates the new one and sets the
-derived status in ONE transaction (row-locked, same as AddStage). Phase
-target (incl. `rejected`): completes the current stage, clears
-`current_stage_id`, sets the derived status. `applied_at` semantics reuse
-applyStatusTransition (stamped on leaving saved, cleared on return). Errors:
-`INVALID_MOVE_TARGET`, `INVALID_PHASE` (400). Dropping a card on its own
-column is a no-op.
+**Seeded pipeline** (registration and `cmd/seed`): Wishlist `saved` · Applied
+`applied` · Screening `response` · Technical Interview `interview` · Final
+Interview `interview` · Offer `offer` · Rejected `rejected`. Migration 000047
+backfills exactly these seeded names (case-insensitive, trimmed) and leaves
+every other column `other` on purpose.
+
+**There is no phase and no derived status.** The `phase` column, the five fixed
+phases, the base board columns and the derived `status` enum described further
+down this document were removed: the column IS the state. `is_archived` hides a
+card orthogonally, and the list endpoint's `status` query parameter is now only
+an archived filter (`"" | active | archived | all`).
+
+**Atomic move (`POST /jobs/{id}/move`):** `{stage_template_id}` — one target
+type, the column. It completes the card's active history row, appends a new
+active row for the target, points the card at it and stamps `applied_at` when
+the target's kind means the application is out, all in one transaction under a
+row lock. Dropping a card on its own column is a no-op (decided under the
+lock). Error: `INVALID_MOVE_TARGET` (400). See **Appendix I** for the exact
+`applied_at` rule.
 
 ---
 
@@ -391,9 +408,9 @@ column is a no-op.
 **Key Fields:**
 - `id` (UUID)
 - `job_id` (FK, formerly `application_id`)
-- `stage_template_id` (FK)
-- `status` ("pending" | "completed")
-- `order` (sequence within job's pipeline)
+- `stage_template_id` (FK — the column this row records entering)
+- `status` (`pending | active | completed | skipped | cancelled`; migration 000002 widened the original `pending | completed`)
+- `order` (sequence within the job's history: `MAX(order) + 1`, so deleting a middle row cannot create a collision)
 - `started_at` (timestamp)
 - `completed_at` (nullable timestamp)
 
@@ -402,14 +419,21 @@ column is a no-op.
 - References: Stage template
 
 **Ownership Rules:**
-- Append-only (stages are never updated after creation, only marked complete)
-- Sequential order maintained via `order` field
-- Current stage referenced by `job.current_stage_id`
+- Effectively append-only: rows are added on every column entry, and the only
+  edits are status/completion. `DELETE` exists for cleanup.
+- Current row referenced by `job.current_stage_id`
 
 **Business Logic:**
-- New stage automatically becomes current
-- Completing a stage updates `completed_at`
-- Previous stage can be marked complete when new stage added
+- A new row becomes the card's active one, and the previous active row is completed
+- **At most one `active` row per card.** Every pipeline write closes the whole
+  active set, not just the row `current_stage_id` points at, so a card that
+  somehow carries two active rows is healed by the next write
+- `pending | skipped | cancelled` rows are never touched by a pipeline write.
+  Pending means *planned, not started* — the user may schedule several rounds
+  ahead (see "Multiple pending stages allowed" under the Job Stages feature) —
+  and skipped/cancelled are states the user chose deliberately
+- Completing a row stamps `completed_at` (or an explicit timestamp); moving a
+  row back to an open status clears it
 
 ---
 
@@ -1280,9 +1304,10 @@ Define reusable stage definitions that can be applied to multiple applications.
 #### Business Rules
 
 **Allowed:**
-- Create template with name and order
-- Update template name or order
-- Delete template if not referenced by application stages
+- Create template with name, order and optional `kind` (defaults to `other`)
+- Update template name, order or kind
+- Reorder the whole pipeline in one call (`POST /stage-templates/reorder`)
+- Delete template if not referenced by job stages
 - View own templates only
 - Have duplicate names (user choice)
 
@@ -1293,12 +1318,16 @@ Define reusable stage definitions that can be applied to multiple applications.
 - Delete template used by application stages (FK restrict)
 
 **Edge Cases:**
-- Order is a suggestion, not enforced in workflow
-- Order is displayed directly in UI (no offset or transformation)
+- Order is the card's position on the board, not a suggestion
 - Multiple templates can have same order (user responsibility)
 - Template name uniqueness not enforced (user can duplicate)
-- Updating template name/order doesn't affect existing application stages (they reference template ID)
-- Frontend displays: `{order}. {name}` (e.g., "1. Phone Screen")
+- Updating template name/order doesn't affect existing job stages (they reference template ID)
+- **Renaming or reordering never changes meaning.** `kind` is what analytics and
+  the `applied_at` rule read, so neither a rename nor a drag moves a card
+  between metrics or starts/stops stamping a date. Only editing the kind does
+- An unclassified column (`other`, and any row written before migration 000047)
+  carries no analytics weight; the `applied_at` rule falls back to its position
+  for those. See **Appendix I**
 
 #### API Endpoints
 
@@ -1308,14 +1337,20 @@ Define reusable stage definitions that can be applied to multiple applications.
 - **State Modified:** Creates template record
 
 **GET /api/v1/stage-templates**
-- **What:** List stage templates (paginated)
+- **What:** List stage templates (paginated, in column order)
 - **State Read:** User's templates
 - **State Modified:** None
 
+**POST /api/v1/stage-templates/reorder**
+- **What:** Rewrite the pipeline order from an ordered list of template ids
+- **State Read:** Template ownership for every id in the list
+- **State Modified:** Updates `order` on each template; names and kinds untouched
+
 **PATCH /api/v1/stage-templates/{templateId}**
-- **What:** Update stage template
-- **State Read:** Template ownership check
-- **State Modified:** Updates template fields
+- **What:** Update stage template — field-scoped (`name`, `order`, `kind`)
+- **State Read:** None; the write itself is scoped to the owner and reports a
+  missing column as `STAGE_TEMPLATE_NOT_FOUND` (404)
+- **State Modified:** Only the fields the request carries, plus `updated_at`
 
 **DELETE /api/v1/stage-templates/{templateId}**
 - **What:** Delete stage template
@@ -1338,9 +1373,15 @@ Define reusable stage definitions that can be applied to multiple applications.
 5. Return paginated results with total count
 
 **Update:**
-1. Validate user owns template
-2. Update name (trim whitespace) or order
-3. Return updated template DTO
+1. Validate the name when one is sent (trim whitespace, non-empty) and parse the
+   kind when one is sent (unknown value → `INVALID_STAGE_KIND`, 400)
+2. Write **only** the fields the request carries — `name`, `order`, `kind` — in a
+   single statement scoped to `id` + `user_id`, and return the row it produced.
+   No column is read, mutated in memory and written back whole: that lost a
+   field when a rename and a reclassification overlapped. See **Appendix I.3**
+3. No matching row for this owner → `STAGE_TEMPLATE_NOT_FOUND` (404); a body
+   with no fields touches only `updated_at`
+4. Return updated template DTO
 
 **Delete:**
 1. Validate user owns template
@@ -1403,10 +1444,14 @@ Track job progress through interview stages, maintain timeline of stage history.
 
 **Edge Cases:**
 - Adding stage updates `job.current_stage_id` to new stage
-- Stages are append-only (never modified or deleted)
-- Order is automatically assigned (count of existing stages)
+- Order is automatically assigned as `MAX(order) + 1` (not a count, so deleting
+  a middle row cannot make two rows collide)
 - Completing stage does NOT automatically advance to next stage
-- Multiple pending stages allowed (user may schedule interviews ahead)
+- Multiple pending stages allowed (user may schedule interviews ahead) — and a
+  move or a re-activation leaves every one of them pending. Only `active` rows
+  are closed; see Job Stage under §3 and **Appendix I**
+- Adding a stage also stamps `applied_at` when the target column's kind means
+  the application is out, exactly as a move would
 
 #### API Endpoints
 
@@ -1421,9 +1466,12 @@ Track job progress through interview stages, maintain timeline of stage history.
 - **State Modified:** None
 
 **PATCH /api/v1/jobs/{id}/stages/{stageId}**
-- **What:** Mark stage as completed
-- **State Read:** Stage ownership via job
-- **State Modified:** Updates stage.status to "completed", sets completed_at
+- **What:** Set a history row's status (`pending | active | completed | skipped | cancelled`) and/or its `completed_at`
+- **State Read:** Stage ownership via job; the card's state under its row lock
+- **State Modified:** Updates the row. Re-activating a row is a real move: it
+  closes the card's other active rows, repoints `current_stage_id` and
+  `current_stage_template_id` at this row's column, and stamps `applied_at` if
+  that column means the application is out
 
 **DELETE /api/v1/jobs/{id}/stages/{stageId}**
 - **What:** Delete stage (rarely used, for cleanup)
@@ -1999,10 +2047,13 @@ used to live in `fe/scripts/prerender.mjs` and drift silently.
 **Purpose:** Represent "what is" right now
 
 **Entities:**
-- `Job.status` → Current pipeline status (saved|applied|on_hold|offer|rejected|archived)
-- `Job.applied_at` → Was this job applied to? (null = saved, NOT null = application)
-- `Job.current_stage_id` → Which interview stage is current?
-- `JobStage.status` → Is stage pending or completed?
+- `Job.current_stage_template_id` → Which pipeline column the card is in. **This
+  is the card's state**; the `status` enum it replaced is gone
+- `Job.is_archived` → Is the card hidden from the active board and every metric?
+- `Job.applied_at` → When the application went out (null = never applied). A
+  display/measurement timestamp, not a status
+- `Job.current_stage_id` → Which history row is the card's current one
+- `JobStage.status` → `pending | active | completed | skipped | cancelled`
 - `Reminder.is_done` → Is reminder complete?
 
 **Characteristics:**
@@ -2015,12 +2066,14 @@ used to live in `fe/scripts/prerender.mjs` and drift silently.
 ```json
 {
   "id": "job-123",
-  "status": "applied",
+  "is_archived": false,
   "applied_at": "2024-01-15T10:00:00Z",
+  "current_stage_template_id": "col-applied",
+  "current_stage_name": "Applied",
   "current_stage_id": "stage-456"
 }
 ```
-Frontend renders: "This job is in Applied stage, currently at 'Technical Interview' stage"
+Frontend renders: the card in the "Applied" column, with its application date.
 
 ---
 
@@ -2034,10 +2087,11 @@ Frontend renders: "This job is in Applied stage, currently at 'Technical Intervi
 - `Reminder` → Scheduled future events (now job_id instead of application_id)
 
 **Characteristics:**
-- Append-only (stages never updated, only marked complete)
-- Immutable timeline
-- Never used to compute current state
-- Used for display, audit trail, and user reference
+- Append-only in practice (a row per column entry; only status/completion are edited)
+- Never used to compute the card's current column
+- Used for display, audit trail, the funnel and time-in-stage metrics
+- Read by analytics as "the card reached this column", alongside the card's
+  current column — a card created straight into Applied has a row for it
 
 **Example:**
 ```json
@@ -2063,12 +2117,17 @@ Frontend renders: Timeline showing progression
 2. Set JobStage.completed_at (history)
 3. Job.current_stage_id unchanged (still points to this stage)
 
-**Transitioning Job Status:**
-1. Update Job.status (e.g., saved → applied) (state)
-2. If leaving 'saved': auto-stamp applied_at = NOW() if NULL
-3. If returning to 'saved': clear applied_at = NULL
-4. Job.current_stage_id unchanged (preserves last stage)
-5. Historical stages remain intact
+**Moving a card (the only state transition there is):**
+1. Complete the card's active history row(s) — pending/skipped/cancelled rows untouched
+2. Append an active history row for the target column (history)
+3. Point `current_stage_id` / `current_stage_template_id` at it (state)
+4. Stamp `applied_at` if it is NULL and the target column means the application
+   is out; **an existing `applied_at` is never overwritten and never cleared** —
+   moving a card back into the wishlist does not unsend the application
+5. All of it in one transaction under the job's row lock
+
+The old status transition — `saved → applied` stamping the date and a return to
+`saved` clearing it — no longer exists; there is no status to transition.
 
 ---
 
@@ -3538,6 +3597,241 @@ export const useAuthStore = create<AuthState>()(
 
 ---
 
+## 📋 Appendix I: Current Implementation (October 2026)
+
+Sections 1–10 of this document are the historical record and still describe the
+phase-based board and the `status` enum in places. **Where they disagree with
+this appendix, this appendix is what the code does.** It is deliberately
+limited to the areas that changed: the pipeline model, the applied date,
+field-scoped PATCH, analytics semantics, document autosave, list/board paging
+and cache keys.
+
+### I.1 The pipeline: a column, a kind, an archived flag
+
+A card has exactly one position — `jobs.current_stage_template_id`, one of the
+user's `stage_templates`. There is no `status` column, no `phase`, no derived
+status and no base board columns. `jobs.is_archived` hides a card from the
+active board and from every metric, orthogonally to its column.
+
+Each column carries a `kind` — `saved | applied | response | interview | offer
+| rejected | other` — which is the only thing any rule reads. The name and the
+order stay purely the user's: renaming or dragging a column changes nothing
+about what it means. `other` is the default for a column the user invented and
+carries no analytics weight until they classify it in the stage UI. Migration
+000047 added the column and backfilled only the names this app has ever seeded
+itself (Wishlist · Applied · Screening · Technical/Final Interview · Offer ·
+Rejected, matched case-insensitively); everything else stayed `other` on
+purpose.
+
+On the wire `kind` is **optional on input** (create and update) and **always
+present on output** — a row with no stored kind is reported as `other`, so a
+client can rely on the field.
+
+### I.2 The applied date
+
+`jobs.applied_at` is "when the application went out". One rule decides it
+everywhere (`columnImpliesApplied`), and it is about meaning, not position:
+
+| Target column's kind | Lands there → `applied_at` |
+|---|---|
+| `applied`, `response`, `interview`, `offer`, `rejected` | stamped (if not already set) |
+| `saved` | not stamped |
+| `other` / unset (legacy row) | stamped only if the column's `order > 0` |
+
+The last row is deliberate backward compatibility: an unclassified column has
+no meaning to read, so it behaves exactly as it did before kinds existed, and
+classifying it takes over from the position. Every seeded column has a kind, so
+this only affects columns the user invented.
+
+Two properties hold everywhere:
+
+- **An existing `applied_at` is never overwritten and never cleared.** Moving a
+  card back into the wishlist does not unsend the application. (The old
+  "returning to saved clears applied_at" behaviour is gone.)
+- **A date the user supplied is always honored**, whatever the placement turns
+  out to be.
+
+**On create** (`POST /jobs`):
+
+1. An explicit `stage_template_id` wins. The date is stamped if the column
+   means applied; a supplied `applied_at` (RFC 3339) is kept as-is in UTC.
+2. Otherwise a supplied `applied_at` places the card via a deterministic chain:
+   the first `applied` column → else the first `response`/`interview`/`offer`
+   column → else the first unclassified column after the initial one → else the
+   first column that is not a rejection. A pipeline consisting of nothing but
+   rejected columns falls through to its first column: the chain only ever
+   places cards in columns the user owns, it never invents one, and failing the
+   create would leave such an account unable to add a card at all. The supplied
+   date is stored either way.
+3. Otherwise the card was only bookmarked (the Chrome extension, and the create
+   form with the toggle off), so it starts in the first `saved` column —
+   wherever the user dragged it. Position cannot answer this either: taking the
+   pipeline's first column stamped today's date on a bookmark as soon as the
+   user pulled Applied to the front of their board. A pipeline with **no**
+   `saved` column keeps the old placement, its first column, and is stamped
+   when that column means the application is out — such a board has nowhere
+   better, and the card's date must not disagree with the column it visibly
+   sits in.
+
+**Stage history on create.** A card whose starting column means applied gets its
+first `job_stages` row right away, in the same transaction, dated from
+`applied_at` when one was supplied — otherwise the funnel would only know the
+card through its current position and time-to-response would have nothing to
+measure from. A bookmarked card gets no history row, because nothing has
+happened to it yet.
+
+**Zero values.** `applied_at: "0001-01-01T00:00:00Z"` is treated as "not
+supplied", so a client cannot date a card to year one.
+
+### I.3 Field-scoped PATCH and clearing a field
+
+`PATCH /jobs/{id}` writes **only the fields the request carries** and returns
+the row the write produced. It is not a read-modify-write of the whole row: that
+let two concurrent PATCHes overwrite each other's untouched fields, and let a
+rename carry a stale `applied_at` / column over a move that had just committed.
+
+- A field **absent** from the body is left alone.
+- `company_id`, `resume_id`, `resume_builder_id`: an **explicit empty string
+  clears** the link (written as SQL `NULL` — these are UUID columns, so writing
+  `""` used to fail the cast and surface as a 500). A non-empty value is
+  ownership-checked first.
+- `resume_id` and `resume_builder_id` are mutually exclusive: setting one clears
+  the other.
+- The pipeline-owned columns (`current_stage_template_id`, `current_stage_id`,
+  `applied_at`) are not in the statement at all. `POST /jobs/{id}/move`,
+  `POST /jobs/{id}/stages` and `PATCH .../stages/{id}` own them.
+
+**`PATCH /stage-templates/{id}` is field-scoped the same way.** `name`, `order`
+and `kind` are three independent things — the user's label, the user's position
+and the meaning every rule reads — so each is written only when the request
+carries it, in one statement scoped to `id` + `user_id` that returns the stored
+row. The whole-row version lost one of the two edits whenever a rename and a
+reclassification overlapped: the statement that committed second carried the
+other's pre-edit value back over the column, silently un-renaming a column or
+restoring the kind the user had just changed. A body with no fields bumps
+`updated_at` only; no row for this owner is a 404, decided by the write itself
+rather than by a preceding read.
+
+**Pipeline writes are serialized per card.** Move, AddStage, UpdateStage and
+DeleteStage all begin by locking the job row (`SELECT … FOR UPDATE`, scoped to
+`user_id`) and decide everything on the state read under that lock, never on a
+copy fetched beforehand. Move also answers from a **fresh read taken after the
+transaction ends**: the pre-transaction snapshot would otherwise report a title
+a concurrent PATCH had already changed, and the frontend caches the move's
+response. The re-read happens only after the lock is released, so it cannot hold
+a pool connection while waiting for another.
+
+### I.4 Analytics semantics
+
+Every metric reads `stage_templates.kind`, never a name and never an order, and
+excludes archived cards.
+
+- A card **reached** a column when it sits there now (`current_stage_template_id`)
+  **or** has a `job_stages` row for it — so progress still counts after the card
+  moves on.
+- **Response** = reached a column of kind `response`, `interview`, `offer` or
+  `rejected`. A rejection is a response: it is the employer coming back, just
+  with bad news. `applied` is not a response — sending the application is not a
+  reply. One SQL predicate is shared verbatim by the overview, per-resume and
+  per-source rates, so they cannot drift apart.
+- **Interview** = reached a column of kind `interview`.
+- **Rejected count** = non-archived cards whose *current* column is `rejected`.
+- **Total = active + closed**, where closed is exactly the archived cards, so the
+  headline numbers always add up.
+- **Avg days to first response** = from `applied_at` (falling back to the card's
+  creation for a card that was never applied to) to the first `job_stages` row in
+  a response-kind column, clamped at 0 so a back-dated `applied_at` cannot go
+  negative.
+- **Funnel** buckets are the user's columns in order; each counts the cards whose
+  furthest reached column is that one *or later*. The sets nest, so counts
+  decrease monotonically and conversion stays inside 0–100%.
+
+### I.5 Document autosave: serialize, flush, retry, recover
+
+Resume-builder and cover-letter editing share `shared/lib/documentSync.ts`.
+
+- **One save at a time per document.** The queue coalesces intermediate
+  revisions: while a request is in flight, newer edits replace the pending
+  snapshot instead of starting a second overlapping request. A request is only
+  reported as synchronized when the editor still shows the same document and
+  revision; otherwise the newest snapshot is persisted first.
+- **Flush** (export, leaving the editor, an explicit save) awaits every
+  registered write for that document — including section-level creates and
+  deletes — via `allSettled`, not `Promise.all`, so a first rejection cannot let
+  a document save start while a section write is still running.
+- **Retry.** A failed section write is remembered with its retry closure;
+  a user-requested flush or export retries it before giving up.
+- **In-memory draft recovery.** A failed document save keeps the newest editor
+  state as an unsaved draft (preferring the live document over the snapshot that
+  failed). A refetch or a trip to another document merges that draft back on top
+  of the fresh payload instead of silently replacing the user's work, and the
+  save indicator reports `pending` / `failed` accordingly. The draft lives in
+  module memory only — a page reload still loses it; persisting it is not
+  implemented.
+- **A stored save marks the document's own cache entry stale, and never
+  refetches it.** `invalidateQueries({ refetchType: "none" })` on
+  `["cover-letter", id]` / `["resume-builder", id]` means the next time the
+  document is opened it is fetched again, while the open editor is left alone —
+  refetching on every debounced save would replace the document under the
+  cursor and clear the undo history. Without the invalidation the five-minute
+  `staleTime` kept serving the pre-save payload, so reopening a document showed
+  the revision from before the save and the next edit saved it back.
+- **A payload is dated by when its request left the client, not by when it
+  arrived.** Every read of a document's detail entry goes through the feature's
+  tracked fetcher (`fetchCoverLetterDocument`, `fetchResumeDocument` — the
+  resume thumbnails included, since they share the entry), which records the
+  request's start time against the delivery. A payload whose request left at or
+  before this client's last stored write cannot contain that write, so the
+  editor opens the live document instead — or, with another document on screen,
+  the revision the queue recorded as stored. Arrival time is not proof of
+  anything: a GET issued before a save and delivered after it looks newer than
+  the save, and adopting it undid work the server had already accepted
+  (`pages/__tests__/EditorReopenFreshness.test.tsx`). When no tracked delivery
+  matches the cache entry — data put there by hand, a response React Query
+  discarded — the arrival time is used, which is all that is known then.
+- **Dating, not cancelling.** Cancelling the in-flight GET when a write lands
+  would also keep the pre-write response out, but React Query reverts a
+  cancelled fetch, and a cancelled *first* load has no data to revert to — that
+  would leave the editor on a document it never received. A GET issued after
+  the write is always adopted, so the server stays able to tell the editor about
+  changes made elsewhere.
+
+### I.6 List URL state, board paging, cache keys
+
+- The Jobs list state lives in the URL: `page` (1-based, capped at 10 000),
+  `q` (trimmed, 100 chars max, debounced 300 ms), `sort`, `dir`, `archived`,
+  `company_id` (dropped unless it is a UUID). Defaults stay out of the URL, so
+  Back/Forward, refresh and copy-paste all restore the same list. Changing any
+  filter resets to the first page.
+- `GET /jobs` accepts `limit`/`offset` (default 20, capped at 500 by the shared
+  pagination parser; the board asks for 100 a page), `status` as the
+  archived filter (`""`/`active` = not archived, `archived`, `all`), `sort` as
+  `field:dir` over `created_at | title | company_name | last_activity | status |
+  applied_at`, `search`, `company_id`. Note the repository maps the column-order
+  sort under the key `stage`, so `sort=status:*` currently falls back to
+  `last_activity` — a known gap, not a contract.
+- The **board pages like the list**: `useJobBoardQuery` is an infinite query of
+  100 cards a page and reports how much of the pipeline is on screen. It used to
+  ask for a flat 500 and render what came back, so card 501 existed in the list
+  view and nowhere on the board. Duplicate ids across pages (a card whose
+  `last_activity` changed under the offset window) are dropped, first occurrence
+  winning, because dnd-kit cannot hold two draggables with one id.
+- **Cache keys share one prefix.** The list query is
+  `["jobs", "list", page, archived, sortBy, sortDir, search, companyId]` and the
+  board query is `["jobs", "board", archived, sort, search, companyId]` — one
+  entry per filter combination, both under `["jobs"]`, so every mutation that
+  invalidates `["jobs"]` refreshes both views. Detail views use `["job", id]` and
+  `["job-stages", id]`, which mutations invalidate alongside `["jobs"]`.
+- **A document list key is never a prefix of a document detail key.** The
+  factories are the single source of both spellings: `["cover-letters"]` /
+  `["cover-letter", id]` and `["resume-builders"]` / `["resume-builder", id]`.
+  React Query matches keys by prefix, so a shared one would mean every rename
+  refetches the document the editor is showing, out from under the cursor. The
+  rule is pinned against a real QueryClient in `coverLetterQueryKeys.test.ts`
+  and `shared/lib/__tests__/resumeQueryKeys.test.tsx`.
+
+---
+
 ## 📋 Appendix A: Complete API Endpoint Reference
 
 ### Authentication Endpoints
@@ -3695,22 +3989,31 @@ export const useAuthStore = create<AuthState>()(
 - Relationships: jobs (optional)
 
 **jobs** (CORE AGGREGATE - Merged; formerly "Job" + "Application")
-- id, user_id, company_id (nullable), title, source, url, notes, description, is_favorite
-- status ('saved'|'applied'|'on_hold'|'offer'|'rejected'|'archived', default 'saved')
-- applied_at (nullable; NOT NULL ↔ "is an application"), resume_id (nullable), resume_builder_id (nullable)
-- current_stage_id (nullable FK to job_stages)
+- id, user_id, company_id (nullable), title, source, url, description, is_favorite
+- is_archived (bool, default false — the only "closed" flag; the `status` enum was dropped)
+- applied_at (nullable timestamp — when the application went out)
+- resume_id (nullable), resume_builder_id (nullable; mutually exclusive)
+- current_stage_template_id (nullable FK to stage_templates — **the card's state**)
+- current_stage_id (nullable FK to job_stages — the current history row)
 - Relationships: company (optional), job_stages (many, cascade), comments (many, cascade), reminders (many, cascade)
+- `current_stage_template_id`, `current_stage_id` and `applied_at` are
+  pipeline-owned: only Move/AddStage/UpdateStage write them, under the row lock.
+  A `PATCH /jobs/{id}` never lists those columns at all
 
 **resumes**
 - id, user_id, title, file_url, is_active
 - Relationships: jobs (many, set null on delete)
 
-**stage_templates**
+**stage_templates** (the user's pipeline columns)
 - id, user_id, name, order
-- Relationships: job_stages (many, restrict delete)
+- kind ('saved'|'applied'|'response'|'interview'|'offer'|'rejected'|'other', NOT NULL default 'other', CHECK constraint; migration 000047 — replaced the dropped `phase`)
+- Index: (user_id, kind) — every analytics metric filters on it
+- Relationships: job_stages (many, restrict delete), jobs (many, via current_stage_template_id)
 
-**job_stages** (Renamed: formerly "application_stages", append-only)
+**job_stages** (Renamed: formerly "application_stages"; one row per column entry)
 - id, job_id, stage_template_id, status, order, started_at, completed_at
+- status CHECK: 'pending'|'active'|'completed'|'skipped'|'cancelled' (migration 000002)
+- At most one row per job is 'active'; several may be 'pending'
 - Relationships: job (required, cascade), template (required, restrict delete)
 
 **comments**
@@ -4149,6 +4452,8 @@ Content-Type: application/json
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-10-12 | 2.1.1 | `PATCH /stage-templates/{id}` is field-scoped like `PATCH /jobs/{id}`: `name`, `order` and `kind` are each written only when the request carries them, in one statement scoped to `id` + `user_id` that returns the stored row. The previous whole-row write lost a field when a rename and a reclassification overlapped. Ownership is enforced by the write itself (404 when no row matches); an empty body bumps `updated_at` only. See **Appendix I.3**. |
+| 2026-10-10 | 2.1 | **Appendix I added** — the current implementation of the areas that moved on since 2.0, and the section the rest of the document yields to where they disagree. Single-axis pipeline: the card's column IS its state, `status`/`phase` and the derived board columns are gone, `is_archived` is the only closed flag, and `stage_templates.kind` (migration 000047) carries a column's meaning so renaming/reordering changes nothing. `applied_at` follows the target column's kind rather than its position, is never overwritten or cleared, and a supplied date is always honored; a create with neither a column nor a date is a bookmark and lands in the first `saved` column, so a reordered board no longer dates it. `PATCH /jobs/{id}` is field-scoped (empty string clears, omitted leaves alone) and never touches pipeline-owned columns; pipeline writes serialize on the job row lock and Move answers from a post-commit read. Analytics counts responses/interviews by kind, excluding archived cards. Stage history: `pending`/`skipped`/`cancelled` rows survive every pipeline write, at most one row is `active`. Document autosave: serialized per document, flush awaits section writes, failed section writes retry, and a failed save leaves an in-memory draft the next load merges back. List state lives in the URL, the board pages at 100, and list/board cache keys share the `["jobs"]` prefix. |
 | 2026-08-03 | 2.0 | **PERMANENT ARCHITECTURAL MERGE:** Jobs and Applications unified into single Job entity. Migration 000034 completed. Status enum: saved\|applied\|on_hold\|offer\|rejected\|archived. applied_at markers "is an application" state. Tables renamed: application_stages→job_stages, comments/reminders application_id→job_id. Tag relations: removed 'application' entity_type (job\|company only). Subscriptions: unified "jobs" limit (free 25, pro 100). All endpoint paths updated: /api/v1/applications/* removed, /api/v1/jobs/* unified. Backend-first enriched DTOs now include company_name, current_stage_name, last_activity_at. State vs History principle preserved with updated terminology. |
 | 2026-02-01 | 1.2 | Comments API fully implemented and documented, embedded application comments in DTO, stage numbering fix |
 | 2026-02-01 | 1.1 | Added status change modal UI pattern, multi-line comment support with textarea |

@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import CoverLetterEditorPage from "../CoverLetterEditor";
+import { ApiError } from "@/services/api";
+import { showErrorNotification } from "@/shared/lib/notifications";
 import type { CoverLetterDTO } from "@/shared/types/cover-letter";
 
 function createMockCoverLetter(
@@ -30,15 +33,22 @@ function createMockCoverLetter(
 
 const mockNavigate = vi.fn();
 let mockCoverLetter: CoverLetterDTO | null = createMockCoverLetter();
+/** Drives the editor's failure branch from the tests below. */
+let mockQueryError: unknown = null;
 let mockCanUndo = false;
 let mockCanRedo = false;
 const mockUndo = vi.fn();
 const mockRedo = vi.fn();
 const mockExportPDFMutate = vi.fn();
 const mockExportDOCXMutate = vi.fn();
+const mockFlush = vi.fn();
 const mockSetCoverLetter = vi.fn();
 const mockUpdateField = vi.fn();
 const mockUpdateFields = vi.fn();
+const mockMarkDirty = vi.fn();
+const mockSetSaveStatus = vi.fn();
+// Hoisted: the mock factory below runs while the page module is imported.
+const mockReconcileLoaded = vi.hoisted(() => vi.fn());
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -87,6 +97,8 @@ vi.mock("@/stores/coverLetterStore", () => ({
         setCoverLetter: mockSetCoverLetter,
         updateField: mockUpdateField,
         updateFields: mockUpdateFields,
+        markDirty: mockMarkDirty,
+        setSaveStatus: mockSetSaveStatus,
       }),
     {
       temporal: {
@@ -98,11 +110,16 @@ vi.mock("@/stores/coverLetterStore", () => ({
   ),
 }));
 
+vi.mock("@/features/cover-letter/lib/coverLetterDocumentSync", () => ({
+  reconcileLoadedCoverLetter: mockReconcileLoaded,
+  enqueueOutgoingCoverLetterSave: vi.fn(),
+}));
+
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({
     data: mockCoverLetter,
     isLoading: false,
-    error: null,
+    error: mockQueryError,
   }),
   useQueryClient: () => ({
     invalidateQueries: vi.fn(),
@@ -110,7 +127,7 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 
 vi.mock("@/features/cover-letter/hooks/useAutoSaveCoverLetter", () => ({
-  useAutoSaveCoverLetter: () => ({ save: vi.fn() }),
+  useAutoSaveCoverLetter: () => ({ save: vi.fn(), flush: mockFlush }),
 }));
 
 vi.mock("@/features/cover-letter/hooks/useExportCoverLetterPDF", () => ({
@@ -174,12 +191,22 @@ vi.mock(
   }),
 );
 
+// The failure branch is opt-in per test; every other test renders the editor.
+beforeEach(() => {
+  mockQueryError = null;
+});
+
 describe("CoverLetterEditorPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCoverLetter = createMockCoverLetter();
     mockCanUndo = false;
     mockCanRedo = false;
+    mockFlush.mockResolvedValue(undefined);
+    mockReconcileLoaded.mockImplementation((letter: CoverLetterDTO) => ({
+      coverLetter: letter,
+      unsaved: "none",
+    }));
   });
 
   it("renders undo button", () => {
@@ -250,5 +277,122 @@ describe("CoverLetterEditorPage", () => {
     render(<CoverLetterEditorPage />);
 
     expect(screen.getByText("coverLetter.notFound")).toBeInTheDocument();
+  });
+
+  // Opening a letter again refetches it. A refetch that fails next to a
+  // payload the editor already has must not take the document away — the
+  // customer would lose the screen their unsaved work is on.
+  it("keeps the open letter when a refetch fails", () => {
+    mockQueryError = new ApiError("boom", "INTERNAL_ERROR", 500);
+    render(<CoverLetterEditorPage />);
+
+    expect(screen.getByDisplayValue("My Cover Letter")).toBeInTheDocument();
+    expect(screen.queryByText("coverLetter.notFound")).not.toBeInTheDocument();
+  });
+
+  it("reports a letter the server says is gone, payload or not", () => {
+    mockQueryError = new ApiError("nope", "NOT_FOUND", 404);
+    render(<CoverLetterEditorPage />);
+
+    expect(screen.getByText("coverLetter.notFound")).toBeInTheDocument();
+  });
+});
+
+// The export is rendered server-side from the stored letter, so a debounce
+// window or a failed save would otherwise produce a file of the old version.
+describe("CoverLetterEditorPage export", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCoverLetter = createMockCoverLetter();
+    mockFlush.mockResolvedValue(undefined);
+    mockReconcileLoaded.mockImplementation((letter: CoverLetterDTO) => ({
+      coverLetter: letter,
+      unsaved: "none",
+    }));
+  });
+
+  it("stores pending edits before exporting", async () => {
+    const user = userEvent.setup();
+    let releaseFlush!: () => void;
+    mockFlush.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseFlush = resolve;
+        }),
+    );
+    render(<CoverLetterEditorPage />);
+
+    await user.click(screen.getByText("coverLetter.exportPDF"));
+
+    expect(mockFlush).toHaveBeenCalledTimes(1);
+    expect(mockExportPDFMutate).not.toHaveBeenCalled();
+
+    releaseFlush();
+
+    await waitFor(() => expect(mockExportPDFMutate).toHaveBeenCalledTimes(1));
+  });
+
+  it("refuses to export a letter it could not store", async () => {
+    const user = userEvent.setup();
+    mockFlush.mockRejectedValue(new Error("offline"));
+    render(<CoverLetterEditorPage />);
+
+    await user.click(screen.getByText("coverLetter.exportDOCX"));
+
+    await waitFor(() =>
+      expect(showErrorNotification).toHaveBeenCalledWith(
+        "coverLetter.saveFailed",
+      ),
+    );
+    expect(mockExportDOCXMutate).not.toHaveBeenCalled();
+  });
+});
+
+// Opening the fetched letter as a saved document is how unsaved text used to
+// disappear: coming back from another letter replaced it with the stored one.
+describe("CoverLetterEditorPage document recovery", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCoverLetter = createMockCoverLetter();
+    mockFlush.mockResolvedValue(undefined);
+  });
+
+  it("opens the recovered letter, keeps it dirty and reports the failed write", async () => {
+    mockReconcileLoaded.mockReturnValue({
+      coverLetter: createMockCoverLetter({ title: "Never stored" }),
+      unsaved: "failed",
+    });
+    render(<CoverLetterEditorPage />);
+
+    await waitFor(() =>
+      expect(mockSetCoverLetter).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Never stored" }),
+      ),
+    );
+    expect(mockMarkDirty).toHaveBeenCalledTimes(1);
+    expect(mockSetSaveStatus).toHaveBeenCalledWith("error");
+  });
+
+  it("keeps edits typed during the fetch dirty without an error", async () => {
+    mockReconcileLoaded.mockReturnValue({
+      coverLetter: createMockCoverLetter({ title: "Typed during the fetch" }),
+      unsaved: "pending",
+    });
+    render(<CoverLetterEditorPage />);
+
+    await waitFor(() => expect(mockMarkDirty).toHaveBeenCalledTimes(1));
+    expect(mockSetSaveStatus).not.toHaveBeenCalledWith("error");
+  });
+
+  it("leaves a fully stored letter clean", async () => {
+    mockReconcileLoaded.mockImplementation((letter: CoverLetterDTO) => ({
+      coverLetter: letter,
+      unsaved: "none",
+    }));
+    render(<CoverLetterEditorPage />);
+
+    await waitFor(() => expect(mockSetCoverLetter).toHaveBeenCalledTimes(1));
+    expect(mockMarkDirty).not.toHaveBeenCalled();
+    expect(mockSetSaveStatus).not.toHaveBeenCalled();
   });
 });

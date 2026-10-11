@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { resumesService } from "@/services/resumesService";
 import { resumeBuilderService } from "@/services/resumeBuilderService";
+import { resumeQueryKeys } from "@/shared/lib/resumeQueryKeys";
 import type { ResumeDTO } from "@/shared/types/api";
 import type { ResumeBuilderDTO } from "@/shared/types/resume-builder";
 
@@ -59,7 +60,7 @@ export function useUnifiedResumes() {
   });
 
   const builderQuery = useQuery({
-    queryKey: ["resume-builders"],
+    queryKey: resumeQueryKeys.builderList(),
     queryFn: () => resumeBuilderService.list(),
   });
 

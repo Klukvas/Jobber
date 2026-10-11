@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/andreypavlenko/jobber/modules/resumebuilder/model"
+	"github.com/andreypavlenko/jobber/modules/resumebuilder/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1670,11 +1671,16 @@ func TestUpdateSectionOrder(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		var savedOrders []*model.SectionOrder
-		repo := &MockResumeBuilderRepository{
-			VerifyOwnershipFunc: func(_ context.Context, _, _ string) error { return nil },
+		txRepo := &MockResumeBuilderRepository{
 			UpsertSectionOrderFunc: func(_ context.Context, _ string, orders []*model.SectionOrder) error {
 				savedOrders = orders
 				return nil
+			},
+		}
+		repo := &MockResumeBuilderRepository{
+			VerifyOwnershipFunc: func(_ context.Context, _, _ string) error { return nil },
+			RunInTransactionFunc: func(ctx context.Context, fn func(txRepo ports.ResumeBuilderRepository) error) error {
+				return fn(txRepo)
 			},
 		}
 		svc := newService(repo)
@@ -1698,6 +1704,25 @@ func TestUpdateSectionOrder(t *testing.T) {
 		assert.Equal(t, "sidebar", result[1].Column)
 		assert.Len(t, savedOrders, 2)
 		assert.Equal(t, rbID, savedOrders[0].ResumeBuilderID)
+	})
+
+	t.Run("transaction error", func(t *testing.T) {
+		repo := &MockResumeBuilderRepository{
+			VerifyOwnershipFunc: func(_ context.Context, _, _ string) error { return nil },
+			RunInTransactionFunc: func(_ context.Context, _ func(txRepo ports.ResumeBuilderRepository) error) error {
+				return errDB
+			},
+		}
+		svc := newService(repo)
+
+		req := &model.BatchUpdateSectionOrderRequest{
+			Sections: []model.UpdateSectionOrderRequest{
+				{SectionKey: "experience", SortOrder: 0, IsVisible: true, Column: "main"},
+			},
+		}
+		result, err := svc.UpdateSectionOrder(ctx, userID, rbID, req)
+		assert.Nil(t, result)
+		assert.ErrorIs(t, err, errDB)
 	})
 
 	t.Run("defaults empty column to main", func(t *testing.T) {
@@ -1725,6 +1750,10 @@ func TestUpdateSectionOrder(t *testing.T) {
 	t.Run("invalid section key", func(t *testing.T) {
 		repo := &MockResumeBuilderRepository{
 			VerifyOwnershipFunc: func(_ context.Context, _, _ string) error { return nil },
+			RunInTransactionFunc: func(_ context.Context, _ func(txRepo ports.ResumeBuilderRepository) error) error {
+				t.Fatal("transaction started before validation completed")
+				return nil
+			},
 		}
 		svc := newService(repo)
 
@@ -1741,6 +1770,10 @@ func TestUpdateSectionOrder(t *testing.T) {
 	t.Run("invalid column value", func(t *testing.T) {
 		repo := &MockResumeBuilderRepository{
 			VerifyOwnershipFunc: func(_ context.Context, _, _ string) error { return nil },
+			RunInTransactionFunc: func(_ context.Context, _ func(txRepo ports.ResumeBuilderRepository) error) error {
+				t.Fatal("transaction started before validation completed")
+				return nil
+			},
 		}
 		svc := newService(repo)
 

@@ -67,6 +67,7 @@ import {
   useJobDetailMutations,
   fieldsFromJob,
   hasChanges,
+  jobUpdatePayload,
   resumeSelectValue,
   type EditableFields,
 } from "../useJobDetailMutations";
@@ -155,6 +156,30 @@ describe("useJobDetailMutations helpers", () => {
     expect(hasChanges({ ...fields, description: "new" }, job)).toBe(true);
   });
 
+  it("jobUpdatePayload keeps cleared fields and omits absent ones", () => {
+    expect(
+      jobUpdatePayload({
+        title: "Engineer",
+        company_id: "",
+        url: "",
+        source: "",
+        description: "",
+      }),
+    ).toEqual({
+      title: "Engineer",
+      company_id: "",
+      url: "",
+      source: "",
+      description: "",
+    });
+
+    // A partial edit must not blank the fields it says nothing about.
+    expect(jobUpdatePayload({ description: "only this" })).toEqual({
+      description: "only this",
+    });
+    expect(jobUpdatePayload({})).toEqual({});
+  });
+
   it("resumeSelectValue builds type:id string or empty", () => {
     expect(resumeSelectValue(makeJob({ resume: undefined }))).toBe("");
     expect(
@@ -171,7 +196,7 @@ describe("useJobDetailMutations", () => {
   });
 
   describe("updateMutation", () => {
-    it("calls jobsService.update with normalized empty->undefined fields and invalidates caches", async () => {
+    it("sends cleared fields as empty strings so they are actually erased", async () => {
       const updated = makeJob({ title: "Updated" });
       mockJobsService.update.mockResolvedValue(updated);
       const setters = makeSetters();
@@ -193,10 +218,10 @@ describe("useJobDetailMutations", () => {
 
       expect(mockJobsService.update).toHaveBeenCalledWith("job-1", {
         title: "Updated",
-        company_id: undefined,
+        company_id: "",
         url: "https://x.com",
-        source: undefined,
-        description: undefined,
+        source: "",
+        description: "",
       });
       expect(invalidateSpy).toHaveBeenCalledWith({
         queryKey: ["job", "job-1"],

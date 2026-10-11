@@ -1365,7 +1365,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Create a new job card for the authenticated user. Without status/resume fields a \"saved\" (wishlist) card is created.",
+                "description": "Create a new job card for the authenticated user. Without stage_template_id or applied_at a \"saved\" (wishlist) card is created; applied_at (RFC3339) marks the card as already applied and places it in the applied column of the user's pipeline.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1582,7 +1582,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Update details or pipeline status of a specific job. Moving out of \"saved\" stamps applied_at; moving back clears it.",
+                "description": "Update a card's own fields. Only the fields present in the body change; an explicit empty string clears one. Pipeline position and applied_at are not editable here — use /jobs/{id}/move.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1756,7 +1756,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Atomically reposition a card: a stage target sets the stage and derives the status from the stage's phase; a phase target completes the current stage and sets the derived status",
+                "description": "Atomically move a card into a pipeline column: completes the card's open stage, appends a history row for the target column and stamps applied_at the first time the card leaves its first column",
                 "consumes": [
                     "application/json"
                 ],
@@ -4562,6 +4562,10 @@ const docTemplate = `{
                 "title"
             ],
             "properties": {
+                "applied_at": {
+                    "description": "RFC3339; marks the card as already applied",
+                    "type": "string"
+                },
                 "company_id": {
                     "type": "string"
                 },
@@ -4600,6 +4604,18 @@ const docTemplate = `{
                 "name"
             ],
             "properties": {
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "saved",
+                        "applied",
+                        "response",
+                        "interview",
+                        "offer",
+                        "rejected",
+                        "other"
+                    ]
+                },
                 "name": {
                     "type": "string",
                     "maxLength": 255,
@@ -4752,6 +4768,27 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_andreypavlenko_jobber_modules_jobs_model.StageKind": {
+            "type": "string",
+            "enum": [
+                "saved",
+                "applied",
+                "response",
+                "interview",
+                "offer",
+                "rejected",
+                "other"
+            ],
+            "x-enum-varnames": [
+                "StageKindSaved",
+                "StageKindApplied",
+                "StageKindResponse",
+                "StageKindInterview",
+                "StageKindOffer",
+                "StageKindRejected",
+                "StageKindOther"
+            ]
+        },
         "github_com_andreypavlenko_jobber_modules_jobs_model.StageTemplateDTO": {
             "type": "object",
             "properties": {
@@ -4760,6 +4797,9 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "string"
+                },
+                "kind": {
+                    "$ref": "#/definitions/github_com_andreypavlenko_jobber_modules_jobs_model.StageKind"
                 },
                 "name": {
                     "type": "string"
@@ -4794,7 +4834,8 @@ const docTemplate = `{
                     "maxLength": 100
                 },
                 "title": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 255
                 },
                 "url": {
                     "type": "string",
@@ -4823,6 +4864,18 @@ const docTemplate = `{
         "github_com_andreypavlenko_jobber_modules_jobs_model.UpdateStageTemplateRequest": {
             "type": "object",
             "properties": {
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "saved",
+                        "applied",
+                        "response",
+                        "interview",
+                        "offer",
+                        "rejected",
+                        "other"
+                    ]
+                },
                 "name": {
                     "type": "string"
                 },

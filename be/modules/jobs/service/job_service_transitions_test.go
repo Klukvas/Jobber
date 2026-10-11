@@ -107,12 +107,15 @@ func TestResolveResumeSelection(t *testing.T) {
 				&ownedRBRepo{ownErr: tt.builderOwnErr},
 				defaultMockCommentRepo, nil, nil, nil)
 			job := tt.job
-			err := svc.resolveResumeSelection(context.Background(), "user-1", &job, tt.resumeID, tt.resumeBuilderID)
+			resume, builder, err := svc.resolveResumeSelection(context.Background(), "user-1", tt.resumeID, tt.resumeBuilderID)
 			if tt.wantErr != nil {
 				assert.ErrorIs(t, err, tt.wantErr)
 				return
 			}
 			require.NoError(t, err)
+			// Apply the resolved pair the way the write path does, so the
+			// table still describes the card's resulting selection.
+			applyJobPatch(&job, &model.JobPatch{ResumeID: resume, ResumeBuilderID: builder})
 			if tt.wantResume != nil {
 				require.NotNil(t, job.ResumeID)
 				assert.Equal(t, *tt.wantResume, *job.ResumeID)

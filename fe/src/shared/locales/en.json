@@ -350,7 +350,11 @@
       "moveSuccess": "Application moved successfully",
       "moveError": "Failed to move application",
       "noStage": "No Stage",
-      "showArchived": "Show archived"
+      "showArchived": "Show archived",
+      "loadedCount": "Showing {{loaded}} of {{total}} applications",
+      "loadMore": "Load more",
+      "loadingMore": "Loading more…",
+      "loadMoreError": "Could not load more applications"
     },
     "matchScore": {
       "checkMatch": "Check Match",
@@ -660,7 +664,18 @@
     "reorderError": "Failed to reorder stages",
     "researching": "Researching",
     "followedUp": "Followed up",
-    "requestedFeedback": "Requested feedback"
+    "requestedFeedback": "Requested feedback",
+    "kind": "What this stage means",
+    "kindDescription": "Analytics reads this, not the name — so you can rename or reorder a stage freely. Your own stages start as \"Other\" and count towards nothing until you classify them.",
+    "kinds": {
+      "saved": "Saved — not applied yet",
+      "applied": "Applied — waiting for a reply",
+      "response": "Employer replied",
+      "interview": "Interview",
+      "offer": "Offer",
+      "rejected": "Rejected",
+      "other": "Other — not counted"
+    }
   },
   "home": {
     "nav": {

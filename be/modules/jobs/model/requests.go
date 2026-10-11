@@ -5,21 +5,28 @@ import "time"
 // CreateJobRequest represents a create job request. Omitting stage_template_id
 // creates the card in the user's first pipeline column (wishlist) — this is what
 // the Chrome extension sends.
+//
+// AppliedAt is the "I already applied" date (RFC3339). It is honored as given
+// and, when no explicit column is requested, it also decides the placement:
+// a card the user has already applied to does not belong in the wishlist.
 type CreateJobRequest struct {
-	CompanyID       *string `json:"company_id,omitempty"`
-	Title           string  `json:"title" binding:"required,min=1,max=255"`
-	Source          *string `json:"source,omitempty" binding:"omitempty,max=100"`
-	URL             *string `json:"url,omitempty" binding:"omitempty,max=2048"`
-	Description     *string `json:"description,omitempty" binding:"omitempty,max=20000"`
-	StageTemplateID *string `json:"stage_template_id,omitempty"` // column to place into; default = first
-	ResumeID        *string `json:"resume_id,omitempty"`
-	ResumeBuilderID *string `json:"resume_builder_id,omitempty"`
+	CompanyID       *string    `json:"company_id,omitempty"`
+	Title           string     `json:"title" binding:"required,min=1,max=255"`
+	Source          *string    `json:"source,omitempty" binding:"omitempty,max=100"`
+	URL             *string    `json:"url,omitempty" binding:"omitempty,max=2048"`
+	Description     *string    `json:"description,omitempty" binding:"omitempty,max=20000"`
+	StageTemplateID *string    `json:"stage_template_id,omitempty"` // column to place into; default = first
+	AppliedAt       *time.Time `json:"applied_at,omitempty"`        // RFC3339; marks the card as already applied
+	ResumeID        *string    `json:"resume_id,omitempty"`
+	ResumeBuilderID *string    `json:"resume_builder_id,omitempty"`
 }
 
-// UpdateJobRequest represents an update job request.
+// UpdateJobRequest represents an update job request. Every field is optional:
+// an omitted field is left untouched, while an explicit empty string clears the
+// value (the detail form sends the whole set of fields it owns).
 type UpdateJobRequest struct {
 	CompanyID       *string `json:"company_id,omitempty"`
-	Title           *string `json:"title,omitempty"`
+	Title           *string `json:"title,omitempty" binding:"omitempty,max=255"`
 	Source          *string `json:"source,omitempty" binding:"omitempty,max=100"`
 	URL             *string `json:"url,omitempty" binding:"omitempty,max=2048"`
 	Description     *string `json:"description,omitempty" binding:"omitempty,max=20000"`
@@ -28,16 +35,22 @@ type UpdateJobRequest struct {
 	ResumeBuilderID *string `json:"resume_builder_id,omitempty"`
 }
 
-// CreateStageTemplateRequest represents a create pipeline-column request
+// CreateStageTemplateRequest represents a create pipeline-column request.
+// Kind is optional; a column created without one is "other" (no analytics
+// meaning) until the user classifies it.
 type CreateStageTemplateRequest struct {
-	Name  string `json:"name" binding:"required,min=1,max=255"`
-	Order int    `json:"order" binding:"min=0"`
+	Name  string  `json:"name" binding:"required,min=1,max=255"`
+	Order int     `json:"order" binding:"min=0"`
+	Kind  *string `json:"kind,omitempty" binding:"omitempty,oneof=saved applied response interview offer rejected other"`
 }
 
-// UpdateStageTemplateRequest represents an update pipeline-column request
+// UpdateStageTemplateRequest represents an update pipeline-column request.
+// Renaming or reordering leaves the kind alone — only an explicit kind changes
+// what the column means.
 type UpdateStageTemplateRequest struct {
 	Name  *string `json:"name,omitempty"`
 	Order *int    `json:"order,omitempty"`
+	Kind  *string `json:"kind,omitempty" binding:"omitempty,oneof=saved applied response interview offer rejected other"`
 }
 
 // ReorderStageTemplatesRequest sets a new order for the user's pipeline columns.
