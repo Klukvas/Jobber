@@ -17,10 +17,12 @@
 #
 #   2. RUNTIME SECRETS SAFETY
 #      - The `.env` file on the server contains ALL runtime secrets
-#      - GitHub Actions NEVER creates, modifies, or overwrites this file
+#      - GitHub Actions NEVER creates, modifies, or overwrites this file;
+#        it is provisioned and updated by hand on the server
 #      - No application secrets appear in GitHub Actions logs
-#      - No secrets are baked into Docker images
-#      - GitHub Secrets are ONLY used for CI/CD operations (Docker Hub, SSH)
+#      - GitHub Secrets are used for CI/CD operations (Docker Hub, SSH) and for
+#        the public VITE_* values compiled into the frontend bundle — nothing
+#        server-side reads them
 #
 #   3. DATA PERSISTENCE
 #      - Named volumes (postgres_data, redis_data) persist across deployments
@@ -213,6 +215,18 @@ jobs:
       - name: Download dependencies
         working-directory: ./be
         run: go mod download
+
+      # testcontainers pulls postgres, redis and the ryuk reaper from Docker Hub.
+      # Anonymous pulls share one IP-wide rate limit on hosted runners — that is
+      # what failed run 37991986726 while every other gate was green. Logging in
+      # with the same credentials the build jobs already use lifts the limit:
+      # the action writes ~/.docker/config.json, which testcontainers reads to
+      # authenticate its pulls. Nothing about the auth is printed.
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Run integration tests (testcontainers)
         working-directory: ./be
@@ -466,15 +480,169 @@ jobs:
           echo "Backend image tag: ${BACKEND_TAG}"
           echo "Frontend image tag: ${FRONTEND_TAG}"
 
+          # Payments stay pinned OFF in production until Creem go-live (ADR-0003).
+          # The pin lives in this generated override rather than in the server's
+          # .env, because the deployment no longer rewrites .env (see the copy
+          # step below): an explicit value in the override wins over the
+          # ${FEATURE_PAYMENTS_ENABLED:-false} interpolation in the base file,
+          # whatever the server's .env happens to hold. Both flags are pinned —
+          # FEATURE_BILLING_WEBHOOK_ENABLED defaults to the value of
+          # FEATURE_PAYMENTS_ENABLED, and either one on without CREEM_*
+          # credentials makes the API refuse to boot.
+          # To go live: drop the two env lines, provision the CREEM_* values in
+          # the server's .env, and un-pin VITE_FEATURE_PAYMENTS in the frontend
+          # build args above.
           cat > docker-compose.deploy.yml <<EOF
           services:
             backend:
               image: ${{ env.BACKEND_IMAGE }}:${BACKEND_TAG}
+              environment:
+                FEATURE_PAYMENTS_ENABLED: "false"
+                FEATURE_BILLING_WEBHOOK_ENABLED: "false"
             frontend:
               image: ${{ env.FRONTEND_IMAGE }}:${FRONTEND_TAG}
           EOF
 
           cat docker-compose.deploy.yml
+
+      # Snapshot what is actually deployed BEFORE the copy overwrites it.
+      # The rollback below used to capture state with `docker compose config`
+      # *after* the scp, so the "previous version" it saved was the new, failing
+      # one (and it wrote every resolved secret into a file on the server).
+      # These two files are the real previous state — the old base compose and
+      # the old image tags — kept in ~/jobber so compose still resolves
+      # ./Caddyfile and .env relative to the same project directory.
+      #
+      # This step also carries the release preflight (below): it is the first
+      # thing that touches the server, so a refusal here happens before any scp,
+      # pull, restart or migration.
+      - name: Snapshot current server compose for rollback
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
+          set -e
+
+          # ----------------------------------------------------------------
+          # RELEASE PREFLIGHT — read-only, fail-closed, runs before anything
+          # on the server is written to.
+          #
+          # Migration 000046 changes no schema; it CLEARS values. Every
+          # subscriptions row whose identifiers do not look like Creem's
+          # (`sub_` / `cust_`) is reset to the free plan and loses its
+          # period / cancel / last-event timestamps. That is irreversible and
+          # nobody has authorised destroying existing row values. Production
+          # last deployed 0012c82 (schema 45), so 000046 is still pending and
+          # runs as soon as the new backend boots further down this job.
+          #
+          # So count the rows 000046 would overwrite first, and go no further
+          # unless that count is exactly zero. Anything that cannot be
+          # established aborts as well — missing project dir, missing .env, no
+          # database, failed or unparseable query, dirty schema, unexpectedly
+          # older schema — so that a broken query can never masquerade as
+          # "zero rows affected". A first deploy with no database on the box
+          # is one of those cases: for this release it is a stop, not a skip.
+          #
+          # Read-only by construction: SELECTs only, no migration, no seed, no
+          # HTTP call. .env is probed for existence and read for DB_USER /
+          # DB_NAME exactly as the deploy step below does; nothing from it is
+          # printed, and psql's own output is never echoed either (its error
+          # text embeds the connection's user and database).
+          # ----------------------------------------------------------------
+          if [ ! -d "$HOME/jobber" ]; then
+            echo "❌ Preflight: no ~/jobber on the server — cannot verify the pending migration against the live data; aborting"
+            exit 1
+          fi
+          cd "$HOME/jobber"
+
+          if [ ! -f .env ]; then
+            echo "❌ Preflight: ~/jobber/.env is missing — aborting (it is provisioned by hand and never written by CI)"
+            exit 1
+          fi
+          echo "✅ Preflight: ~/jobber/.env present"
+
+          if ! docker ps --format '{{.Names}}' | grep -q '^jobber-postgres$'; then
+            echo "❌ Preflight: no running jobber-postgres container — cannot check what migration 000046 would clear; aborting"
+            exit 1
+          fi
+
+          DB_USER=$(grep -E '^DB_USER=' .env | tail -1 | cut -d= -f2- || true)
+          DB_NAME=$(grep -E '^DB_NAME=' .env | tail -1 | cut -d= -f2- || true)
+          DB_USER=${DB_USER:-jobber}
+          DB_NAME=${DB_NAME:-jobber}
+
+          # ON_ERROR_STOP=1 makes psql exit non-zero on a failing statement
+          # instead of printing a message and succeeding, and the exit code —
+          # not the text — is what this guard trusts. No LIMIT: golang-migrate
+          # keeps exactly one row, so anything else is unexpected and must
+          # fail the strict parse below rather than be silently truncated.
+          PSQL_RC=0
+          MIG_RAW=$(docker exec jobber-postgres psql -X -q -v ON_ERROR_STOP=1 \
+            -U "$DB_USER" -d "$DB_NAME" -tAc \
+            "SELECT version::text || ':' || dirty::int FROM schema_migrations" 2>/dev/null) || PSQL_RC=$?
+          if [ "$PSQL_RC" -ne 0 ]; then
+            echo "❌ Preflight: schema_migrations query failed (psql exit ${PSQL_RC}) — aborting instead of assuming the migration is safe"
+            exit 1
+          fi
+          MIG=$(printf '%s' "$MIG_RAW" | tr -d '[:space:]' | grep -E '^[0-9]+:[01]$' || true)
+          if [ -z "$MIG" ]; then
+            echo "❌ Preflight: schema_migrations did not yield exactly one parseable version:dirty pair — aborting"
+            exit 1
+          fi
+          SCHEMA_VERSION=${MIG%%:*}
+          SCHEMA_DIRTY=${MIG##*:}
+          echo "ℹ️  Preflight: schema_migrations version=${SCHEMA_VERSION} dirty=${SCHEMA_DIRTY}"
+
+          if [ "$SCHEMA_DIRTY" != "0" ]; then
+            echo "❌ Preflight: schema is DIRTY at version ${SCHEMA_VERSION} — a half-applied migration must be resolved by hand before deploying; aborting"
+            exit 1
+          fi
+
+          if [ "$SCHEMA_VERSION" -lt 45 ]; then
+            echo "❌ Preflight: unexpected schema version ${SCHEMA_VERSION} (this release expects 45 with 000046 pending, or >= 46 already applied)."
+            echo "   Before 000045 the subscriptions identifier columns still carry their old names, so this check cannot be trusted, and deploying would run further unreviewed migrations. Aborting."
+            exit 1
+          elif [ "$SCHEMA_VERSION" -ge 46 ]; then
+            echo "✅ Preflight: migration 000046 already applied (schema ${SCHEMA_VERSION}) — its value-clearing guard is not needed"
+          else
+            # Exactly schema 45: 000046 is pending. Count what it would clear
+            # with its WHERE clause copied verbatim from
+            # be/migrations/000046_creem_billing.up.sql — backslash-escaped
+            # underscores included, so `sub\_%` means a literal "sub_" prefix
+            # here exactly as it does there. The quoted heredoc and the
+            # double-quoted -c argument both pass the backslash through
+            # untouched, and the pattern is parsed by the same server, so the
+            # two cannot drift apart.
+            PSQL_RC=0
+            HITS_RAW=$(docker exec jobber-postgres psql -X -q -v ON_ERROR_STOP=1 \
+              -U "$DB_USER" -d "$DB_NAME" -tAc \
+              "SELECT count(*) FROM subscriptions WHERE (external_subscription_id IS NOT NULL AND external_subscription_id NOT LIKE 'sub\_%') OR (external_account_id IS NOT NULL AND external_account_id NOT LIKE 'cust\_%')" 2>/dev/null) || PSQL_RC=$?
+            if [ "$PSQL_RC" -ne 0 ]; then
+              echo "❌ Preflight: could not count the rows migration 000046 would clear (psql exit ${PSQL_RC}) — aborting before anything is copied or restarted"
+              exit 1
+            fi
+            HITS=$(printf '%s' "$HITS_RAW" | tr -d '[:space:]' | grep -E '^[0-9]+$' || true)
+            if [ -z "$HITS" ]; then
+              echo "❌ Preflight: unparseable row count from the 000046 safety query — aborting"
+              exit 1
+            fi
+            if [ "$HITS" -ne 0 ]; then
+              echo "❌ Preflight: migration 000046 would irreversibly clear ${HITS} subscriptions row(s)."
+              echo "   It nulls external_subscription_id, external_account_id, current_period_start/end, cancel_at and last_event_at and forces status/plan to 'free' on every row whose identifiers do not look like Creem's — paid or not."
+              echo "   Destroying those values is not authorised, so the deploy stops here: nothing has been copied, pulled, restarted or migrated."
+              echo "   Decide by hand what should happen to those rows. This check reports the count only — no identifiers, emails or column values."
+              exit 1
+            fi
+            echo "✅ Preflight: schema 45 with 000046 pending, and 0 subscriptions rows match its WHERE clause — the migration will clear nothing"
+          fi
+
+          # Guard passed: safe to take the rollback snapshot.
+          if [ -f docker-compose.yml ] && [ -f docker-compose.deploy.yml ]; then
+            cp -p docker-compose.yml .rollback-docker-compose.yml
+            cp -p docker-compose.deploy.yml .rollback-docker-compose.deploy.yml
+            echo "📸 Rollback snapshot taken from the currently deployed compose"
+          else
+            echo "ℹ️  No compose on the server yet (first deploy?) — keeping any earlier snapshot"
+          fi
+          ENDSSH
 
       - name: Copy compose files to server
         run: |
@@ -483,127 +651,15 @@ jobs:
             Caddyfile \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:~/jobber/
 
-      - name: Sync secrets to server .env
-        env:
-          # Infrastructure
-          V_JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET }}
-          V_JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
-          V_DB_USER: ${{ secrets.DB_USER }}
-          V_DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          V_DB_NAME: ${{ secrets.DB_NAME }}
-          V_REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
-          V_SERVER_ENV: ${{ secrets.SERVER_ENV }}
-          V_ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
-          V_FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
-          V_LOG_LEVEL: ${{ secrets.LOG_LEVEL }}
-          # S3
-          V_S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
-          V_S3_BUCKET: ${{ secrets.S3_BUCKET }}
-          V_S3_REGION: ${{ secrets.S3_REGION }}
-          V_S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
-          V_S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
-          # AI
-          V_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # Google Calendar
-          V_GOOGLE_CALENDAR_CLIENT_ID: ${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}
-          V_GOOGLE_CALENDAR_CLIENT_SECRET: ${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}
-          V_GOOGLE_CALENDAR_REDIRECT_URL: ${{ secrets.GOOGLE_CALENDAR_REDIRECT_URL }}
-          V_GOOGLE_CALENDAR_FRONTEND_URL: ${{ secrets.GOOGLE_CALENDAR_FRONTEND_URL }}
-          V_GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY: ${{ secrets.GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY }}
-          # Email
-          V_RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          V_RESEND_FROM_ADDRESS: ${{ secrets.RESEND_FROM_ADDRESS }}
-          # Payments (Creem)
-          V_CREEM_API_KEY: ${{ secrets.CREEM_API_KEY }}
-          V_CREEM_WEBHOOK_SECRET: ${{ secrets.CREEM_WEBHOOK_SECRET }}
-          V_CREEM_ENVIRONMENT: ${{ secrets.CREEM_ENVIRONMENT }}
-          V_CREEM_PRO_PRODUCT_ID: ${{ secrets.CREEM_PRO_PRODUCT_ID }}
-          V_CREEM_ENTERPRISE_PRODUCT_ID: ${{ secrets.CREEM_ENTERPRISE_PRODUCT_ID }}
-          # Telegram
-          V_TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          V_TELEGRAM_SUPPORT_CHAT_ID: ${{ secrets.TELEGRAM_SUPPORT_CHAT_ID }}
-          # Sentry
-          V_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-          V_SENTRY_RELEASE: ${{ secrets.SENTRY_RELEASE }}
-          # Feature flags
-          V_FEATURE_SENTRY_ENABLED: ${{ secrets.FEATURE_SENTRY_ENABLED }}
-          V_FEATURE_EMAIL_ENABLED: ${{ secrets.FEATURE_EMAIL_ENABLED }}
-          # Payments are pinned OFF in production until Creem go-live (ADR-0003).
-          # Both are written explicitly: an unset secret would be skipped below and
-          # leave whatever the server's .env already holds (possibly `true`), and
-          # a `true` here without CREEM_* credentials makes the API refuse to boot.
-          # To go live: read these two from the FEATURE_PAYMENTS_ENABLED and
-          # FEATURE_BILLING_WEBHOOK_ENABLED secrets again, set the CREEM_*
-          # secrets, and un-pin VITE_FEATURE_PAYMENTS in the frontend build args.
-          V_FEATURE_PAYMENTS_ENABLED: "false"
-          V_FEATURE_BILLING_WEBHOOK_ENABLED: "false"
-        run: |
-          # Build temp file with non-empty secrets only
-          ENV_FILE=$(mktemp)
-          add() { if [ -n "$2" ]; then printf '%s=%s\n' "$1" "$2" >> "$ENV_FILE"; fi; }
-
-          # Infrastructure
-          add "JWT_ACCESS_SECRET" "$V_JWT_ACCESS_SECRET"
-          add "JWT_REFRESH_SECRET" "$V_JWT_REFRESH_SECRET"
-          add "DB_USER" "$V_DB_USER"
-          add "DB_PASSWORD" "$V_DB_PASSWORD"
-          add "DB_NAME" "$V_DB_NAME"
-          add "REDIS_PASSWORD" "$V_REDIS_PASSWORD"
-          add "SERVER_ENV" "$V_SERVER_ENV"
-          add "ALLOWED_ORIGINS" "$V_ALLOWED_ORIGINS"
-          add "FRONTEND_URL" "$V_FRONTEND_URL"
-          add "LOG_LEVEL" "$V_LOG_LEVEL"
-          # S3
-          add "S3_ENDPOINT" "$V_S3_ENDPOINT"
-          add "S3_BUCKET" "$V_S3_BUCKET"
-          add "S3_REGION" "$V_S3_REGION"
-          add "S3_ACCESS_KEY" "$V_S3_ACCESS_KEY"
-          add "S3_SECRET_KEY" "$V_S3_SECRET_KEY"
-          # AI
-          add "ANTHROPIC_API_KEY" "$V_ANTHROPIC_API_KEY"
-          # Google Calendar
-          add "GOOGLE_CALENDAR_CLIENT_ID" "$V_GOOGLE_CALENDAR_CLIENT_ID"
-          add "GOOGLE_CALENDAR_CLIENT_SECRET" "$V_GOOGLE_CALENDAR_CLIENT_SECRET"
-          add "GOOGLE_CALENDAR_REDIRECT_URL" "$V_GOOGLE_CALENDAR_REDIRECT_URL"
-          add "GOOGLE_CALENDAR_FRONTEND_URL" "$V_GOOGLE_CALENDAR_FRONTEND_URL"
-          add "GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY" "$V_GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY"
-          # Email
-          add "RESEND_API_KEY" "$V_RESEND_API_KEY"
-          add "RESEND_FROM_ADDRESS" "$V_RESEND_FROM_ADDRESS"
-          # Payments (Creem)
-          add "CREEM_API_KEY" "$V_CREEM_API_KEY"
-          add "CREEM_WEBHOOK_SECRET" "$V_CREEM_WEBHOOK_SECRET"
-          add "CREEM_ENVIRONMENT" "$V_CREEM_ENVIRONMENT"
-          add "CREEM_PRO_PRODUCT_ID" "$V_CREEM_PRO_PRODUCT_ID"
-          add "CREEM_ENTERPRISE_PRODUCT_ID" "$V_CREEM_ENTERPRISE_PRODUCT_ID"
-          # Telegram
-          add "TELEGRAM_BOT_TOKEN" "$V_TELEGRAM_BOT_TOKEN"
-          add "TELEGRAM_SUPPORT_CHAT_ID" "$V_TELEGRAM_SUPPORT_CHAT_ID"
-          # Sentry
-          add "SENTRY_DSN" "$V_SENTRY_DSN"
-          add "SENTRY_RELEASE" "$V_SENTRY_RELEASE"
-          # Feature flags
-          add "FEATURE_SENTRY_ENABLED" "$V_FEATURE_SENTRY_ENABLED"
-          add "FEATURE_EMAIL_ENABLED" "$V_FEATURE_EMAIL_ENABLED"
-          add "FEATURE_PAYMENTS_ENABLED" "$V_FEATURE_PAYMENTS_ENABLED"
-          add "FEATURE_BILLING_WEBHOOK_ENABLED" "$V_FEATURE_BILLING_WEBHOOK_ENABLED"
-
-          SYNCED=$(wc -l < "$ENV_FILE" | tr -d ' ')
-          echo "Syncing $SYNCED variables to server..."
-
-          scp -p "$ENV_FILE" ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/tmp/.env.sync
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} '
-            cd ~/jobber && touch .env && chmod 600 .env
-            while IFS= read -r line; do
-              key="${line%%=*}"
-              [ -z "$key" ] && continue
-              grep -v "^${key}=" .env > .env.tmp && mv .env.tmp .env || true
-              echo "$line" >> .env
-            done < /tmp/.env.sync
-            rm -f /tmp/.env.sync
-            echo "✅ Secrets synced"
-          '
-          rm -f "$ENV_FILE"
+      # NOTE: there is deliberately no ".env sync" step here.
+      # The server's ~/jobber/.env is provisioned by hand and is the single
+      # source of runtime configuration. An earlier version of this workflow
+      # rewrote ~30 keys from GitHub Secrets on every deployment, which
+      # overwrote values an operator had set on the box and contradicted
+      # principle 2 in the header. To change runtime config, edit
+      # ~/jobber/.env on the server, then re-run this workflow (the deploy step
+      # still hard-fails if the file is missing). Settings that must not depend
+      # on .env — the payments pins — are set in docker-compose.deploy.yml above.
 
       - name: Deploy via SSH
         run: |
@@ -639,14 +695,12 @@ jobs:
           echo "🔐 Authenticating with Docker Hub..."
           echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-          # Capture current deployment state for rollback
-          echo ""
-          echo "📸 Capturing current deployment state..."
-          docker compose -f docker-compose.yml -f docker-compose.deploy.yml config > .compose-backup.yml 2>/dev/null || true
+          # Rollback state was already captured, before the compose files were
+          # copied over, by the "Snapshot current server compose" step above.
 
           # CRITICAL: Back up the database BEFORE the new backend boots and runs
           # migrations. Migrations run on backend startup and can be irreversible
-          # (e.g. table drops/renames); the compose-config "rollback" above only
+          # (e.g. table drops/renames); the compose snapshot rollback only
           # restores old container images, which CANNOT run against an already
           # migrated schema. This SQL dump is the only real recovery path.
           echo ""
@@ -674,8 +728,10 @@ jobs:
               gzip -c "$TMP_DUMP" > "$BACKUP_FILE"
               rm -f "$TMP_DUMP"
               echo "✅ Database backed up to ~/jobber/$BACKUP_FILE (raw ${SIZE} bytes, $(du -h "$BACKUP_FILE" | cut -f1) gz)"
-              # Retain the 10 most recent pre-deploy backups (CX22 has a small disk).
-              ls -1t backups/predeploy-*.sql.gz 2>/dev/null | tail -n +11 | xargs -r rm -f
+              # Backups are never deleted automatically — a deployment must not be
+              # able to destroy a recovery point. ~/jobber/backups needs manual
+              # pruning; the line below reports how much it currently holds.
+              echo "ℹ️  ~/jobber/backups now holds $(ls -1 backups/predeploy-*.sql.gz 2>/dev/null | wc -l | tr -d ' ') pre-deploy dumps ($(du -sh backups 2>/dev/null | cut -f1)) — prune manually when needed"
             else
               echo "❌ pg_dump FAILED — aborting deploy (refusing to run an irreversible migration without a backup)"
               rm -f "$TMP_DUMP" "$BACKUP_FILE"
@@ -772,12 +828,22 @@ jobs:
             echo "📋 Recent logs:"
             docker compose -f docker-compose.yml -f docker-compose.deploy.yml logs --tail=50
 
-            # Attempt rollback if backup exists
-            if [ -f .compose-backup.yml ]; then
+            # Roll back to the compose files that were in place before this run.
+            # Restoring them (not just running from the snapshot) keeps the
+            # server's on-disk config and its running containers consistent, so
+            # a later manual `docker compose up -d` does not re-apply the
+            # failing version. Schema changes are NOT undone — see the SQL dump
+            # taken above if a migration needs reverting.
+            if [ -f .rollback-docker-compose.yml ] && [ -f .rollback-docker-compose.deploy.yml ]; then
               echo ""
-              echo "🔄 Attempting rollback to previous version..."
-              docker compose -f .compose-backup.yml up -d --remove-orphans || true
+              echo "🔄 Rolling back to the previously deployed images..."
+              cp -p .rollback-docker-compose.yml docker-compose.yml
+              cp -p .rollback-docker-compose.deploy.yml docker-compose.deploy.yml
+              docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --remove-orphans || true
               echo "⚠️  Rollback attempted - please verify system state manually"
+            else
+              echo ""
+              echo "⚠️  No rollback snapshot on the server — leaving the new containers in place for diagnosis"
             fi
 
             docker logout
@@ -857,19 +923,24 @@ jobs:
             echo "⚠️  Frontend health check failed (non-critical)"
           fi
 
-          # Run database seed (creates reviewer account for Chrome Web Store)
-          echo ""
-          echo "🌱 Running database seed..."
-          docker exec jobber-backend ./jobber-seed || echo "⚠️  Seed failed (non-critical)"
+          # NOTE: the database seed is deliberately NOT run here.
+          # `jobber-seed` DELETEs and recreates seed@jobber.dev and
+          # reviewer@jobber.dev with fixed passwords, together with their
+          # companies, jobs, stages and resumes — a production data write on
+          # every deployment, which also resets those credentials behind
+          # anyone currently using them. Run it by hand when a fresh reviewer
+          # account is actually needed:
+          #   ssh <server> 'docker exec jobber-backend ./jobber-seed'
 
           # Show final status
           echo ""
           echo "📊 Final service status:"
           docker compose -f docker-compose.yml -f docker-compose.deploy.yml ps
 
-          # Cleanup
+          # Cleanup. The rollback snapshot is kept on purpose: it is the only
+          # record of the previous image tags, and the next deployment
+          # overwrites it with the state it finds.
           docker logout
-          rm -f .compose-backup.yml
 
           echo ""
           echo "================================================"
@@ -957,6 +1028,14 @@ jobs:
 #   
 #   docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d
 #
+# The previous compose files are kept on the server as
+# ~/jobber/.rollback-docker-compose.yml and .rollback-docker-compose.deploy.yml.
+# They are written before each deployment overwrites the live ones, so they name
+# the image tags that were actually running; restoring both files and running
+# `up -d` reverts the containers. A failed health check does this automatically.
+# Neither path reverts database migrations — use the pre-deploy SQL dump in
+# ~/jobber/backups for that.
+#
 ################################################################################
 
 ################################################################################
@@ -984,6 +1063,10 @@ jobs:
 #                           Example: http://65.108.123.45:8080/api/v1
 #                           If not set, uses docker-compose.yml default
 #
+# Application/runtime secrets (JWT, DB, S3, Resend, Anthropic, Creem, …) are NOT
+# needed here: they live only in ~/jobber/.env on the server, which this
+# workflow reads nothing from and never writes.
+#
 ################################################################################
 #
 # SECURITY IMPROVEMENTS IN THIS VERSION:
@@ -991,7 +1074,8 @@ jobs:
 # ✅ SSH private key never written to disk (uses ssh-agent)
 # ✅ StrictHostKeyChecking enabled (uses known_hosts)
 # ✅ Docker Hub authentication on server for private repos
-# ✅ Automatic rollback on deployment failure
+# ✅ Automatic rollback to the compose snapshot taken before the new files land
+# ✅ Pre-deploy database dump, never auto-pruned
 # ✅ Health checks with timeout before marking deployment successful
 # ✅ Smoke tests verify critical endpoints
 # ✅ Concurrency control prevents simultaneous deployments
