@@ -3830,6 +3830,34 @@ Resume-builder and cover-letter editing share `shared/lib/documentSync.ts`.
   rule is pinned against a real QueryClient in `coverLetterQueryKeys.test.ts`
   and `shared/lib/__tests__/resumeQueryKeys.test.tsx`.
 
+### I.7 Billing in production: payments off, legacy rows preserved
+
+Billing is implemented (Creem, ADR-0003) but **switched off in production**. The
+deployment pins `FEATURE_PAYMENTS_ENABLED=false` and
+`FEATURE_BILLING_WEBHOOK_ENABLED=false` in the `docker-compose.deploy.yml`
+override it generates, and builds the frontend with `VITE_FEATURE_PAYMENTS=false`
+— not via the server's `.env`, which CI never writes. With payments off only
+`GET /api/v1/subscription` is registered; checkout, portal, change-plan and
+cancel are not routes at all, and no webhook can write to a subscription row.
+Plan limits and entitlement are unaffected: they read `plan` and `status`.
+
+**Migration 000046 changes nothing.** It was written to reset every
+`subscriptions` row whose `external_subscription_id` / `external_account_id` does
+not look like Creem's (`sub_` / `cust_`) to the free plan, clearing the
+identifiers, the period dates, `cancel_at` and `last_event_at`. Production holds
+such a row, the reset is irreversible, and no one authorised destroying it, so the
+migration is now an explicit no-op and every field of every row is preserved.
+`be/tests/e2e/migration_creem_billing_test.go` runs the real migration files
+45 → 46 → 47 and back against fixture rows and fails if any field moves; the
+deploy workflow additionally compares a count and a full-record digest of those
+rows before and after migrating, reporting only the count and a pass/fail verdict.
+
+What to do with the legacy rows is **deferred** — a per-row decision, taken by a
+person before go-live, not a side effect of a deployment. It matters then and not
+now: the webhook's link guard refuses to replace a still-live
+`external_subscription_id`, so a user whose row carries a legacy one could not
+complete a first real Creem purchase. See ADR-0003, "Legacy billing rows".
+
 ---
 
 ## 📋 Appendix A: Complete API Endpoint Reference
@@ -4452,6 +4480,7 @@ Content-Type: application/json
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-10-12 | 2.1.2 | **Appendix I.7 added** — billing is off in production (both backend flags and the frontend flag pinned in the deployment, not in the server's `.env`), and migration `000046` is now an explicit no-op: the `subscriptions` rows holding non-Creem identifiers are preserved in full instead of being reset to the free plan. What to do with those rows is deferred to a reviewed, per-row decision before go-live. Covered by `be/tests/e2e/migration_creem_billing_test.go` and by a before/after preservation check in the deploy workflow. |
 | 2026-10-12 | 2.1.1 | `PATCH /stage-templates/{id}` is field-scoped like `PATCH /jobs/{id}`: `name`, `order` and `kind` are each written only when the request carries them, in one statement scoped to `id` + `user_id` that returns the stored row. The previous whole-row write lost a field when a rename and a reclassification overlapped. Ownership is enforced by the write itself (404 when no row matches); an empty body bumps `updated_at` only. See **Appendix I.3**. |
 | 2026-10-10 | 2.1 | **Appendix I added** — the current implementation of the areas that moved on since 2.0, and the section the rest of the document yields to where they disagree. Single-axis pipeline: the card's column IS its state, `status`/`phase` and the derived board columns are gone, `is_archived` is the only closed flag, and `stage_templates.kind` (migration 000047) carries a column's meaning so renaming/reordering changes nothing. `applied_at` follows the target column's kind rather than its position, is never overwritten or cleared, and a supplied date is always honored; a create with neither a column nor a date is a bookmark and lands in the first `saved` column, so a reordered board no longer dates it. `PATCH /jobs/{id}` is field-scoped (empty string clears, omitted leaves alone) and never touches pipeline-owned columns; pipeline writes serialize on the job row lock and Move answers from a post-commit read. Analytics counts responses/interviews by kind, excluding archived cards. Stage history: `pending`/`skipped`/`cancelled` rows survive every pipeline write, at most one row is `active`. Document autosave: serialized per document, flush awaits section writes, failed section writes retry, and a failed save leaves an in-memory draft the next load merges back. List state lives in the URL, the board pages at 100, and list/board cache keys share the `["jobs"]` prefix. |
 | 2026-08-03 | 2.0 | **PERMANENT ARCHITECTURAL MERGE:** Jobs and Applications unified into single Job entity. Migration 000034 completed. Status enum: saved\|applied\|on_hold\|offer\|rejected\|archived. applied_at markers "is an application" state. Tables renamed: application_stages→job_stages, comments/reminders application_id→job_id. Tag relations: removed 'application' entity_type (job\|company only). Subscriptions: unified "jobs" limit (free 25, pro 100). All endpoint paths updated: /api/v1/applications/* removed, /api/v1/jobs/* unified. Backend-first enriched DTOs now include company_name, current_stage_name, last_activity_at. State vs History principle preserved with updated terminology. |

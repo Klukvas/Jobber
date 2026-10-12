@@ -12,7 +12,7 @@
 #      - Only build/push images for services that changed
 #      - Changes in `be/**` → build backend only
 #      - Changes in `fe/**` → build frontend only
-#      - Changes in shared files (docker-compose.yml) → build both
+#      - Changes in shared files (docker-compose.yml, this workflow) → build both
 #      - This reduces build time and Docker Hub bandwidth usage
 #
 #   2. RUNTIME SECRETS SAFETY
@@ -97,6 +97,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # This workflow file is itself part of a release: it carries the release
+      # preflight, the payments pins and the deploy script. A change to it must
+      # therefore test and build BOTH services, so the whole release runs at one
+      # immutable SHA. Without it the untouched service is deployed from the
+      # mutable `dev` tag instead — whatever was last pushed there.
       - name: Check for path-based changes
         uses: dorny/paths-filter@v3
         id: filter
@@ -105,10 +110,12 @@ jobs:
             backend:
               - 'be/**'
               - 'docker-compose.yml'
+              - '.github/workflows/deploy-dev.yml'
             frontend:
               - 'fe/**'
               - 'docker-compose.yml'
               - 'Caddyfile'
+              - '.github/workflows/deploy-dev.yml'
       
       # What the rest of the run acts on: the path filter, widened by a manual
       # force. Everything downstream reads these outputs, so a forced service
@@ -525,27 +532,37 @@ jobs:
           # RELEASE PREFLIGHT — read-only, fail-closed, runs before anything
           # on the server is written to.
           #
-          # Migration 000046 changes no schema; it CLEARS values. Every
-          # subscriptions row whose identifiers do not look like Creem's
-          # (`sub_` / `cust_`) is reset to the free plan and loses its
-          # period / cancel / last-event timestamps. That is irreversible and
-          # nobody has authorised destroying existing row values. Production
-          # last deployed 0012c82 (schema 45), so 000046 is still pending and
-          # runs as soon as the new backend boots further down this job.
+          # Migration 000046 changes no schema, and as of this release it
+          # changes no data either: the UPDATE that reset every subscriptions
+          # row whose identifiers do not look like Creem's (`sub_` / `cust_`)
+          # was removed before 000046 had ever been applied to production. See
+          # be/migrations/000046_creem_billing.up.sql, and
+          # be/tests/e2e/migration_creem_billing_test.go, which runs the real
+          # migration files against fixture rows and fails if any field moves.
+          # Production last deployed 0012c82 (schema 45), so 000046 is still
+          # pending and runs as soon as the new backend boots further down this
+          # job — as a no-op.
           #
-          # So count the rows 000046 would overwrite first, and go no further
-          # unless that count is exactly zero. Anything that cannot be
-          # established aborts as well — missing project dir, missing .env, no
-          # database, failed or unparseable query, dirty schema, unexpectedly
-          # older schema — so that a broken query can never masquerade as
-          # "zero rows affected". A first deploy with no database on the box
-          # is one of those cases: for this release it is a stop, not a skip.
+          # What this preflight still refuses to deploy over, fail-closed:
+          # a missing project dir, a missing .env, no database, a failed or
+          # unparseable query, a dirty schema, or a schema older than 45
+          # (before 000045 the subscriptions identifier columns still carry
+          # their old names, so nothing here can be trusted, and deploying
+          # would run further unreviewed migrations). A first deploy with no
+          # database on the box is one of those cases: for this release it is a
+          # stop, not a skip.
+          #
+          # The legacy subscription rows are counted but no longer block: with
+          # 000046 a no-op they are expected to be preserved, and the count is
+          # the "before" half of that evidence. The fingerprint comparison in
+          # the deploy step below is what proves they actually survived.
           #
           # Read-only by construction: SELECTs only, no migration, no seed, no
           # HTTP call. .env is probed for existence and read for DB_USER /
           # DB_NAME exactly as the deploy step below does; nothing from it is
           # printed, and psql's own output is never echoed either (its error
-          # text embeds the connection's user and database).
+          # text embeds the connection's user and database). Nothing but counts
+          # is ever printed — no identifiers, emails or column values.
           # ----------------------------------------------------------------
           if [ ! -d "$HOME/jobber" ]; then
             echo "❌ Preflight: no ~/jobber on the server — cannot verify the pending migration against the live data; aborting"
@@ -601,38 +618,38 @@ jobs:
             echo "   Before 000045 the subscriptions identifier columns still carry their old names, so this check cannot be trusted, and deploying would run further unreviewed migrations. Aborting."
             exit 1
           elif [ "$SCHEMA_VERSION" -ge 46 ]; then
-            echo "✅ Preflight: migration 000046 already applied (schema ${SCHEMA_VERSION}) — its value-clearing guard is not needed"
+            echo "ℹ️  Preflight: migration 000046 already applied (schema ${SCHEMA_VERSION})"
           else
-            # Exactly schema 45: 000046 is pending. Count what it would clear
-            # with its WHERE clause copied verbatim from
-            # be/migrations/000046_creem_billing.up.sql — backslash-escaped
-            # underscores included, so `sub\_%` means a literal "sub_" prefix
-            # here exactly as it does there. The quoted heredoc and the
-            # double-quoted -c argument both pass the backslash through
-            # untouched, and the pattern is parsed by the same server, so the
-            # two cannot drift apart.
-            PSQL_RC=0
-            HITS_RAW=$(docker exec jobber-postgres psql -X -q -v ON_ERROR_STOP=1 \
-              -U "$DB_USER" -d "$DB_NAME" -tAc \
-              "SELECT count(*) FROM subscriptions WHERE (external_subscription_id IS NOT NULL AND external_subscription_id NOT LIKE 'sub\_%') OR (external_account_id IS NOT NULL AND external_account_id NOT LIKE 'cust\_%')" 2>/dev/null) || PSQL_RC=$?
-            if [ "$PSQL_RC" -ne 0 ]; then
-              echo "❌ Preflight: could not count the rows migration 000046 would clear (psql exit ${PSQL_RC}) — aborting before anything is copied or restarted"
-              exit 1
-            fi
-            HITS=$(printf '%s' "$HITS_RAW" | tr -d '[:space:]' | grep -E '^[0-9]+$' || true)
-            if [ -z "$HITS" ]; then
-              echo "❌ Preflight: unparseable row count from the 000046 safety query — aborting"
-              exit 1
-            fi
-            if [ "$HITS" -ne 0 ]; then
-              echo "❌ Preflight: migration 000046 would irreversibly clear ${HITS} subscriptions row(s)."
-              echo "   It nulls external_subscription_id, external_account_id, current_period_start/end, cancel_at and last_event_at and forces status/plan to 'free' on every row whose identifiers do not look like Creem's — paid or not."
-              echo "   Destroying those values is not authorised, so the deploy stops here: nothing has been copied, pulled, restarted or migrated."
-              echo "   Decide by hand what should happen to those rows. This check reports the count only — no identifiers, emails or column values."
-              exit 1
-            fi
-            echo "✅ Preflight: schema 45 with 000046 pending, and 0 subscriptions rows match its WHERE clause — the migration will clear nothing"
+            echo "ℹ️  Preflight: schema 45 — 000046 is pending and is a no-op in this release"
           fi
+
+          # Count the legacy subscription rows: the rows the ORIGINAL 000046
+          # would have reset. Its WHERE clause is reproduced verbatim from
+          # be/migrations/000046_creem_billing.up.sql as it stood before this
+          # release — backslash-escaped underscores included, so `sub\_%` means a
+          # literal "sub_" prefix here exactly as it did there. The quoted
+          # heredoc and the double-quoted -c argument both pass the backslash
+          # through untouched, and the same clause keys the preservation
+          # fingerprint in the deploy step and the regression test in
+          # be/tests/e2e/migration_creem_billing_test.go.
+          #
+          # A non-zero count is expected and fine. A failed or unparseable query
+          # is not: it still aborts, so a broken query can never masquerade as
+          # "there was nothing to preserve".
+          PSQL_RC=0
+          LEGACY_RAW=$(docker exec jobber-postgres psql -X -q -v ON_ERROR_STOP=1 \
+            -U "$DB_USER" -d "$DB_NAME" -tAc \
+            "SELECT count(*) FROM subscriptions WHERE (external_subscription_id IS NOT NULL AND external_subscription_id NOT LIKE 'sub\_%') OR (external_account_id IS NOT NULL AND external_account_id NOT LIKE 'cust\_%')" 2>/dev/null) || PSQL_RC=$?
+          if [ "$PSQL_RC" -ne 0 ]; then
+            echo "❌ Preflight: could not count the legacy subscription rows (psql exit ${PSQL_RC}) — aborting before anything is copied or restarted"
+            exit 1
+          fi
+          LEGACY_ROWS=$(printf '%s' "$LEGACY_RAW" | tr -d '[:space:]' | grep -E '^[0-9]+$' || true)
+          if [ -z "$LEGACY_ROWS" ]; then
+            echo "❌ Preflight: unparseable legacy subscription row count — aborting"
+            exit 1
+          fi
+          echo "✅ Preflight: ${LEGACY_ROWS} legacy subscription row(s) present; migration 000046 clears nothing, so they are expected to be preserved"
 
           # Guard passed: safe to take the rollback snapshot.
           if [ -f docker-compose.yml ] && [ -f docker-compose.deploy.yml ]; then
@@ -741,6 +758,60 @@ jobs:
           else
             echo "ℹ️  No running jobber-postgres container (first deploy?) — skipping DB backup"
           fi
+
+          # Evidence that this release preserves the legacy subscription rows.
+          #
+          # SUBS_FP_SQL reduces exactly the rows the original 000046 targeted —
+          # the same WHERE clause as the preflight — to one count and one md5
+          # digest, read here (before the new backend boots and migrates) and
+          # again after the schema check below. Both readings happen inside this
+          # one shell, so the digest never reaches the Actions log.
+          #
+          #   - Narrowed to those rows on purpose: a registration inserts a row
+          #     with NULL identifiers, which the clause does not match, so
+          #     ordinary traffic cannot disturb the comparison. With payments and
+          #     webhook ingestion pinned off nothing writes an identifier at all.
+          #   - Every column of the table is in the digest, so a change to any
+          #     preserved field shows up — not only a cleared identifier.
+          #   - Timestamps are rendered in a fixed UTC format, so the digest does
+          #     not depend on the session time zone or DateStyle.
+          #
+          # What it does NOT prove, plainly: only that these rows are identical
+          # between the two readings in this job. A legacy row that disappears
+          # because its user deleted their account would read as a mismatch too,
+          # and a column some future migration adds to `subscriptions` would be
+          # outside the digest until this list is extended.
+          #
+          # Nothing but the row count and a pass/fail verdict is printed. A
+          # database that cannot be read here aborts before anything is pulled
+          # or restarted — the preflight has already refused the no-database
+          # case, so this can only mean the container went away mid-job.
+          SUBS_FP_SQL="SELECT count(*)::text || ':' || coalesce(md5(string_agg(sig, '|' ORDER BY sig)), '-') FROM (SELECT concat_ws(chr(31), id::text, user_id::text, coalesce(external_subscription_id, chr(30)), coalesce(external_account_id, chr(30)), status, plan, coalesce(to_char(current_period_start AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS'), chr(30)), coalesce(to_char(current_period_end AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS'), chr(30)), coalesce(to_char(cancel_at AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS'), chr(30)), coalesce(to_char(last_event_at AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS'), chr(30)), to_char(created_at AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS'), to_char(updated_at AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS')) AS sig FROM subscriptions WHERE (external_subscription_id IS NOT NULL AND external_subscription_id NOT LIKE 'sub\_%') OR (external_account_id IS NOT NULL AND external_account_id NOT LIKE 'cust\_%')) t"
+
+          echo ""
+          echo "🔎 Fingerprinting the legacy subscription rows before migration..."
+          if ! docker ps --format '{{.Names}}' | grep -q '^jobber-postgres$'; then
+            echo "❌ No running jobber-postgres container — cannot establish what the migration must preserve; aborting"
+            docker logout
+            exit 1
+          fi
+          DB_USER=$(grep -E '^DB_USER=' .env | tail -1 | cut -d= -f2- || true); DB_USER=${DB_USER:-jobber}
+          DB_NAME=$(grep -E '^DB_NAME=' .env | tail -1 | cut -d= -f2- || true); DB_NAME=${DB_NAME:-jobber}
+          PSQL_RC=0
+          SUBS_FP_RAW=$(docker exec jobber-postgres psql -X -q -v ON_ERROR_STOP=1 \
+            -U "$DB_USER" -d "$DB_NAME" -tAc "$SUBS_FP_SQL" 2>/dev/null) || PSQL_RC=$?
+          if [ "$PSQL_RC" -ne 0 ]; then
+            echo "❌ Could not fingerprint the subscription rows (psql exit ${PSQL_RC}) — aborting before anything is pulled or restarted"
+            docker logout
+            exit 1
+          fi
+          SUBS_FP_BEFORE=$(printf '%s' "$SUBS_FP_RAW" | tr -d '[:space:]' | grep -E '^[0-9]+:([0-9a-f]{32}|-)$' || true)
+          if [ -z "$SUBS_FP_BEFORE" ]; then
+            echo "❌ Unparseable subscription fingerprint — aborting before anything is pulled or restarted"
+            docker logout
+            exit 1
+          fi
+          echo "✅ Captured: ${SUBS_FP_BEFORE%%:*} legacy subscription row(s) to preserve (digest kept in this shell, never printed)"
 
           # Pull new images from Docker Hub
           # Uses both docker-compose.yml (base) and docker-compose.deploy.yml (SHA override)
@@ -888,6 +959,35 @@ jobs:
             "")  echo "⚠️  Could not read migration state (non-critical). psql output: ${MIG_RAW}" ;;
             *)   echo "✅ Migrations clean (version ${MIG%%:*})" ;;
           esac
+
+          # The other half of the preservation evidence: re-read the fingerprint
+          # captured before the pull, with the same SQL, now that migrations have
+          # run. Only the count and the verdict are printed.
+          echo ""
+          echo "🔎 Verifying the legacy subscription rows survived the migration..."
+          PSQL_RC=0
+          SUBS_FP_RAW=$(docker exec jobber-postgres psql -X -q -v ON_ERROR_STOP=1 \
+            -U "$DB_USER" -d "$DB_NAME" -tAc "$SUBS_FP_SQL" 2>/dev/null) || PSQL_RC=$?
+          if [ "$PSQL_RC" -ne 0 ]; then
+            echo "❌ Could not re-read the subscription fingerprint (psql exit ${PSQL_RC}) — preservation is unconfirmed, so this deployment is reported as failed. The containers are up; check by hand."
+            docker logout
+            exit 1
+          fi
+          SUBS_FP_AFTER=$(printf '%s' "$SUBS_FP_RAW" | tr -d '[:space:]' | grep -E '^[0-9]+:([0-9a-f]{32}|-)$' || true)
+          if [ -z "$SUBS_FP_AFTER" ]; then
+            echo "❌ Unparseable subscription fingerprint after migration — preservation is unconfirmed, so this deployment is reported as failed. The containers are up; check by hand."
+            docker logout
+            exit 1
+          fi
+          if [ "$SUBS_FP_AFTER" = "$SUBS_FP_BEFORE" ]; then
+            echo "✅ Legacy subscription rows preserved: ${SUBS_FP_BEFORE%%:*} row(s), every field unchanged"
+          else
+            echo "❌ The legacy subscription rows CHANGED during this deployment (${SUBS_FP_BEFORE%%:*} row(s) before, ${SUBS_FP_AFTER%%:*} after)."
+            echo "   Migrations have already run and are not undone by any rollback here; the pre-deploy dump in ~/jobber/backups is the recovery point."
+            echo "   This check prints no identifiers or column values — inspect the rows by hand before deciding."
+            docker logout
+            exit 1
+          fi
 
           # Contract smoke: the merged /jobs route must be registered and reach the
           # auth layer. Unauthenticated request should return 401 (route alive),
