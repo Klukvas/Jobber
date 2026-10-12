@@ -1,10 +1,11 @@
 # Billing moves to Creem, with purchases linked to users by checkout metadata
 
 Supersedes [ADR-0002](0002-fastspring-billing.md). Jobber's billing provider is
-**Creem** (Merchant of Record). FastSpring is removed entirely: there were no
-paying FastSpring subscribers at cut-over, so no customer or payment data was
-migrated and no dual-provider layer exists. Migration `000046` resets any
-test-mode row that still carries a FastSpring identifier.
+**Creem** (Merchant of Record). FastSpring is removed entirely: no customer or
+payment data was migrated and no dual-provider layer exists. Migration `000046`
+was written to reset the rows still carrying a FastSpring identifier; it does
+nothing, and those rows are preserved exactly as they stand — see
+[Legacy billing rows](#legacy-billing-rows).
 
 ## What changed in shape
 
@@ -239,6 +240,45 @@ mechanism to maintain before there is a single paying user.
 - The API client has a single circuit breaker (ADR-0002 needed two only because
   the FastSpring store was shared with other products' webhooks).
 
+## Legacy billing rows
+
+Production holds `subscriptions` rows whose `external_subscription_id` /
+`external_account_id` do not look like Creem's (`sub_` / `cust_`) — identifiers
+left over from the earlier providers. Migration `000046` originally reset every
+such row to the free plan, nulling both identifiers, the period dates,
+`cancel_at` and `last_event_at`, on the assumption that all of them were
+test-mode leftovers. That assumption was never checked against the live data and
+the reset is irreversible, so the release that would have applied it stopped at
+the deploy preflight instead.
+
+`000046` is now an explicit no-op: every field of every row is kept. Two things
+hold that in place — `be/tests/e2e/migration_creem_billing_test.go` runs the real
+migration files through 45 → 46 → 47 (and back) against fixture rows and fails if
+any field moves, and the deploy workflow compares a count and a full-record
+digest of exactly these rows before and after migrating, printing only the count
+and a pass/fail verdict, never row contents.
+
+This says the rows are **intact**, not that they are correct. Nothing reads them
+while payments are off:
+
+- `FEATURE_PAYMENTS_ENABLED=false` leaves checkout, cancel, change-plan and
+  portal unregistered as routes, so no stored identifier is ever sent to Creem.
+- `FEATURE_BILLING_WEBHOOK_ENABLED=false` means no event can write to the row.
+- Plan limits and entitlement read `plan` and `status`, never the identifiers.
+
+Before go-live the rows do need a decision, because one of them can break a real
+purchase: the webhook's link guard refuses to replace an
+`external_subscription_id` that is still live (status not `cancelled`), so a user
+whose row carries a legacy identifier would have their first genuine Creem
+`subscription.*` event retried and then dropped when Creem gives up after 24
+hours. The realistic options are to clear the identifiers on rows confirmed to be
+test-mode, or to mark them cancelled — per row, after looking at the data, as its
+own reviewed change rather than a side effect of a deployment.
+
+An installation where the original `000046` already ran cannot recover the
+cleared values from the current migration. Only a dump taken before that run
+holds them.
+
 ## Configuration
 
 | Variable | Notes |
@@ -313,12 +353,18 @@ navigation, not a script, frame, request or form post.
   error until the constant is updated.
 - [ ] **A user with no `subscriptions` row** that pays ends up on the plan (covered by
   tests; confirm once against a real account created before registration wrote a row).
-- [ ] **Remove the production pin.** `.github/workflows/deploy-dev.yml` writes
-  `FEATURE_PAYMENTS_ENABLED=false` and `FEATURE_BILLING_WEBHOOK_ENABLED=false` to the
-  server and builds the frontend with `VITE_FEATURE_PAYMENTS=false`, whatever the
-  secrets say, so production ships with payments off. Going live means reading
-  those three from their secrets again (and setting the `CREEM_*` ones first, or
-  the API refuses to boot).
+- [ ] **Decide what happens to the legacy subscription rows** (see
+  [Legacy billing rows](#legacy-billing-rows)). Until they are dealt with, a user
+  whose row still carries a non-Creem `external_subscription_id` cannot complete
+  a first real purchase: the link guard refuses the event and Creem stops
+  retrying after 24 hours.
+- [ ] **Remove the production pin.** `.github/workflows/deploy-dev.yml` pins
+  `FEATURE_PAYMENTS_ENABLED=false` and `FEATURE_BILLING_WEBHOOK_ENABLED=false` in
+  the `docker-compose.deploy.yml` override it generates — not in the server's
+  `.env`, which CI never writes — and builds the frontend with
+  `VITE_FEATURE_PAYMENTS=false`, whatever the secrets say, so production ships
+  with payments off. Going live means reading those three from their secrets
+  again (and setting the `CREEM_*` ones first, or the API refuses to boot).
 - [ ] **Delete the stale GitHub Secrets**: all `FASTSPRING_*` and the earlier
   `PADDLE_*`, and add the five `CREEM_*` ones.
 - [ ] **Legal pages** (Terms, Privacy, Refund) name Creem as Merchant of Record —

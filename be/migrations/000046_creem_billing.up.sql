@@ -1,30 +1,38 @@
 -- Billing moved from FastSpring to Creem. The subscription columns are already
--- provider-neutral (migration 000045), so there is no schema change: only values.
+-- provider-neutral (migration 000045), so there is no schema change here — and
+-- deliberately no data change either. This migration does nothing.
 --
--- Data safety: there were no paying FastSpring subscribers at cut-over, so every
--- row holding a FastSpring identifier is a test-mode leftover. Left in place,
--- those identifiers would be sent to Creem on cancel / change-plan / portal and
--- fail there, and a stale external_subscription_id would make the link guard
--- refuse the user's first real Creem subscription. Reset them to the free plan.
+-- It used to reset every `subscriptions` row whose identifiers did not look like
+-- Creem's (`sub_` / `cust_`): external_subscription_id, external_account_id, the
+-- period dates, cancel_at and last_event_at nulled, status and plan forced to
+-- 'free'. That was written on the assumption that every matching row was a
+-- test-mode leftover and therefore worthless. The assumption does not hold —
+-- production holds a row the clause matches — and the reset is irreversible.
+-- Preserving existing subscription data outranks tidying provider identifiers,
+-- so the UPDATE is gone. Every row keeps every field: plan, status, identifiers,
+-- period dates, cancel_at, last_event_at, created_at and updated_at.
 --
--- The WHERE clause keeps the migration from touching anything that already looks
--- like Creem: its ids are prefixed `sub_` and `cust_`, FastSpring's are opaque
--- strings without those prefixes. Re-running it, or applying it to a database
--- that already holds Creem subscriptions (a staging copy, say), therefore leaves
--- those rows alone instead of downgrading paying users. (A leftover Paddle
--- subscription id, `sub_...`, is also kept; there were none, see ADR-0002.)
+-- This correction landed while 000046 was still pending in production (schema
+-- was 45), so no production value was lost. It is not a recovery mechanism: an
+-- installation where the earlier, destructive 000046 already ran cannot get the
+-- cleared values back from this file. Only a dump taken before that run can.
 --
--- webhook_events needs no cleanup: it only de-duplicates event IDs, and Creem's
--- `evt_` IDs cannot collide with FastSpring's.
-UPDATE subscriptions
-SET external_subscription_id = NULL,
-    external_account_id      = NULL,
-    status                   = 'free',
-    plan                     = 'free',
-    current_period_start     = NULL,
-    current_period_end       = NULL,
-    cancel_at                = NULL,
-    last_event_at            = NULL,
-    updated_at               = NOW()
-WHERE (external_subscription_id IS NOT NULL AND external_subscription_id NOT LIKE 'sub\_%')
-   OR (external_account_id IS NOT NULL AND external_account_id NOT LIKE 'cust\_%');
+-- What the preserved rows mean for the running app: nothing, while payments and
+-- webhook ingestion are both off in production (ADR-0003). A stored identifier
+-- is only ever sent to Creem by cancel / change-plan / portal, and those routes
+-- are not even registered when FEATURE_PAYMENTS_ENABLED is false. The row is
+-- read for plan limits, which use `plan` and `status` and never the identifiers.
+-- Before go-live the legacy rows do need a decision — a row still holding a
+-- non-Creem external_subscription_id with a non-cancelled status makes the
+-- webhook's link guard refuse that user's first real Creem subscription — but
+-- that is a separate, reviewed change, not a side effect of a deployment. See
+-- ADR-0003 ("Legacy billing rows").
+--
+-- webhook_events needs no cleanup either: it only de-duplicates event IDs, and
+-- Creem's `evt_` IDs cannot collide with FastSpring's.
+--
+-- The file keeps its place in the sequence rather than being deleted: 000047
+-- already exists, and removing an entry would renumber applied history and
+-- desync schema_migrations on every installation that has run it. SELECT 1 is
+-- the explicit no-op golang-migrate needs in a non-empty file.
+SELECT 1;
