@@ -114,6 +114,20 @@ describe("Timeline", () => {
     expect(screen.getByText("jobs.commentOn:Interview")).toBeInTheDocument();
   });
 
+  it.each([
+    ["skipped", "jobs.stageStatusSkipped"],
+    ["cancelled", "jobs.stageStatusCancelled"],
+  ])("translates the %s status badge", (status, key) => {
+    render(
+      <Timeline
+        stages={[stage({ status: status as JobStageDTO["status"] })]}
+        jobId="job-1"
+        stageComments={[]}
+      />,
+    );
+    expect(screen.getByText(key)).toBeInTheDocument();
+  });
+
   it("completes an active stage via the Complete button", async () => {
     const user = userEvent.setup();
     mockJobsService.updateStage.mockResolvedValue({});

@@ -24,15 +24,20 @@ export function SidebarPopover({
   useEffect(() => {
     if (!isOpen) return;
 
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKey);
+
     if (fullscreen) {
-      const handleKey = (e: KeyboardEvent) => {
-        if (e.key === "Escape") onClose();
-      };
-      document.addEventListener("keydown", handleKey);
       return () => document.removeEventListener("keydown", handleKey);
     }
 
     function handleClick(e: MouseEvent) {
+      const target = e.target as Element | null;
+      // The icon that toggles this popover handles its own click. Closing here
+      // on mousedown would let that click re-open the popover straight away.
+      if (target?.closest?.("[data-popover-trigger]")) return;
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         onClose();
       }
@@ -43,6 +48,7 @@ export function SidebarPopover({
     }, 0);
     return () => {
       clearTimeout(timer);
+      document.removeEventListener("keydown", handleKey);
       document.removeEventListener("mousedown", handleClick);
     };
   }, [isOpen, onClose, fullscreen]);

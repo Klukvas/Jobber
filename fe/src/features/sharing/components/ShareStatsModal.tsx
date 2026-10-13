@@ -158,6 +158,7 @@ export function ShareStatsModal({
                   type="button"
                   size="sm"
                   variant="outline"
+                  aria-label={t("sharing.copyLink")}
                   onClick={() =>
                     copyShareLink(
                       createdShare.token,
@@ -222,6 +223,7 @@ export function ShareStatsModal({
                       type="button"
                       size="sm"
                       variant="ghost"
+                      aria-label={t("sharing.copyLink")}
                       onClick={() =>
                         copyShareLink(
                           share.token,
@@ -236,6 +238,7 @@ export function ShareStatsModal({
                       type="button"
                       size="sm"
                       variant="ghost"
+                      aria-label={t("sharing.revokeLink")}
                       onClick={() => deleteMutation.mutate(share.id)}
                       disabled={deleteMutation.isPending}
                     >

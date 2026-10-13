@@ -12,7 +12,7 @@ jobber-app.com {
 		# CSP — allow self, Google Fonts, Sentry and inline styles (Tailwind).
 		# Checkout is a full-page redirect to Creem's hosted page, so it needs no
 		# script/frame/connect allowances here.
-		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://nbg1.your-objectstorage.com https://*.ingest.sentry.io; form-action 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://nbg1.your-objectstorage.com https://*.ingest.sentry.io https://cloudflareinsights.com; form-action 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 
 		# Referrer policy
 		Referrer-Policy "strict-origin-when-cross-origin"
@@ -26,4 +26,11 @@ jobber-app.com {
 	}
 
 	reverse_proxy frontend:80
+}
+
+# www -> apex redirect. Caddy obtains a cert for www so Cloudflare (Full strict)
+# does not return 525. Requires the Cloudflare DNS record for www to be proxied
+# and pointing at this origin.
+www.jobber-app.com {
+	redir https://jobber-app.com{uri} permanent
 }

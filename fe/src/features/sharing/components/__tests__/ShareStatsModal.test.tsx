@@ -286,6 +286,20 @@ describe("ShareStatsModal", () => {
     expect(mockShowSuccess).toHaveBeenCalledWith("sharing.linkCopied");
   });
 
+  it("gives the copy and revoke icon buttons accessible names", async () => {
+    mockList.mockResolvedValue([makeShare({ id: "s1", token: "named" })]);
+    renderModal();
+
+    const url = await screen.findByText("https://app.test/s/named");
+    const row = url.closest("li") as HTMLLIElement;
+    expect(
+      within(row).getByRole("button", { name: "sharing.copyLink" }),
+    ).toBeInTheDocument();
+    expect(
+      within(row).getByRole("button", { name: "sharing.revokeLink" }),
+    ).toBeInTheDocument();
+  });
+
   it("revokes a share and shows a success toast", async () => {
     const user = userEvent.setup();
     installClipboard();

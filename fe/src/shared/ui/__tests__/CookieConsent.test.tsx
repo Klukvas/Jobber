@@ -9,7 +9,10 @@ const consentMock = vi.hoisted(() => ({
   CONSENT_RESET_EVENT: "jobber:cookie-consent-reset",
 }));
 
+const featuresMock = vi.hoisted(() => ({ FEATURES: { PAYMENTS: false } }));
+
 vi.mock("@/shared/lib/consent", () => consentMock);
+vi.mock("@/shared/lib/features", () => featuresMock);
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -20,6 +23,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   consentMock.getStoredConsent.mockReturnValue(null);
   consentMock.isAnalyticsConfigured.mockReturnValue(true);
+  featuresMock.FEATURES.PAYMENTS = false;
   document.body.style.paddingBottom = "";
   document.documentElement.style.removeProperty("--app-bottom-inset");
 });
@@ -90,6 +94,22 @@ describe("CookieConsent", () => {
     expect(
       screen.getByText(/cookieConsent\.messageEssentialOnly/),
     ).toBeInTheDocument();
+  });
+
+  it("uses the payment-free copy while payments are switched off", () => {
+    render(<CookieConsent />);
+    expect(
+      screen.getByText(/cookieConsent\.messageNoPayments/),
+    ).toBeInTheDocument();
+  });
+
+  it("mentions payments again once the payments flag is on", () => {
+    featuresMock.FEATURES.PAYMENTS = true;
+    render(<CookieConsent />);
+    expect(screen.getByText(/cookieConsent\.message(?!No)/)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/cookieConsent\.messageNoPayments/),
+    ).not.toBeInTheDocument();
   });
 
   // The banner is fixed to the bottom of the viewport, so page content — the

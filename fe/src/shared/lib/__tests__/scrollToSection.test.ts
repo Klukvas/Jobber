@@ -175,6 +175,35 @@ describe("scrollToSection", () => {
     expect(sectionTopOnScreen(2724)).toBeLessThan(NAVBAR);
   });
 
+  // The heading sits in a `.landing-reveal` that is drawn 18px low until it
+  // fades in. Measured as-is, the heading would settle 18px under the navbar.
+  it("ignores the reveal animation's translateY when placing the heading", () => {
+    class FakeMatrix {
+      m42 = 18;
+    }
+    vi.stubGlobal("DOMMatrixReadOnly", FakeMatrix);
+    try {
+      setInsets({ top: NAVBAR, bottom: SHORT_BANNER });
+      const el = mountSection({ top: 2724, height: 903, headingOffset: 124 });
+      const heading = el.querySelector("h2") as HTMLElement;
+      const reveal = document.createElement("div");
+      reveal.className = "landing-reveal";
+      reveal.style.transform = "matrix(1, 0, 0, 1, 0, 18)";
+      el.replaceChild(reveal, heading);
+      reveal.appendChild(heading);
+      // Measured while the animation offset is applied: 18px lower than final.
+      heading.getBoundingClientRect = () =>
+        ({ top: 2724 + 124 + 18 - window.scrollY, height: 44 }) as DOMRect;
+
+      scrollToSection("pricing");
+
+      const settled = 2724 + 124 - (scrollTo.mock.calls[0][0].top as number);
+      expect(settled).toBe(NAVBAR);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   /**
    * A section that fits between the two bars is placed whole inside them: the
    * heading below the navbar, the CTA at its bottom above the banner. No shift

@@ -791,6 +791,7 @@
     },
     "pricing": {
       "label": "Pricing",
+      "comingSoon": "Coming soon",
       "title": "Simple. Honest. Affordable.",
       "subtitle": "3–4× cheaper than Huntr or Teal. No feature gating on core tracking.",
       "free": "Free",
@@ -1011,6 +1012,8 @@
     "revokeError": "Failed to revoke the link",
     "createError": "Failed to create share link",
     "limitReached": "Share link limit reached. Revoke an old link to create a new one.",
+    "copyLink": "Copy link",
+    "revokeLink": "Revoke link",
     "public": {
       "title": "Job Search Stats",
       "sharedOn": "Shared on {{date}}",
@@ -1483,7 +1486,7 @@
     "add": "Add Snippet",
     "edit": "Edit Snippet",
     "delete": "Delete Snippet",
-    "insert": "Insert",
+    "copy": "Copy to clipboard",
     "search": "Search snippets...",
     "category": "Category",
     "snippetTitle": "Title",
@@ -1689,6 +1692,8 @@
     "essentialOnly": "Essential only",
     "settings": "Cookie settings",
     "ariaLabel": "Cookie consent",
+    "messageNoPayments": "We use essential cookies to sign you in. With your consent, we also use analytics cookies (Google Analytics, PostHog) to improve the product.",
+    "messageEssentialOnlyNoPayments": "We use essential cookies to sign you in. No analytics or advertising cookies are in use on this site.",
     "messageEssentialOnly": "We use essential cookies to sign you in and to process secure payments via Creem. No analytics or advertising cookies are in use on this site."
   }
 }
