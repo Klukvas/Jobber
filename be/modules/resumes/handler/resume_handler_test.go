@@ -1083,3 +1083,7 @@ func TestResumeHandler_FinalizeUpload(t *testing.T) {
 		assert.Contains(t, objects, key, "the live object must survive")
 	})
 }
+
+func (m *MockResumeRepository) CountApplications(ctx context.Context, userID, resumeID string) (int, error) {
+	return 0, nil
+}

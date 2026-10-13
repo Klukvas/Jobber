@@ -24,6 +24,9 @@ type ResumeRepository interface {
 	// been finalized before.
 	CreateFinalizedUpload(ctx context.Context, resume *model.Resume, maxResumes int) error
 	GetByID(ctx context.Context, userID, resumeID string) (*model.Resume, error)
+	// CountApplications returns how many applied jobs use the resume — the same
+	// figure List reports as ApplicationsCount.
+	CountApplications(ctx context.Context, userID, resumeID string) (int, error)
 	List(ctx context.Context, userID string, limit, offset int, sortBy, sortDir string) ([]*ResumeWithCount, int, error)
 	Update(ctx context.Context, resume *model.Resume) error
 	Delete(ctx context.Context, userID, resumeID string) error

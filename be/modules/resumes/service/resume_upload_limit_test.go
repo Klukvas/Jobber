@@ -346,3 +346,7 @@ func TestResume_IsUnfinalizedUpload(t *testing.T) {
 		})
 	}
 }
+
+func (r *slotEnforcingRepo) CountApplications(context.Context, string, string) (int, error) {
+	return 0, nil
+}

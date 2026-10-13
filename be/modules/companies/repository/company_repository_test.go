@@ -324,6 +324,25 @@ func TestCompanyRepository_Delete(t *testing.T) {
 	})
 }
 
+func TestCompanyOrderBy(t *testing.T) {
+	tests := []struct {
+		sortBy, sortDir, want string
+	}{
+		{"", "", "c.name ASC"},
+		{"name", "desc", "c.name DESC"},
+		{"last_activity", "DESC", "last_activity_at DESC NULLS LAST"},
+		{"last_activity", "ASC", "last_activity_at ASC NULLS LAST"},
+		{"last_activity", "", "last_activity_at ASC NULLS LAST"},
+		{"applications_count", "DESC", "applications_count DESC"},
+		{"bogus; DROP TABLE", "DESC", "c.name DESC"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.sortBy+"/"+tt.sortDir, func(t *testing.T) {
+			assert.Equal(t, tt.want, companyOrderBy(tt.sortBy, tt.sortDir))
+		})
+	}
+}
+
 func TestCompanyRepository_List(t *testing.T) {
 	cols := []string{
 		"id", "name", "location", "notes", "is_favorite", "created_at", "updated_at",
@@ -367,6 +386,24 @@ func TestCompanyRepository_List(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, companies, 1)
 		assert.Equal(t, 1, total)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("offset past the end still reports the real total", func(t *testing.T) {
+		repo, mock := newCompanyRepo(t)
+
+		mock.ExpectQuery("WITH stage_agg AS").
+			WithArgs("user-123", 20, 100).
+			WillReturnRows(pgxmock.NewRows(cols))
+		mock.ExpectQuery("SELECT COUNT").
+			WithArgs("user-123").
+			WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(7))
+
+		companies, total, err := repo.List(context.Background(), "user-123", &ports.ListOptions{Limit: 20, Offset: 100})
+
+		require.NoError(t, err)
+		assert.Empty(t, companies)
+		assert.Equal(t, 7, total)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 

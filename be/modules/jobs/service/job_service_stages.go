@@ -307,13 +307,15 @@ func (s *JobService) DeleteStage(ctx context.Context, userID, jobID, stageID str
 	// If this is the current stage, repoint the job first (the FK forbids
 	// deleting a row the job still points at).
 	if state.CurrentStageID != nil && *state.CurrentStageID == stageID {
-		replacement, err := s.replacementStageID(ctx, tx, jobID, stageID)
+		replacement, err := s.replacementStage(ctx, tx, jobID, stageID)
 		if err != nil {
 			return err
 		}
+		// current_stage_template_id (the column the card is shown in) must follow
+		// current_stage_id, otherwise the header keeps showing the deleted stage.
 		if _, err := tx.Exec(ctx,
-			`UPDATE jobs SET current_stage_id = $2, updated_at = $3 WHERE id = $1`,
-			jobID, replacement, time.Now().UTC(),
+			`UPDATE jobs SET current_stage_id = $2, current_stage_template_id = $3, updated_at = $4 WHERE id = $1`,
+			jobID, replacement.id, replacement.templateID, time.Now().UTC(),
 		); err != nil {
 			return fmt.Errorf("failed to update job current stage: %w", err)
 		}
@@ -339,23 +341,30 @@ func (s *JobService) DeleteStage(ctx context.Context, userID, jobID, stageID str
 	return nil
 }
 
-// replacementStageID picks the history row a card falls back to when its
+// replacementStage is the history row a card falls back to; both fields are nil
+// when no row remains.
+type replacementStage struct {
+	id         *string
+	templateID *string
+}
+
+// replacementStage picks the history row a card falls back to when its
 // current one is deleted: the most recent active or completed row that remains.
 // Read inside the transaction so it sees exactly the rows the DELETE will
 // leave behind.
-func (s *JobService) replacementStageID(ctx context.Context, tx pgx.Tx, jobID, deletedStageID string) (*string, error) {
-	var replacement *string
+func (s *JobService) replacementStage(ctx context.Context, tx pgx.Tx, jobID, deletedStageID string) (replacementStage, error) {
+	var r replacementStage
 	err := tx.QueryRow(ctx,
-		`SELECT id FROM job_stages
+		`SELECT id, stage_template_id FROM job_stages
 		 WHERE job_id = $1 AND id <> $2 AND status IN ('active', 'completed')
 		 ORDER BY "order" DESC, created_at DESC
 		 LIMIT 1`,
 		jobID, deletedStageID,
-	).Scan(&replacement)
+	).Scan(&r.id, &r.templateID)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("failed to find replacement stage: %w", err)
+		return replacementStage{}, fmt.Errorf("failed to find replacement stage: %w", err)
 	}
-	return replacement, nil
+	return r, nil
 }
 
 // readStage loads one history row of a job inside the transaction.
