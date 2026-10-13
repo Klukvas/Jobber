@@ -210,7 +210,8 @@ export default function JobsPage() {
     // Only once the list has actually answered: a loading or failed list is
     // not an empty one, and must not trigger the account-wide lookup.
     !!data &&
-    data.items.length === 0;
+    // The API serialises an empty page as `items: null`, not `[]`.
+    (data.items ?? []).length === 0;
   const anyJobsQuery = useQuery({
     queryKey: ["jobs", "any"],
     queryFn: ({ signal }) =>
@@ -257,7 +258,7 @@ export default function JobsPage() {
       // Deleting the only card on this page would leave an empty page behind.
       // Stepping back here (rather than waiting for the refetch) means the
       // user never sees the gap.
-      if (isListView && page > 0 && (data?.items.length ?? 0) <= 1) {
+      if (isListView && page > 0 && (data?.items?.length ?? 0) <= 1) {
         setPage(page - 1, { replace: true });
       }
     },

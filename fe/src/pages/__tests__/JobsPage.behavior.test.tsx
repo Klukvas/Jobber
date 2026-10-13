@@ -470,6 +470,24 @@ describe("Jobs page — company filter", () => {
     expect(await screen.findByText("Old Job")).toBeInTheDocument();
   });
 
+  it("treats the API's `items: null` empty page as no jobs instead of crashing", async () => {
+    // The backend serialises an empty page as `items: null`, not `[]`.
+    mockList.mockImplementation((params) =>
+      Promise.resolve(
+        params.status === "all"
+          ? paginated([makeJob({ is_archived: true })], 1)
+          : ({
+              items: null,
+              pagination: { total: 0, limit: 20, offset: 0 },
+            } as unknown as PaginatedResponse<JobDTO>),
+      ),
+    );
+    renderPage();
+
+    expect(await screen.findByText("jobs.noActiveJobs")).toBeInTheDocument();
+    expect(screen.getByLabelText("jobs.filterLabel")).toBeInTheDocument();
+  });
+
   it("ignores a company_id that is not a UUID instead of filtering by junk", async () => {
     mockList.mockResolvedValue(paginated([makeJob({ title: "Backend Dev" })]));
     renderPage("/app/jobs?company_id=not-a-uuid");
