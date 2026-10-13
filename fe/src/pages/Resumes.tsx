@@ -32,6 +32,8 @@ import {
 import { resumeBuilderService } from "@/services/resumeBuilderService";
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { UpgradeBanner } from "@/features/subscription/components/UpgradeBanner";
+import { usePlanLimitMessage } from "@/features/subscription/usePlanLimitMessage";
+import { FEATURES } from "@/shared/lib/features";
 import { ApiError } from "@/services/api";
 import {
   showSuccessNotification,
@@ -71,6 +73,17 @@ export default function Resumes() {
   const { canCreate } = useSubscription();
   const uploadLimitReached = !canCreate("resumes");
   const builderLimitReached = !canCreate("resume_builders");
+  const planLimitMessage = usePlanLimitMessage();
+  // With payments off there is no upgrade banner CTA to explain a disabled
+  // item, so the item itself says why.
+  const uploadLimitTitle =
+    uploadLimitReached && !FEATURES.PAYMENTS
+      ? planLimitMessage("resumes")
+      : undefined;
+  const builderLimitTitle =
+    builderLimitReached && !FEATURES.PAYMENTS
+      ? planLimitMessage("resume_builders")
+      : undefined;
 
   const {
     items,
@@ -115,11 +128,14 @@ export default function Resumes() {
       queryClient.invalidateQueries({
         queryKey: resumeQueryKeys.builderList(),
       });
+      // The create consumed a builder slot; refresh the limits right away.
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
       navigate(`/app/resume-builder/${data.id}`);
     },
     onError: (err) => {
       if (err instanceof ApiError && err.code === "PLAN_LIMIT_REACHED") {
         queryClient.invalidateQueries({ queryKey: ["subscription"] });
+        showErrorNotification(t("errors.planLimitReached"));
         return;
       }
       showErrorNotification(
@@ -134,11 +150,13 @@ export default function Resumes() {
       queryClient.invalidateQueries({
         queryKey: resumeQueryKeys.builderList(),
       });
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
       showSuccessNotification(t("resumeBuilder.duplicated"));
     },
     onError: (err) => {
       if (err instanceof ApiError && err.code === "PLAN_LIMIT_REACHED") {
         queryClient.invalidateQueries({ queryKey: ["subscription"] });
+        showErrorNotification(t("errors.planLimitReached"));
         return;
       }
       showErrorNotification(
@@ -153,6 +171,7 @@ export default function Resumes() {
       queryClient.invalidateQueries({
         queryKey: resumeQueryKeys.builderList(),
       });
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
       setDeleteBuilderTarget(null);
       showSuccessNotification(t("resumeBuilder.deleted"));
     },
@@ -205,6 +224,7 @@ export default function Resumes() {
                   setIsCreateModalOpen(true);
                 }}
                 disabled={uploadLimitReached}
+                title={uploadLimitTitle}
                 className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Upload className="h-4 w-4" />
@@ -218,6 +238,7 @@ export default function Resumes() {
                 disabled={
                   builderLimitReached || createBuilderMutation.isPending
                 }
+                title={builderLimitTitle}
                 className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <PenTool className="h-4 w-4" />
@@ -229,6 +250,7 @@ export default function Resumes() {
                   setShowImportModal(true);
                 }}
                 disabled={builderLimitReached}
+                title={builderLimitTitle}
                 className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Import className="h-4 w-4" />

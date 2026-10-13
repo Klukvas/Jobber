@@ -66,6 +66,13 @@ const mockNavigate = vi.fn();
 const mockCreateMutate = vi.fn();
 const mockDuplicateMutate = vi.fn();
 const mockDeleteMutate = vi.fn();
+const mockInvalidate = vi.fn();
+const mockShowError = vi.fn();
+let mockCreateOpts: {
+  onSuccess: (data: { id: string }) => void;
+  onError: (err: unknown) => void;
+} | null = null;
+let mockLimitReached: Record<string, boolean> = {};
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -83,12 +90,28 @@ vi.mock("@/shared/lib/usePageMeta", () => ({
 
 vi.mock("@/shared/lib/notifications", () => ({
   showSuccessNotification: vi.fn(),
-  showErrorNotification: vi.fn(),
+  showErrorNotification: (...args: unknown[]) => mockShowError(...args),
 }));
 
 vi.mock("@/shared/hooks/useSubscription", () => ({
   useSubscription: () => ({
-    canCreate: () => true,
+    canCreate: (resource: string) => !mockLimitReached[resource],
+    limits: {
+      max_jobs: 25,
+      max_resumes: 1,
+      max_ai_requests: 1,
+      max_job_parses: 5,
+      max_resume_builders: 1,
+      max_cover_letters: 0,
+    },
+    usage: {
+      jobs: 0,
+      resumes: 1,
+      ai_requests: 0,
+      job_parses: 0,
+      resume_builders: 1,
+      cover_letters: 0,
+    },
   }),
 }));
 
@@ -170,10 +193,11 @@ vi.mock("@tanstack/react-query", () => ({
     if (fnStr.includes("delete")) {
       return { mutate: mockDeleteMutate, isPending: false };
     }
+    mockCreateOpts = opts as unknown as typeof mockCreateOpts;
     return { mutate: mockCreateMutate, isPending: false };
   },
   useQueryClient: () => ({
-    invalidateQueries: vi.fn(),
+    invalidateQueries: mockInvalidate,
   }),
 }));
 
@@ -183,6 +207,8 @@ describe("Resumes Page", () => {
     mockItems = [];
     mockIsLoading = false;
     mockIsError = false;
+    mockLimitReached = {};
+    mockCreateOpts = null;
   });
 
   it("renders page title", () => {
@@ -263,5 +289,43 @@ describe("Resumes Page", () => {
     // Skeleton placeholders are aria-hidden divs
     const skeletons = document.querySelectorAll('[aria-hidden="true"]');
     expect(skeletons.length).toBeGreaterThan(0);
+  });
+
+  it("refreshes the subscription limits right after a builder resume is created", () => {
+    render(<ResumesPage />);
+
+    mockCreateOpts?.onSuccess({ id: "b-new" });
+
+    expect(mockInvalidate).toHaveBeenCalledWith({
+      queryKey: ["subscription"],
+    });
+    expect(mockNavigate).toHaveBeenCalledWith("/app/resume-builder/b-new");
+  });
+
+  it("toasts when the builder create is refused by the plan limit, and refreshes limits", async () => {
+    const { ApiError } = await import("@/services/api");
+    render(<ResumesPage />);
+
+    mockCreateOpts?.onError(new ApiError("limit", "PLAN_LIMIT_REACHED", 403));
+
+    expect(mockShowError).toHaveBeenCalledWith("errors.planLimitReached");
+    expect(mockInvalidate).toHaveBeenCalledWith({
+      queryKey: ["subscription"],
+    });
+  });
+
+  it("explains disabled create items with a tooltip while payments are off", async () => {
+    const user = userEvent.setup();
+    mockLimitReached = { resumes: true, resume_builders: true };
+    mockItems = [createUploadedItem()];
+    render(<ResumesPage />);
+
+    await user.click(screen.getByText("resumes.create"));
+
+    const upload = screen.getByText("resumes.uploadResume").closest("button");
+    const build = screen.getByText("resumes.buildResume").closest("button");
+    expect(upload).toBeDisabled();
+    expect(upload).toHaveAttribute("title", "settings.subscription.planLimitInfo");
+    expect(build).toHaveAttribute("title", "settings.subscription.planLimitInfo");
   });
 });

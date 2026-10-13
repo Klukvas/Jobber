@@ -199,6 +199,25 @@ export default function JobsPage() {
   });
 
   const { data, isError, error, refetch } = listQuery;
+  // The unfiltered active list is empty. That is the first-run state only if
+  // the account has no jobs at all: archived ones count, and hiding the filter
+  // bar for them made the Archived filter unreachable.
+  const activeListIsEmpty =
+    isListView &&
+    !isFiltered &&
+    page === 0 &&
+    !listQuery.isPlaceholderData &&
+    // Only once the list has actually answered: a loading or failed list is
+    // not an empty one, and must not trigger the account-wide lookup.
+    !!data &&
+    data.items.length === 0;
+  const anyJobsQuery = useQuery({
+    queryKey: ["jobs", "any"],
+    queryFn: ({ signal }) =>
+      jobsService.list({ limit: 1, status: "all" }, { signal }),
+    enabled: activeListIsEmpty,
+    staleTime: 30_000,
+  });
   const isFetching = isListView ? listQuery.isFetching : boardQuery.isFetching;
   const pagination = data?.pagination;
   const totalPages = pagination
@@ -264,12 +283,18 @@ export default function JobsPage() {
   // The first-run onboarding state belongs to an account with no applications
   // at all — not to a page that simply ran past the end of the list, which
   // would otherwise hide the pagination that is the only way back.
+  // Still finding out whether archived jobs exist: neither state is right yet.
+  const isCheckingArchived = activeListIsEmpty && anyJobsQuery.isLoading;
+  const hasOnlyArchivedJobs =
+    activeListIsEmpty && (anyJobsQuery.data?.pagination.total ?? 0) > 0;
   const isFirstRun =
     isListView &&
     jobs.length === 0 &&
     !isFiltered &&
     page === 0 &&
-    !isPageOutOfRange;
+    !isPageOutOfRange &&
+    !isCheckingArchived &&
+    !hasOnlyArchivedJobs;
 
   return (
     <div className="space-y-6">
@@ -364,6 +389,8 @@ export default function JobsPage() {
             </Button>
           }
         />
+      ) : isCheckingArchived ? (
+        <ListPageSkeleton cards={3} />
       ) : (
         <>
           {/* An active company filter has to be visible and reversible — a
@@ -499,6 +526,22 @@ export default function JobsPage() {
           // leaving — showing "no matches" there would be a lie.
           isPageOutOfRange ? (
             <ListPageSkeleton cards={3} />
+          ) : hasOnlyArchivedJobs ? (
+            // Everything the account has is archived: say so, and point at the
+            // filter that shows it instead of a bare "nothing here".
+            <EmptyState
+              icon={<Briefcase className="h-12 w-12" />}
+              title={t("jobs.noActiveJobs")}
+              description={t("jobs.noActiveJobsHint")}
+              action={
+                <Button
+                  variant="outline"
+                  onClick={() => setArchivedFilter("archived")}
+                >
+                  {t("jobs.viewArchived")}
+                </Button>
+              }
+            />
           ) : jobs.length === 0 ? (
             <EmptyState
               icon={

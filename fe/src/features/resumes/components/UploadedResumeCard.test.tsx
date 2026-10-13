@@ -187,7 +187,7 @@ describe("UploadedResumeCard", () => {
     expect(onDelete).toHaveBeenCalledWith(defaultProps.resume);
   });
 
-  it("disables delete when can_delete is false", () => {
+  it("keeps delete available for a resume that is in use (the confirm dialog warns)", () => {
     render(
       <UploadedResumeCard
         {...defaultProps}
@@ -197,7 +197,7 @@ describe("UploadedResumeCard", () => {
     );
 
     const deleteBtn = screen.getByText("common.delete").closest("button");
-    expect(deleteBtn).toBeDisabled();
+    expect(deleteBtn).toBeEnabled();
   });
 
   it("has aria-haspopup and aria-expanded on menu trigger", () => {

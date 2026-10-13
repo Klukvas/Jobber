@@ -73,6 +73,19 @@ describe("authStore", () => {
       expect(state.isAuthenticated).toBe(false);
     });
 
+    it("removes the persisted jobber-auth entry entirely", () => {
+      act(() => {
+        useAuthStore.getState().setAuth(mockUser);
+      });
+      expect(localStorage.getItem("jobber-auth")).not.toBeNull();
+
+      act(() => {
+        useAuthStore.getState().clearAuth();
+      });
+
+      expect(localStorage.getItem("jobber-auth")).toBeNull();
+    });
+
     it("is a no-op when already cleared", () => {
       act(() => {
         useAuthStore.getState().clearAuth();

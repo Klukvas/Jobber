@@ -86,7 +86,8 @@
     "resendFailed": "Failed to resend code. Please try again.",
     "verificationCode": "Verification code",
     "tooManyAttempts": "Too many incorrect attempts. Please request a new code.",
-    "resendLimitReached": "Too many resend attempts. Please try again in 24 hours."
+    "resendLimitReached": "Too many resend attempts. Please try again in 24 hours.",
+    "emailAlreadyRegistered": "An account with this email already exists. Try signing in instead."
   },
   "nav": {
     "applications": "Applications",
@@ -108,7 +109,8 @@
     "noResumes": "No resumes yet",
     "createFirst": "Create your first resume to get started",
     "deleteConfirm": "Are you sure you want to delete \"{{name}}\"?",
-    "inUseWarning": "⚠️ This resume is used in {{count}} application(s).",
+    "inUseWarning_one": "⚠️ This resume is used in {{count}} application.",
+    "inUseWarning_other": "⚠️ This resume is used in {{count}} applications.",
     "inUseNote": "Those applications will lose their resume link but will not be deleted.",
     "deleteWarning": "This action cannot be undone. The resume will be permanently deleted.",
     "deleteError": "Failed to delete resume",
@@ -117,7 +119,6 @@
     "sortTitle": "Title",
     "sortActiveStatus": "Active Status",
     "actionsMenu": "Resume actions",
-    "cannotDeleteInUse": "Cannot delete resume used in applications",
     "cloudStorage": "Cloud Storage (PDF)",
     "generatingLink": "Generating link...",
     "downloadResume": "Download Resume",
@@ -125,7 +126,8 @@
     "viewResume": "View Resume",
     "noFileAttached": "No file attached",
     "notUsedYet": "Not used in applications yet",
-    "usedInApplications": "Used in {{count}} application(s)",
+    "usedInApplications_one": "Used in {{count}} application",
+    "usedInApplications_other": "Used in {{count}} applications",
     "created": "Created",
     "downloadError": "Failed to generate download link",
     "createDescription": "Add a new resume to your collection",
@@ -420,7 +422,10 @@
     "fieldsNeedSaveHint": "Changes here are applied when you press Save.",
     "resumeSavesInstantly": "Saved as soon as you choose.",
     "resumeSaving": "Saving…",
-    "reminderNoDeliveryHint": "Reminders are dates tracked here in Jobber — we don't send emails or push notifications."
+    "reminderNoDeliveryHint": "Reminders are dates tracked here in Jobber — we don't send emails or push notifications.",
+    "noActiveJobs": "No active jobs",
+    "noActiveJobsHint": "All of your jobs are archived. Open the Archived filter to see them, or create a new job.",
+    "viewArchived": "View archived jobs"
   },
   "settings": {
     "title": "Settings",
@@ -550,7 +555,19 @@
       "limitReachedResumes_one": "You've reached your plan limit of {{count}} resume. Upgrade for more resumes.",
       "limitReachedResumes_other": "You've reached your plan limit of {{count}} resumes. Upgrade for more resumes.",
       "limitReachedResumeBuilders_one": "You've reached your plan limit of {{count}} resume builder. Upgrade for more.",
-      "limitReachedResumeBuilders_other": "You've reached your plan limit of {{count}} resume builders. Upgrade for more."
+      "limitReachedResumeBuilders_other": "You've reached your plan limit of {{count}} resume builders. Upgrade for more.",
+      "planLimitInfo": "You've reached the limit of your current plan ({{used}} of {{limit}} {{resource}}).",
+      "planLimitCoverLettersNotIncluded": "Cover letters are not included in your current plan.",
+      "planLimitResourceJobs_one": "tracked job",
+      "planLimitResourceJobs_other": "tracked jobs",
+      "planLimitResourceResumes_one": "uploaded resume",
+      "planLimitResourceResumes_other": "uploaded resumes",
+      "planLimitResourceResumeBuilders_one": "resume builder",
+      "planLimitResourceResumeBuilders_other": "resume builders",
+      "planLimitResourceCoverLetters_one": "cover letter",
+      "planLimitResourceCoverLetters_other": "cover letters",
+      "planLimitResourceAI_one": "AI request",
+      "planLimitResourceAI_other": "AI requests"
     },
     "profile": {
       "title": "Profile",
@@ -612,7 +629,8 @@
     "notFound": "Not found",
     "unauthorized": "Unauthorized",
     "forbidden": "Forbidden",
-    "passwordTooLong": "Password must be 72 bytes or fewer (about 72 Latin letters, fewer for other alphabets)"
+    "passwordTooLong": "Password must be 72 bytes or fewer (about 72 Latin letters, fewer for other alphabets)",
+    "planLimitReached": "You've reached the limit of your current plan."
   },
   "notFound": {
     "title": "Page not found",

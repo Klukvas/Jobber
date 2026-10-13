@@ -24,6 +24,13 @@ export const useAuthStore = create<AuthState>()(
       setAuth: (user) => set({ user, isAuthenticated: true }),
       clearAuth: () => {
         set({ user: null, isAuthenticated: false });
+        // The persist middleware has just written `{user:null,...}`; a signed
+        // out browser should hold no `jobber-auth` entry at all.
+        try {
+          useAuthStore.persist.clearStorage();
+        } catch {
+          // storage unavailable (private mode / blocked): nothing to remove
+        }
       },
     }),
     {

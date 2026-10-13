@@ -36,7 +36,7 @@ describe("apiClient 401 refresh-and-retry", () => {
     originalFetch = globalThis.fetch;
     originalLocation = window.location;
     Object.defineProperty(window, "location", {
-      value: { href: "http://app.test/app/jobs" },
+      value: { href: "http://app.test/app/jobs", pathname: "/app/jobs" },
       writable: true,
       configurable: true,
     });
@@ -220,7 +220,23 @@ describe("apiClient 401 refresh-and-retry", () => {
 
     expect(protectedCalls).toBe(1);
     expect(clearAuth).toHaveBeenCalledTimes(1);
-    expect(window.location.href).toBe("/");
+    expect(window.location.href).toBe("/login");
+  });
+
+  it("does not redirect when the failed refresh happens on a public route", async () => {
+    window.location.pathname = "/login";
+    window.location.href = "http://app.test/login";
+    installFetch((request) => {
+      if (request.url.endsWith("/auth/refresh")) return jsonResponse({}, 400);
+      return jsonResponse({ error_code: "UNAUTHORIZED" }, 401);
+    });
+
+    await expect(api.apiClient.get("subscription")).rejects.toBeInstanceOf(
+      api.ApiError,
+    );
+
+    expect(clearAuth).toHaveBeenCalledTimes(1);
+    expect(window.location.href).toBe("http://app.test/login");
   });
 
   it("surfaces the API error code when the replay is rejected again", async () => {
