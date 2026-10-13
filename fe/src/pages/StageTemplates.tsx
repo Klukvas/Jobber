@@ -35,30 +35,38 @@ import {
 import { CreateStageTemplateModal } from "@/features/stages/modals/CreateStageTemplateModal";
 import { EditStageTemplateModal } from "@/features/stages/modals/EditStageTemplateModal";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
-import { showErrorNotification } from "@/shared/lib/notifications";
+import {
+  showErrorNotification,
+  showSuccessNotification,
+} from "@/shared/lib/notifications";
 import { ApiError } from "@/services/api";
 import {
   stageKindLabelKey,
   stageKindOf,
 } from "@/features/stages/lib/stageKinds";
+import {
+  nextStageOrder,
+  sequentialStageOrders,
+} from "@/features/stages/lib/stageOrder";
 import type { StageKind, StageTemplateDTO } from "@/shared/types/api";
 
 // The user's ordered stage templates ARE the single pipeline. Recommended
 // stages are common Huntr-style columns, listed in pipeline order. Each one
 // carries the kind it obviously is, so a pipeline built from these buttons
 // reports correctly without the user having to classify anything by hand.
+// Their `order` is not fixed: it is computed at add time, after the user's
+// existing columns (see stageOrder.ts).
 const RECOMMENDED_STAGES: {
   nameKey: string;
-  order: number;
   kind: StageKind;
 }[] = [
-  { nameKey: "stages.wishlist", order: 1, kind: "saved" },
-  { nameKey: "stages.applied", order: 2, kind: "applied" },
-  { nameKey: "stages.phoneScreen", order: 3, kind: "response" },
-  { nameKey: "stages.technicalInterview", order: 4, kind: "interview" },
-  { nameKey: "stages.onsiteInterview", order: 5, kind: "interview" },
-  { nameKey: "stages.offer", order: 6, kind: "offer" },
-  { nameKey: "stages.rejected", order: 7, kind: "rejected" },
+  { nameKey: "stages.wishlist", kind: "saved" },
+  { nameKey: "stages.applied", kind: "applied" },
+  { nameKey: "stages.phoneScreen", kind: "response" },
+  { nameKey: "stages.technicalInterview", kind: "interview" },
+  { nameKey: "stages.onsiteInterview", kind: "interview" },
+  { nameKey: "stages.offer", kind: "offer" },
+  { nameKey: "stages.rejected", kind: "rejected" },
 ];
 
 export default function StageTemplates() {
@@ -81,6 +89,7 @@ export default function StageTemplates() {
     mutationFn: stageTemplatesService.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stage-templates"] });
+      showSuccessNotification(t("stages.deleteSuccess"));
     },
     onError: (error: Error) => {
       if (error instanceof ApiError && error.code === "STAGE_TEMPLATE_IN_USE") {
@@ -123,12 +132,12 @@ export default function StageTemplates() {
     }
   };
 
-  const handleAddRecommended = (
-    nameKey: string,
-    order: number,
-    kind: StageKind,
-  ) => {
-    createMutation.mutate({ name: t(nameKey), order, kind });
+  const handleAddRecommended = (nameKey: string, kind: StageKind) => {
+    createMutation.mutate({
+      name: t(nameKey),
+      order: nextStageOrder(data?.items || []),
+      kind,
+    });
   };
 
   const handleAddAllRecommended = () => {
@@ -136,16 +145,18 @@ export default function StageTemplates() {
       (data?.items || []).map((s) => s.name.toLowerCase()),
     );
 
-    RECOMMENDED_STAGES.forEach((rec) => {
-      const allNames = getAllTranslations(rec.nameKey);
-      const alreadyExists = allNames.some((n) => existingNames.has(n));
-      if (!alreadyExists) {
-        createMutation.mutate({
-          name: t(rec.nameKey),
-          order: rec.order,
-          kind: rec.kind,
-        });
-      }
+    const missing = RECOMMENDED_STAGES.filter(
+      (rec) =>
+        !getAllTranslations(rec.nameKey).some((n) => existingNames.has(n)),
+    );
+    const orders = sequentialStageOrders(data?.items || [], missing.length);
+
+    missing.forEach((rec, i) => {
+      createMutation.mutate({
+        name: t(rec.nameKey),
+        order: orders[i],
+        kind: rec.kind,
+      });
     });
   };
 
@@ -186,9 +197,7 @@ export default function StageTemplates() {
   const allRecommendedAdded = RECOMMENDED_STAGES.every((rec) =>
     isRecommendedAdded(rec.nameKey),
   );
-  const nextOrder = ordered.length
-    ? Math.max(...ordered.map((s) => s.order)) + 1
-    : 1;
+  const nextOrder = nextStageOrder(ordered);
 
   return (
     <div className="space-y-6">
@@ -239,9 +248,7 @@ export default function StageTemplates() {
                   variant={added ? "secondary" : "outline"}
                   size="sm"
                   disabled={added || createMutation.isPending}
-                  onClick={() =>
-                    handleAddRecommended(rec.nameKey, rec.order, rec.kind)
-                  }
+                  onClick={() => handleAddRecommended(rec.nameKey, rec.kind)}
                 >
                   {added ? (
                     <Check className="h-4 w-4" />
