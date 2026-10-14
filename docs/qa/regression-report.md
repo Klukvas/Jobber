@@ -159,3 +159,39 @@ Escape не закрывает мобильное меню лендинга. К�
 - Rate limit auth 10 req/мин на IP не помешал: логины разнесены по времени, ни одного 429.
 - Общий хелпер логина имел неверный селектор (попадал в кнопку шапки за оверлеем). Все агенты обошли это сами, на результаты не повлияло, хелпер исправлен.
 - Существующие e2e-тесты в `fe/e2e/resume-builder/` используют устаревшие page objects (заголовок «Resume builder», кнопка «New resume», ссылки `a[href^="/app/resume-builder/"]`), на текущем UI они, скорее всего, падают.
+
+## 7. Статус исправлений (ветка `claude/beautiful-cerf-kgds5y`, 2026-10-14)
+
+Решения владельца продукта: Free-план = 0 cover letters; удаление резюме, используемого в заявках, остается разрешенным с предупреждением.
+
+Проверка: `tsc`, `eslint`, `vitest` (252 файла / 2818 тестов, все зеленые), `go build`, `go vet`, `go test` (падают только 2 пакета, которые падали на `main` до изменений: `matchscore/service` и `resumes/service`, из-за DNS и валидации URL в песочнице). Плюс сквозная проверка на локальном стеке (Postgres 16, Redis, API с миграцией 48, Vite) через Playwright для BUG-01, 02, 04, 05, 06, 07, 08, 10, 11, 12, 13, 16, 17, 25.
+
+| BUG | Статус | Где | Что сделано |
+|---|---|---|---|
+| BUG-01 | Исправлен | `fe` kanban/stages | Рекомендованные стадии получают `order = max + 1`, Add All нумерует последовательно, дублей нет. Хелпер `features/stages/lib/stageOrder.ts` + тесты. |
+| BUG-02 | Исправлен | `fe` kanban/stages | Обертка карточки стала activator-нодой dnd-kit, Enter/Space на кнопках карточки больше не стартуют drag. Тест против реального dnd-kit. |
+| BUG-03 | Частично | `Caddyfile` | Добавлен сайт `www.jobber-app.com` с постоянным редиректом на apex. **Нужно действие владельца:** в Cloudflare DNS-запись `www` должна быть проксирована на этот origin, иначе 525 останется. |
+| BUG-04 | Исправлен | `fe` auth | После неудачного refresh редирект на `/login` только с `/app/*`; на публичных роутах редиректа нет. `jobber-auth` удаляется из localStorage при логауте. |
+| BUG-05 | Исправлен | `be` companies | `ORDER BY last_activity_at ... NULLS LAST` в обоих направлениях. |
+| BUG-06 | Исправлен | `be` jobs, companies | Для пустой страницы с `offset > 0` бэкенд делает отдельный `COUNT(*)`, фронт корректно уходит на последнюю страницу. |
+| BUG-07 | Исправлен | `fe` subscription | При выключенных платежах `UpgradeBanner` показывает нейтральную плашку «You've reached the limit of your current plan (X of Y …)», disabled-пункты в Resumes получают tooltip. |
+| BUG-08 | Исправлен | `fe` resumes, cover letters | Инвалидация `["subscription"]` после create/duplicate/delete/import/upload; `PLAN_LIMIT_REACHED` показывает тост. |
+| BUG-09 | Исправлен | `be/Dockerfile`, `subscription.go` | Образ API теперь копирует `config/`, захардкоженный дефолт Free = 0 cover letters, отсутствие `plans.yaml` логируется WARN. **Требует пересборки и деплоя образа API.** |
+| BUG-10 | Исправлен | `be` resumes, `fe` UploadedResumeCard | Удаление разрешено. Мертвая ветка `can_delete === false` и ключ `cannotDeleteInUse` удалены. `GET /resumes/{id}` и PATCH отдают реальный `applications_count`. |
+| BUG-11 | Исправлен | `fe` Jobs.tsx | First-run показывается только при полном отсутствии заявок. Если все в архиве: фильтры видны, empty state «No active jobs» с кнопкой «View archived jobs». Дополнительно закрыт краш на `items: null` от API. |
+| BUG-12 | Исправлен | `be` jobs | Настоящая причина: при удалении текущей стадии обновлялся `current_stage_id`, но не `current_stage_template_id`. Теперь обновляются оба. |
+| BUG-13 | Исправлен | `fe` kanban | Кастомный `coordinateGetter`: ArrowLeft/Right прыгают на соседнюю колонку. |
+| BUG-14 | Исправлен | `fe` RegisterModal | `USER_ALREADY_EXISTS` → локализованное «An account with this email already exists…». Раскрытие существования аккаунта не менялось, это продуктовый вопрос. |
+| BUG-15 | Исправлен | `fe/index.html`, `Caddyfile` | Убран inline `onload`, CSP разрешает `static.cloudflareinsights.com` (script) и `cloudflareinsights.com` (connect). |
+| BUG-16 | Исправлен | `fe` home, sharing, resume-builder | Escape закрывает мобильное меню и поповеры сайдбара; повторный клик по иконке закрывает поповер; Copy/Revoke получили `aria-label`. |
+| BUG-17 | Исправлен | `fe` Timeline | `skipped` и `cancelled` переводятся. |
+| BUG-18 | Исправлен | `fe` companies, resumes, stages | Success-тосты при удалении компании, резюме и шаблона стадии. |
+| BUG-19 | Исправлен | `fe` ContentLibrary | Кнопка подписана «Copy to clipboard». |
+| BUG-20 | Не исправлялся | — | Soft 404 — ограничение SPA, решение отложено по договоренности. |
+| BUG-21 | Исправлен | `fe` CookieConsent, PricingSection | Текст баннера без упоминания платежей при выключенном флаге; CTA Pro/Enterprise → «Coming soon», disabled. |
+| BUG-22 | Исправлен | `fe` scrollToSection | Учитывается `translateY` reveal-анимации при расчете позиции. |
+| BUG-23 | Исправлен | `fe` locales uk, ru | Короткий placeholder поиска, согласованные падежи в сортировке (ru имел ту же проблему). |
+| BUG-24 | Исправлен | `fe` resumes, AddStageModal | Плюралы через i18next (`_one/_few/_many/_other`); нумерация стадий в диалоге 1-based. |
+| BUG-25 | Исправлен | `be` миграция 000048 | Триггер `update_comments_updated_at` срабатывает только при изменении `content`, FK-обнуление `stage_id` больше не помечает комментарий как «edited». |
+
+Что нужно от владельца после мержа: пересобрать и задеплоить образ API (BUG-09, миграция 48), проверить DNS `www` в Cloudflare (BUG-03), и повторить прогон регрессии на проде. Тестовые аккаунты `+qa01…qa11` можно использовать повторно.
