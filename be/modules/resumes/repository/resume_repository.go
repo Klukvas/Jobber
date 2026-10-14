@@ -227,6 +227,22 @@ func (r *ResumeRepository) GetByID(ctx context.Context, userID, resumeID string)
 	return resume, nil
 }
 
+// CountApplications counts the applied jobs that use the resume, with exactly
+// the predicate List uses for applications_count.
+func (r *ResumeRepository) CountApplications(ctx context.Context, userID, resumeID string) (int, error) {
+	query := `
+		SELECT COUNT(j.id)
+		FROM resumes r
+		LEFT JOIN jobs j ON r.id = j.resume_id AND j.applied_at IS NOT NULL
+		WHERE r.id = $1 AND r.user_id = $2
+	`
+	var count int
+	if err := r.pool.QueryRow(ctx, query, resumeID, userID).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *ResumeRepository) List(ctx context.Context, userID string, limit, offset int, sortBy, sortDir string) ([]*ports.ResumeWithCount, int, error) {
 	// Get total count
 	countQuery := `SELECT COUNT(*) FROM resumes WHERE user_id = $1`

@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import { Upload, FileText, Loader2, X } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import {
@@ -23,6 +24,7 @@ interface ImportResumeModalProps {
 export function ImportResumeModal({ open, onOpenChange }: ImportResumeModalProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [activeTab, setActiveTab] = useState<"text" | "pdf">("text");
@@ -53,6 +55,7 @@ export function ImportResumeModal({ open, onOpenChange }: ImportResumeModalProps
         text: text.trim(),
         title: title.trim() || undefined,
       });
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
       showSuccessNotification(t("resumeBuilder.import.success"));
       onOpenChange(false);
       resetForm();
@@ -64,7 +67,7 @@ export function ImportResumeModal({ open, onOpenChange }: ImportResumeModalProps
     } finally {
       setIsImporting(false);
     }
-  }, [text, title, navigate, onOpenChange, resetForm, t]);
+  }, [text, title, navigate, queryClient, onOpenChange, resetForm, t]);
 
   const handleImportPDF = useCallback(async () => {
     if (!selectedFile) return;
@@ -74,6 +77,7 @@ export function ImportResumeModal({ open, onOpenChange }: ImportResumeModalProps
         selectedFile,
         title.trim() || undefined,
       );
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
       showSuccessNotification(t("resumeBuilder.import.success"));
       onOpenChange(false);
       resetForm();
@@ -85,7 +89,7 @@ export function ImportResumeModal({ open, onOpenChange }: ImportResumeModalProps
     } finally {
       setIsImporting(false);
     }
-  }, [selectedFile, title, navigate, onOpenChange, resetForm, t]);
+  }, [selectedFile, title, navigate, queryClient, onOpenChange, resetForm, t]);
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

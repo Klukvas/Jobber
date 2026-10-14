@@ -86,7 +86,8 @@
     "resendFailed": "Не вдалося надіслати код. Спробуйте ще раз.",
     "verificationCode": "Код підтвердження",
     "tooManyAttempts": "Занадто багато невірних спроб. Запросіть новий код.",
-    "resendLimitReached": "Занадто багато повторних надсилань. Спробуйте через 24 години."
+    "resendLimitReached": "Занадто багато повторних надсилань. Спробуйте через 24 години.",
+    "emailAlreadyRegistered": "Обліковий запис із цією електронною адресою вже існує. Спробуйте увійти."
   },
   "nav": {
     "applications": "Заявки",
@@ -108,7 +109,10 @@
     "noResumes": "Резюме поки немає",
     "createFirst": "Створіть своє перше резюме, щоб почати",
     "deleteConfirm": "Ви впевнені, що хочете видалити \"{{name}}\"?",
-    "inUseWarning": "⚠️ Це резюме використовується у {{count}} заявках(ці).",
+    "inUseWarning_one": "⚠️ Це резюме використовується у {{count}} заявці.",
+    "inUseWarning_few": "⚠️ Це резюме використовується у {{count}} заявках.",
+    "inUseWarning_many": "⚠️ Це резюме використовується у {{count}} заявках.",
+    "inUseWarning_other": "⚠️ Це резюме використовується у {{count}} заявках.",
     "inUseNote": "Ці заявки втратять посилання на резюме, але самі видалені не будуть.",
     "deleteWarning": "Цю дію не можна скасувати. Резюме буде остаточно видалено.",
     "deleteError": "Не вдалося видалити резюме",
@@ -117,7 +121,6 @@
     "sortTitle": "Назва",
     "sortActiveStatus": "Статус активності",
     "actionsMenu": "Дії з резюме",
-    "cannotDeleteInUse": "Неможливо видалити резюме, яке використовується у заявках",
     "cloudStorage": "Хмарне сховище (PDF)",
     "generatingLink": "Генерація посилання...",
     "downloadResume": "Завантажити резюме",
@@ -125,7 +128,10 @@
     "viewResume": "Переглянути резюме",
     "noFileAttached": "Файл не прикріплено",
     "notUsedYet": "Ще не використовується у заявках",
-    "usedInApplications": "Використовується у {{count}} заявках(ці)",
+    "usedInApplications_one": "Використовується у {{count}} заявці",
+    "usedInApplications_few": "Використовується у {{count}} заявках",
+    "usedInApplications_many": "Використовується у {{count}} заявках",
+    "usedInApplications_other": "Використовується у {{count}} заявках",
     "created": "Створено",
     "downloadError": "Не вдалося згенерувати посилання для завантаження",
     "createDescription": "Додайте нове резюме до вашої колекції",
@@ -226,9 +232,9 @@
     "emptyDescription": "Додавайте вакансії ще до подання — тримайте все організовано",
     "createFirstJob": "Створити першу вакансію",
     "sortBy": "Сортувати за:",
-    "sortCreatedDate": "Датою створення",
-    "sortJobTitle": "Назвою вакансії",
-    "sortCompanyName": "Назвою компанії",
+    "sortCreatedDate": "Дата створення",
+    "sortJobTitle": "Назва вакансії",
+    "sortCompanyName": "Компанія",
     "viewPosting": "Переглянути вакансію",
     "createdDate": "Створено",
     "archiveSuccess": "Вакансію успішно архівовано",
@@ -390,7 +396,7 @@
     "appliedDateLabel": "Дата відгуку",
     "pipelineTitle": "Процес відгуку",
     "filterLabel": "Статус:",
-    "searchPlaceholder": "Пошук за назвою або компанією",
+    "searchPlaceholder": "Назва або компанія",
     "noSearchResults": "Нічого не знайдено за «{{query}}»",
     "noSearchResultsHint": "Спробуйте інший запит або очистіть пошук.",
     "clearSearch": "Очистити пошук",
@@ -420,7 +426,10 @@
     "fieldsNeedSaveHint": "Зміни тут застосовуються після натискання «Зберегти».",
     "resumeSavesInstantly": "Зберігається одразу після вибору.",
     "resumeSaving": "Збереження…",
-    "reminderNoDeliveryHint": "Нагадування — це дати, які Jobber зберігає в застосунку: ми не надсилаємо листів і push-сповіщень."
+    "reminderNoDeliveryHint": "Нагадування — це дати, які Jobber зберігає в застосунку: ми не надсилаємо листів і push-сповіщень.",
+    "noActiveJobs": "Немає активних вакансій",
+    "noActiveJobsHint": "Усі ваші вакансії в архіві. Відкрийте фільтр «Архів», щоб побачити їх, або створіть нову вакансію.",
+    "viewArchived": "Переглянути архівовані вакансії"
   },
   "stages": {
     "title": "Шаблони етапів",
@@ -618,7 +627,29 @@
       "limitReachedResumeBuilders_one": "Ви досягли ліміту вашого плану — {{count}} конструктор резюме. Оновіть для більшої кількості.",
       "limitReachedResumeBuilders_few": "Ви досягли ліміту вашого плану — {{count}} конструктори резюме. Оновіть для більшої кількості.",
       "limitReachedResumeBuilders_many": "Ви досягли ліміту вашого плану — {{count}} конструкторів резюме. Оновіть для більшої кількості.",
-      "limitReachedResumeBuilders_other": "Ви досягли ліміту вашого плану — {{count}} конструктори резюме. Оновіть для більшої кількості."
+      "limitReachedResumeBuilders_other": "Ви досягли ліміту вашого плану — {{count}} конструктори резюме. Оновіть для більшої кількості.",
+      "planLimitInfo": "Ви досягли ліміту вашого поточного плану ({{used}} з {{limit}} {{resource}}).",
+      "planLimitCoverLettersNotIncluded": "Супровідні листи не входять до вашого поточного плану.",
+      "planLimitResourceJobs_one": "відстежуваної вакансії",
+      "planLimitResourceJobs_few": "відстежуваних вакансій",
+      "planLimitResourceJobs_many": "відстежуваних вакансій",
+      "planLimitResourceJobs_other": "відстежуваних вакансій",
+      "planLimitResourceResumes_one": "завантаженого резюме",
+      "planLimitResourceResumes_few": "завантажених резюме",
+      "planLimitResourceResumes_many": "завантажених резюме",
+      "planLimitResourceResumes_other": "завантажених резюме",
+      "planLimitResourceResumeBuilders_one": "конструктора резюме",
+      "planLimitResourceResumeBuilders_few": "конструкторів резюме",
+      "planLimitResourceResumeBuilders_many": "конструкторів резюме",
+      "planLimitResourceResumeBuilders_other": "конструкторів резюме",
+      "planLimitResourceCoverLetters_one": "супровідного листа",
+      "planLimitResourceCoverLetters_few": "супровідних листів",
+      "planLimitResourceCoverLetters_many": "супровідних листів",
+      "planLimitResourceCoverLetters_other": "супровідних листів",
+      "planLimitResourceAI_one": "AI-запиту",
+      "planLimitResourceAI_few": "AI-запитів",
+      "planLimitResourceAI_many": "AI-запитів",
+      "planLimitResourceAI_other": "AI-запитів"
     },
     "profile": {
       "title": "Профіль",
@@ -680,7 +711,8 @@
     "notFound": "Не знайдено",
     "unauthorized": "Неавторизований",
     "forbidden": "Заборонено",
-    "passwordTooLong": "Пароль має бути не довшим за 72 байти (приблизно 72 латинські літери, менше для інших абеток)"
+    "passwordTooLong": "Пароль має бути не довшим за 72 байти (приблизно 72 латинські літери, менше для інших абеток)",
+    "planLimitReached": "Ви досягли ліміту вашого поточного плану."
   },
   "notFound": {
     "title": "Сторінку не знайдено",
@@ -801,6 +833,7 @@
     },
     "pricing": {
       "label": "Ціни",
+      "comingSoon": "Незабаром",
       "title": "Просто. Чесно. Доступно.",
       "subtitle": "У 3–4 рази дешевше за Huntr або Teal. Базовий трекінг без обмежень.",
       "free": "Free",
@@ -1023,6 +1056,8 @@
     "revokeError": "Не вдалося відкликати посилання",
     "createError": "Не вдалося створити посилання",
     "limitReached": "Досягнуто ліміт посилань. Відкличте старе, щоб створити нове.",
+    "copyLink": "Копіювати посилання",
+    "revokeLink": "Відкликати посилання",
     "public": {
       "title": "Статистика пошуку роботи",
       "sharedOn": "Опубліковано {{date}}",
@@ -1495,7 +1530,7 @@
     "add": "Додати фрагмент",
     "edit": "Редагувати",
     "delete": "Видалити",
-    "insert": "Вставити",
+    "copy": "Копіювати в буфер обміну",
     "search": "Пошук фрагментів...",
     "category": "Категорія",
     "snippetTitle": "Назва",
@@ -1701,6 +1736,8 @@
     "essentialOnly": "Лише необхідні",
     "settings": "Налаштування cookie",
     "ariaLabel": "Згода на використання cookie",
+    "messageNoPayments": "Ми використовуємо необхідні файли cookie для входу в акаунт. За вашою згодою ми також використовуємо аналітичні файли cookie (Google Analytics, PostHog), щоб покращувати продукт.",
+    "messageEssentialOnlyNoPayments": "Ми використовуємо лише необхідні cookie — для входу в акаунт. Аналітичні та рекламні cookie на сайті не використовуються.",
     "messageEssentialOnly": "Ми використовуємо лише необхідні cookie — для входу в акаунт і безпечної оплати через Creem. Аналітичні та рекламні cookie на сайті не використовуються."
   }
 }

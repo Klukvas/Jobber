@@ -908,18 +908,19 @@ func TestJobService_StageWritesResolveColumnsOnTheTransaction(t *testing.T) {
 func TestJobService_DeleteStage(t *testing.T) {
 	stageID := "stage-1"
 	otherStageID := "stage-other"
+	replacementTmplID := "tmpl-prev"
 
 	// expReplacement is the in-transaction lookup of the history row the card
 	// falls back to when its current one is deleted.
 	expReplacement := func(m pgxmock.PgxPoolIface, replacement *string) {
-		q := m.ExpectQuery(`SELECT id FROM job_stages`).WithArgs(stagesJobID, stageID)
+		q := m.ExpectQuery(`SELECT id, stage_template_id FROM job_stages`).WithArgs(stagesJobID, stageID)
 		if replacement == nil {
 			q.WillReturnError(pgx.ErrNoRows)
 			return
 		}
 		// Handed back as a *string: the column is nullable, so that is what the
 		// service scans into.
-		q.WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(replacement))
+		q.WillReturnRows(pgxmock.NewRows([]string{"id", "stage_template_id"}).AddRow(replacement, &replacementTmplID))
 	}
 	expDelete := func(m pgxmock.PgxPoolIface) *pgxmock.ExpectedExec {
 		return m.ExpectExec(`DELETE FROM job_stages WHERE id = \$1`).
@@ -944,7 +945,7 @@ func TestJobService_DeleteStage(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("recalculates current_stage_id when deleting the current stage", func(t *testing.T) {
+	t.Run("repoints current_stage_id and current_stage_template_id when deleting the current stage", func(t *testing.T) {
 		mock := newPool(t)
 		replacement := "s-prev"
 		mock.ExpectBegin()
@@ -953,8 +954,8 @@ func TestJobService_DeleteStage(t *testing.T) {
 		expLockedJob(mock, nil, &stageID, nil)
 		expReadStage(mock, stageID, stagesTmplID, "active", 1)
 		expReplacement(mock, &replacement)
-		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, updated_at = \$3 WHERE id = \$1`).WithArgs(
-			stagesJobID, strPtrArg(replacement), pgxmock.AnyArg(),
+		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, current_stage_template_id = \$3, updated_at = \$4 WHERE id = \$1`).WithArgs(
+			stagesJobID, strPtrArg(replacement), strPtrArg(replacementTmplID), pgxmock.AnyArg(),
 		).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 		expDelete(mock)
 		mock.ExpectCommit()
@@ -966,14 +967,14 @@ func TestJobService_DeleteStage(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("sets current_stage_id to NULL when no replacement remains", func(t *testing.T) {
+	t.Run("sets current_stage_id and current_stage_template_id to NULL when no replacement remains", func(t *testing.T) {
 		mock := newPool(t)
 		mock.ExpectBegin()
 		expLockedJob(mock, nil, &stageID, nil)
 		expReadStage(mock, stageID, stagesTmplID, "active", 0)
 		expReplacement(mock, nil)
-		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, updated_at = \$3 WHERE id = \$1`).WithArgs(
-			stagesJobID, nilStrPtrArg(), pgxmock.AnyArg(),
+		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, current_stage_template_id = \$3, updated_at = \$4 WHERE id = \$1`).WithArgs(
+			stagesJobID, nilStrPtrArg(), nilStrPtrArg(), pgxmock.AnyArg(),
 		).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 		expDelete(mock)
 		mock.ExpectCommit()
@@ -1056,7 +1057,7 @@ func TestJobService_DeleteStage(t *testing.T) {
 		mock.ExpectBegin()
 		expLockedJob(mock, nil, &stageID, nil)
 		expReadStage(mock, stageID, stagesTmplID, "active", 0)
-		mock.ExpectQuery(`SELECT id FROM job_stages`).
+		mock.ExpectQuery(`SELECT id, stage_template_id FROM job_stages`).
 			WithArgs(stagesJobID, stageID).WillReturnError(errors.New("list failed"))
 
 		svc := svcWith(mock, jobRepoReturning(job()), nil, appliedTemplateRepo(), nil)
@@ -1073,8 +1074,8 @@ func TestJobService_DeleteStage(t *testing.T) {
 		expLockedJob(mock, nil, &stageID, nil)
 		expReadStage(mock, stageID, stagesTmplID, "active", 0)
 		expReplacement(mock, &replacement)
-		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, updated_at = \$3 WHERE id = \$1`).WithArgs(
-			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
+		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, current_stage_template_id = \$3, updated_at = \$4 WHERE id = \$1`).WithArgs(
+			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 		).WillReturnError(errors.New("update boom"))
 
 		svc := svcWith(mock, jobRepoReturning(job()), nil, appliedTemplateRepo(), nil)

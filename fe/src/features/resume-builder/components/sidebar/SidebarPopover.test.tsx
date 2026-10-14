@@ -50,4 +50,41 @@ describe("SidebarPopover", () => {
     const heading = screen.getByText("Test Panel");
     expect(heading.tagName).toBe("H3");
   });
+
+  it("closes on Escape", async () => {
+    const user = userEvent.setup();
+    render(<SidebarPopover {...defaultProps} />);
+
+    await user.keyboard("{Escape}");
+    expect(defaultProps.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes on a mousedown outside the panel", async () => {
+    const user = userEvent.setup();
+    render(
+      <div>
+        <button>elsewhere</button>
+        <SidebarPopover {...defaultProps} />
+      </div>,
+    );
+
+    // Listener is attached on a zero-delay timer.
+    await new Promise((r) => setTimeout(r, 5));
+    await user.click(screen.getByText("elsewhere"));
+    expect(defaultProps.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a mousedown on its own trigger so the click can toggle it", async () => {
+    const user = userEvent.setup();
+    render(
+      <div>
+        <button data-popover-trigger="">trigger</button>
+        <SidebarPopover {...defaultProps} />
+      </div>,
+    );
+
+    await new Promise((r) => setTimeout(r, 5));
+    await user.click(screen.getByText("trigger"));
+    expect(defaultProps.onClose).not.toHaveBeenCalled();
+  });
 });

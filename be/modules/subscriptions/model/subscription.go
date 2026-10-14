@@ -97,14 +97,14 @@ type PlanLimits struct {
 
 // FreePlanLimits defines limits for the free plan. These are fallback defaults
 // for when config/plans.yaml is absent; plans.yaml is the source of truth and
-// overrides them at startup via ApplyPlansConfig (prod ships max_cover_letters: 0).
+// overrides them at startup via ApplyPlansConfig (the Free plan has no cover letters).
 var FreePlanLimits = PlanLimits{
 	MaxJobs:           25,
 	MaxResumes:        1,
 	MaxAIRequests:     1,
 	MaxJobParses:      5,
 	MaxResumeBuilders: 1,
-	MaxCoverLetters:   1,
+	MaxCoverLetters:   0,
 }
 
 // ProPlanLimits defines limits for the pro plan.

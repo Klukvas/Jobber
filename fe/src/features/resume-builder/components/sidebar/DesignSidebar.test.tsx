@@ -165,4 +165,17 @@ describe("DesignSidebar", () => {
     expect(screen.queryByTestId("layout-popover")).not.toBeInTheDocument();
     expect(screen.queryByTestId("sections-popover")).not.toBeInTheDocument();
   });
+
+  it("marks the icon buttons as popover triggers and toggles on a second click", async () => {
+    const user = userEvent.setup();
+    render(<DesignSidebar />);
+
+    const colorBtn = screen.getByLabelText("resumeBuilder.sidebar.colors");
+    expect(colorBtn).toHaveAttribute("data-popover-trigger");
+
+    await user.click(colorBtn);
+    expect(screen.getByTestId("color-popover")).toBeInTheDocument();
+    await user.click(colorBtn);
+    expect(screen.queryByTestId("color-popover")).not.toBeInTheDocument();
+  });
 });

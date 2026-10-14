@@ -1,7 +1,10 @@
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { resumesService } from "@/services/resumesService";
-import { showErrorNotification } from "@/shared/lib/notifications";
+import {
+  showErrorNotification,
+  showSuccessNotification,
+} from "@/shared/lib/notifications";
 import {
   Dialog,
   DialogContent,
@@ -32,6 +35,7 @@ export function DeleteResumeModal({
     mutationFn: () => resumesService.delete(resume.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["resumes"] });
+      showSuccessNotification(t("resumes.deleteSuccess"));
       onOpenChange(false);
     },
     onError: (error: Error) => {

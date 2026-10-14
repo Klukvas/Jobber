@@ -50,10 +50,12 @@ vi.mock("@dnd-kit/core", () => ({
     attributes: {},
     listeners: {},
     setNodeRef: vi.fn(),
+    setActivatorNodeRef: vi.fn(),
     transform: null,
     isDragging: false,
   }),
   closestCorners: vi.fn(),
+  defaultKeyboardCoordinateGetter: vi.fn(),
 }));
 
 const moveMock = vi.hoisted(() => vi.fn());

@@ -128,6 +128,20 @@ describe("HomeNavbar", () => {
     const allHowItWorks = screen.getAllByText("home.nav.howItWorks");
     expect(allHowItWorks.length).toBeGreaterThan(1);
   });
+
+  it("closes the mobile menu on Escape", () => {
+    render(<HomeNavbar {...defaultProps} />);
+    const toggle = screen.getByLabelText("common.openMenu");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.getByLabelText("common.openMenu")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
 });
 
 /**

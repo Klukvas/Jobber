@@ -26,6 +26,13 @@ const subscription = vi.hoisted(() => ({
     max_resume_builders: 3,
     max_cover_letters: 3,
   },
+  usage: {
+    jobs: 10,
+    resumes: 5,
+    ai_requests: 50,
+    resume_builders: 3,
+    cover_letters: 3,
+  },
   nextPlan: "pro" as string | null,
 }));
 
@@ -221,8 +228,32 @@ describe("UpgradeBanner", () => {
     expect(screen.getByTestId("pricing-modal")).toBeInTheDocument();
   });
 
-  it("renders nothing when payments are unavailable", () => {
+  // BUG-07: with payments off the limit used to be silent. The banner is now a
+  // neutral note — the numbers, no upgrade control, no pricing modal.
+  it("shows a neutral plan-limit note, without an upgrade control, when payments are off", () => {
     featuresMock.FEATURES.PAYMENTS = false;
+    render(<UpgradeBanner resource="jobs" />);
+
+    expect(
+      screen.getByText(/settings\.subscription\.planLimitInfo/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("pricing-modal")).not.toBeInTheDocument();
+  });
+
+  it("says cover letters are not included when the plan has none and payments are off", () => {
+    featuresMock.FEATURES.PAYMENTS = false;
+    subscription.limits = { ...subscription.limits, max_cover_letters: 0 };
+    render(<UpgradeBanner resource="cover_letters" />);
+
+    expect(
+      screen.getByText("settings.subscription.planLimitCoverLettersNotIncluded"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders nothing when payments are on but there is no higher plan", () => {
+    subscription.nextPlan = null;
     const { container } = render(<UpgradeBanner resource="jobs" />);
 
     expect(container).toBeEmptyDOMElement();

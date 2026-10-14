@@ -40,6 +40,20 @@ interface ScrollToSectionOptions {
   readonly behavior?: ScrollBehavior;
 }
 
+/** Vertical translation a reveal-animation ancestor currently applies, in px. */
+function revealTranslateY(el: Element): number {
+  const reveal = el.closest(".landing-reveal");
+  if (!reveal || typeof DOMMatrixReadOnly === "undefined") return 0;
+  const transform = getComputedStyle(reveal).transform;
+  if (!transform || transform === "none") return 0;
+  try {
+    const y = new DOMMatrixReadOnly(transform).m42;
+    return Number.isFinite(y) ? y : 0;
+  } catch {
+    return 0;
+  }
+}
+
 /**
  * Absolute document position of the first thing in the section that has to stay
  * on screen — its heading. Falls back to the section's own top edge when there
@@ -49,7 +63,13 @@ interface ScrollToSectionOptions {
 function firstHeadingTop(section: HTMLElement, sectionTop: number): number {
   const heading = section.querySelector("h1, h2, h3");
   if (!heading) return sectionTop;
-  const top = heading.getBoundingClientRect().top + window.scrollY;
+  // A heading inside a not-yet-revealed `.landing-reveal` is drawn ~18px lower
+  // than where it settles; measuring it as-is would park it that far under the
+  // navbar once the animation ends.
+  const top =
+    heading.getBoundingClientRect().top +
+    window.scrollY -
+    revealTranslateY(heading);
   return Number.isFinite(top) ? Math.max(top, sectionTop) : sectionTop;
 }
 

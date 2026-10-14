@@ -159,6 +159,17 @@ export function HomeNavbar({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Escape closes the mobile menu, wherever focus is (the desktop Features
+  // dropdown handles it on its own button).
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileMenuOpen(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [mobileMenuOpen]);
+
   const scrollTo = (id: string) => {
     setMobileMenuOpen(false);
     if (location.pathname === "/") {

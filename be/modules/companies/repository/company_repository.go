@@ -144,32 +144,35 @@ func (r *CompanyRepository) GetByIDEnriched(ctx context.Context, userID, company
 	return &dto, nil
 }
 
+// companyOrderBy builds the ORDER BY clause for the companies list. Companies
+// without any activity have a NULL last_activity_at; Postgres sorts NULLs first
+// on DESC, so NULLS LAST is explicit to keep them at the bottom in both
+// directions.
+func companyOrderBy(sortBy, sortDir string) string {
+	if sortBy == "" {
+		return "c.name ASC" // default
+	}
+
+	dir := "ASC"
+	if strings.ToUpper(sortDir) == "DESC" {
+		dir = "DESC"
+	}
+
+	switch sortBy {
+	case "last_activity":
+		return "last_activity_at " + dir + " NULLS LAST"
+	case "applications_count":
+		return "applications_count " + dir
+	default: // "name" and unknown values
+		return "c.name " + dir
+	}
+}
+
 // List retrieves companies for a user with pagination and enriched fields.
 // Uses pre-aggregated CTEs instead of correlated subqueries and COUNT(*) OVER()
 // to eliminate the separate count query.
 func (r *CompanyRepository) List(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.CompanyDTO, int, error) {
-	// Build ORDER BY clause
-	orderBy := "c.name ASC" // default
-	if opts.SortBy != "" {
-		sortCol := ""
-		switch opts.SortBy {
-		case "name":
-			sortCol = "c.name"
-		case "last_activity":
-			sortCol = "last_activity_at"
-		case "applications_count":
-			sortCol = "applications_count"
-		default:
-			sortCol = "c.name"
-		}
-
-		sortDir := "ASC"
-		if strings.ToUpper(opts.SortDir) == "DESC" {
-			sortDir = "DESC"
-		}
-
-		orderBy = fmt.Sprintf("%s %s", sortCol, sortDir)
-	}
+	orderBy := companyOrderBy(opts.SortBy, opts.SortDir)
 
 	// Single query with pre-aggregated CTEs and COUNT(*) OVER()
 	query := fmt.Sprintf(`
@@ -246,6 +249,14 @@ func (r *CompanyRepository) List(ctx context.Context, userID string, opts *ports
 
 	if err := rows.Err(); err != nil {
 		return nil, 0, err
+	}
+
+	// COUNT(*) OVER() yields no rows for a page past the end, so the total would
+	// read 0; fetch the real count in that case.
+	if len(companies) == 0 && opts.Offset > 0 {
+		if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM companies WHERE user_id = $1`, userID).Scan(&total); err != nil {
+			return nil, 0, err
+		}
 	}
 
 	return companies, total, nil

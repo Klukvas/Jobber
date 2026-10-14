@@ -35,6 +35,8 @@ RUN addgroup -g 1000 appuser && \
 COPY --from=builder /app/jobber-api .
 COPY --from=builder /app/jobber-seed .
 COPY --from=builder /app/migrations ./migrations
+# plans.yaml is the source of truth for plan limits (hard-coded defaults are only a fallback)
+COPY --from=builder /app/config ./config
 
 # Change ownership
 RUN chown -R appuser:appuser /app

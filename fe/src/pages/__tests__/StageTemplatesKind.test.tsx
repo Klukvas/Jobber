@@ -6,13 +6,15 @@ import type { StageTemplateDTO } from "@/shared/types/api";
 
 const mockListStageTemplates = vi.hoisted(() => vi.fn());
 const mockCreate = vi.hoisted(() => vi.fn());
+const mockDelete = vi.hoisted(() => vi.fn());
+const mockShowSuccess = vi.hoisted(() => vi.fn());
 
 vi.mock("@/services/stageTemplatesService", () => ({
   stageTemplatesService: {
     list: mockListStageTemplates,
     create: mockCreate,
     update: vi.fn(),
-    delete: vi.fn(),
+    delete: mockDelete,
     reorder: vi.fn(),
   },
 }));
@@ -22,7 +24,7 @@ vi.mock("@/shared/lib/dateFnsLocale", () => ({
   useDateLocale: () => undefined,
 }));
 vi.mock("@/shared/lib/notifications", () => ({
-  showSuccessNotification: vi.fn(),
+  showSuccessNotification: mockShowSuccess,
   showErrorNotification: vi.fn(),
 }));
 vi.mock("@/features/stages/modals/CreateStageTemplateModal", () => ({
@@ -89,7 +91,7 @@ describe("StageTemplates — what each column means", () => {
     await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
     expect(mockCreate.mock.calls[0][0]).toEqual({
       name: "stages.phoneScreen",
-      order: 3,
+      order: 0,
       kind: "response",
     });
   });
@@ -106,13 +108,13 @@ describe("StageTemplates — what each column means", () => {
 
     await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(7));
     expect(mockCreate.mock.calls.map((call) => call[0])).toEqual([
-      { name: "stages.wishlist", order: 1, kind: "saved" },
-      { name: "stages.applied", order: 2, kind: "applied" },
-      { name: "stages.phoneScreen", order: 3, kind: "response" },
-      { name: "stages.technicalInterview", order: 4, kind: "interview" },
-      { name: "stages.onsiteInterview", order: 5, kind: "interview" },
-      { name: "stages.offer", order: 6, kind: "offer" },
-      { name: "stages.rejected", order: 7, kind: "rejected" },
+      { name: "stages.wishlist", order: 0, kind: "saved" },
+      { name: "stages.applied", order: 1, kind: "applied" },
+      { name: "stages.phoneScreen", order: 2, kind: "response" },
+      { name: "stages.technicalInterview", order: 3, kind: "interview" },
+      { name: "stages.onsiteInterview", order: 4, kind: "interview" },
+      { name: "stages.offer", order: 5, kind: "offer" },
+      { name: "stages.rejected", order: 6, kind: "rejected" },
     ]);
   });
 
@@ -130,5 +132,81 @@ describe("StageTemplates — what each column means", () => {
     expect(await screen.findByText("Coffee chat")).toBeInTheDocument();
     expect(screen.getByText("stages.kinds.saved")).toBeInTheDocument();
     expect(screen.getByText("stages.kinds.other")).toBeInTheDocument();
+  });
+});
+
+/**
+ * A new account is seeded with 7 stage templates at orders 0..6. Anything the
+ * Stages page creates must continue after them rather than reuse 1..7.
+ */
+describe("StageTemplates — order of created stages", () => {
+  const seeded = Array.from({ length: 7 }, (_, i) =>
+    template({ id: `seed-${i}`, name: `Seeded ${i}`, order: i }),
+  );
+
+  it("appends a recommended stage after the highest existing order", async () => {
+    const user = userEvent.setup();
+    mockListStageTemplates.mockResolvedValue({
+      items: seeded,
+      pagination: { total: 7, limit: 100, offset: 0 },
+    });
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("button", { name: /stages\.phoneScreen/ }),
+    );
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({
+      name: "stages.phoneScreen",
+      order: 7,
+    });
+  });
+
+  it("Add All numbers the missing stages sequentially, skipping existing ones", async () => {
+    const user = userEvent.setup();
+    mockListStageTemplates.mockResolvedValue({
+      items: [
+        template({ id: "a", name: "stages.wishlist", order: 0 }),
+        template({ id: "b", name: "stages.offer", order: 4 }),
+      ],
+      pagination: { total: 2, limit: 100, offset: 0 },
+    });
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "stages.addAll" }));
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(5));
+    expect(
+      mockCreate.mock.calls.map((call) => [call[0].name, call[0].order]),
+    ).toEqual([
+      ["stages.applied", 5],
+      ["stages.phoneScreen", 6],
+      ["stages.technicalInterview", 7],
+      ["stages.onsiteInterview", 8],
+      ["stages.rejected", 9],
+    ]);
+  });
+});
+
+describe("StageTemplates — deleting", () => {
+  it("shows a success toast once the stage is deleted", async () => {
+    const user = userEvent.setup();
+    mockListStageTemplates.mockResolvedValue({
+      items: [template({ id: "t1", name: "Wishlist", order: 0 })],
+      pagination: { total: 1, limit: 100, offset: 0 },
+    });
+    mockDelete.mockResolvedValue(undefined);
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "common.delete" }));
+    // The confirm dialog's button shares the row button's accessible name.
+    const buttons = await screen.findAllByRole("button", { name: "common.delete" });
+    await user.click(buttons[buttons.length - 1]);
+
+    await waitFor(() => expect(mockDelete).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mockShowSuccess).toHaveBeenCalledWith("stages.deleteSuccess"),
+    );
   });
 });

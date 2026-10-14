@@ -403,7 +403,8 @@ function SnippetCard({ entry, onEdit, onDelete, onInsert }: SnippetCardProps) {
               size="sm"
               variant="ghost"
               onClick={() => onInsert(entry)}
-              title={t("contentLibrary.insert")}
+              title={t("contentLibrary.copy")}
+              aria-label={t("contentLibrary.copy")}
             >
               <Copy className="h-4 w-4" />
             </Button>

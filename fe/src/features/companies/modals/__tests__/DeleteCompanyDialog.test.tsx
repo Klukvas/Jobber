@@ -40,6 +40,7 @@ vi.mock("@/services/companiesService", () => ({
 
 vi.mock("@/shared/lib/notifications", () => ({
   showErrorNotification: vi.fn(),
+  showSuccessNotification: vi.fn(),
 }));
 
 const mockCompany: CompanyDTO = {

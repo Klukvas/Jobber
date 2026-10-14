@@ -1,9 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ImportResumeModal } from "./ImportResumeModal";
 
 const mockNavigate = vi.fn();
+const mockInvalidate = vi.fn();
+
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries: mockInvalidate }),
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -109,5 +114,23 @@ describe("ImportResumeModal", () => {
   it("renders cancel button", () => {
     render(<ImportResumeModal {...defaultProps} />);
     expect(screen.getByText("common.cancel")).toBeInTheDocument();
+  });
+
+  it("refreshes the subscription limits after a successful import", async () => {
+    const user = userEvent.setup();
+    render(<ImportResumeModal {...defaultProps} />);
+
+    await user.type(
+      screen.getByLabelText("resumeBuilder.import.resumeText"),
+      "Some resume content",
+    );
+    await user.click(screen.getByText("resumeBuilder.import.importButton"));
+
+    await waitFor(() =>
+      expect(mockInvalidate).toHaveBeenCalledWith({
+        queryKey: ["subscription"],
+      }),
+    );
+    expect(mockNavigate).toHaveBeenCalledWith("/app/resume-builder/new-resume-id");
   });
 });

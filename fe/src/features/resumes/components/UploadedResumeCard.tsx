@@ -102,17 +102,7 @@ export function UploadedResumeCard({
                     e.stopPropagation();
                     onDelete(resume);
                   }}
-                  disabled={resume.can_delete === false}
-                  className={`flex items-center gap-2 w-full px-3 py-2 text-sm text-left ${
-                    resume.can_delete !== false
-                      ? "hover:bg-accent text-destructive"
-                      : "opacity-50 cursor-not-allowed"
-                  }`}
-                  title={
-                    resume.can_delete === false
-                      ? t("resumes.cannotDeleteInUse")
-                      : ""
-                  }
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left hover:bg-accent text-destructive"
                 >
                   <Trash2 className="h-4 w-4" />
                   {t("common.delete")}

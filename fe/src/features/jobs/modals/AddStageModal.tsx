@@ -96,9 +96,9 @@ export function AddStageModal({
                 required
               >
                 <option value="">{t("jobs.selectStageOption")}</option>
-                {sortedTemplates.map((template) => (
+                {sortedTemplates.map((template, index) => (
                   <option key={template.id} value={template.id}>
-                    {template.order}. {template.name}
+                    {index + 1}. {template.name}
                   </option>
                 ))}
               </select>

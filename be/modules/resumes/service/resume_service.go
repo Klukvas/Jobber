@@ -102,7 +102,12 @@ func (s *ResumeService) GetByID(ctx context.Context, userID, resumeID string) (*
 	if err != nil {
 		return nil, err
 	}
-	return resume.ToDTO(), nil
+	// Same applications_count the list endpoint reports.
+	count, err := s.repo.CountApplications(ctx, userID, resumeID)
+	if err != nil {
+		return nil, err
+	}
+	return resume.ToDTOWithCounts(count), nil
 }
 
 func (s *ResumeService) List(ctx context.Context, userID string, limit, offset int, sortBy, sortDir string) ([]*model.ResumeDTO, int, error) {
@@ -167,7 +172,11 @@ func (s *ResumeService) Update(ctx context.Context, userID, resumeID string, req
 		}
 	}
 
-	return resume.ToDTO(), nil
+	count, err := s.repo.CountApplications(ctx, userID, resumeID)
+	if err != nil {
+		return nil, err
+	}
+	return resume.ToDTOWithCounts(count), nil
 }
 
 func (s *ResumeService) Delete(ctx context.Context, userID, resumeID string) error {

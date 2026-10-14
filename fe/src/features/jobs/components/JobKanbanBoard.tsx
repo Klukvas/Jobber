@@ -23,6 +23,7 @@ import {
   showSuccessNotification,
   showErrorNotification,
 } from "@/shared/lib/notifications";
+import { kanbanCoordinateGetter } from "@/features/jobs/lib/kanbanKeyboard";
 import { JobKanbanColumn } from "./JobKanbanColumn";
 import { JobKanbanCard } from "./JobKanbanCard";
 import {
@@ -89,7 +90,7 @@ export function JobKanbanBoard({
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
     }),
-    useSensor(KeyboardSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: kanbanCoordinateGetter }),
   );
 
   // The single write path: move the card to a pipeline column. The optimistic

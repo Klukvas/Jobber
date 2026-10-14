@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/ui/Button";
+import { FEATURES } from "@/shared/lib/features";
 import { Reveal } from "./Reveal";
 
 interface PricingSectionProps {
@@ -57,6 +58,9 @@ export function PricingSection({
 }: PricingSectionProps) {
   const { t } = useTranslation();
   const handleCta = isAuthenticated ? onGoPlatform : onRegister;
+  // Paid tiers cannot be bought while payments are off — say so instead of
+  // sending visitors to a plain sign-up under a "Choose Pro" label.
+  const paymentsOn = FEATURES.PAYMENTS;
 
   return (
     <section id="pricing" className="px-6 py-24 text-center">
@@ -151,9 +155,14 @@ export function PricingSection({
               </div>
               <Button
                 className={`mt-6 w-full justify-center ${PLAN_CTA_HEIGHT}`}
-                onClick={handleCta}
+                onClick={paymentsOn ? handleCta : undefined}
+                disabled={!paymentsOn}
               >
-                {t("home.pricing.proCta")} &rarr;
+                {paymentsOn ? (
+                  <>{t("home.pricing.proCta")} &rarr;</>
+                ) : (
+                  t("home.pricing.comingSoon")
+                )}
               </Button>
             </div>
           </Reveal>
@@ -190,9 +199,12 @@ export function PricingSection({
               <Button
                 variant="outline"
                 className={`mt-6 w-full justify-center border-white/[0.07] bg-transparent text-slate-300 hover:border-white/[0.14] hover:text-white ${PLAN_CTA_HEIGHT}`}
-                onClick={handleCta}
+                onClick={paymentsOn ? handleCta : undefined}
+                disabled={!paymentsOn}
               >
-                {t("home.pricing.enterpriseCta")}
+                {paymentsOn
+                  ? t("home.pricing.enterpriseCta")
+                  : t("home.pricing.comingSoon")}
               </Button>
             </div>
           </Reveal>

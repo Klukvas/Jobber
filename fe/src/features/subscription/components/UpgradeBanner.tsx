@@ -4,6 +4,7 @@ import { useSubscription } from "@/shared/hooks/useSubscription";
 import { FEATURES } from "@/shared/lib/features";
 import { PricingModal } from "@/features/subscription/components/PricingModal";
 import { useMonthlyResetDate } from "@/features/subscription/useMonthlyResetDate";
+import { usePlanLimitMessage } from "@/features/subscription/usePlanLimitMessage";
 
 type UpgradeResource =
   | "jobs"
@@ -72,8 +73,22 @@ export function UpgradeBanner({ resource }: UpgradeBannerProps) {
   const { limits, nextPlan } = useSubscription();
   const resetDate = useMonthlyResetDate();
   const [pricingOpen, setPricingOpen] = useState(false);
+  const planLimitMessage = usePlanLimitMessage();
 
-  if (!FEATURES.PAYMENTS || !nextPlan) return null;
+  // Payments are off: there is nothing to upgrade to, but the customer must
+  // still be told why the create control is disabled. A neutral note, no CTA.
+  if (!FEATURES.PAYMENTS) {
+    return (
+      <div
+        role="status"
+        className="rounded-lg border bg-muted/50 p-4 text-sm text-muted-foreground"
+      >
+        {planLimitMessage(resource)}
+      </div>
+    );
+  }
+
+  if (!nextPlan) return null;
 
   const limitValue = limits[limitFieldMap[resource]];
   const limitKey = limitMessageKey(resource, limitValue);

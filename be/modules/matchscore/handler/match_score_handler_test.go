@@ -500,3 +500,7 @@ func TestMatchScoreHandler_RegisterRoutes(t *testing.T) {
 	}
 	assert.True(t, found, "POST /api/v1/match-score should be registered")
 }
+
+func (m *MockResumeRepository) CountApplications(ctx context.Context, userID, resumeID string) (int, error) {
+	return 0, nil
+}

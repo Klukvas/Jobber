@@ -48,6 +48,19 @@ export interface RequestOptions {
   readonly signal?: AbortSignal;
 }
 
+/**
+ * Sends a user whose session just ended to the login screen — but only when
+ * they are inside the authenticated app. A public page (landing, blog, the
+ * login route itself) needs no redirect, which also rules out a loop: `/login`
+ * is public, so it never redirects to itself.
+ */
+function redirectToLogin(): void {
+  const path = window.location.pathname ?? "";
+  if (path === "/app" || path.startsWith("/app/")) {
+    window.location.href = "/login";
+  }
+}
+
 function contextTimeout(options: NormalizedOptions): number {
   const context = options.context as Partial<RequestContext> | undefined;
   return typeof context?.timeoutMs === "number"
@@ -91,7 +104,7 @@ class ApiClient {
               // a reload would rebuild the cache anyway, but the seconds before
               // it were long enough to paint the previous account's data.
               endSession();
-              window.location.href = "/";
+              redirectToLogin();
               return response;
             }
 

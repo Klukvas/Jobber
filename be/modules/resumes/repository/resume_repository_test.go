@@ -635,3 +635,32 @@ func expectNothingToClaim(mock pgxmock.PgxPoolIface, resume *model.Resume) {
 		WithArgs(resume.ID, resume.UserID, resume.Title, resume.FileURL, resume.StorageType, resume.StorageKey, resume.IsActive, pgxmock.AnyArg()).
 		WillReturnError(pgx.ErrNoRows)
 }
+
+func TestResumeRepository_CountApplications(t *testing.T) {
+	t.Run("counts applied jobs of the resume", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+
+		mock.ExpectQuery("SELECT COUNT\\(j.id\\)").
+			WithArgs("resume-1", "user-123").
+			WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(2))
+
+		count, err := repo.CountApplications(context.Background(), "user-123", "resume-1")
+
+		require.NoError(t, err)
+		assert.Equal(t, 2, count)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("propagates db error", func(t *testing.T) {
+		repo, mock := newResumeRepo(t)
+
+		mock.ExpectQuery("SELECT COUNT\\(j.id\\)").
+			WithArgs("resume-1", "user-123").
+			WillReturnError(errDB)
+
+		_, err := repo.CountApplications(context.Background(), "user-123", "resume-1")
+
+		assert.ErrorIs(t, err, errDB)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}

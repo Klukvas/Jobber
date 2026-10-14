@@ -334,7 +334,7 @@ func (c *RedisConfig) Addr() string {
 func loadPlansConfig(path string) map[string]PlanLimitsYAML {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		slog.Info("plans config not found, using hardcoded defaults", "path", path)
+		slog.Warn("plans config not found, using hardcoded defaults", "path", path, "error", err)
 		return nil
 	}
 

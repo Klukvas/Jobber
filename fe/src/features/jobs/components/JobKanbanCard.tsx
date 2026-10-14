@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { useNavigate } from "react-router-dom";
 import { JobCardBase } from "./JobCardBase";
@@ -23,11 +23,31 @@ export const JobKanbanCard = memo(function JobKanbanCard({
   const navigate = useNavigate();
   // So the detail page's Back returns to this board, filters and all.
   const returnState = useJobsListReturnState();
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({
-      id: job.id,
-      data: { job },
-    });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    isDragging,
+  } = useDraggable({
+    id: job.id,
+    data: { job },
+  });
+
+  // The card wrapper is both the draggable node and its keyboard activator.
+  // dnd-kit's KeyboardSensor only starts a drag when the keydown's target IS
+  // the activator node, so Enter/Space on the title button, the "Job actions"
+  // button or a menu item (which bubble up to this wrapper) activate that
+  // control instead of starting a drag. A focused card still drags with
+  // Space/Enter.
+  const setRefs = useCallback(
+    (element: HTMLElement | null) => {
+      setNodeRef(element);
+      setActivatorNodeRef(element);
+    },
+    [setNodeRef, setActivatorNodeRef],
+  );
 
   const dragStyle = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
@@ -43,7 +63,7 @@ export const JobKanbanCard = memo(function JobKanbanCard({
       onAddComment={onAddComment}
       onAddStage={onAddStage}
       onDelete={onDelete}
-      dragRef={setNodeRef}
+      dragRef={setRefs}
       dragStyle={dragStyle}
       dragProps={{ ...listeners, ...attributes }}
       isDragging={isDragging}

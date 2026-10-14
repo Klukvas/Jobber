@@ -76,7 +76,9 @@ function ModalContent({
                 ? "errors.passwordTooLong"
                 : "errors.passwordTooShort",
             )
-          : error.message || t("errors.somethingWentWrong"),
+          : error.code === "USER_ALREADY_EXISTS"
+            ? t("auth.emailAlreadyRegistered")
+            : error.message || t("errors.somethingWentWrong"),
       });
       setFocus(field);
     },

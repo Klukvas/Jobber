@@ -18,6 +18,7 @@ type MockResumeRepository struct {
 	CreateFunc                func(ctx context.Context, resume *model.Resume) error
 	GetByIDFunc               func(ctx context.Context, userID, resumeID string) (*model.Resume, error)
 	ListFunc                  func(ctx context.Context, userID string, limit, offset int, sortBy, sortDir string) ([]*ports.ResumeWithCount, int, error)
+	CountApplicationsFunc     func(ctx context.Context, userID, resumeID string) (int, error)
 	UpdateFunc                func(ctx context.Context, resume *model.Resume) error
 	DeleteFunc                func(ctx context.Context, userID, resumeID string) error
 }
@@ -48,6 +49,13 @@ func (m *MockResumeRepository) List(ctx context.Context, userID string, limit, o
 		return m.ListFunc(ctx, userID, limit, offset, sortBy, sortDir)
 	}
 	return nil, 0, nil
+}
+
+func (m *MockResumeRepository) CountApplications(ctx context.Context, userID, resumeID string) (int, error) {
+	if m.CountApplicationsFunc != nil {
+		return m.CountApplicationsFunc(ctx, userID, resumeID)
+	}
+	return 0, nil
 }
 
 func (m *MockResumeRepository) Update(ctx context.Context, resume *model.Resume) error {
@@ -198,6 +206,47 @@ func TestResumeService_GetByID(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, expectedResume.ID, result.ID)
 		assert.Equal(t, expectedResume.Title, result.Title)
+	})
+
+	t.Run("reports the same applications_count as the list endpoint", func(t *testing.T) {
+		stored := &model.Resume{ID: resumeID, UserID: userID, Title: "CV", StorageType: model.StorageTypeExternal}
+		mockRepo := &MockResumeRepository{
+			GetByIDFunc: func(ctx context.Context, uid, rid string) (*model.Resume, error) { return stored, nil },
+			CountApplicationsFunc: func(ctx context.Context, uid, rid string) (int, error) {
+				assert.Equal(t, userID, uid)
+				assert.Equal(t, resumeID, rid)
+				return 3, nil
+			},
+			ListFunc: func(ctx context.Context, uid string, limit, offset int, sortBy, sortDir string) ([]*ports.ResumeWithCount, int, error) {
+				return []*ports.ResumeWithCount{{Resume: stored, ApplicationsCount: 3}}, 1, nil
+			},
+		}
+
+		svc := NewResumeService(mockRepo, nil, nil, nil)
+		single, err := svc.GetByID(context.Background(), userID, resumeID)
+		require.NoError(t, err)
+		listed, _, err := svc.List(context.Background(), userID, 20, 0, "", "")
+		require.NoError(t, err)
+
+		assert.Equal(t, 3, single.ApplicationsCount)
+		assert.Equal(t, listed[0].ApplicationsCount, single.ApplicationsCount)
+		assert.True(t, single.CanDelete)
+	})
+
+	t.Run("propagates a count error", func(t *testing.T) {
+		boom := errors.New("count failed")
+		mockRepo := &MockResumeRepository{
+			GetByIDFunc: func(ctx context.Context, uid, rid string) (*model.Resume, error) {
+				return &model.Resume{ID: rid}, nil
+			},
+			CountApplicationsFunc: func(ctx context.Context, uid, rid string) (int, error) { return 0, boom },
+		}
+
+		svc := NewResumeService(mockRepo, nil, nil, nil)
+		result, err := svc.GetByID(context.Background(), userID, resumeID)
+
+		assert.Nil(t, result)
+		assert.ErrorIs(t, err, boom)
 	})
 
 	t.Run("returns error when resume not found", func(t *testing.T) {

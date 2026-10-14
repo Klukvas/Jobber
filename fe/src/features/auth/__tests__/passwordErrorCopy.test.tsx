@@ -53,6 +53,12 @@ const TOO_SHORT: Record<string, string> = {
   uk: uk.errors.passwordTooShort,
 };
 
+const ALREADY_REGISTERED: Record<string, string> = {
+  en: en.auth.emailAlreadyRegistered,
+  ru: ru.auth.emailAlreadyRegistered,
+  uk: uk.auth.emailAlreadyRegistered,
+};
+
 /**
  * What the Go backend answers with. It has one language, and it is not the
  * customer's: `error.message` was rendered straight into the form, so a
@@ -139,6 +145,39 @@ describe.each(["en", "ru", "uk"] as const)(
       );
       expect(await screen.findByText(TOO_SHORT[language])).toBeInTheDocument();
       expect(screen.queryByText(BACKEND_MESSAGE)).not.toBeInTheDocument();
+    });
+
+    it("localises USER_ALREADY_EXISTS in the registration form", async () => {
+      const user = userEvent.setup();
+      const rawMessage = "user with this email already exists";
+      authApi.register.mockRejectedValue(
+        new ApiError(rawMessage, "USER_ALREADY_EXISTS", 409),
+      );
+      renderWithQuery(
+        <RegisterModal open onOpenChange={vi.fn()} onSwitchToLogin={vi.fn()} />,
+      );
+
+      await user.type(
+        screen.getByLabelText(i18n.t("auth.email")),
+        "user@test.com",
+      );
+      await user.type(
+        screen.getByLabelText(i18n.t("auth.password")),
+        "validpass1",
+      );
+      await user.type(
+        screen.getByLabelText(i18n.t("auth.confirmPassword")),
+        "validpass1",
+      );
+      await user.click(
+        screen.getByRole("button", { name: i18n.t("auth.register") }),
+      );
+
+      await waitFor(() => expect(authApi.register).toHaveBeenCalledOnce());
+      expect(
+        await screen.findByText(ALREADY_REGISTERED[language]),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(rawMessage)).not.toBeInTheDocument();
     });
   },
 );

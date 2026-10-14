@@ -1,7 +1,10 @@
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { companiesService } from "@/services/companiesService";
-import { showErrorNotification } from "@/shared/lib/notifications";
+import {
+  showErrorNotification,
+  showSuccessNotification,
+} from "@/shared/lib/notifications";
 import type { CompanyDTO } from "@/shared/types/api";
 import {
   Dialog,
@@ -39,6 +42,7 @@ export function DeleteCompanyDialog({
     mutationFn: () => companiesService.delete(company.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["companies"] });
+      showSuccessNotification(t("companies.deleteSuccess"));
       onOpenChange(false);
     },
     onError: (error: Error) => {

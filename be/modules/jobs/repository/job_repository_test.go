@@ -400,6 +400,24 @@ var listColumns = []string{
 }
 
 func TestJobRepository_List(t *testing.T) {
+	t.Run("offset past the end still reports the real total", func(t *testing.T) {
+		repo, mock := newJobRepo(t)
+
+		mock.ExpectQuery("AND j.is_archived = false").
+			WithArgs("user-123", 20, 1960).
+			WillReturnRows(pgxmock.NewRows(listColumns))
+		mock.ExpectQuery("SELECT COUNT\\(\\*\\)\\s+FROM jobs j").
+			WithArgs("user-123").
+			WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(42))
+
+		jobs, total, err := repo.List(context.Background(), "user-123", &ports.ListOptions{Limit: 20, Offset: 1960})
+
+		require.NoError(t, err)
+		assert.Empty(t, jobs)
+		assert.Equal(t, 42, total)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
 	t.Run("returns jobs excluding archived by default", func(t *testing.T) {
 		repo, mock := newJobRepo(t)
 		now := time.Now()

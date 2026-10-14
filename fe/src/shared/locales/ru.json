@@ -86,7 +86,8 @@
     "resendFailed": "Не удалось отправить код. Попробуйте ещё раз.",
     "verificationCode": "Код подтверждения",
     "tooManyAttempts": "Слишком много неверных попыток. Запросите новый код.",
-    "resendLimitReached": "Слишком много повторных отправок. Попробуйте через 24 часа."
+    "resendLimitReached": "Слишком много повторных отправок. Попробуйте через 24 часа.",
+    "emailAlreadyRegistered": "Аккаунт с этим адресом электронной почты уже существует. Попробуйте войти."
   },
   "nav": {
     "applications": "Заявки",
@@ -108,7 +109,10 @@
     "noResumes": "Резюме пока нет",
     "createFirst": "Создайте свое первое резюме, чтобы начать",
     "deleteConfirm": "Вы уверены, что хотите удалить \"{{name}}\"?",
-    "inUseWarning": "⚠️ Это резюме используется в {{count}} заявке(ах).",
+    "inUseWarning_one": "⚠️ Это резюме используется в {{count}} заявке.",
+    "inUseWarning_few": "⚠️ Это резюме используется в {{count}} заявках.",
+    "inUseWarning_many": "⚠️ Это резюме используется в {{count}} заявках.",
+    "inUseWarning_other": "⚠️ Это резюме используется в {{count}} заявках.",
     "inUseNote": "Эти заявки потеряют ссылку на резюме, но сами удалены не будут.",
     "deleteWarning": "Это действие нельзя отменить. Резюме будет удалено безвозвратно.",
     "deleteError": "Не удалось удалить резюме",
@@ -117,7 +121,6 @@
     "sortTitle": "Название",
     "sortActiveStatus": "Статус активности",
     "actionsMenu": "Действия с резюме",
-    "cannotDeleteInUse": "Невозможно удалить резюме, используемое в заявках",
     "cloudStorage": "Облачное хранилище (PDF)",
     "generatingLink": "Генерация ссылки...",
     "downloadResume": "Скачать резюме",
@@ -125,7 +128,10 @@
     "viewResume": "Просмотреть резюме",
     "noFileAttached": "Файл не прикреплён",
     "notUsedYet": "Ещё не используется в заявках",
-    "usedInApplications": "Используется в {{count}} заявке(ах)",
+    "usedInApplications_one": "Используется в {{count}} заявке",
+    "usedInApplications_few": "Используется в {{count}} заявках",
+    "usedInApplications_many": "Используется в {{count}} заявках",
+    "usedInApplications_other": "Используется в {{count}} заявках",
     "created": "Создано",
     "downloadError": "Не удалось сгенерировать ссылку для скачивания",
     "createDescription": "Добавьте новое резюме в вашу коллекцию",
@@ -226,9 +232,9 @@
     "emptyDescription": "Добавляйте вакансии еще до подачи заявки — держите все организованным",
     "createFirstJob": "Создать первую вакансию",
     "sortBy": "Сортировать по:",
-    "sortCreatedDate": "Дате создания",
-    "sortJobTitle": "Названию вакансии",
-    "sortCompanyName": "Названию компании",
+    "sortCreatedDate": "Дата создания",
+    "sortJobTitle": "Название вакансии",
+    "sortCompanyName": "Компания",
     "viewPosting": "Просмотреть вакансию",
     "createdDate": "Создано",
     "archiveSuccess": "Вакансия успешно архивирована",
@@ -390,7 +396,7 @@
     "appliedDateLabel": "Дата отклика",
     "pipelineTitle": "Процесс отклика",
     "filterLabel": "Статус:",
-    "searchPlaceholder": "Поиск по названию или компании",
+    "searchPlaceholder": "Название или компания",
     "noSearchResults": "Ничего не найдено по «{{query}}»",
     "noSearchResultsHint": "Попробуйте другой запрос или очистите поиск.",
     "clearSearch": "Очистить поиск",
@@ -420,7 +426,10 @@
     "fieldsNeedSaveHint": "Изменения здесь применяются после нажатия «Сохранить».",
     "resumeSavesInstantly": "Сохраняется сразу после выбора.",
     "resumeSaving": "Сохранение…",
-    "reminderNoDeliveryHint": "Напоминания — это даты, которые Jobber хранит у себя: мы не отправляем письма и push-уведомления."
+    "reminderNoDeliveryHint": "Напоминания — это даты, которые Jobber хранит у себя: мы не отправляем письма и push-уведомления.",
+    "noActiveJobs": "Нет активных вакансий",
+    "noActiveJobsHint": "Все ваши вакансии в архиве. Откройте фильтр «Архив», чтобы увидеть их, или создайте новую вакансию.",
+    "viewArchived": "Показать архивные вакансии"
   },
   "settings": {
     "title": "Настройки",
@@ -560,7 +569,29 @@
       "limitReachedResumeBuilders_one": "Вы достигли лимита вашего плана — {{count}} конструктор резюме. Обновите для большего количества.",
       "limitReachedResumeBuilders_few": "Вы достигли лимита вашего плана — {{count}} конструктора резюме. Обновите для большего количества.",
       "limitReachedResumeBuilders_many": "Вы достигли лимита вашего плана — {{count}} конструкторов резюме. Обновите для большего количества.",
-      "limitReachedResumeBuilders_other": "Вы достигли лимита вашего плана — {{count}} конструктора резюме. Обновите для большего количества."
+      "limitReachedResumeBuilders_other": "Вы достигли лимита вашего плана — {{count}} конструктора резюме. Обновите для большего количества.",
+      "planLimitInfo": "Вы достигли лимита вашего текущего плана ({{used}} из {{limit}} {{resource}}).",
+      "planLimitCoverLettersNotIncluded": "Сопроводительные письма не входят в ваш текущий план.",
+      "planLimitResourceJobs_one": "отслеживаемой вакансии",
+      "planLimitResourceJobs_few": "отслеживаемых вакансий",
+      "planLimitResourceJobs_many": "отслеживаемых вакансий",
+      "planLimitResourceJobs_other": "отслеживаемых вакансий",
+      "planLimitResourceResumes_one": "загруженного резюме",
+      "planLimitResourceResumes_few": "загруженных резюме",
+      "planLimitResourceResumes_many": "загруженных резюме",
+      "planLimitResourceResumes_other": "загруженных резюме",
+      "planLimitResourceResumeBuilders_one": "конструктора резюме",
+      "planLimitResourceResumeBuilders_few": "конструкторов резюме",
+      "planLimitResourceResumeBuilders_many": "конструкторов резюме",
+      "planLimitResourceResumeBuilders_other": "конструкторов резюме",
+      "planLimitResourceCoverLetters_one": "сопроводительного письма",
+      "planLimitResourceCoverLetters_few": "сопроводительных писем",
+      "planLimitResourceCoverLetters_many": "сопроводительных писем",
+      "planLimitResourceCoverLetters_other": "сопроводительных писем",
+      "planLimitResourceAI_one": "AI-запроса",
+      "planLimitResourceAI_few": "AI-запросов",
+      "planLimitResourceAI_many": "AI-запросов",
+      "planLimitResourceAI_other": "AI-запросов"
     },
     "profile": {
       "title": "Профиль",
@@ -622,7 +653,8 @@
     "notFound": "Не найдено",
     "unauthorized": "Не авторизован",
     "forbidden": "Запрещено",
-    "passwordTooLong": "Пароль должен быть не длиннее 72 байт (примерно 72 латинские буквы, меньше для других алфавитов)"
+    "passwordTooLong": "Пароль должен быть не длиннее 72 байт (примерно 72 латинские буквы, меньше для других алфавитов)",
+    "planLimitReached": "Вы достигли лимита вашего текущего плана."
   },
   "notFound": {
     "title": "Страница не найдена",
@@ -801,6 +833,7 @@
     },
     "pricing": {
       "label": "Цены",
+      "comingSoon": "Скоро",
       "title": "Просто. Честно. Доступно.",
       "subtitle": "В 3–4 раза дешевле Huntr или Teal. Базовый трекинг без ограничений.",
       "free": "Free",
@@ -1023,6 +1056,8 @@
     "revokeError": "Не удалось отозвать ссылку",
     "createError": "Не удалось создать ссылку",
     "limitReached": "Достигнут лимит ссылок. Отзовите старую, чтобы создать новую.",
+    "copyLink": "Копировать ссылку",
+    "revokeLink": "Отозвать ссылку",
     "public": {
       "title": "Статистика поиска работы",
       "sharedOn": "Опубликовано {{date}}",
@@ -1495,7 +1530,7 @@
     "add": "Добавить фрагмент",
     "edit": "Редактировать",
     "delete": "Удалить",
-    "insert": "Вставить",
+    "copy": "Копировать в буфер обмена",
     "search": "Поиск фрагментов...",
     "category": "Категория",
     "snippetTitle": "Название",
@@ -1701,6 +1736,8 @@
     "essentialOnly": "Только необходимые",
     "settings": "Настройки cookie",
     "ariaLabel": "Согласие на использование cookie",
+    "messageNoPayments": "Мы используем необходимые файлы cookie для входа в аккаунт. С вашего согласия мы также используем аналитические файлы cookie (Google Analytics, PostHog), чтобы улучшать продукт.",
+    "messageEssentialOnlyNoPayments": "Мы используем только необходимые cookie — для входа в аккаунт. Аналитические и рекламные cookie на сайте не используются.",
     "messageEssentialOnly": "Мы используем только необходимые cookie — для входа в аккаунт и безопасной оплаты через Creem. Аналитические и рекламные cookie на сайте не используются."
   }
 }

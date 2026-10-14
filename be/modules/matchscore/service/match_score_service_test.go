@@ -1092,3 +1092,7 @@ func TestIsPrivateIP_PublicIPs(t *testing.T) {
 		assert.False(t, isPrivateIP(ip), "expected %s to be public", ipStr)
 	}
 }
+
+func (m *MockResumeRepository) CountApplications(ctx context.Context, userID, resumeID string) (int, error) {
+	return 0, nil
+}

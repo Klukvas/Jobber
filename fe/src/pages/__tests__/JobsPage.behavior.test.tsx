@@ -449,6 +449,45 @@ describe("Jobs page — company filter", () => {
     expect(screen.queryByText("jobs.emptyTitle")).not.toBeInTheDocument();
   });
 
+  it("keeps the filter bar and points at Archived when every job is archived", async () => {
+    const user = userEvent.setup();
+    mockList.mockImplementation((params) =>
+      Promise.resolve(
+        params.status === "all"
+          ? paginated([makeJob({ is_archived: true })], 1)
+          : params.status === "archived"
+            ? paginated([makeJob({ title: "Old Job", is_archived: true })])
+            : paginated([]),
+      ),
+    );
+    renderPage();
+
+    expect(await screen.findByText("jobs.noActiveJobs")).toBeInTheDocument();
+    expect(screen.queryByText("jobs.emptyTitle")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("jobs.filterLabel")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "jobs.viewArchived" }));
+    expect(await screen.findByText("Old Job")).toBeInTheDocument();
+  });
+
+  it("treats the API's `items: null` empty page as no jobs instead of crashing", async () => {
+    // The backend serialises an empty page as `items: null`, not `[]`.
+    mockList.mockImplementation((params) =>
+      Promise.resolve(
+        params.status === "all"
+          ? paginated([makeJob({ is_archived: true })], 1)
+          : ({
+              items: null,
+              pagination: { total: 0, limit: 20, offset: 0 },
+            } as unknown as PaginatedResponse<JobDTO>),
+      ),
+    );
+    renderPage();
+
+    expect(await screen.findByText("jobs.noActiveJobs")).toBeInTheDocument();
+    expect(screen.getByLabelText("jobs.filterLabel")).toBeInTheDocument();
+  });
+
   it("ignores a company_id that is not a UUID instead of filtering by junk", async () => {
     mockList.mockResolvedValue(paginated([makeJob({ title: "Backend Dev" })]));
     renderPage("/app/jobs?company_id=not-a-uuid");

@@ -101,6 +101,8 @@ export function Timeline({ stages, jobId, stageComments }: TimelineProps) {
     active: "jobs.stageStatusActive",
     completed: "jobs.stageStatusCompleted",
     pending: "jobs.stageStatusPending",
+    skipped: "jobs.stageStatusSkipped",
+    cancelled: "jobs.stageStatusCancelled",
   };
 
   const handleChangeStatus = (stage: JobStageDTO) => {

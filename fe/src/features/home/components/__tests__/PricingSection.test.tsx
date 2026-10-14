@@ -2,6 +2,9 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { PricingSection } from "../PricingSection";
 
+const featuresMock = vi.hoisted(() => ({ FEATURES: { PAYMENTS: false } }));
+vi.mock("@/shared/lib/features", () => featuresMock);
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => key,
@@ -101,5 +104,44 @@ describe("PricingSection", () => {
       .closest("div") as HTMLElement;
 
     expect(bullet.textContent).toContain("✓");
+  });
+
+  describe("paid-tier CTAs", () => {
+    it("reads 'coming soon' and is disabled while payments are off", () => {
+      featuresMock.FEATURES.PAYMENTS = false;
+      const onRegister = vi.fn();
+      render(
+        <PricingSection
+          isAuthenticated={false}
+          onRegister={onRegister}
+          onGoPlatform={vi.fn()}
+        />,
+      );
+      const soon = screen.getAllByText("home.pricing.comingSoon");
+      expect(soon).toHaveLength(2);
+      soon.forEach((el) => {
+        expect(el.closest("button")).toBeDisabled();
+        fireEvent.click(el);
+      });
+      expect(onRegister).not.toHaveBeenCalled();
+      expect(screen.queryByText(/home\.pricing\.proCta/)).toBeNull();
+      expect(screen.queryByText("home.pricing.enterpriseCta")).toBeNull();
+    });
+
+    it("shows the plan CTAs when payments are on", () => {
+      featuresMock.FEATURES.PAYMENTS = true;
+      const onRegister = vi.fn();
+      render(
+        <PricingSection
+          isAuthenticated={false}
+          onRegister={onRegister}
+          onGoPlatform={vi.fn()}
+        />,
+      );
+      expect(screen.queryByText("home.pricing.comingSoon")).toBeNull();
+      fireEvent.click(screen.getByText("home.pricing.enterpriseCta"));
+      expect(onRegister).toHaveBeenCalledOnce();
+      featuresMock.FEATURES.PAYMENTS = false;
+    });
   });
 });

@@ -138,6 +138,7 @@ export function DesignSidebar({ layout = "vertical" }: DesignSidebarProps) {
           <Tooltip key={key} content={t(tooltipKey)} side="right">
             <button
               onClick={() => togglePopover(key)}
+              data-popover-trigger=""
               className={cn(
                 "flex h-10 w-10 items-center justify-center rounded-lg transition-colors",
                 activePopover === key

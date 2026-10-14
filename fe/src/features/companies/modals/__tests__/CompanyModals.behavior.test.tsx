@@ -247,6 +247,7 @@ describe("DeleteCompanyDialog", () => {
 
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith("co-1"));
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(mockShowSuccess).toHaveBeenCalledWith("companies.deleteSuccess");
   });
 
   it("surfaces a delete error and keeps the dialog open", async () => {

@@ -37,7 +37,10 @@ type ResumeDTO struct {
 	UpdatedAt         time.Time   `json:"updated_at"`
 }
 
-// ToDTOWithCounts converts Resume to ResumeDTO with application counts
+// ToDTOWithCounts converts Resume to ResumeDTO with application counts.
+// can_delete is always true: deleting a resume that is attached to
+// applications is allowed (the UI warns about it). The field is kept for API
+// compatibility.
 func (r *Resume) ToDTOWithCounts(applicationsCount int) *ResumeDTO {
 	return &ResumeDTO{
 		ID:                r.ID,
@@ -53,18 +56,8 @@ func (r *Resume) ToDTOWithCounts(applicationsCount int) *ResumeDTO {
 	}
 }
 
-// ToDTO converts Resume to ResumeDTO (without counts)
+// ToDTO converts Resume to ResumeDTO for a resume with no applications yet
+// (e.g. just created). Where the real count is known, use ToDTOWithCounts.
 func (r *Resume) ToDTO() *ResumeDTO {
-	return &ResumeDTO{
-		ID:                r.ID,
-		Title:             r.Title,
-		FileURL:           r.FileURL,
-		StorageType:       r.StorageType,
-		StorageKey:        r.StorageKey,
-		IsActive:          r.IsActive,
-		ApplicationsCount: 0,
-		CanDelete:         true,
-		CreatedAt:         r.CreatedAt,
-		UpdatedAt:         r.UpdatedAt,
-	}
+	return r.ToDTOWithCounts(0)
 }

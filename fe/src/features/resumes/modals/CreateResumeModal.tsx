@@ -50,6 +50,7 @@ export function CreateResumeModal({
     mutationFn: resumesService.create,
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ["resumes"] });
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
       showSuccessNotification(t("resumes.createSuccess"));
       onCreated?.(data);
       resetAndClose();
@@ -70,6 +71,7 @@ export function CreateResumeModal({
       ),
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ["resumes"] });
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
       showSuccessNotification(t("resumes.uploadSuccess"));
       onCreated?.(data);
       resetAndClose();

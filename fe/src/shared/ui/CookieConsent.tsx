@@ -8,6 +8,7 @@ import {
   type CookieConsent as Consent,
 } from "@/shared/lib/consent";
 import { BOTTOM_INSET_VAR } from "@/shared/lib/scrollToSection";
+import { FEATURES } from "@/shared/lib/features";
 
 // Gap between the card and the viewport edge — matches the strip's p-4.
 const BANNER_GUTTER_PX = 16;
@@ -108,9 +109,18 @@ export function CookieConsent() {
         <p className="flex-1 text-sm text-muted-foreground">
           {/* Only promise the trackers this build actually ships with — the
               analytics keys are environment-specific and are frequently absent. */}
+          {/* Likewise, only mention payments while checkout is switched on. */}
           {isAnalyticsConfigured()
-            ? t("cookieConsent.message")
-            : t("cookieConsent.messageEssentialOnly")}{" "}
+            ? t(
+                FEATURES.PAYMENTS
+                  ? "cookieConsent.message"
+                  : "cookieConsent.messageNoPayments",
+              )
+            : t(
+                FEATURES.PAYMENTS
+                  ? "cookieConsent.messageEssentialOnly"
+                  : "cookieConsent.messageEssentialOnlyNoPayments",
+              )}{" "}
           <a href="/privacy" className="text-primary underline">
             {t("cookieConsent.privacyLink")}
           </a>

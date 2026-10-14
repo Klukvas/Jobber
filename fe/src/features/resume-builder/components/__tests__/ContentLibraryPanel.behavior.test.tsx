@@ -228,7 +228,7 @@ describe("ContentLibraryPanel", () => {
     );
   });
 
-  it("copies a snippet to the clipboard on insert", async () => {
+  it("copies a snippet to the clipboard via the copy button", async () => {
     const user = userEvent.setup();
     installClipboard();
     mockListSvc.mockResolvedValue([
@@ -237,7 +237,7 @@ describe("ContentLibraryPanel", () => {
     renderPanel();
     await screen.findByText("Leadership bullet");
 
-    await user.click(screen.getByTitle("contentLibrary.insert"));
+    await user.click(screen.getByTitle("contentLibrary.copy"));
 
     await waitFor(() =>
       expect(clipboardWrite).toHaveBeenCalledWith("Paste me"),

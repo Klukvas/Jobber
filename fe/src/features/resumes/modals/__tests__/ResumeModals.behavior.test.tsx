@@ -441,6 +441,7 @@ describe("DeleteResumeModal", () => {
 
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith("r-1"));
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(mockShowSuccess).toHaveBeenCalledWith("resumes.deleteSuccess");
   });
 
   it("surfaces a delete error", async () => {

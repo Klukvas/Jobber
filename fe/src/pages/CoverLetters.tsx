@@ -55,11 +55,13 @@ export default function CoverLettersPage() {
       }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
       navigate(`/app/cover-letters/${data.id}`);
     },
     onError: (error) => {
       if (error instanceof ApiError && error.code === "PLAN_LIMIT_REACHED") {
         queryClient.invalidateQueries({ queryKey: ["subscription"] });
+        showErrorNotification(t("errors.planLimitReached"));
         return;
       }
       showErrorNotification(
@@ -91,6 +93,7 @@ export default function CoverLettersPage() {
     onError: (error) => {
       if (error instanceof ApiError && error.code === "PLAN_LIMIT_REACHED") {
         queryClient.invalidateQueries({ queryKey: ["subscription"] });
+        showErrorNotification(t("errors.planLimitReached"));
         return;
       }
       showErrorNotification(

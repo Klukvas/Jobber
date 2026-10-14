@@ -299,6 +299,20 @@ func (r *JobRepository) List(ctx context.Context, userID string, opts *ports.Lis
 		return nil, 0, err
 	}
 
+	// COUNT(*) OVER() is computed per returned row, so a page past the end
+	// yields no rows and therefore no total. Ask for the real count instead of
+	// reporting 0 for a non-empty list.
+	if len(dtos) == 0 && opts.Offset > 0 {
+		countQuery := `
+			SELECT COUNT(*)
+			FROM jobs j
+			LEFT JOIN companies c ON j.company_id = c.id
+			WHERE j.user_id = $1` + filter
+		if err := r.pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+			return nil, 0, err
+		}
+	}
+
 	return dtos, total, nil
 }
 
