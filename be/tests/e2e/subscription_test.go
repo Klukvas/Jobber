@@ -36,19 +36,24 @@ func TestIntegrationFreePlanCoverLetterLimit(t *testing.T) {
 	seedSubscription(t, userID, "free")
 	token := authToken(t, userID)
 
-	// The test env runs without plans.yaml, so the hardcoded fallback applies
-	// (free = 1 cover letter; config/plans.yaml ships 0 for production).
+	// Cover letters are not part of the Free plan: both config/plans.yaml and
+	// the hardcoded fallback (used here, without plans.yaml) give free = 0, so
+	// the very first create is refused.
 	resp := doRequest(t, http.MethodPost, "/api/v1/cover-letters", map[string]string{
-		"title": "CL Within Limit",
-	}, token)
-	assertStatus(t, resp, http.StatusCreated)
-	resp.Body.Close()
-
-	resp = doRequest(t, http.MethodPost, "/api/v1/cover-letters", map[string]string{
 		"title": "CL Over Limit",
 	}, token)
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 	assertErrorCode(t, resp, "PLAN_LIMIT_REACHED")
+
+	// The usage endpoint reports the same limit the create path enforced.
+	resp = doRequest(t, http.MethodGet, "/api/v1/subscription", nil, token)
+	assertStatus(t, resp, http.StatusOK)
+	sub := parseJSON[struct {
+		Limits struct {
+			MaxCoverLetters int `json:"max_cover_letters"`
+		} `json:"limits"`
+	}](t, resp)
+	assert.Equal(t, 0, sub.Limits.MaxCoverLetters)
 }
 
 func TestIntegrationProPlanMultipleBuilders(t *testing.T) {
