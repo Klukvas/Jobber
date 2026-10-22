@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from "react";
+import { ApiError } from "@/services/api";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -21,7 +22,10 @@ interface ImportResumeModalProps {
   readonly onOpenChange: (open: boolean) => void;
 }
 
-export function ImportResumeModal({ open, onOpenChange }: ImportResumeModalProps) {
+export function ImportResumeModal({
+  open,
+  onOpenChange,
+}: ImportResumeModalProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -62,7 +66,10 @@ export function ImportResumeModal({ open, onOpenChange }: ImportResumeModalProps
       navigate(`/app/resume-builder/${result.id}`);
     } catch (error) {
       showErrorNotification(
-        error instanceof Error ? error.message : t("resumeBuilder.import.error")
+        error instanceof ApiError && error.status === 404
+          ? t("resumeBuilder.import.unavailable")
+          : (error instanceof Error && error.message) ||
+              t("resumeBuilder.import.error"),
       );
     } finally {
       setIsImporting(false);
@@ -84,27 +91,33 @@ export function ImportResumeModal({ open, onOpenChange }: ImportResumeModalProps
       navigate(`/app/resume-builder/${result.id}`);
     } catch (error) {
       showErrorNotification(
-        error instanceof Error ? error.message : t("resumeBuilder.import.error")
+        error instanceof ApiError && error.status === 404
+          ? t("resumeBuilder.import.unavailable")
+          : (error instanceof Error && error.message) ||
+              t("resumeBuilder.import.error"),
       );
     } finally {
       setIsImporting(false);
     }
   }, [selectedFile, title, navigate, queryClient, onOpenChange, resetForm, t]);
 
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        showErrorNotification(t("resumeBuilder.import.fileTooLarge"));
-        return;
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        if (file.size > 5 * 1024 * 1024) {
+          showErrorNotification(t("resumeBuilder.import.fileTooLarge"));
+          return;
+        }
+        if (file.type !== "application/pdf") {
+          showErrorNotification(t("resumeBuilder.import.invalidFileType"));
+          return;
+        }
+        setSelectedFile(file);
       }
-      if (file.type !== "application/pdf") {
-        showErrorNotification(t("resumeBuilder.import.invalidFileType"));
-        return;
-      }
-      setSelectedFile(file);
-    }
-  }, [t]);
+    },
+    [t],
+  );
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -143,7 +156,10 @@ export function ImportResumeModal({ open, onOpenChange }: ImportResumeModalProps
 
         {/* Title input (shared) */}
         <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="import-title">
+          <label
+            className="mb-1 block text-sm font-medium"
+            htmlFor="import-title"
+          >
             {t("resumeBuilder.import.resumeTitle")}
           </label>
           <input
@@ -160,7 +176,10 @@ export function ImportResumeModal({ open, onOpenChange }: ImportResumeModalProps
         {/* Tab content */}
         {activeTab === "text" ? (
           <div>
-            <label className="mb-1 block text-sm font-medium" htmlFor="import-text">
+            <label
+              className="mb-1 block text-sm font-medium"
+              htmlFor="import-text"
+            >
               {t("resumeBuilder.import.resumeText")}
             </label>
             <textarea
@@ -181,7 +200,8 @@ export function ImportResumeModal({ open, onOpenChange }: ImportResumeModalProps
               className="flex h-32 cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed transition-colors hover:border-primary hover:bg-muted/50"
               onClick={() => fileInputRef.current?.click()}
               onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") fileInputRef.current?.click();
+                if (e.key === "Enter" || e.key === " ")
+                  fileInputRef.current?.click();
               }}
               role="button"
               tabIndex={0}
@@ -225,7 +245,11 @@ export function ImportResumeModal({ open, onOpenChange }: ImportResumeModalProps
 
         {/* Import button */}
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={handleClose} disabled={isImporting}>
+          <Button
+            variant="outline"
+            onClick={handleClose}
+            disabled={isImporting}
+          >
             {t("common.cancel")}
           </Button>
           <Button

@@ -50,6 +50,11 @@ func (r *ResumeBuilderRepository) RunInTransaction(ctx context.Context, fn func(
 
 func (r *ResumeBuilderRepository) Create(ctx context.Context, rb *model.ResumeBuilder) error {
 	rb.ID = uuid.New().String()
+	return r.CreateWithID(ctx, rb)
+}
+
+// CreateWithID preserves the server-generated ID used as a tailoring commit receipt.
+func (r *ResumeBuilderRepository) CreateWithID(ctx context.Context, rb *model.ResumeBuilder) error {
 	now := time.Now().UTC()
 	rb.CreatedAt = now
 	rb.UpdatedAt = now
@@ -181,6 +186,10 @@ func (r *ResumeBuilderRepository) GetFullResume(ctx context.Context, userID, id 
 	// connRepo routes all queries through the single acquired connection.
 	connRepo := &ResumeBuilderRepository{pool: r.pool, q: conn}
 
+	return connRepo.loadFullResume(ctx, userID, id)
+}
+
+func (connRepo *ResumeBuilderRepository) loadFullResume(ctx context.Context, userID, id string) (*model.FullResumeDTO, error) {
 	rb, err := connRepo.GetByID(ctx, userID, id)
 	if err != nil {
 		return nil, err

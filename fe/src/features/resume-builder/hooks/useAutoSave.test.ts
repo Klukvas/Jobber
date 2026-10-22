@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { StrictMode } from "react";
-import { renderHook, act } from "@testing-library/react";
+import { StrictMode, createElement } from "react";
+import { render, screen, fireEvent, renderHook, act } from "@testing-library/react";
+import { EditableTextarea } from "../components/inline/EditableTextarea";
+import { resetResumeDocumentSync } from "../lib/resumeDocumentSync";
 import { useAutoSave } from "./useAutoSave";
 import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
 import { resumeBuilderService } from "@/services/resumeBuilderService";
@@ -494,5 +496,44 @@ describe("useAutoSave — unload guard", () => {
     const event = fireBeforeUnload();
 
     expect(event.defaultPrevented).toBe(false);
+  });
+});
+
+
+describe("active inline drafts and autosave", () => {
+  beforeEach(() => {
+    vi.useFakeTimers(); vi.clearAllMocks(); resetResumeDocumentSync();
+    useResumeBuilderStore.getState().setResume(makeResume());
+  });
+  afterEach(() => vi.useRealTimers());
+  function Editor() {
+    useAutoSave();
+    const resume = useResumeBuilderStore(state => state.resume);
+    return createElement(EditableTextarea, {value:resume?.summary?.content ?? "", onChange:content => useResumeBuilderStore.getState().updateSummary({content}), placeholder:"Summary"});
+  }
+  it("protects an unblurred draft from unload, saves it, then saves Escape rollback", async () => {
+    render(createElement(Editor));
+    fireEvent.mouseDown(screen.getByText("A summary"));
+    const input = screen.getByDisplayValue("A summary");
+    fireEvent.change(input, {target:{value:"Active draft"}});
+    const unload = new Event("beforeunload", {cancelable:true}); window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+    expect(input).toHaveFocus();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1600); });
+    expect(resumeBuilderService.upsertSummary).toHaveBeenLastCalledWith("resume-1", {content:"Active draft"});
+    expect(screen.getByDisplayValue("Active draft")).toHaveFocus();
+    fireEvent.keyDown(input, {key:"Escape"});
+    expect(screen.getByText("A summary")).toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1600); });
+    expect(resumeBuilderService.upsertSummary).toHaveBeenLastCalledWith("resume-1", {content:"A summary"});
+    const cleanUnload = new Event("beforeunload", {cancelable:true}); window.dispatchEvent(cleanUnload);
+    expect(cleanUnload.defaultPrevented).toBe(false);
+  });
+  it("hands an unblurred active draft to persistence on SPA unmount", async () => {
+    const editor = render(createElement(Editor));
+    fireEvent.mouseDown(screen.getByText("A summary"));
+    fireEvent.change(screen.getByDisplayValue("A summary"), {target:{value:"Leaving draft"}});
+    await act(async () => { editor.unmount(); await Promise.resolve(); });
+    expect(resumeBuilderService.upsertSummary).toHaveBeenLastCalledWith("resume-1", {content:"Leaving draft"});
   });
 });

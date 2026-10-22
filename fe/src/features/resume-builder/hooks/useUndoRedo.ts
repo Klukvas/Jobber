@@ -2,6 +2,8 @@ import { useEffect, useCallback } from "react";
 import { useStore } from "zustand";
 import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
 
+import { noteResumeHistoryChange } from "./useSectionPersistence";
+
 export function useUndoRedo() {
   const { undo, redo, pastStates, futureStates } = useStore(
     useResumeBuilderStore.temporal,
@@ -13,11 +15,15 @@ export function useUndoRedo() {
 
   const handleUndo = useCallback(() => {
     undo();
+    const resume = useResumeBuilderStore.getState().resume;
+    if (resume) noteResumeHistoryChange(resume);
     markDirty();
   }, [undo, markDirty]);
 
   const handleRedo = useCallback(() => {
     redo();
+    const resume = useResumeBuilderStore.getState().resume;
+    if (resume) noteResumeHistoryChange(resume);
     markDirty();
   }, [redo, markDirty]);
 

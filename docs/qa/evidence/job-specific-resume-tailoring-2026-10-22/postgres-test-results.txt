@@ -1,0 +1,8 @@
+=== RUN   TestTailoringPostgresPoolOneAndFullCopy
+--- PASS: TestTailoringPostgresPoolOneAndFullCopy (0.25s)
+=== RUN   TestTailoringPostgresConcurrentLastSlot
+--- PASS: TestTailoringPostgresConcurrentLastSlot (0.14s)
+=== RUN   TestTailoringPostgresStaleAndRollback
+--- PASS: TestTailoringPostgresStaleAndRollback (0.10s)
+PASS
+ok  	github.com/andreypavlenko/jobber/modules/resumebuilder/service	2.321s

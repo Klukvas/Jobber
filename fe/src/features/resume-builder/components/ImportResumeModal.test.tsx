@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ImportResumeModal } from "./ImportResumeModal";
+import { ApiError } from "@/services/api";
+import { resumeBuilderService } from "@/services/resumeBuilderService";
+import { showErrorNotification } from "@/shared/lib/notifications";
 
 const mockNavigate = vi.fn();
 const mockInvalidate = vi.fn();
@@ -134,3 +137,29 @@ describe("ImportResumeModal", () => {
     expect(mockNavigate).toHaveBeenCalledWith("/app/resume-builder/new-resume-id");
   });
 });
+
+for (const error of [new Error(""), new ApiError("", "UNKNOWN_ERROR", 404)]) {
+  it(`preserves entered text and explains ${error instanceof ApiError ? "unavailable AI import" : "an empty transport message"}`, async () => {
+    vi.mocked(resumeBuilderService.importFromText).mockRejectedValueOnce(error);
+    const close = vi.fn();
+    render(<ImportResumeModal open onOpenChange={close} />);
+    await userEvent.type(
+      screen.getByLabelText("resumeBuilder.import.resumeText"),
+      "Synthetic engineer",
+    );
+    await userEvent.click(
+      screen.getByText("resumeBuilder.import.importButton"),
+    );
+    await waitFor(() =>
+      expect(showErrorNotification).toHaveBeenCalledWith(
+        error instanceof ApiError
+          ? "resumeBuilder.import.unavailable"
+          : "resumeBuilder.import.error",
+      ),
+    );
+    expect(
+      screen.getByLabelText("resumeBuilder.import.resumeText"),
+    ).toHaveValue("Synthetic engineer");
+    expect(close).not.toHaveBeenCalled();
+  });
+}

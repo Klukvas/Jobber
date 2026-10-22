@@ -1,0 +1,21 @@
+                                                     Alex Example
+                                                         alex@example.test
+
+
+
+PROFESSIONAL SUMMARY
+
+Backend engineer building reliable Go services and improving delivery.
+
+
+WORK EXPERIENCE
+
+Backend engineer                                                             Jan 2022 — Present
+Example Labs
+Built Go services and improved delivery workflows.
+
+
+SKILLS
+
+PostgreSQL (Advanced)     Go (Advanced)     TypeScript (Advanced)
+

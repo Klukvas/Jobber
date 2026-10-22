@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -1247,4 +1248,38 @@ func TestExportResumeDOCX_SuccessWithEmptyTitle(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	// Empty title should be sanitized to "resume"
 	assert.Contains(t, w.Header().Get("Content-Disposition"), "resume.docx")
+}
+
+type unavailablePDFRenderer struct {
+	configured     bool
+	fallbackCalled bool
+}
+
+func (r *unavailablePDFRenderer) HasFrontendPDF() bool { return r.configured }
+func (r *unavailablePDFRenderer) GenerateResumePDFFromFrontend(context.Context, *model.FullResumeDTO) ([]byte, error) {
+	return nil, errors.New("renderer offline")
+}
+func (r *unavailablePDFRenderer) GenerateResumePDF(context.Context, *model.FullResumeDTO) ([]byte, error) {
+	r.fallbackCalled = true
+	return []byte("hidden experience would leak"), nil
+}
+
+func TestExportResumePDF_RendererUnavailableFailsClosed(t *testing.T) {
+	for _, configured := range []bool{false, true} {
+		t.Run(fmt.Sprintf("frontend_configured_%t", configured), func(t *testing.T) {
+			repo := &mockResumeBuilderRepo{GetFullResumeFunc: func(context.Context, string) (*model.FullResumeDTO, error) { return newTestFullResumeDTO(), nil }}
+			renderer := &unavailablePDFRenderer{configured: configured}
+			handler := NewExportHandler(newTestService(repo), nil, zap.NewNop())
+			handler.pdfService = renderer
+			router := setupExportTestRouter()
+			router.POST("/resumes/:id/export-pdf", exportMockAuthMiddleware("user-1"), handler.ExportResumePDF)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/resumes/rb-1/export-pdf", nil))
+			assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+			assert.Equal(t, "PDF_RENDERER_UNAVAILABLE", parseErrorResponse(t, w).ErrorCode)
+			assert.False(t, renderer.fallbackCalled, "an unavailable faithful renderer must never invoke legacy templates")
+			assert.NotContains(t, w.Body.String(), "hidden experience")
+			assert.Empty(t, w.Header().Get("Content-Disposition"))
+		})
+	}
 }

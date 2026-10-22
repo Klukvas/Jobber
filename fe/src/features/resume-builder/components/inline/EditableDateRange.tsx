@@ -69,6 +69,8 @@ export function EditableDateRange({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [isOpen]);
 
+  if (!editable && !displayText) return null;
+
   return (
     <span className="relative inline-block" style={style}>
       <span

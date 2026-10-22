@@ -146,6 +146,88 @@ function getSectionData(key: string, setup: TemplateSetup) {
   }
 }
 
+function hasText(...values: (string | undefined)[]): boolean {
+  return values.some((value) => Boolean(value?.trim()));
+}
+
+// Row IDs and sort order are metadata, not content. A newly added blank row
+// must not create an empty section in previews or exported documents.
+function hasSectionContent(key: string, setup: TemplateSetup): boolean {
+  const { resume } = setup;
+  switch (key) {
+    case "summary":
+      return hasText(setup.summary?.content);
+    case "experience":
+      return resume.experiences.some(
+        (entry) =>
+          hasText(
+            entry.company,
+            entry.position,
+            entry.location,
+            entry.start_date,
+            entry.end_date,
+            entry.description,
+          ) || entry.is_current,
+      );
+    case "education":
+      return resume.educations.some(
+        (entry) =>
+          hasText(
+            entry.institution,
+            entry.degree,
+            entry.field_of_study,
+            entry.start_date,
+            entry.end_date,
+            entry.gpa,
+            entry.description,
+          ) || entry.is_current,
+      );
+    case "skills":
+      return resume.skills.some((entry) => hasText(entry.name, entry.level));
+    case "languages":
+      return resume.languages.some((entry) =>
+        hasText(entry.name, entry.proficiency),
+      );
+    case "certifications":
+      return resume.certifications.some((entry) =>
+        hasText(
+          entry.name,
+          entry.issuer,
+          entry.issue_date,
+          entry.expiry_date,
+          entry.url,
+        ),
+      );
+    case "projects":
+      return resume.projects.some((entry) =>
+        hasText(
+          entry.name,
+          entry.url,
+          entry.start_date,
+          entry.end_date,
+          entry.description,
+        ),
+      );
+    case "volunteering":
+      return resume.volunteering.some((entry) =>
+        hasText(
+          entry.organization,
+          entry.role,
+          entry.start_date,
+          entry.end_date,
+          entry.description,
+        ),
+      );
+    case "custom":
+    case "custom_sections":
+      return resume.custom_sections.some((entry) =>
+        hasText(entry.title, entry.content),
+      );
+    default:
+      return false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Section content dispatcher
 // ---------------------------------------------------------------------------
@@ -221,7 +303,8 @@ export function SectionRenderer({
   }
 
   const data = getSectionData(sectionKey, setup);
-  if (!data) return null;
+  if (!data || (!editable && !hasSectionContent(sectionKey, setup)))
+    return null;
 
   const title = getSectionTitle(sectionKey, config);
   const iconComponent = config.sectionIcons?.[sectionKey];

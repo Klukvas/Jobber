@@ -36,10 +36,14 @@ export function EditableField({
 }: EditableFieldProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(value);
+  const originalValue = useRef(value);
+  const editing = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const startEditing = useCallback(() => {
     if (!editable) return;
+    originalValue.current = value;
+    editing.current = true;
     setDraft(value);
     setIsEditing(true);
   }, [editable, value]);
@@ -47,6 +51,8 @@ export function EditableField({
   useInlineEditFocus(inputRef, isEditing);
 
   const commit = useCallback(() => {
+    if (!editing.current) return;
+    editing.current = false;
     setIsEditing(false);
     if (draft !== value) {
       onChange(draft);
@@ -54,9 +60,11 @@ export function EditableField({
   }, [draft, value, onChange]);
 
   const cancel = useCallback(() => {
+    editing.current = false;
     setIsEditing(false);
-    setDraft(value);
-  }, [value]);
+    setDraft(originalValue.current);
+    if (draft !== originalValue.current) onChange(originalValue.current);
+  }, [draft, onChange]);
 
   const handleInputKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
@@ -96,7 +104,10 @@ export function EditableField({
         ref={inputRef}
         type={type}
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          onChange(e.target.value);
+        }}
         onBlur={commit}
         onKeyDown={handleInputKeyDown}
         placeholder={placeholder}
@@ -111,6 +122,7 @@ export function EditableField({
   }
 
   const isEmpty = !value.trim();
+  if (!editable && isEmpty) return null;
 
   return (
     <Tag

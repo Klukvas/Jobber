@@ -16,6 +16,8 @@ interface EditableTextareaProps {
   readonly style?: CSSProperties;
   readonly className?: string;
   readonly editable?: boolean;
+  readonly maxLength?: number;
+  readonly "aria-describedby"?: string;
 }
 
 function autoResize(el: HTMLTextAreaElement) {
@@ -30,13 +32,19 @@ export function EditableTextarea({
   style,
   className,
   editable = true,
+  maxLength,
+  "aria-describedby": describedBy,
 }: EditableTextareaProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(value);
+  const originalValue = useRef(value);
+  const editing = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const startEditing = useCallback(() => {
     if (!editable) return;
+    originalValue.current = value;
+    editing.current = true;
     setDraft(value);
     setIsEditing(true);
   }, [editable, value]);
@@ -52,6 +60,8 @@ export function EditableTextarea({
   }, [isEditing]);
 
   const commit = useCallback(() => {
+    if (!editing.current) return;
+    editing.current = false;
     setIsEditing(false);
     if (draft !== value) {
       onChange(draft);
@@ -59,9 +69,11 @@ export function EditableTextarea({
   }, [draft, value, onChange]);
 
   const cancel = useCallback(() => {
+    editing.current = false;
     setIsEditing(false);
-    setDraft(value);
-  }, [value]);
+    setDraft(originalValue.current);
+    if (draft !== originalValue.current) onChange(originalValue.current);
+  }, [draft, onChange]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -97,10 +109,14 @@ export function EditableTextarea({
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setDraft(e.target.value);
+      const next = e.target.value;
+      // An existing oversized value remains editable downward, never silently cut.
+      if (maxLength !== undefined && next.length > maxLength && next.length >= draft.length) return;
+      setDraft(next);
+      onChange(next);
       autoResize(e.target);
     },
-    [],
+    [draft.length, maxLength, onChange],
   );
 
   if (isEditing) {
@@ -113,17 +129,20 @@ export function EditableTextarea({
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         aria-label={placeholder}
+        aria-describedby={describedBy}
         className={cn(
           "w-full resize-none border-none bg-blue-50/70 outline-none ring-1 ring-blue-300 rounded px-0.5 -mx-0.5",
           className,
         )}
         style={style}
         rows={2}
+        maxLength={maxLength}
       />
     );
   }
 
   const isEmpty = !value.trim();
+  if (!editable && isEmpty) return null;
 
   return (
     <p
@@ -132,6 +151,7 @@ export function EditableTextarea({
       tabIndex={editable ? 0 : undefined}
       role={editable ? "textbox" : undefined}
       aria-label={editable ? placeholder : undefined}
+      aria-describedby={editable ? describedBy : undefined}
       className={cn(
         "whitespace-pre-line",
         className,

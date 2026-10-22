@@ -492,11 +492,13 @@ func main() {
 	var importHdl *importHandler.ImportHandler
 	var matchScoreHdl *matchScoreHandler.MatchScoreHandler
 	var resumeAIHdl *rbHandler.AIHandler
+	var tailoringAI rbService.TailoringAIClient
 	var resumeImportHdl *rbHandler.ImportHandler
 	var coverLetterAIHdl *cvHandler.AIHandler
 	var autofillProfileHdl *resumeHandler.AutofillProfileHandler
 	if cfg.Anthropic.APIKey != "" {
 		aiClient := ai.NewAnthropicClient(cfg.Anthropic.APIKey)
+		tailoringAI = aiClient
 		importSvc := importService.NewImportService(aiClient, subscriptionSvc)
 		importHdl = importHandler.NewImportHandler(importSvc)
 
@@ -519,6 +521,10 @@ func main() {
 	} else {
 		logger.Info("ANTHROPIC_API_KEY not configured, AI features disabled")
 	}
+
+	tailoringStore := rbService.NewRedisTailoringProposalStore(redisClient.Client)
+	tailoringSvc := rbService.NewTailoringService(resumeBuilderRepository, resumeBuilderRepository, tailoringAI, tailoringStore, subscriptionSvc)
+	tailoringHdl := rbHandler.NewTailoringHandler(tailoringSvc)
 
 	// Rate limiting for auth endpoints (10 requests per minute per IP)
 	authRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
@@ -658,6 +664,7 @@ func main() {
 		if coverLetterExportHdl != nil {
 			coverLetterExportHdl.RegisterRoutes(v1, authMiddleware, exportRateLimiter)
 		}
+		tailoringHdl.RegisterRoutes(v1, authMiddleware, resumeAIRateLimiter)
 		if resumeAIHdl != nil {
 			resumeAIHdl.RegisterRoutes(v1, authMiddleware, resumeAIRateLimiter)
 		}

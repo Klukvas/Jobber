@@ -1,0 +1,134 @@
+# Исправления конструктора резюме Jobber — 22 октября 2026
+
+**Итог: RB-001…RB-012 закрыты; условный feedback AI-импорта исправлен. Свежий третий Sol QA: source PASS, 0 findings; независимая повторная проверка Astra: PASS, 0 findings. Финальный общий frontend-прогон: 253 файла, 2858 тестов PASS.** Это отдельный отчёт об исправлениях. [Исходный аудит с воспроизведениями](resume-builder-audit-2026-10-22.txt) оставлен без изменений; он описывает состояние до исправлений.
+
+Ветка: `codex/resume-builder-audit-fixes`. Основание аудита: `757820022e0f19053ecf9d02056cf7ac372f7559`. Изменения находятся в рабочем дереве, commit/push/deploy не выполнялись. Проверки используют искусственные документы, localhost и изолированные PostgreSQL/Redis. Производственные данные, платная AI-модель и внешние AI-ключи не использовались.
+
+## Статусы RB-001…RB-012
+
+| ID | Исправление | Подтверждение текущего поведения |
+|---|---|---|
+| RB-001 | Flush согласует структуру секций после Undo/Redo через CREATE/DELETE; серверный ID обновляет все ревизии истории до возможного компенсационного DELETE; старый снимок не отменяет более новое структурное намерение | Целевые регрессии persistence и 9 новых управляемых race-сценариев; ручной CUA: первое добавление → Undo/Redo → reload, удаление → Undo → Saved → reload |
+| RB-002 | Смена открытого документа не считается удалением строки A; scope серверных/pending ID фиксируется для каждой поставленной в очередь ревизии; pending CREATE ожидается и канонизируется, а не выполняется повторно | Регрессии с отложенным CREATE, переключением, refetch и устаревшей записью; серверная структура проверяется отдельно от локального массива |
+| RB-003 | Inline-поля передают актуальный ввод в общий документ до blur; autosave и защита ухода видят активный черновик; Escape возвращает значение начала редактирования | Ручной CUA: ввод при сохранении фокуса, вставка в середине без скачка caret, Escape после autosave, reload без blur, 3254 символа и последовательное дописывание |
+| RB-004 | Print surface исключает глобальные overlays, включая cookie consent | Настоящие Go → React PDF; извлечение текста и изображения не содержат баннер/кнопки cookie |
+| RB-005 | Небезопасный Go fallback больше не используется для Builder Resume; отсутствие или сбой React renderer приводит к явному HTTP 503, а не PDF со скрытыми данными | Go handler/service регрессии; при нормальном renderer скрытое содержимое отсутствует во всех 12 шаблонах desktop/mobile |
+| RB-006 | В read-only/print пустые inline-поля и даты не выводят Position/Add dates; пустые секции и их заголовки не печатаются, включая Modern | Реальные частично заполненные и пустые PDF всех 12 шаблонов; focused preview/print тесты |
+| RB-007 | AI/ATS ждут успешного flush актуального документа; ошибка сохранения и смена документа прерывают анализ | Настоящие панели и mutation hooks с управляемым отложенным ответом; проверяются порядок save → request и отсутствие API-запроса после failed save/switch |
+| RB-008 | Результат AI/ATS привязан к исходному документу и ревизии; перед показом/apply проверяется соответствие; панели получают key по document ID | Реальные store/hooks/router, cached-переход A → B и поздний ответ A; новые правки скрывают устаревший результат; late bullets не меняют опыт B; временный ID строки корректно разрешается после flush |
+| RB-009 | E2E действительно редактируют summary, ждут Saved, перезагружают страницу и проверяют текст; PDF проверяется по байтам и извлечённому содержимому; исправлены маршруты, Create Resume menu и inline-локаторы | E2E discovery и отдельная строгая TypeScript-проверка проходят. Полный браузерный E2E-запуск не выполнялся; тесты не объявляются успешно выполненными |
+| RB-010 | Rename сериализован с очередью сохранения, согласует detail cache/открытый документ и не позволяет старой ревизии вернуть старый title | Реальный query cache/router integration; ручной CUA: cached reopen → rename → другая правка → reload сохраняет имя |
+| RB-011 | Toolbar переносит действия, ограничивает title и сохраняет доступные названия кнопок на мобильной ширине | Ручной CUA родителя на 768 и 390 px; DOM-геометрия ниже; Design sheet открывается/закрывается |
+| RB-012 | Summary ограничен 5000 символами, показывает счётчик; существующий слишком длинный текст не обрезается молча и имеет явное объяснение, как восстановить сохранение | Тесты настоящего EditableTextarea/SummaryContent: допустимый предел, отказ от превышения, предупреждение для старого значения >5000; общие тесты активного ввода остаются зелёными |
+
+Таблица фиксирует закрытие исходных находок и уровень проверки. Два новых P1-замечания review и гонка дублирующего CREATE прошли отдельный fix-loop с независимой повторной проверкой. Успешные unit/integration-тесты не выдаются за успешный вызов реальной AI-модели или за полный браузерный E2E.
+
+## Условное наблюдение AI-импорта
+
+Это по-прежнему **не дополнительная подтверждённая находка RB-013**. В audit-runtime AI routes намеренно отсутствуют из-за отсутствия ключа; успешный AI-импорт текста и разбор PDF этой средой не доказываются.
+
+Локальный feedback исправлен: пустое Error.message использует локализованную ошибку импорта; известный HTTP 404 объясняет недоступность AI-импорта. Ввод остаётся в форме, её можно исправить и повторить попытку. Есть регрессии на пустое транспортное сообщение и 404, плюс E2E-сценарий с явно подменённым 404; реальные платные запросы не выполнялись.
+
+## Изменившийся контракт PDF и требования runtime
+
+Для Builder Resume требуется доступный React renderer через корректный `FRONTEND_URL`. Если URL не задан либо React-печать не удалась, endpoint экспорта возвращает **HTTP 503, код `PDF_RENDERER_UNAVAILABLE`**. Неполный или небезопасный резервный PDF не выдаётся как успешный файл.
+
+Toolbar сообщает, что PDF временно недоступен, резюме сохранено и можно повторить попытку позднее либо экспортировать DOCX. Ошибка renderer не выдаётся за успешное скачивание. Внутренние адреса и диагностические подробности не передаются пользователю. Настройки production/deploy в рамках этой задачи не менялись; доступность `FRONTEND_URL` должна быть обеспечена средой запуска.
+
+PDF content E2E использует `pdftotext` из Poppler, доступный в PATH. Отсутствие программы завершает проверку явной ошибкой, а не пропуском assertions. Новая зависимость в manifests/lockfile не добавлена.
+
+## Выполненные проверки
+
+Числа ниже описывают отдельные запуски с пересекающимся покрытием: **их нельзя складывать** в одно число уникальных тестов.
+
+| Исполнитель / проверка | Результат |
+|---|---|
+| Родитель: финальный `npm test -- --reporter=dot` после всех review fixes | **253 файла, 2858 тестов PASS**, **95.18 s**, старт **12:40:11** по локальному времени. Все девять новых race-регрессий включены |
+| Persistence developer: финальные целевые frontend-регрессии после review fixes | **12 файлов, 229 тестов PASS**, включая 9 новых управляемых race-регрессий; до исправления все 9 давали красный результат. Также PASS `tsc`, lint и diff-check. Более ранний целевой запуск: 220 PASS |
+| AI/UI developer: 13 целевых файлов | **113 тестов PASS**; до исправления 9/10 проверок save/origin падали, 3 import/export и 2 summary-границы отдельно были красными |
+| PDF developer: focused print/inline/handler suite | **87 тестов в 6 файлах PASS** |
+| PDF developer: preview suite | **254 теста в 28 файлах PASS** |
+| PDF integration developer: настоящий Go → React renderer | **60 реальных PDF-экспортов PASS**: 12 desktop + 12 mobile со скрытым разделом; 12 desktop + 12 mobile с частично заполненными company/education; 12 desktop с пустым документом |
+| Go race / vet | Целевые PDF проверки и широкая race-проверка родителя PASS |
+| Frontend lint / TypeScript | `tsc -b --pretty false`, отдельный strict typecheck E2E и developer lint после structural fix-loop PASS. Повторный полный финальный lint родителя на замороженном source также PASS |
+| Frontend build | Повторный финальный build после последних исправлений PASS: Vite **23.82 s**, **3738 modules**; предупреждения chunk **545.38 kB** и Browserslist data возрастом **9 месяцев**; ошибок сборки нет |
+| Playwright discovery | `playwright test e2e/resume-builder --list`: **24 теста**, включая setup. Это обнаружение тестов, не браузерное выполнение |
+
+В первом широком frontend-прогоне один старый тест ожидал прежнее поведение detail cache после rename. Ожидание приведено в соответствие с новым контрактом; целевые 20 тестов прошли, затем общий прогон дал 2849/2849. После основной части structural fix-loop промежуточный общий прогон дал 2856 PASS. Финальный повтор после двух последних регрессий Redo дал **2858/2858**, как указано в таблице; промежуточные результаты не выдаются за итоговые. Проблема не скрыта исключением теста или ослаблением assertions.
+
+Реальная AI-модель/ATS/AI-import остаются непроверенными успешно из-за намеренно отсутствующих ключей. Вместо них использованы управляемые ответы на реальных frontend-швах. CLI-браузерные действия не запускались: ручные проверки выполнялись только через CUA. Повторно использованный CUA-контекст AI/UI developer был недоступен; родитель завершил адаптивные проверки в отдельной свежей скрытой вкладке. Это ограничение инструмента не классифицировано как дефект продукта.
+
+## Браузерные измерения и долговечные доказательства
+
+На **768 × 1024** раскрытый штатный sidebar сохранён: body.scrollWidth = **753**, viewport = 768. Export: x=413…530.55, y=144; AI: x=538.55…666.64, y=144; ATS: x=296…416.06, y=188; Content Library: x=424.06…578.27, y=188. Все проверенные действия доступны внутри viewport.
+
+На **390 × 844** body.scrollWidth = **375**, viewport = 390. Export: x=125…191; AI: x=195…237; ATS: x=241…283; Content Library: x=287…329, y=188. Design sheet открывается и закрывается. Временные viewport overrides сброшены, собственные вкладки проверяющих закрыты.
+
+Сохранён компактный явный белый список искусственных материалов:
+
+- [Toolbar, tablet 768](evidence/resume-builder-fixes-2026-10-22/tablet-768.png).
+- [Toolbar, mobile 390](evidence/resume-builder-fixes-2026-10-22/mobile-390.png).
+- [Открытая Design sheet, mobile 390](evidence/resume-builder-fixes-2026-10-22/mobile-design-390.png).
+- [12 шаблонов: частично заполненные документы, без Position/Add dates](evidence/resume-builder-fixes-2026-10-22/desktop-partial-all-templates.png).
+- [12 шаблонов: mobile export со скрытым разделом](evidence/resume-builder-fixes-2026-10-22/mobile-all-templates.png).
+- [12 шаблонов: пустой документ без пустых заголовков](evidence/resume-builder-fixes-2026-10-22/desktop-blank-all-templates.png).
+- [Пример настоящего PDF Professional](evidence/resume-builder-fixes-2026-10-22/desktop-professional-partial.pdf) и [извлечённый текст](evidence/resume-builder-fixes-2026-10-22/desktop-professional-partial.txt).
+
+Contact sheets показывают representative output 12 шаблонов. Они не заменяют отдельные проверки содержания каждого PDF, указанные выше. Проверки persistence выполнялись на отдельных искусственных документах; в этот компактный набор не переносятся скриншоты аудита до исправления как будто это новые PASS-доказательства.
+
+## Изменённые области кода
+
+- Persistence/history/drafts: [useSectionPersistence](../../fe/src/features/resume-builder/hooks/useSectionPersistence.ts), [resumeDocumentSync](../../fe/src/features/resume-builder/lib/resumeDocumentSync.ts), [useUndoRedo](../../fe/src/features/resume-builder/hooks/useUndoRedo.ts), [store](../../fe/src/stores/resumeBuilderStore.ts), inline-поля и их регрессии.
+- Rename/cache: [RenameBuilderResumeModal](../../fe/src/features/resumes/modals/RenameBuilderResumeModal.tsx) и integration-тесты реального query cache.
+- Print/PDF: [providers](../../fe/src/app/providers.tsx), [TemplateSections](../../fe/src/features/resume-builder/components/preview/shared/TemplateSections.tsx), [ModernTemplate](../../fe/src/features/resume-builder/components/preview/ModernTemplate.tsx), [PDF service](../../be/internal/platform/pdf/pdf_service.go), [export handler](../../be/modules/resumebuilder/handler/export_handler.go), соответствующие unit/integration-тесты.
+- AI/ATS/UI/validation: [AIAssistantPanel](../../fe/src/features/resume-builder/components/AIAssistantPanel.tsx), [ATSCheckerPanel](../../fe/src/features/resume-builder/components/ATSCheckerPanel.tsx), [EditorToolbar](../../fe/src/features/resume-builder/components/EditorToolbar.tsx), [ImportResumeModal](../../fe/src/features/resume-builder/components/ImportResumeModal.tsx), [SummarySection](../../fe/src/features/resume-builder/components/preview/shared/sectionContent/SummarySection.tsx), [ResumeBuilderEditor](../../fe/src/pages/ResumeBuilderEditor.tsx), локализованные сообщения en/ru/uk и регрессии.
+- E2E: [сценарии Builder Resume](../../fe/e2e/resume-builder/) и два page helper. Новых manifests, lockfiles, schema или production-настроек не добавлено.
+
+## Независимый fix-loop и окончательная проверка — PASS
+
+Первый свежий Sol QA и независимая Astra выявили P1: старое top-level сохранение могло удалить успешно созданную позже строку, потому что structural reconcile сравнивал старый snapshot с текущим набором server IDs. Refetch в промежутке мог закрепить пустую структуру и показать Saved. Замечание не отклонено и не замаскировано зелёной общей suite.
+
+Родитель выявил риск повторного CREATE; developer воспроизвёл его двумя управляемыми тестами: новая строка с ещё незавершённым CREATE могла быть создана повторно из старого сохранения. Следующий свежий Sol QA нашёл второй P1: Undo pending CREATE → завершение CREATE с компенсационным DELETE → Redo возвращал строку локально, но не восстанавливал её на сервере.
+
+Все три сценария исправлены developer:
+
+- Для каждой поставленной в очередь ревизии фиксируется scope известных серверных и pending-local IDs; structural reconcile учитывает более новое live/outgoing намерение и не удаляет строки, появившиеся после старого снимка.
+- Зарегистрированный pending CREATE ожидается; после него разрешаются alias IDs, поэтому reconcile не запускает второй CREATE той же строки.
+- Серверный ID усваивается во всех ревизиях истории **до** выхода через ветку компенсационного удаления. Redo после компенсации действительно восстанавливает строку удалённо.
+
+В [регрессиях очереди и истории](../../fe/src/features/resume-builder/lib/resumeDocumentSync.test.ts) добавлены **9 управляемых сценариев**:
+
+| Группа | Число | Проверяемый результат |
+|---|---:|---|
+| Новый успешный CREATE против старой записи и refetch | 2, active/outgoing | Новая строка остаётся локально и удалённо, лишний DELETE отсутствует |
+| Scope старой ревизии и явное структурное намерение | 3 | Поздний CREATE сохраняется после смены документа; Undo pending CREATE удаляет явно отменённую строку; более новый outgoing Redo имеет приоритет над старым Undo |
+| Pending CREATE против старых top-level writes | 2, active/outgoing | CREATE выполняется ровно один раз, строка не дублируется |
+| Redo после компенсации pending CREATE | 2, active/outgoing | После Undo/компенсационного DELETE Redo создаёт строку удалённо; повторная загрузка модели через reconcileLoadedResume сохраняет строку |
+
+Developer подтвердил red-proof всех 9 перед итоговым исправлением, затем зелёные 12 целевых файлов / 229 тестов, TypeScript, lint и diff-check. Контрольная модель сервера и точное число CREATE/DELETE проверяются отдельно от видимого live store.
+
+**Astra: итоговый PASS, 0 findings.** Исходный независимый risk reviewer выполнил follow-up в своём прежнем контексте — это не новый fresh Astra context. Настоящие модули проверены отдельным in-memory harness: **8/8**, прежние шесть сценариев плюс два compensated CREATE → Redo active/outgoing. В последних двух наблюдались два CREATE, один намеренный DELETE, восстановление строки server-2.
+
+**Свежая третья Sol QA: source PASS, 0 findings.** Проверены фактический combined diff, все 12 исходных находок, условный import feedback, E2E/print и untracked source/tests; финальные 2858 тестов, lint и build относятся к исправленному замороженному снимку. Отдельная read-only сверка фактов данного отчёта передана reviewer после обновления чисел. Замечания и цикл исправлений сохранены без молчаливого waiver.
+
+## Проверка пересобранного локального runtime
+
+После фикса пересобран и перезапущен только API в его tmux-сессии. UI, PostgreSQL и Redis не перезапускались и не менялись. Проверки выполнены на синтетических данных, без production-записей и без AI-ключей.
+
+| Проверка | Наблюдение |
+|---|---|
+| Health API после перезапуска | HTTP 200 |
+| Обычный PDF через настоящий endpoint | HTTP 200, **32925 байт**; синтетические name/summary/skill присутствуют, cookie-текст отсутствует |
+| DOCX того же синтетического документа | HTTP 200, **42065 байт**; синтетические name/summary/skill присутствуют |
+| PDF fixture со скрытым опытом | HTTP 200, **44010 байт**; скрытый experience отсутствует |
+| Targeted Go HTTP 503 / DOCX checks | PASS |
+
+Эти HTTP/file проверки подтверждают содержимое локальных экспортов; они не выдаются за браузерный E2E или успешную реальную AI-генерацию. Auth/env/backend logs в долговечный evidence не копировались.
+
+## Инструкции, границы и сохранность исходного аудита
+
+Проверены и соблюдены `/Users/andreypavlenko/Desktop/Projects/AGENTS.md`, `/Users/andreypavlenko/Desktop/Projects/CLAUDE.md`, применимые `~/.claude/rules/common/*`, `~/.claude/rules/typescript/*`, а PDF developer также `~/.claude/rules/golang/*`, `docs/CONTEXT.md`, исходный audit report и skill diagnosing-bugs. Проектных AGENTS.md/CLAUDE.md при поиске не обнаружено. Явный выбор пользователя — Codex; исполнители и reviewers использовали разделённые роли, reviewers не владели исходными изменениями.
+
+Canonical scope/safety имеет приоритет над общими рекомендациями автоматически коммитить или продолжать следующую задачу. Никаких commit, push, deploy, следующей задачи, изменений секретов, внешних production-записей или соседнего cleanup не выполнялось. Родитель проверил границы ownership. Политики/конфигурация агентов не менялись.
+
+Данный документационный подэтап пишет только этот .txt и каталог его evidence. Source во время записи отчёта не меняется. Auth/login JSON, токены, .env, backend logs и полные диагностические stderr не скопированы. Исходный аудит сохранил SHA-256 `96706d087f9c155126732b264af02c4801c733346750c7a3b3315bf01b0171ec`; хеш подтверждён при итоговой проверке; все локальные ссылки и восемь скопированных материалов проверены.

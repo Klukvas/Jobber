@@ -1,0 +1,43 @@
+import { beforeEach, expect, it, vi } from 'vitest';
+import { act, renderHook } from '@testing-library/react';
+import { useResumeBuilderStore as store } from '@/stores/resumeBuilderStore';
+import { useSectionPersistence, initServerIds, clearServerIds } from '@/features/resume-builder/hooks/useSectionPersistence';
+import { useUndoRedo } from '@/features/resume-builder/hooks/useUndoRedo';
+import { enqueueResumeSave, markResumeLoaded, resetResumeDocumentSync } from '@/features/resume-builder/lib/resumeDocumentSync';
+import { resumeBuilderService as api } from '@/services/resumeBuilderService';
+vi.mock('@/services/resumeBuilderService', () => ({resumeBuilderService: {
+ createSkill: vi.fn(), deleteSkill: vi.fn(), updateSkill: vi.fn(), update: vi.fn(),
+ upsertContact: vi.fn(), upsertSummary: vi.fn(), updateSectionOrder: vi.fn(),
+}}));
+const row = {id:'existing',name:'TypeScript',level:'Expert',sort_order:0};
+function resume(id='A',skills=[row]) { return {id,title:'Verify',template_id:'modern',font_family:'Inter',primary_color:'#000',text_color:'#000',spacing:100,margin_top:40,margin_bottom:40,margin_left:40,margin_right:40,layout_mode:'single',sidebar_width:35,font_size:12,skill_display:'',created_at:'',updated_at:'',contact:null,summary:null,experiences:[],educations:[],skills,languages:[],certifications:[],projects:[],volunteering:[],custom_sections:[],section_order:[]}; }
+beforeEach(()=>{vi.clearAllMocks(); resetResumeDocumentSync(); clearServerIds('A');clearServerIds('B');store.getState().setResume(resume());store.temporal.getState().clear();initServerIds(resume());markResumeLoaded(resume());vi.mocked(api.update).mockResolvedValue(resume());vi.mocked(api.deleteSkill).mockResolvedValue(undefined);});
+it('REPRO: confirmed row deletion then Undo is marked saved without restoring server row',async()=>{
+ const remote=new Map([[row.id,row]]);
+ vi.mocked(api.deleteSkill).mockImplementation(async(_id,eid)=>{remote.delete(eid)});
+ const persistence=renderHook(()=>useSectionPersistence('skills'));
+ const history=renderHook(()=>useUndoRedo());
+ act(()=>store.getState().removeSkill(row.id));
+ await act(async()=>{await persistence.result.current.remove(row.id)});
+ act(()=>history.result.current.undo());
+ expect(store.getState().resume.skills).toHaveLength(1);
+ await act(async()=>{await enqueueResumeSave()});
+ expect(remote.size).toBe(0);
+ expect(api.createSkill).not.toHaveBeenCalled();
+ expect(store.getState().saveStatus).toBe('saved');
+ console.log('REPRO undo deletion: local rows=1, remote rows=0, status=saved, create calls=0');
+});
+it('REPRO: successful create deletes its own remote row after document switch',async()=>{
+ let resolveCreate;
+ vi.mocked(api.createSkill).mockImplementation(()=>new Promise(resolve=>{resolveCreate=resolve}));
+ store.getState().setResume(resume('A',[]));
+ const local={...row,id:'local'};
+ act(()=>store.getState().addSkill(local));
+ const persistence=renderHook(()=>useSectionPersistence('skills'));
+ let pending;
+ act(()=>{pending=persistence.result.current.add(local)});
+ act(()=>store.getState().setResume(resume('B',[])));
+ await act(async()=>{resolveCreate({...row,id:'created'});await pending;await Promise.resolve()});
+ expect(api.deleteSkill).toHaveBeenCalledWith('A','created');
+ console.log('REPRO document switch: successful CREATE A/created followed by DELETE A/created');
+});

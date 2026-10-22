@@ -52,12 +52,19 @@ vi.mock("@/shared/hooks/useSubscription", () => ({
 }));
 
 vi.mock("@/stores/resumeBuilderStore", () => ({
-  useResumeBuilderStore: (selector: (state: Record<string, unknown>) => unknown) =>
-    selector({ resume: mockResumeRef.current }),
+  useResumeBuilderStore: Object.assign(
+    (selector: (state: Record<string, unknown>) => unknown) =>
+      selector({ resume: mockResumeRef.current }),
+    { getState: () => ({ resume: mockResumeRef.current }) },
+  ),
 }));
 
 vi.mock("../hooks/useATSCheck", () => ({
   useATSCheck: () => mockATSCheckRef.current,
+}));
+
+vi.mock("../lib/resumeDocumentSync", () => ({
+  flushResumeDocument: vi.fn().mockResolvedValue(undefined),
 }));
 
 // The upgrade CTA is behind the payments flag, which is read from the
@@ -70,6 +77,10 @@ vi.mock("@/shared/lib/features", () => featuresMock);
 describe("ATSCheckerPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockMutate.mockImplementation((_id, options) => {
+      if (mockATSCheckRef.current.data)
+        options?.onSuccess?.(mockATSCheckRef.current.data);
+    });
     featuresMock.FEATURES.PAYMENTS = true;
     mockResumeRef.current = { id: "resume-1" };
     mockATSCheckRef.current = {
@@ -116,9 +127,7 @@ describe("ATSCheckerPanel", () => {
       isPending: true,
     };
     render(<ATSCheckerPanel />);
-    expect(
-      screen.getByText("resumeBuilder.ats.checking"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("resumeBuilder.ats.checking")).toBeInTheDocument();
   });
 
   it("shows error text when isError is true", () => {
@@ -130,7 +139,7 @@ describe("ATSCheckerPanel", () => {
     expect(screen.getByText("resumeBuilder.ats.error")).toBeInTheDocument();
   });
 
-  it("renders the score when result data is available", () => {
+  it("renders the score when result data is available", async () => {
     mockATSCheckRef.current = {
       ...mockATSCheckRef.current,
       data: {
@@ -141,11 +150,12 @@ describe("ATSCheckerPanel", () => {
       },
     };
     render(<ATSCheckerPanel />);
+    await userEvent.click(screen.getByText("resumeBuilder.ats.check"));
     expect(screen.getByText("85")).toBeInTheDocument();
     expect(screen.getByText("resumeBuilder.ats.score")).toBeInTheDocument();
   });
 
-  it("renders issues when present", () => {
+  it("renders issues when present", async () => {
     mockATSCheckRef.current = {
       ...mockATSCheckRef.current,
       data: {
@@ -159,11 +169,12 @@ describe("ATSCheckerPanel", () => {
       },
     };
     render(<ATSCheckerPanel />);
+    await userEvent.click(screen.getByText("resumeBuilder.ats.check"));
     expect(screen.getByText("Missing email")).toBeInTheDocument();
     expect(screen.getByText("Short summary")).toBeInTheDocument();
   });
 
-  it("shows no-issues text when result has no issues", () => {
+  it("shows no-issues text when result has no issues", async () => {
     mockATSCheckRef.current = {
       ...mockATSCheckRef.current,
       data: {
@@ -174,12 +185,11 @@ describe("ATSCheckerPanel", () => {
       },
     };
     render(<ATSCheckerPanel />);
-    expect(
-      screen.getByText("resumeBuilder.ats.noIssues"),
-    ).toBeInTheDocument();
+    await userEvent.click(screen.getByText("resumeBuilder.ats.check"));
+    expect(screen.getByText("resumeBuilder.ats.noIssues")).toBeInTheDocument();
   });
 
-  it("renders suggestions when present", () => {
+  it("renders suggestions when present", async () => {
     mockATSCheckRef.current = {
       ...mockATSCheckRef.current,
       data: {
@@ -190,11 +200,12 @@ describe("ATSCheckerPanel", () => {
       },
     };
     render(<ATSCheckerPanel />);
+    await userEvent.click(screen.getByText("resumeBuilder.ats.check"));
     expect(screen.getByText("Add more keywords")).toBeInTheDocument();
     expect(screen.getByText("Use action verbs")).toBeInTheDocument();
   });
 
-  it("renders keywords when present", () => {
+  it("renders keywords when present", async () => {
     mockATSCheckRef.current = {
       ...mockATSCheckRef.current,
       data: {
@@ -205,6 +216,7 @@ describe("ATSCheckerPanel", () => {
       },
     };
     render(<ATSCheckerPanel />);
+    await userEvent.click(screen.getByText("resumeBuilder.ats.check"));
     expect(screen.getByText("React")).toBeInTheDocument();
     expect(screen.getByText("TypeScript")).toBeInTheDocument();
     expect(screen.getByText("Node.js")).toBeInTheDocument();
@@ -224,6 +236,10 @@ describe("ATSCheckerPanel — monthly AI limit", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockMutate.mockImplementation((_id, options) => {
+      if (mockATSCheckRef.current.data)
+        options?.onSuccess?.(mockATSCheckRef.current.data);
+    });
     featuresMock.FEATURES.PAYMENTS = true;
     mockResumeRef.current = { id: "resume-1" };
     mockATSCheckRef.current = {

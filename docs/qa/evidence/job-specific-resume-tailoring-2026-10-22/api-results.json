@@ -1,0 +1,18 @@
+{
+  "checks": [
+    "read owned source",
+    "generate 3 reviewed changes",
+    "apply separate copy and link 201",
+    "source byte-equivalent JSON unchanged",
+    "selected summary applied",
+    "declined experience unchanged",
+    "skill permutation selected preserving facts",
+    "design contact and other sections copied",
+    "idempotent replay 200 samecopy",
+    "different replay body conflict",
+    "Job points only to created Builder Resume"
+  ],
+  "job_id": "4ddecf6e-d437-44b0-96ae-4f8dd573c9c7",
+  "source_id": "a96ceb60-89d7-46d7-923e-bb0654dd56b6",
+  "copy_id": "225337ed-5d9e-423b-9210-20b33ea5deaf"
+}

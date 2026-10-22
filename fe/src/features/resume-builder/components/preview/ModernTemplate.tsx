@@ -31,6 +31,15 @@ export function ModernTemplate({ editable = false }: ModernTemplateProps) {
   } = setup;
 
   const renderContactBlock = (onColoredBg: boolean) => {
+    const hasContactDetails = [
+      contact?.email,
+      contact?.phone,
+      contact?.location,
+      contact?.website,
+      contact?.linkedin,
+      contact?.github,
+    ].some((value) => Boolean(value?.trim()));
+    if (!editable && !hasContactDetails) return null;
     const inputClass = onColoredBg ? WHITE_INPUT_CLASS : "";
     return (
       <div className={onColoredBg ? "mb-6" : "mb-4"}>

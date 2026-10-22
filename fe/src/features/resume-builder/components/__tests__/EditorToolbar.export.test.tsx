@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { ApiError } from "@/services/api";
 import { EditorToolbar } from "../EditorToolbar";
 import { createMockStoreState } from "./testHelpers";
 
@@ -262,4 +263,20 @@ describe("EditorToolbar export flow", () => {
     await user.click(toggle).catch(() => {});
     expect(mockExportPDFMutate).not.toHaveBeenCalled();
   });
+});
+
+it("explains an unavailable PDF renderer without claiming a download", async () => {
+  mockExportPDFMutate.mockImplementation((_id, opts) =>
+    opts.onError(new ApiError("", "PDF_RENDERER_UNAVAILABLE", 503)),
+  );
+  render(<EditorToolbar {...defaultProps} />);
+  await userEvent.click(getExportToggle());
+  await userEvent.click(screen.getByText("resumeBuilder.toolbar.exportPdf"));
+  await waitFor(() =>
+    expect(mockShowError).toHaveBeenCalledWith(
+      "resumeBuilder.toolbar.pdfUnavailable",
+    ),
+  );
+  expect(clickSpy).not.toHaveBeenCalled();
+  expect(mockShowSuccess).not.toHaveBeenCalled();
 });

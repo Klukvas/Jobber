@@ -34,7 +34,7 @@ test.describe("Resume Builder — Editor", () => {
     const backBtn = page.getByRole("button", { name: /back to resumes/i });
     await expect(backBtn).toBeVisible();
     await backBtn.click();
-    await expect(page).toHaveURL("/app/resume-builder");
+    await expect(page).toHaveURL("/app/resumes");
   });
 
   test("shows 404 state for non-existent resume", async ({ page }) => {
@@ -43,16 +43,21 @@ test.describe("Resume Builder — Editor", () => {
     await expect(page.getByText(/not found/i)).toBeVisible();
   });
 
-  test("shows save indicator after editing", async ({ page }) => {
+  test("shows Saved after editing summary and preserves it on reload", async ({
+    page,
+  }) => {
     await page.goto(editorUrl);
-    await page.waitForLoadState("networkidle");
-
-    // Edit the title (displayed as h1 in toolbar)
-    const titleEl = page.locator("h1").first();
-    if (await titleEl.isVisible()) {
-      // Title is visible — the editor loaded
-      await expect(titleEl).toBeVisible();
-    }
+    const editor = new ResumeBuilderEditorPage(page);
+    const marker = `Editor save marker ${Date.now()}`;
+    await editor.fillSummary(marker);
+    await editor.waitForSaved();
+    await page.reload();
+    await expect(
+      page.getByRole("textbox", {
+        name: "Write a brief summary of your professional background...",
+        exact: true,
+      }),
+    ).toHaveText(marker);
   });
 });
 
@@ -76,7 +81,10 @@ test.describe("Resume Builder — Design Sidebar", () => {
     await page.waitForLoadState("networkidle");
 
     // Design sidebar has icon buttons
-    const sidebar = page.locator(".hidden.md\\:block").first();
+    const sidebar = page.getByRole("button", {
+      name: "Templates",
+      exact: true,
+    });
     await expect(sidebar).toBeVisible();
   });
 
@@ -101,7 +109,9 @@ test.describe("Resume Builder — Design Sidebar", () => {
     await editor.openColors();
 
     // Should see color swatches
-    await expect(page.locator("button[style*='background']").first()).toBeVisible();
+    await expect(
+      page.locator("button[style*='background']").first(),
+    ).toBeVisible();
   });
 
   test("typography panel opens and shows font selector", async ({ page }) => {

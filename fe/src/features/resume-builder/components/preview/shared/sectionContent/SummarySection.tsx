@@ -1,3 +1,5 @@
+import { useId } from "react";
+import { useTranslation } from "react-i18next";
 import { EditableTextarea } from "../../../inline/EditableTextarea";
 import type { SectionContentProps } from "./types";
 
@@ -12,15 +14,36 @@ export function SummaryContent({
   editable,
 }: SectionContentProps) {
   const { summary } = setup;
+  const { t } = useTranslation();
+  const helpId = useId();
+  const content = summary?.content ?? "";
+  const maxLength = 5000;
+  const tooLong = content.length > maxLength;
 
   if (editable) {
     return (
-      <EditableTextarea
-        value={summary?.content ?? ""}
-        onChange={(content) => setup.updateSummary({ content })}
-        placeholder="Write a brief summary of your professional background..."
-        className={`${config.textSize} ${config.leadingClass} text-gray-700`}
-      />
+      <div>
+        <EditableTextarea
+          value={content}
+          maxLength={maxLength}
+          aria-describedby={helpId}
+          onChange={(content) => setup.updateSummary({ content })}
+          placeholder="Write a brief summary of your professional background..."
+          className={`${config.textSize} ${config.leadingClass} text-gray-700`}
+        />
+        <p
+          id={helpId}
+          role={tooLong ? "alert" : undefined}
+          className={`mt-1 text-xs ${tooLong ? "text-destructive" : "text-muted-foreground"}`}
+        >
+          {t(
+            tooLong
+              ? "resumeBuilder.summaryTooLong"
+              : "resumeBuilder.summaryLimit",
+            { count: content.length, max: maxLength },
+          )}
+        </p>
+      </div>
     );
   }
 

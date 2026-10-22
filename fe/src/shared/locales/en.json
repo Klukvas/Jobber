@@ -425,7 +425,52 @@
     "reminderNoDeliveryHint": "Reminders are dates tracked here in Jobber — we don't send emails or push notifications.",
     "noActiveJobs": "No active jobs",
     "noActiveJobsHint": "All of your jobs are archived. Open the Archived filter to see them, or create a new job.",
-    "viewArchived": "View archived jobs"
+    "viewArchived": "View archived jobs",
+    "tailoring": {
+      "title": "Adapt resume",
+      "intro": "Review suggestions for this Job, then save selected changes in a separate Builder Resume.",
+      "description": "Use an existing Builder Resume as the source. Suggestions use this Job’s saved description and your existing experience and skills.",
+      "source": "Source Builder Resume",
+      "chooseSource": "Choose a Builder Resume",
+      "empty": "Create a Builder Resume first. Uploaded Resumes cannot be adapted here.",
+      "createResume": "Go to Resumes",
+      "missingDescription": "Add a Job description above and save the Job to generate suggestions.",
+      "saveJobFirst": "Save or discard the Job’s changes before adapting a resume.",
+      "generate": "Generate suggestions",
+      "generating": "Preparing suggestions…",
+      "regenerate": "Generate again",
+      "review": "Review changes",
+      "reviewHint": "Select only the changes you want. Check every suggestion for accuracy before saving.",
+      "before": "Current",
+      "after": "Suggested",
+      "reason": "Why this helps:",
+      "evidence": "See source resume excerpts",
+      "summary": "Summary",
+      "experience": "Experience",
+      "skillOrder": "Skill order",
+      "emptyContent": "No content yet",
+      "selectAll": "Select all changes",
+      "copyTitle": "New Builder Resume title",
+      "defaultTitle": "{{title}} — adapted resume",
+      "copyHint": "Saving creates a separate Builder Resume and links it to this Job. Your source stays unchanged.",
+      "saveCopy": "Save copy and link to Job",
+      "saved": "Adapted Builder Resume saved and linked to the Job",
+      "selected": "{{count}} of {{total}} changes selected",
+      "noChanges": "No changes suggested for this source. Try another Builder Resume or review the Job description.",
+      "openSource": "Open source Builder Resume",
+      "errors": {
+        "resumesFailed": "Could not load Builder Resumes. Close this window, refresh the Job, and try again.",
+        "sourceUnsaved": "The source has unsaved changes. Open that Builder Resume, save your changes, and try again.",
+        "stale": "The source or Job changed, or these suggestions expired. Generate again before saving.",
+        "limitReached": "Your current plan’s AI or Builder Resume limit has been reached. Your selected changes are kept.",
+        "rateLimited": "Too many requests. Wait a moment and try again.",
+        "unavailable": "AI suggestions are unavailable right now. Try again later.",
+        "timeout": "The request took too long. Try again; if saving completed, the same copy will be returned.",
+        "invalidResponse": "The suggestions could not be verified. Generate again or try later.",
+        "notFound": "The source, Job, or suggestions are no longer available. Close this window and refresh the Job.",
+        "requestFailed": "Could not complete this request. Your selected changes are kept. Try again."
+      }
+    }
   },
   "settings": {
     "title": "Settings",
@@ -1333,7 +1378,8 @@
       "exporting": "Exporting...",
       "exportSuccess": "PDF exported successfully",
       "exportError": "Failed to export PDF",
-      "contentLibraryComingSoon": "Content Library is coming soon. Stay tuned!"
+      "contentLibraryComingSoon": "Content Library is coming soon. Stay tuned!",
+      "pdfUnavailable": "PDF export is temporarily unavailable. Your resume is saved; try again later or export DOCX."
     },
     "sidebar": {
       "templates": "Templates",
@@ -1401,12 +1447,18 @@
       "success": "Resume imported successfully",
       "error": "Failed to import resume",
       "fileTooLarge": "File is too large. Maximum size is 5MB.",
-      "invalidFileType": "Please select a PDF file"
+      "invalidFileType": "Please select a PDF file",
+      "unavailable": "AI resume import is unavailable right now. Your input is kept; try again later."
     },
     "preview": {
       "renderError": "Failed to render preview. Try changing the template or content."
     },
-    "unsavedChanges": "Unsaved changes"
+    "unsavedChanges": "Unsaved changes",
+    "analysis": {
+      "saveError": "Save your changes before running analysis. Saving failed; retry the save, then try again."
+    },
+    "summaryLimit": "{{count}} / {{max}} characters",
+    "summaryTooLong": "Summary has {{count}} characters. Shorten it to {{max}} or fewer to save."
   },
   "coverLetter": {
     "title": "Cover Letters",

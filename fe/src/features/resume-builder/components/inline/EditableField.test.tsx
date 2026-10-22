@@ -79,7 +79,7 @@ describe("EditableField", () => {
     await user.type(input, "Changed");
     await user.keyboard("{Escape}");
 
-    expect(defaultProps.onChange).not.toHaveBeenCalled();
+    expect(defaultProps.onChange).toHaveBeenLastCalledWith("John Doe");
     expect(screen.getByText("John Doe")).toBeInTheDocument();
   });
 
@@ -124,4 +124,20 @@ describe("EditableField", () => {
     const input = screen.getByDisplayValue("John Doe");
     expect(input.tagName).toBe("INPUT");
   });
+});
+
+
+it("never renders editing placeholders for an empty read-only field", () => {
+  const {container} = render(<EditableField value="   " onChange={vi.fn()} placeholder="Position" editable={false} />);
+  expect(container).toBeEmptyDOMElement();
+});
+
+it("publishes an active draft before blur", async () => {
+  const user = userEvent.setup();
+  const onChange = vi.fn();
+  render(<EditableField value="Original" onChange={onChange} placeholder="Edit" />);
+  await user.click(screen.getByText("Original"));
+  await user.type(screen.getByDisplayValue("Original"), " updated");
+  expect(onChange).toHaveBeenLastCalledWith("Original updated");
+  expect(screen.getByDisplayValue("Original updated")).toHaveFocus();
 });

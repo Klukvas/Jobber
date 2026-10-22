@@ -514,7 +514,7 @@ describe("RenameBuilderResumeModal", () => {
     expect(mockBuilderUpdate).not.toHaveBeenCalled();
   });
 
-  it("invalidates the shared builder list without sweeping cached details", async () => {
+  it("updates and invalidates the renamed detail and shared list while preserving unrelated details", async () => {
     const user = userEvent.setup();
     mockBuilderUpdate.mockResolvedValue(makeBuilder());
     const queryClient = new QueryClient({
@@ -523,6 +523,9 @@ describe("RenameBuilderResumeModal", () => {
     queryClient.setQueryData(resumeQueryKeys.builderList(), [makeBuilder()]);
     queryClient.setQueryData(resumeQueryKeys.builderDetail("b-1"), {
       ...makeBuilder(),
+    });
+    queryClient.setQueryData(resumeQueryKeys.builderDetail("unrelated"), {
+      ...makeBuilder(), id: "unrelated", title: "Other resume",
     });
 
     render(
@@ -548,7 +551,10 @@ describe("RenameBuilderResumeModal", () => {
     expect(
       queryClient.getQueryState(resumeQueryKeys.builderDetail("b-1"))
         ?.isInvalidated,
-    ).toBe(false);
+    ).toBe(true);
+    expect(queryClient.getQueryData<{title: string}>(resumeQueryKeys.builderDetail("b-1"))?.title).toBe("Renamed Builder");
+    expect(queryClient.getQueryState(resumeQueryKeys.builderDetail("unrelated"))?.isInvalidated).toBe(false);
+    expect(queryClient.getQueryData<{title: string}>(resumeQueryKeys.builderDetail("unrelated"))?.title).toBe("Other resume");
   });
 
   it("surfaces a rename error", async () => {

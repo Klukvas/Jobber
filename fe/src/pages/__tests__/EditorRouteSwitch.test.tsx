@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { apiClient } from "@/services/api";
+import { resumeQueryKeys } from "@/shared/lib/resumeQueryKeys";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import ResumeBuilderEditor from "../ResumeBuilderEditor";
@@ -105,19 +108,33 @@ vi.mock("@/features/resume-builder/components/SaveIndicator", () => ({
 }));
 
 vi.mock("@/features/resume-builder/components/EditorToolbar", () => ({
-  EditorToolbar: () => <div data-testid="editor-toolbar" />,
+  EditorToolbar: ({
+    onToggleAI,
+    onToggleATS,
+  }: {
+    onToggleAI: () => void;
+    onToggleATS: () => void;
+  }) => (
+    <div data-testid="editor-toolbar">
+      <button onClick={onToggleAI}>Open AI</button>
+      <button onClick={onToggleATS}>Open ATS</button>
+    </div>
+  ),
 }));
 
 vi.mock("@/features/resume-builder/components/sidebar/DesignSidebar", () => ({
   DesignSidebar: () => <div data-testid="design-sidebar" />,
 }));
 
-vi.mock("@/features/resume-builder/components/AIAssistantPanel", () => ({
-  AIAssistantPanel: () => null,
+vi.mock("@/services/api", async (original) => ({
+  ...(await original<typeof import("@/services/api")>()),
+  apiClient: { post: vi.fn() },
 }));
-
-vi.mock("@/features/resume-builder/components/ATSCheckerPanel", () => ({
-  ATSCheckerPanel: () => null,
+vi.mock("@/shared/hooks/useSubscription", () => ({
+  useSubscription: () => ({
+    canCreate: () => true,
+    limits: { max_ai_requests: 1 },
+  }),
 }));
 
 vi.mock("@/features/resume-builder/components/ContentLibraryPanel", () => ({
@@ -273,7 +290,9 @@ describe("resume editor — the route id changes under the same page", () => {
 
     // A keystroke the debounce has not fired for yet.
     act(() => {
-      useResumeBuilderStore.getState().updateDesign({ title: "Resume A typed" });
+      useResumeBuilderStore
+        .getState()
+        .updateDesign({ title: "Resume A typed" });
     });
 
     await navigateTo(router, "/app/resume-builder/resume-b");
@@ -293,7 +312,9 @@ describe("resume editor — the route id changes under the same page", () => {
     expect(await screen.findByText("Resume A")).toBeInTheDocument();
 
     act(() => {
-      useResumeBuilderStore.getState().updateDesign({ title: "Resume A typed" });
+      useResumeBuilderStore
+        .getState()
+        .updateDesign({ title: "Resume A typed" });
     });
     await navigateTo(router, "/app/resume-builder/resume-b");
     expect(await screen.findByText("Resume B")).toBeInTheDocument();
@@ -338,8 +359,63 @@ describe("cover letter editor — the route id changes under the same page", () 
 
     await navigateTo(router, "/app/cover-letters/cl-a");
 
-    expect(await screen.findByDisplayValue("Letter A typed")).toBeInTheDocument();
+    expect(
+      await screen.findByDisplayValue("Letter A typed"),
+    ).toBeInTheDocument();
     expect(useCoverLetterStore.getState().isDirty).toBe(true);
     expect(useCoverLetterStore.getState().saveStatus).toBe("error");
   });
 });
+
+for (const panel of ["AI", "ATS"] as const) {
+  it(`ignores a late ${panel} response for A after navigating to cached B`, async () => {
+    let resolveResponse: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveResponse = resolve;
+        }),
+    );
+    // B already exists in the detail cache: route reuse does not pass through
+    // a loading screen, so a reset in an unmount/loading branch cannot help.
+    getQueryClient().setQueryData(
+      resumeQueryKeys.builderDetail("resume-b"),
+      makeResume("resume-b", "Resume B"),
+    );
+    const router = renderRoute("/app/resume-builder/resume-a");
+    await screen.findByText("Resume A");
+    await userEvent.click(screen.getByText(`Open ${panel}`));
+    await userEvent.click(
+      screen.getByRole("button", {
+        name:
+          panel === "AI"
+            ? "resumeBuilder.ai.suggestSummary"
+            : "resumeBuilder.ats.check",
+      }),
+    );
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledTimes(1));
+    await navigateTo(router, "/app/resume-builder/resume-b");
+    await screen.findByText("Resume B");
+    await act(async () =>
+      resolveResponse(
+        panel === "AI"
+          ? { summary: "Late summary from A" }
+          : {
+              score: 83,
+              issues: [],
+              suggestions: ["Late ATS from A"],
+              keywords_found: [],
+            },
+      ),
+    );
+    expect(
+      screen.queryByText(/Late (summary|ATS) from A/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "resumeBuilder.ai.apply" }),
+    ).not.toBeInTheDocument();
+    expect(useResumeBuilderStore.getState().resume?.id).toBe("resume-b");
+    expect(useResumeBuilderStore.getState().resume?.summary).toBeNull();
+    expect(pageMounts.counts["resumeBuilder.editor"]).toBe(1);
+  });
+}

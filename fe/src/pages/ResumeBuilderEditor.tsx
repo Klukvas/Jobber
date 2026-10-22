@@ -160,10 +160,7 @@ export default function ResumeBuilderEditorPage() {
     return (
       <div className="flex h-[calc(100vh-8rem)] flex-col items-center justify-center gap-4">
         <p className="text-muted-foreground">{message}</p>
-        <Button
-          variant="outline"
-          onClick={() => navigate("/app/resume-builder")}
-        >
+        <Button variant="outline" onClick={() => navigate("/app/resumes")}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           {t("resumeBuilder.backToList")}
         </Button>
@@ -181,32 +178,37 @@ export default function ResumeBuilderEditorPage() {
 
   const activePanelContent = (
     <>
-      {activePanel === "ai" && <AIAssistantPanel />}
-      {activePanel === "ats" && <ATSCheckerPanel />}
-      {activePanel === "contentLibrary" && <ContentLibraryPanel />}
+      {activePanel === "ai" && <AIAssistantPanel key={resume.id} />}
+      {activePanel === "ats" && <ATSCheckerPanel key={resume.id} />}
+      {activePanel === "contentLibrary" && (
+        <ContentLibraryPanel key={resume.id} />
+      )}
     </>
   );
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] flex-col">
+    <div className="flex h-[calc(100vh-8rem)] min-w-0 flex-col">
       {/* Toolbar */}
-      <div className="flex min-w-0 items-center gap-2 border-b px-2 py-2 sm:px-4">
+      <div className="flex min-w-0 flex-wrap items-center gap-2 border-b px-2 py-2 sm:px-4">
         <Tooltip content={t("resumeBuilder.backToList")} side="bottom">
           <Button
             variant="ghost"
             size="icon"
             className="shrink-0"
-            onClick={() => navigate("/app/resume-builder")}
+            onClick={() => navigate("/app/resumes")}
             aria-label={t("resumeBuilder.backToList")}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Tooltip>
-        <h1 className="hidden shrink-0 text-lg font-semibold sm:block">
+        <h1
+          title={resume.title}
+          className="hidden min-w-0 max-w-full flex-1 truncate text-lg font-semibold sm:block"
+        >
           {resume.title}
         </h1>
 
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 sm:gap-2">
+        <div className="order-3 flex w-full min-w-0 flex-wrap items-center gap-1 sm:gap-2 xl:order-none xl:w-auto xl:flex-1">
           {/* Design button — mobile only (< md) */}
           {!isTablet && (
             <Tooltip content={t("resumeBuilder.sections.design")} side="bottom">
@@ -246,7 +248,7 @@ export default function ResumeBuilderEditorPage() {
         {/* Centered A4 document (the editor IS the document) */}
         <div
           className={cn(
-            "flex-1 overflow-y-auto bg-muted/30",
+            "min-w-0 flex-1 overflow-y-auto bg-muted/30",
             activePanel && isDesktop && "flex-initial w-[calc(100%-320px)]",
           )}
         >

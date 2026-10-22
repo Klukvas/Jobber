@@ -1,0 +1,275 @@
+# Аудит конструктора резюме Jobber — 22 октября 2026
+
+Текущий сохранённый результат: **12 открытых находок**, без исправлений продукта. Первый проход выявил 10; дополнительный браузерный проход подтвердил известные дефекты и добавил RB-011/RB-012. База кода: `757820022e0f19053ecf9d02056cf7ac372f7559`. Результаты отдельных свежих браузерных агентов приведены в дополнении ниже.
+
+Проверки проводились на `http://localhost:3000`, API `http://127.0.0.1:8080`, с искусственными резюме в отдельной одноразовой PostgreSQL (tmpfs, порт 55443) и Redis (56380). Производственная база и внешние сервисы не использовались. Общий синтетический аккаунт локально переведён с Pro на Enterprise для параллельного аудита. Пароли, токены, файлы окружения и журналы с потенциально чувствительными значениями в доказательства не копировались.
+
+**Уровни подтверждения:** «браузер» — ручной сценарий через CUA; «API» — локальный HTTP и проверка полученного файла; «harness» — выполняемый изолированный сценарий с настоящими store/hooks/sync-модулями и подменённым транспортом; «статика» — вывод из кода без успешного сценария с реальной AI-моделью. Статический вывод не выдаётся за браузерное подтверждение. P1 — значимая потеря данных, раскрытие скрытого содержимого или непригодный экспорт; P2 — ошибка контекста/качества результата либо недостаточный регрессионный контроль.
+
+| ID | Приоритет | Находка | Подтверждение | Статус |
+|---|---|---|---|---|
+| RB-001 | P1 | Структурные Undo/Redo не согласуют строки с сервером | Браузер + harness | Открыта |
+| RB-002 | P1 | Завершившийся CREATE удаляется после перехода в другое резюме | Harness | Открыта |
+| RB-003 | P1 | Черновик активного inline-поля теряется при reload без предупреждения | Браузер + статика | Открыта |
+| RB-004 | P1 | Баннер cookie попадает в React PDF | API + просмотр PNG | Открыта |
+| RB-005 | P1 | Резервный PDF включает скрытый опыт работы | API, сравнение одного документа | Открыта |
+| RB-006 | P2 | В PDF экспортируются Position и Add dates | API + просмотр PDF/PNG | Открыта |
+| RB-007 | P2 | ATS и генерация summary читают сохранённую, потенциально устаревшую версию | Статика | Открыта |
+| RB-008 | P2 | Результаты AI/ATS не привязаны к активному резюме | Статика; уверенность умеренно высокая | Открыта |
+| RB-009 | P2 | E2E о сохранении и экспорте проверяют меньше заявленного | Статика тестов | Открыта |
+| RB-010 | P2 | Переименование в списке откатывается автосохранением старого detail-кэша | Браузер + статика | Открыта |
+| RB-011 | P2 | На планшетной ширине toolbar выходит за viewport | Браузер + DOM-геометрия | Открыта |
+| RB-012 | P2 | Summary длиннее серверного лимита принимается без объяснения ошибки сохранения | Браузер + статика серверного лимита | Открыта |
+
+## RB-001 — структурные Undo/Redo не сохраняют восстановление на сервере
+
+**Приоритет:** P1. **Статус:** открыта. **Подтверждение:** первый проход — браузер для удаления → Undo → reload и harness на настоящем коде для отсутствующего remote CREATE. Повторный browser_persistence также проверил Undo добавления Experience и первого добавления Education; результаты и новые доказательства приведены в дополнении ниже и уточняют первоначальное статическое подтверждение этого направления.
+
+**Шаги:** добавить навык и дождаться сохранения; удалить его и дождаться DELETE; нажать Undo; дождаться Saved; перезагрузить страницу.
+
+**Фактически:** строка возвращается на экран, UI показывает Saved, после reload строка исчезает. Harness наблюдает одну локальную строку, ноль строк в модели сервера и ноль вызовов CREATE. **Ожидается:** Undo/Redo изменяет серверную структуру либо явно сообщает, что состояние не сохранено.
+
+**Код:** [useUndoRedo.ts:14](../../fe/src/features/resume-builder/hooks/useUndoRedo.ts#L14) меняет temporal state и dirty-флаг; [resumeDocumentSync.ts:220](../../fe/src/features/resume-builder/lib/resumeDocumentSync.ts#L220) обновляет только известные серверные ID и не создаёт/удаляет строки по разнице структур; [useSectionPersistence.ts:314](../../fe/src/features/resume-builder/hooks/useSectionPersistence.ts#L314) после DELETE забывает серверный ID.
+
+**Доказательства:** [до reload](evidence/resume-builder-2026-10-22/undo-before-reload.jpg), [после reload](evidence/resume-builder-2026-10-22/undo-after-reload.jpg), [harness](evidence/resume-builder-2026-10-22/persistence-harness.txt), [результат 2/2](evidence/resume-builder-2026-10-22/persistence-repro.txt).
+
+**Направление исправления:** согласовывать структурные изменения истории с серверными CREATE/DELETE, корректно учитывать ID и pending-операции; добавить регрессионные сценарии удаления/добавления с Undo/Redo и повторной загрузкой. Исправления не выполнялись.
+
+## RB-002 — CREATE ошибочно отменяется при переключении документов
+
+**Приоритет:** P1. **Статус:** открыта. **Подтверждение:** harness настоящего hook; отдельный браузерный сценарий с искусственной задержкой не выполнен.
+
+**Шаги:** добавить строку в резюме A; оставить CREATE незавершённым; переключить store на резюме B; разрешить успешный ответ CREATE для A.
+
+**Фактически:** hook выполняет DELETE только что созданной строки A, хотя пользователь её не удалял. Harness проверяет фактический вызов DELETE(A, created). **Ожидается:** смена документа сохраняет результат успешной записи A; компенсирующий DELETE выполняется только при явном удалении строки пользователем.
+
+**Код:** [useSectionPersistence.ts:246](../../fe/src/features/resume-builder/hooks/useSectionPersistence.ts#L246) возвращает null для неактивного документа; [useSectionPersistence.ts:289](../../fe/src/features/resume-builder/hooks/useSectionPersistence.ts#L289) трактует null как удаление и запускает DELETE.
+
+**Доказательства:** [harness](evidence/resume-builder-2026-10-22/persistence-harness.txt), [результат 2/2](evidence/resume-builder-2026-10-22/persistence-repro.txt).
+
+**Направление исправления:** отличать смену активного документа от намеренного удаления, хранить pending-create состояние по документу и безопасно принимать поздний ответ. Исправления не выполнялись.
+
+## RB-003 — активный inline-черновик теряется при reload
+
+**Приоритет:** P1. **Статус:** открыта. **Подтверждение:** ручной браузерный сценарий + код.
+
+**Шаги:** открыть сохранённое резюме; начать редактировать summary; ввести новый текст, не уводя фокус из textarea; перезагрузить страницу.
+
+**Фактически:** предупреждение о несохранённом тексте не появляется; после reload отображается прежний summary. **Ожидается:** введённый текст участвует в сохранении или reload запрашивает подтверждение потери черновика.
+
+**Код:** [EditableTextarea.tsx:98](../../fe/src/features/resume-builder/components/inline/EditableTextarea.tsx#L98) меняет только локальный draft; [EditableTextarea.tsx:54](../../fe/src/features/resume-builder/components/inline/EditableTextarea.tsx#L54) отправляет onChange при commit/blur; [useAutoSave.ts:68](../../fe/src/features/resume-builder/hooks/useAutoSave.ts#L68) проверяет store dirty/saving, но не локальные draft. Аналогичный механизм: [EditableField.tsx:99](../../fe/src/features/resume-builder/components/inline/EditableField.tsx#L99).
+
+**Доказательства:** на первом проходе сценарий был зафиксирован наблюдателем без отдельного снимка активного draft. Повторный browser_persistence сохранил [активный draft](evidence/resume-builder-2026-10-22/persistence/02-unblurred-before-reload.png) и [состояние после reload](evidence/resume-builder-2026-10-22/persistence/03-unblurred-after-reload.png).
+
+**Направление исправления:** учитывать активный draft в общем состоянии сохранения/защите reload либо синхронизировать ввод до blur; проверить reload и SPA-переходы с активным полем. Исправления не выполнялись.
+
+## RB-004 — cookie-баннер печатается в PDF
+
+**Приоритет:** P1. **Статус:** открыта. **Подтверждение:** API + извлечение текста + просмотр отрендеренного PNG.
+
+**Шаги:** экспортировать синтетическое резюме через штатный React PDF; открыть PDF.
+
+**Фактически:** нижняя часть страницы содержит текст We use essential cookies, Privacy Policy и кнопки Essential only / Accept all. Экспорт HTTP 200, 110235 байт. Принятое согласие в пользовательском браузере не переносится в отдельный headless-контекст. **Ожидается:** PDF содержит только резюме.
+
+**Код:** [providers.tsx:30](../../fe/src/app/providers.tsx#L30) монтирует CookieConsent вне RouterProvider, включая print route; [CookieConsent.tsx:29](../../fe/src/shared/ui/CookieConsent.tsx#L29) показывает баннер без сохранённого согласия; [CookieConsent.tsx:101](../../fe/src/shared/ui/CookieConsent.tsx#L101) не скрывает его при печати; [ResumeBuilderPrint.tsx:123](../../fe/src/pages/ResumeBuilderPrint.tsx#L123) не исключает глобальные overlays; [pdf_service.go:389](../../be/internal/platform/pdf/pdf_service.go#L389) открывает отдельную страницу печати.
+
+**Доказательства:** [PDF](evidence/resume-builder-2026-10-22/parent-resume.pdf), [PNG страницы](evidence/resume-builder-2026-10-22/parent-resume-page1.png), [извлечённый текст](evidence/resume-builder-2026-10-22/parent-resume.txt).
+
+**Направление исправления:** исключить глобальные UI-оверлеи из print surface и проверять содержимое PDF в регрессии. Исправления не выполнялись.
+
+## RB-005 — резервный PDF раскрывает скрытый опыт работы
+
+**Приоритет:** P1. **Статус:** открыта. **Подтверждение:** API на одном и том же сохранённом документе.
+
+**Шаги:** дублировать синтетическое резюме; в строке раздела experience массива section_order сохранить is_visible=false; экспортировать React PDF и DOCX; на отдельном локальном backend с недоступным frontend вызвать тот же PDF endpoint для того же ID.
+
+**Фактически:** React PDF (HTTP 200, 95722 байт) и DOCX (HTTP 200, 42070 байт) не содержат QA Hidden Experience Company; резервный Go PDF (HTTP 200, 58644 байт) содержит эту компанию. Документ: e408bd85-cf35-47a7-9704-2879cc6970db. Сбой frontend намеренно вызван runtime-параметром отдельного backend 8081: URL http://127.0.0.1:1; лог показал ERR_UNSAFE_PORT, затем успешный Go fallback. Основной backend 8080 не менялся, дополнительный остановлен после проверки. **Ожидается:** видимость разделов одинаково соблюдается всеми путями экспорта, в том числе после сбоя React-рендера.
+
+**Код:** [export_handler.go:74](../../be/modules/resumebuilder/handler/export_handler.go#L74) разрешает fallback; [pdf_service.go:237](../../be/internal/platform/pdf/pdf_service.go#L237) генерирует PDF из Go-шаблона; [templates.go](../../be/internal/platform/pdf/templates.go) и [templates_extra.go](../../be/internal/platform/pdf/templates_extra.go) выводят данные разделов без эквивалентной фильтрации visibility.
+
+**Доказательства:** [React PDF](evidence/resume-builder-2026-10-22/hidden-react.pdf), [его текст](evidence/resume-builder-2026-10-22/hidden-react.txt), [fallback PDF](evidence/resume-builder-2026-10-22/hidden-fallback.pdf), [его текст](evidence/resume-builder-2026-10-22/hidden-fallback.txt), [DOCX](evidence/resume-builder-2026-10-22/hidden.docx), [сводка HTTP](evidence/resume-builder-2026-10-22/export-results.txt).
+
+**Направление исправления:** применять единый фильтр видимости/порядка до выбора рендера и проверять fallback отдельно. Исправления не выполнялись.
+
+## RB-006 — редакторские placeholders попадают в PDF
+
+**Приоритет:** P2. **Статус:** открыта. **Подтверждение:** API и PDF/PNG.
+
+**Шаги:** создать опыт работы только с названием компании, оставить position и даты пустыми; экспортировать PDF.
+
+**Фактически:** PDF содержит Position и Add dates; видны также заголовки пустых разделов. Сравнительный DOCX не содержит этих подсказок. **Ожидается:** пустые поля и редакторские подсказки не включаются в готовое резюме.
+
+**Код:** [EditableField.tsx:130](../../fe/src/features/resume-builder/components/inline/EditableField.tsx#L130) выбирает placeholder независимо от editable; [EditableDateRange.tsx:83](../../fe/src/features/resume-builder/components/inline/EditableDateRange.tsx#L83) безусловно подставляет Add dates; [ResumeBuilderPrint.tsx:161](../../fe/src/pages/ResumeBuilderPrint.tsx#L161) использует шаблоны с editable=false, что не устраняет эти значения.
+
+**Доказательства:** [PDF](evidence/resume-builder-2026-10-22/parent-resume.pdf), [PNG](evidence/resume-builder-2026-10-22/parent-resume-page1.png), [текст PDF](evidence/resume-builder-2026-10-22/parent-resume.txt), [DOCX для сравнения](evidence/resume-builder-2026-10-22/parent-resume.docx).
+
+**Направление исправления:** отделить пустое значение от подсказки редактора и исключить пустые секции в режиме экспорта. Исправления не выполнялись.
+
+## RB-007 — ATS и AI summary не ждут сохранения актуального документа
+
+**Приоритет:** P2. **Статус:** открыта. **Подтверждение:** статика; успешный ответ реальной AI-модели не проверялся.
+
+**Сценарий для воспроизведения:** изменить данные; сразу, до завершения debounce/запросов сохранения, запустить ATS или генерацию summary.
+
+**Вывод из кода:** frontend отправляет ID без flush; backend читает данные из БД, поэтому может анализировать предыдущую сохранённую версию. Это риск гонки, а не утверждение, что каждый запуск всегда устаревший. **Ожидается:** анализ начинается после успешного сохранения нужной ревизии; ошибка сохранения предотвращает анализ устаревших данных.
+
+**Код:** [ATSCheckerPanel.tsx:61](../../fe/src/features/resume-builder/components/ATSCheckerPanel.tsx#L61), [AIAssistantPanel.tsx:39](../../fe/src/features/resume-builder/components/AIAssistantPanel.tsx#L39), [ai_service.go:70](../../be/modules/resumebuilder/service/ai_service.go#L70), [ai_service.go:127](../../be/modules/resumebuilder/service/ai_service.go#L127). Для сравнения экспорт вызывает flush: [EditorToolbar.tsx:77](../../fe/src/features/resume-builder/components/EditorToolbar.tsx#L77).
+
+**Направление исправления:** привязать запрос анализа к сохранённой ревизии документа и использовать общую очередь flush; отдельно проверить ошибки записи. Исправления не выполнялись.
+
+## RB-008 — AI/ATS результат может пережить смену резюме
+
+**Приоритет:** P2. **Статус:** открыта. **Подтверждение:** статика, уверенность умеренно высокая; браузерная гонка с реальным AI не воспроизводилась.
+
+**Сценарий для проверки:** запросить AI summary или ATS для A; перейти на B через навигацию с сохранением экземпляра панели; дождаться ответа A; проверить показанный отчёт и применение summary.
+
+**Вывод из кода:** mutation data и lastResult не привязаны к текущему resume.id; apply summary записывает результат в текущий store. Если панель не размонтируется при смене маршрута, результат A может отображаться/применяться в B. **Ожидается:** результат содержит/проверяет ID исходного резюме; устаревший ответ не применяется к другому документу.
+
+**Код:** [AIAssistantPanel.tsx:41](../../fe/src/features/resume-builder/components/AIAssistantPanel.tsx#L41), [AIAssistantPanel.tsx:44](../../fe/src/features/resume-builder/components/AIAssistantPanel.tsx#L44), [ATSCheckerPanel.tsx:54](../../fe/src/features/resume-builder/components/ATSCheckerPanel.tsx#L54), [ATSCheckerPanel.tsx:68](../../fe/src/features/resume-builder/components/ATSCheckerPanel.tsx#L68), [useAISuggestions.ts:40](../../fe/src/features/resume-builder/hooks/useAISuggestions.ts#L40), [ResumeBuilderEditor.tsx:184](../../fe/src/pages/ResumeBuilderEditor.tsx#L184) монтирует панель без key по ID.
+
+**Направление исправления:** хранить результаты по ID/ревизии, сбрасывать состояние при смене документа и проверять принадлежность перед apply; подтвердить сценарий отдельным runtime-тестом. Исправления не выполнялись.
+
+## RB-009 — E2E создают ложную уверенность в сохранении и содержимом экспорта
+
+**Приоритет:** P2. **Статус:** открыта. **Подтверждение:** статический просмотр существующих тестов; E2E suite не запускался.
+
+**Шаги проверки:** прочитать тест shows save indicator after editing и тест export PDF triggers download.
+
+**Фактически:** первый только проверяет видимость h1 и вообще не редактирует поле/не проверяет индикатор; второй проверяет лишь расширение скачанного имени .pdf. Такие проверки не доказывают персистентность данных и не обнаруживают баннер/подсказки/скрытый раздел внутри PDF. **Ожидается:** название теста соответствует реальному действию и проверяемому пользовательскому результату.
+
+**Код:** [editor.spec.ts:46](../../fe/e2e/resume-builder/editor.spec.ts#L46), [import-export.spec.ts:87](../../fe/e2e/resume-builder/import-export.spec.ts#L87).
+
+**Направление исправления:** выполнять настоящее изменение и reload с проверкой сохранённого значения; проверять текст/структуру экспорта, а не только имя файла. Исправления тестов не выполнялись.
+
+## RB-010 — переименование из списка перезаписывается старым detail-кэшем
+
+**Приоритет:** P2. **Статус:** открыта. **Подтверждение:** полный ручной браузерный сценарий и код.
+
+**Шаги:** открыть резюме с Untitled Resume, чтобы заполнить detail-кэш; вернуться в список; переименовать его в Browser QA Resume; повторно открыть редактор из списка; изменить имя контакта и дождаться Saved; вернуться в список и перезагрузить его.
+
+**Фактически:** повторно открытый редактор использует Untitled Resume; обычное автосохранение после изменения контакта отправляет этот старый title; после reload списка реальное имя снова Untitled Resume. Это подтверждённая перезапись серверного имени, а не только устаревший текст на экране. **Ожидается:** новое имя сохраняется после переоткрытия и любых дальнейших правок.
+
+**Код:** [RenameBuilderResumeModal.tsx:41](../../fe/src/features/resumes/modals/RenameBuilderResumeModal.tsx#L41) инвалидирует только список; [resumeDocumentSync.ts:154](../../fe/src/features/resume-builder/lib/resumeDocumentSync.ts#L154) при следующем сохранении отправляет title из открытого документа.
+
+**Доказательства:** [состояние после reload списка](evidence/resume-builder-2026-10-22/rename-after-reload.jpg), [список во время проверки](evidence/resume-builder-2026-10-22/browser-list.jpg). Полная последовательность приведена выше; отдельные скриншоты каждого шага не заявляются.
+
+**Направление исправления:** после rename обновлять/инвалидировать detail-кэш и согласовывать локальное состояние редактора; добавить тест reopen → другая правка → reload списка. Исправления не выполнялись.
+
+## Выполненные проверки и ограничения
+
+- Developer: npm ci по существующему lockfile, 425 пакетов; package.json/lockfile не менялись.
+- Developer: npm test с фильтрами src/features/resume-builder, src/stores/__tests__/resumeBuilderStore.test.ts и src/services/__tests__/resumeBuilderService.test.ts — **85 файлов, 843 теста прошли**.
+- Developer: отдельный временный harness настоящего кода — **2/2 сценария воспроизведения дефектов** прошли. Это не два исправленных поведения, а проверки наличия ошибок RB-001/RB-002.
+- Orchestrator: npm test -- src/pages/__tests__/ResumeBuilderEditor.documentSync.test.tsx src/pages/__tests__/EditorReopenFreshness.test.tsx src/pages/__tests__/EditorRouteSwitch.test.tsx src/pages/__tests__/EditorPages.test.tsx — **4 файла, 33 теста прошли**. Итого **876 различных frontend-тестов = 843 + 33**; два временных harness-сценария считаются отдельно.
+- Developer: npm run lint, tsc -b --pretty false, npm run build — успешно. Build вывел предупреждение о chunk >500 kB; падения сборки не было.
+- Orchestrator: go test -race ./modules/resumebuilder/... ./modules/contentlibrary/... ./internal/platform/docx/... ./internal/platform/pdf/... — успешно. Покрытие: builder handler 85.6%, repository 77.4%, service 94.4%, DOCX 96.8%, PDF 0%. Это не браузерное покрытие PDF и не доказательство отсутствия перечисленных дефектов.
+- API: штатный React PDF и DOCX — HTTP 200; резервный PDF — HTTP 200. CUA ожидание события загрузки PDF однажды истекло через 60 секунд, но backend того же запроса вернул HTTP 200 за 2813 ms. Это не классифицировано как ошибка PDF backend.
+- AI, ATS с реальной моделью и AI-импорт не проверены успешно: внешние AI-ключи отсутствуют намеренно. Платные/внешние вызовы не выполнялись. RB-007/RB-008 остаются статическими выводами.
+- Штатная Playwright E2E suite не запускалась: браузерные действия выполнялись через CUA; импорт в suite требует отсутствующей AI-интеграции. Успех unit-тестов не выдаётся за успех E2E.
+
+## Источники инструкций и сохранность доказательств
+
+Прочитаны и соблюдены /Users/andreypavlenko/Desktop/Projects/AGENTS.md, /Users/andreypavlenko/Desktop/Projects/CLAUDE.md и ранее прочитанные ~/.claude/rules/common/*, ~/.claude/rules/typescript/*. Проектных AGENTS.md/CLAUDE.md при поиске не найдено. Canonical scope/safety имеют приоритет над любой общей рекомендацией автоматически коммитить или продолжать работу. Исправлений, commit, push, deploy и следующей задачи не было.
+
+Доказательства сохранены рядом с отчётом по относительным ссылкам. Копировался явный белый список искусственных PDF/DOCX/изображений/извлечённого текста и безопасного harness; login.json, parent-resume.json и backend-журналы не копировались. Отчёт сохранён как .txt с Markdown-разметкой, поскольку существующее правило .gitignore *.md исключает новые Markdown-файлы. Выбранный .txt и доказательства не игнорируются Git. Файлы не добавлялись в индекс; .gitignore не менялся.
+
+## Дополнение — отдельные свежие браузерные агенты
+
+Повторный проход выполнен через CUA на том же изолированном localhost с искусственными данными. Каждый агент использовал собственную вкладку и собственные резюме; viewport менялся только при эксклюзивном согласованном окне и восстановлен после проверки. Продукт не исправлялся. Три свежих агента — `browser_persistence`, `browser_layout_fresh`, `browser_export_fresh` — выполнили **24 группы сценариев**. У первых двух — 16 сценариев, 9 PASS и 7 FAIL; у экспортного агента 7 групп с подтверждёнными UI-проверками, частично непроверенным содержимым файлов и 1 группа с BLOCKED успешным AI/parser-путём. Эти результаты не суммируются в «24 полностью проверенных PASS/FAIL». FAIL означает подтверждение открытого дефекта, а не неисправность инструмента.
+
+### browser_persistence — 8 сценариев: 3 PASS, 5 FAIL
+
+| Сценарий | Ожидается | Наблюдение | Результат |
+|---|---|---|---|
+| Имя, email и summary → blur → Saved → reload | Значения остаются | Обычное сохранение выдержало reload | PASS |
+| Изменить summary без blur → reload | Сохранение либо предупреждение о потере | Активный черновик потерян | FAIL, RB-003 |
+| Добавить Experience → Undo → Saved → reload | Добавленная строка удалена и остаётся удалённой | После первого Undo строка осталась уже на экране и после reload | FAIL, вариант RB-001 |
+| Удалить строку → Undo → Saved → reload | Восстановленная строка остаётся | На экране восстановлена, после reload отсутствует | FAIL, RB-001 |
+| Удалить → Undo → Redo → Saved → reload | Строка остаётся удалённой | Итог удаления сохранён | PASS |
+| Быстрые изменения city/phone → Back → reopen → reload | Последние значения остаются | Оба значения сохранены | PASS |
+| Rename в списке → reopen → другая правка → reload | Новое название остаётся | Старое название вернулось | FAIL, RB-010 |
+| Первое добавление Education → Undo → reload | Добавленная строка удаляется | Undo не удалил первую добавленную строку | FAIL, вариант RB-001 |
+
+Нумерация исправлена при консолидации: структурные Undo относятся к **RB-001**, активный черновик без blur — к **RB-003**, rename — к **RB-010**. Перепутанные RB-001/RB-003 в промежуточной подписи агента не перенесены в итоговый отчёт.
+
+Новые браузерные доказательства известных дефектов: RB-003 — [черновик до reload](evidence/resume-builder-2026-10-22/persistence/02-unblurred-before-reload.png), [после reload](evidence/resume-builder-2026-10-22/persistence/03-unblurred-after-reload.png); RB-001 — [delete → Undo, Saved](evidence/resume-builder-2026-10-22/persistence/06-delete-undo-saved.png), [потеря после reload](evidence/resume-builder-2026-10-22/persistence/07-delete-undo-after-reload.png), [первое добавление и Undo](evidence/resume-builder-2026-10-22/persistence/14-first-add-undo-noop.png), [после reload](evidence/resume-builder-2026-10-22/persistence/15-first-add-undo-after-reload.png); RB-010 — [успешный rename в списке](evidence/resume-builder-2026-10-22/persistence/11-list-rename-success.png), [старый title редактора](evidence/resume-builder-2026-10-22/persistence/12-builder-old-title.png), [откат списка](evidence/resume-builder-2026-10-22/persistence/13-list-title-rolled-back.png).
+
+### browser_layout_fresh — 8 сценариев: 6 PASS, 2 FAIL
+
+Резюме: [DESIGN] Layout Verification, ID `1d8dad1b-fbfa-4643-9db9-187e6e9fcbab`.
+
+| Сценарий | Наблюдение | Результат |
+|---|---|---|
+| Professional → Modern | Новый шаблон применился, содержание осталось | PASS |
+| Цвет Emerald | Видимые акценты изменились | PASS |
+| Arial, размер 13 px, spacing 101%, клавиатура | Значения и оформление меняются; Enter открывает/закрывает панель, Tab достигает slider, стрелки меняют значение | PASS |
+| Layout, margin, порядок и видимость | Left sidebar; top 55 px; Experience выше Summary; Languages скрыт | PASS |
+| Допустимое длинное содержимое | 30 абзацев, 4399 символов, Saved; после полной перезагрузки 4399; проверенная граница абзацев 16 → 17 без видимого пропуска или повтора | PASS |
+| Mobile 390 × 844 | Design sheet и Typography dialog помещаются, slider работает, document scrollWidth 390 | PASS |
+| Tablet 768 × 1024 | Toolbar шире доступного места, действия выходят за viewport | FAIL, новый RB-011 |
+| Summary 5134 символа | Ввод разрешён, после blur только общий Save failed | FAIL, новый RB-012 |
+
+Доказательства успешных сценариев: [типографика и Emerald](evidence/resume-builder-2026-10-22/design/01-typography-emerald.jpg), [layout, порядок и видимость](evidence/resume-builder-2026-10-22/design/02-layout-order-visibility.jpg), [мобильная Design sheet](evidence/resume-builder-2026-10-22/design/04-mobile-design-sheet.jpg), [мобильная Typography](evidence/resume-builder-2026-10-22/design/05-mobile-typography-dialog.jpg), [4399 символов после полной перезагрузки](evidence/resume-builder-2026-10-22/design/08-valid-long-after-reload.jpg), [граница страниц 16 → 17](evidence/resume-builder-2026-10-22/design/09-valid-page16-to17-boundary.jpg).
+
+Снимок временного design/03-long-content-page-boundary.jpg отозван: прокрутка над содержимым могла сместить содержимое обрезанной карточки. В долговечный набор он не копировался и не используется как доказательство. Повторная проверка 09 использовала scrollbar редактора: outer scrollTop 720, scrollTop карточек страниц 0.
+
+### RB-011 — toolbar выходит за viewport на планшете
+
+**Приоритет:** P2. **Статус:** открыта. **Подтверждение:** браузер, screenshot и измерение DOM; новая находка.
+
+**Шаги:** открыть указанное синтетическое резюме; установить viewport 768 × 1024; проверить доступность действий toolbar при раскрытом штатном sidebar.
+
+**Фактически:** main начинается с x=256, доступная ширина 497 px, scrollWidth 1003 px. Export расположен x=714…832, AI Assistant x=840…968, ATS Check x=976…1096, Content Library x=1104…1258; действия выходят за правую границу viewport и требуют горизонтальной прокрутки. **Ожидается:** основные действия размещены в доступной области или доступны через адаптивное меню без горизонтального поиска.
+
+**Код:** [ResumeBuilderEditor.tsx:193](../../fe/src/pages/ResumeBuilderEditor.tsx#L193) размещает заголовок и toolbar в одной строке; [ResumeBuilderEditor.tsx:205](../../fe/src/pages/ResumeBuilderEditor.tsx#L205) оставляет title shrink-0 начиная с sm; [EditorToolbar.tsx:141](../../fe/src/features/resume-builder/components/EditorToolbar.tsx#L141) держит действия в flex-строке без собственного wrap; [EditorToolbar.tsx:237](../../fe/src/features/resume-builder/components/EditorToolbar.tsx#L237) показывает текстовые подписи уже с sm. Это объяснение наблюдённого переполнения, а не отдельная проверка всех промежуточных ширин.
+
+**Доказательство:** [tablet 768 px](evidence/resume-builder-2026-10-22/design/06-tablet-overflow.jpg).
+
+**Направление исправления:** согласовать breakpoints с реально доступной шириной, обеспечить перенос/сворачивание действий и ограничить ширину title; проверить tablet с раскрытым sidebar. Исправлений не было.
+
+### RB-012 — summary превышает серверный лимит без понятной валидации
+
+**Приоритет:** P2. **Статус:** открыта. **Подтверждение:** браузер для ввода и Save failed, чтение кода для точного серверного лимита; новая находка.
+
+**Шаги:** в summary указанного резюме ввести 35 синтетических абзацев, всего 5134 символа; убрать фокус и дождаться попытки сохранения. Затем сократить текст до 30 абзацев, 4399 символов, дождаться Saved и полностью перезагрузить страницу.
+
+**Фактически:** активный textarea принимает 5134 символа, maxlength отсутствует; после blur виден только общий Save failed без объяснения длины и допустимого предела. Контрольный текст 4399 символов получил Saved и сохранился после полной перезагрузки. **Ожидается:** UI заранее сообщает предел 5000 символов или при отказе сохранения объясняет, какое поле и насколько превышено; пользователь может осознанно исправить текст. Сохранение 5134 символов на сервере не заявляется: наблюдавшееся после неуспешного reload содержимое могло оставаться локальным черновиком.
+
+**Код:** [requests.go:40](../../be/modules/resumebuilder/model/requests.go#L40) задаёт summary Content binding max=5000; [EditableTextarea.tsx:108](../../fe/src/features/resume-builder/components/inline/EditableTextarea.tsx#L108) создаёт textarea без maxlength и счётчика/валидации; [SaveIndicator.tsx:51](../../fe/src/features/resume-builder/components/SaveIndicator.tsx#L51) показывает общий error status. Отсутствие maxlength само по себе не требует запрета ввода: дефект в отсутствии объяснения ошибки и границы сохранения.
+
+**Доказательства:** [активное длинное поле](evidence/resume-builder-2026-10-22/design/07-summary-limit-save-failed.jpg), [видимый Save failed на tablet](evidence/resume-builder-2026-10-22/design/06-tablet-overflow.jpg), [допустимый текст после reload](evidence/resume-builder-2026-10-22/design/08-valid-long-after-reload.jpg). Длины 5134/4399 прочитаны из DOM; число символов не выводится самим продуктом на screenshot. На снимке активного поля сам статус сохранения вне видимой области.
+
+**Направление исправления:** согласовать клиентскую валидацию с сервером, показать предел/счётчик и конкретную ошибку summary, сохранив возможность исправить черновик. Исправлений не было.
+
+### browser_export_fresh — 8 групп с разными уровнями подтверждения
+
+Собственное синтетическое резюме агента: ID `16c1a30c-ce80-42a9-89ab-cd0526963152`. Агент закрыл свою вкладку после проверки.
+
+| Группа | Подтверждено браузером | Ограничение |
+|---|---|---|
+| Создание и сохранение name/email/summary/company, возврат из списка | Значения присутствуют после переоткрытия, PASS UI | Не отдельный новый тест API |
+| Experience только с company → Export PDF | Действие завершилось success toast, PASS UI | Содержимое PDF и наличие Position/Add dates в этом новом файле не проверены |
+| Export DOCX | Success toast, PASS UI | Файл и его содержимое не получены через CUA |
+| Скрыть employment → список → Export PDF | Раздел скрыт в editor/list, PDF success toast, PASS UI | Исключение данных из PDF этим браузерным сценарием не доказано |
+| Пустой/whitespace text и пустой PDF-tab | Import disabled, PASS | Успешный импорт не проверяет |
+| Выбор non-PDF файла | Please select a PDF file; Import disabled, PASS | Содержимое валидного PDF не проверяет |
+| PDF размером 5 MB + 1 байт | File too large. Maximum 5 MB; Import disabled, PASS | Серверный лимит отдельно не измерялся |
+| AI import синтетического текста и malformed PDF | Something went wrong; ввод сохранён, retry доступен, документ не создан | BLOCKED успешный AI/parser-путь: AI routes намеренно не зарегистрированы в этом runtime |
+
+CUA ожидание download завершилось таймаутом: PDF 25 секунд, DOCX 12 секунд, несмотря на видимые success toast. Загруженные байты не получены; повторный браузерный проход не заявляет верификацию содержимого PDF/DOCX или save-before-export внутри скачанного файла. Первоначальные API/PNG доказательства RB-004/005/006 остаются отдельным, ранее выполненным уровнем подтверждения; новые UI-success не опровергают эти находки.
+
+Доказательства: [частично заполненный Experience](evidence/resume-builder-2026-10-22/export/01-partial-entry.jpg), [скрытый раздел](evidence/resume-builder-2026-10-22/export/02-hidden-section.jpg), [после PDF export](evidence/resume-builder-2026-10-22/export/03-pdf-success.jpg), [пустой импорт](evidence/resume-builder-2026-10-22/export/04-empty-import.jpg), [неподдерживаемый тип](evidence/resume-builder-2026-10-22/export/05-invalid-type.jpg), [превышение 5 MB](evidence/resume-builder-2026-10-22/export/06-oversized.jpg), [результат malformed PDF](evidence/resume-builder-2026-10-22/export/07-invalid-pdf-result.jpg), [недоступный AI](evidence/resume-builder-2026-10-22/export/08-ai-unavailable.jpg), [feedback типа файла](evidence/resume-builder-2026-10-22/export/09-filetype-feedback.jpg), [итоговое собственное резюме](evidence/resume-builder-2026-10-22/export/10-final-owned-resume.jpg).
+
+### Условное наблюдение AI-импорта — не RB-013
+
+**Статус:** требует отдельной проверки при доступном AI; не включено в 12 основных открытых находок. При намеренно недоступных AI routes форма разрешает начать импорт, затем показывает общий Something went wrong. Ввод остаётся и retry доступен. Успешный импорт текста и разбор PDF в этой среде заблокированы; производственный дефект или ошибка самого PDF parser не подтверждены.
+
+Наблюдение не снято и не скрыто: [api.ts:200](../../fe/src/services/api.ts#L200) документирует намеренно пустое message транспортной ошибки и ожидаемый localized fallback; [ImportResumeModal.tsx:62](../../fe/src/features/resume-builder/components/ImportResumeModal.tsx#L62) и [ImportResumeModal.tsx:83](../../fe/src/features/resume-builder/components/ImportResumeModal.tsx#L83) выбирают Error.message без проверки непустого значения. Это правдоподобный риск недостаточно полезного feedback, но специфическое production-поведение требует проверки с зарегистрированным AI endpoint. Оснований добавлять подтверждённый RB-013 по намеренно ограниченному runtime нет. Внешние платные AI-вызовы не выполнялись.
+
+### Ограничения повторного прохода и инструкции
+
+Первоначальные 876 frontend-тестов, backend race-проверки и harness выше **не запускались повторно** при сохранении этого дополнения. Новый проход добавляет браузерные сценарии, а не новую E2E suite. Сбой setup у возобновлённых CUA-контекстов не считается дефектом продукта: три свежих браузерных агента получили рабочие отдельные вкладки. Временные viewport-изменения сброшены, собственные вкладки всех трёх агентов закрыты.
+
+Повторно проверены /Users/andreypavlenko/Desktop/Projects/AGENTS.md, /Users/andreypavlenko/Desktop/Projects/CLAUDE.md, ~/.claude/rules/common/*; проектных AGENTS.md/CLAUDE.md при поиске не обнаружено. Новые записи ограничены этим отчётом и явно выбранными безопасными изображениями в его evidence-каталоге. В источниках кода изменений нет. Canonical scope/safety имеют приоритет над общими рекомендациями автоматически коммитить или исправлять найденное: пользователь запросил аудит без исправлений. Ни commit, ни push, ни deploy, ни внешние записи, ни следующая задача не выполнялись.
+
+Контроль сохранённой записи: попытка назначить нового fresh QA упёрлась в лимит потоков; родитель назначил независимый read-only review уже завершившему собственный сценарий browser_persistence. Он независим от автора дополнения, но повторно использован и не называется fresh reviewer. Финальное заключение этого reviewer сообщается отдельно родителем; данный абзац не выдаёт ожидаемый review за уже полученный PASS.

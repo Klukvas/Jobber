@@ -1,0 +1,74 @@
+Job-specific Resume Tailoring — backend implementation and verification
+Date: 2026-10-22
+Role: DEVELOPER
+Scope: only the selected job-specific Builder Resume tailoring feature and its necessary atomic creation-quota protection. No next task, commit, push, deploy, schema migration, pricing/billing-rule change, secret-file edit, or adjacent cleanup.
+
+Implemented:
+- POST /api/v1/jobs/:id/resume-tailoring generates a server-held proposal with an original 30-minute expiry. Source and Job ownership are checked server-side. Direct JSON contract; no envelope.
+- Only explicitly visible summary/experience/skills content is sent to the provider. AI output is validated for allowed target IDs, exact eligible source quotations, output bounds, unique experience edits, existing-skill permutations, and unsupported new numeric / percentage / currency claims. Unchanged suggestions are dropped. Human review remains necessary for the meaning of a paraphrase.
+- POST /api/v1/jobs/:id/resume-tailoring/:proposalId/apply accepts only selected proposal IDs and a title. In one PostgreSQL transaction: shared per-user creation lock, current Job/source checks, parent and all section row locks, full source hash comparison, authoritative quota count, complete separate copy, and mutually exclusive Builder Resume Job link. All design settings and hidden sections are copied; the source is never edited.
+- Proposal UUID is also the new copy UUID, so its database primary key is a durable commit receipt. Selection/title fingerprint is persisted in Redis before the database commit under the per-user transaction lock. Same-body retry returns the same copy (200); different body or changed Job attachment returns 409; expired proposal returns 410. Failed copy/link transaction leaves no orphan.
+- Existing Create, Duplicate, and Import share the same creation lock and transaction-local quota count. Existing ResourceLimit resolves the ceiling before obtaining a transaction connection; no subscription pool query is nested inside a held transaction. Existing import precheck remains.
+- Routes are registered even without AI configuration and return AI_UNAVAILABLE (503). Production has no fake-provider toggle. Existing PDF/DOCX exports are reused.
+
+Source files added:
+be/internal/platform/ai/resume_tailoring.go
+be/internal/platform/ai/resume_tailoring_test.go
+be/modules/resumebuilder/model/tailoring.go
+be/modules/resumebuilder/ports/tailoring.go
+be/modules/resumebuilder/repository/tailoring_repository.go
+be/modules/resumebuilder/handler/tailoring_handler.go
+be/modules/resumebuilder/handler/tailoring_handler_test.go
+be/modules/resumebuilder/service/resume_copy.go
+be/modules/resumebuilder/service/resume_creation.go
+be/modules/resumebuilder/service/tailoring_service.go
+be/modules/resumebuilder/service/tailoring_service_test.go
+be/modules/resumebuilder/service/tailoring_service_integration_test.go
+be/modules/resumebuilder/service/tailoring_store.go
+be/modules/resumebuilder/service/tailoring_store_test.go
+be/modules/resumebuilder/service/tailoring_validation.go
+be/modules/resumebuilder/service/tailoring_validation_test.go
+Source files changed:
+be/cmd/api/main.go
+be/modules/resumebuilder/repository/resume_builder_repository.go
+be/modules/resumebuilder/service/resume_builder_service.go
+be/modules/resumebuilder/service/import_service.go
+
+Verification commands and observed outcomes (from be/ unless stated):
+1. Before authoring: go test ./modules/resumebuilder/... ./modules/jobs/... ./internal/platform/ai/... — PASS.
+2. Final: go test -race ./modules/resumebuilder/... ./internal/platform/ai/... ./modules/jobs/... ./cmd/api — PASS for every tested package.
+3. Final: go vet ./modules/resumebuilder/... ./internal/platform/ai/... ./cmd/api — PASS.
+4. go test -race -tags=integration ./modules/resumebuilder/service -run TestTailoringPostgres -v -count=1 with TAILORING_TEST_DATABASE_URL pointing only at local jobber_builder_verify — PASS, 3/3:
+   TestTailoringPostgresPoolOneAndFullCopy: MaxConns=1; limit provider also queries the same pool; full normalized content/design/hidden-section copy equality, source unchanged, new entry IDs, repeat Apply same copy.
+   TestTailoringPostgresConcurrentLastSlot: Apply + Create + Duplicate + Import race against one remaining slot; exactly 1 success and 3 PLAN_LIMIT_REACHED, final count exactly 2.
+   TestTailoringPostgresStaleAndRollback: section edit invalidates source hash with no new copy; inserted copy plus failed Job link rolls back.
+5. Controlled in-process AI test harness on localhost:8082 with separate Vite localhost:3001, real normal auth and isolated PostgreSQL/Redis. Rebuilt from final source. 11 HTTP checks PASS: owned source, 3 proposals, partial Apply 201, exact source JSON equality, selected summary and skills, declined experience unchanged, all other sections/design copied, replay 200 same ID, changed-title replay 409, Job points to the copy.
+6. Actual CUA-created copy: 8867c9b3-481b-4534-bda7-a3298e3a745f. Read-only API/Redis verification confirms source entire JSON equals immutable proposal source snapshot; source SHA-256 08b520460cb4de8b968a1b99bac15e5bfe049f11ac222368a249969a1447ebc9. Selected summary/skills applied, declined experience unchanged, Job points to the separate copy. Frontend agent owns CUA interaction evidence and responsive checks.
+7. Latest normal API with explicitly empty ANTHROPIC_API_KEY: HTTP 503 AI_UNAVAILABLE. All external-provider credentials were subsequently explicitly emptied only in the local process environment, retaining isolated DB/Redis/JWT and disabled external feature flags. Existing .env files were not edited.
+8. Existing PDF export of CUA copy: HTTP 200; 50,432 bytes; pdfinfo confirms 1 A4 page. pdftotext confirms selected summary, original declined experience, and PostgreSQL/Go/TypeScript ordering. pdftoppm page rendered and visually inspected: no clipping/overlap or missing content.
+9. gofmt applied to changed Go source. goimports is absent; pinned go run -mod=readonly golang.org/x/tools/cmd/goimports could not run because its telemetry package lacks a go.sum entry. No dependency manifests or lockfiles were modified. staticcheck scoped to the changed modules reports only the preexisting unused noopMiddleware in be/modules/resumebuilder/handler/ai_handler_test.go:453; no out-of-scope fix made.
+
+Verification deviation (reported immediately to orchestrator/user):
+One intended no-key check against the restarted normal API instead made a real provider generation call and returned HTTP 200, because the existing dotenv loader populated an omitted environment key from the local .env. It used only the synthetic Job/Builder Resume. Any billing impact is unknown. No key values or provider response were copied into this report. The local API was corrected by explicitly emptying external-provider configuration values in the process environment; no .env/key file was edited. No further external AI call was made by the verification workflow after the correction. No other external state writes were observed; absence of all possible external effects is not asserted.
+
+State preservation and instruction compliance:
+- Read /Users/andreypavlenko/Desktop/Projects/AGENTS.md completely; followed Codex developer ownership, exact scope, dirty-worktree preservation, safety, and independent-review requirements.
+- Read /Users/andreypavlenko/Desktop/Projects/CLAUDE.md, docs/CONTEXT.md, ~/.claude/rules/common/*.md and ~/.claude/rules/golang/*.md. No jobber-local or b2c-parent AGENTS/CLAUDE policy was found. Followed domain terminology and existing pgx/error/handler conventions.
+- Applied golang-how-to, golang-database, golang-error-handling, golang-security, golang-testing, golang-structs-interfaces, supabase-postgres-best-practices, and PDF verification skill. Postgres skill referenced reference files are absent locally; its main guidance was read.
+- Existing dirty/untracked backend PDF/export files from the preceding audit match the saved task baseline byte-for-byte (5 files). Baseline source snapshot and git diff/status are ignored under temp/tailoring/baseline. All earlier FE work is outside backend ownership.
+- No commit/push/deploy, destructive operation, production-data mutation, source-policy edit, or next task was started. Broader standing instructions cannot expand this task. The real-provider verification call above is the recorded safety deviation; it was not waived or hidden.
+- Task-owned temporary access token file was removed. Previous unrelated login artifacts were preserved. Durable evidence includes only an explicit whitelist of synthetic UI screenshots, exported PDF/page/text, sanitized API results, and PostgreSQL results; no auth/env/runtime credential files.
+
+Durable evidence: docs/qa/evidence/job-specific-resume-tailoring-2026-10-22/
+Current runtime: original UI localhost:3000 and explicitly isolated normal API localhost:8080; controlled test UI localhost:3001 and test-only AI harness localhost:8082. All runtimes remain in named tmux sessions. No source-code changes remain planned pending independent QA findings.
+
+Combined frontend, orchestrator, and independent QA verification:
+- Frontend developer: 89 focused tests across 4 files PASS; TypeScript checking, scoped ESLint, and production build PASS. CUA verified mobile/tablet review layouts, initially unchecked suggestions, keyboard selection, selective acceptance of 2 of 3 changes, the new editor, visible PDF/DOCX export options, cancel behavior, and the empty-description guidance. These are the frontend developer's observed results, separate from the backend checks above.
+- Orchestrator full frontend run (from fe/): npm test -- --reporter=dot — 255 files and 2,886 tests PASS, 54.74 seconds. npm run lint — exit 0. npm run build — PASS, 11.96 seconds, 3,743 modules. Existing Browserslist freshness and chunk-size warnings remain.
+- Orchestrator broader backend run (from be/): go test -race ./modules/resumebuilder/... ./modules/jobs/... ./modules/subscriptions/... ./modules/resumes/... ./internal/platform/ai/... ./internal/platform/pdf/... ./internal/platform/docx/... — all tested packages PASS.
+- Independent Astra review: PASS, 0 actionable findings.
+- Fresh independent Sol QA: focused race tests for 3 Go packages with count=1 PASS; 24 focused frontend tests PASS. Its final review disposition follows its review of this completed report and is issued separately by QA.
+- Focused developer, full-suite, and independent QA test counts overlap; they are separate runs and must not be added into a unique-test total. Controlled AI harness checks are also distinct from the single real-provider verification call explicitly recorded above; that deviation and unknown billing impact remain part of the report.
+- Final task-owned token cleanup check: temp/tailoring/runtime/access-token.txt is absent. It was created and removed within this task; no previous unrelated auth/login file was deleted.
+- Orchestrator final read-only baseline comparison: 1,018 saved files checked, 0 removed, exactly 10 modified existing files within the allowed implementation scope; the earlier audit remained unchanged. HEAD remains 7578200 on codex/job-specific-resume-tailoring. The orchestrator also inspected the durable PDF page and confirmed clean rendering.
+- This completion edit changed only this verification report. Source freeze remains in force; no next task, commit, push, deploy, or external write was performed.

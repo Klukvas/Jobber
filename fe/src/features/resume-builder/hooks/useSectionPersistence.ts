@@ -1,9 +1,10 @@
 import { useCallback } from "react";
-import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
+import { adoptResumeSectionId, useResumeBuilderStore } from "@/stores/resumeBuilderStore";
 import { resumeBuilderService } from "@/services/resumeBuilderService";
 import {
   clearDocumentMutationState,
   trackDocumentMutation,
+  waitForDocumentMutations,
 } from "@/shared/lib/documentSync";
 import type {
   FullResumeDTO,
@@ -49,6 +50,10 @@ type SectionItem = { id: string; sort_order: number } & Record<string, unknown>;
  * between different resumes in the same SPA session.
  */
 const serverIdsByResume = new Map<string, Set<string>>();
+const serverSectionsByResume = new Map<string, Map<string, SectionType>>();
+const adoptedIdsByResume = new Map<string, Map<string, string>>();
+const historyOwnsStructure = new Set<string>();
+const historyRestoredIds = new Map<string, Set<string>>();
 
 /** Local ids whose create has not landed yet — still in flight, or failed. */
 const pendingCreateIds = new Map<string, Set<string>>();
@@ -118,30 +123,43 @@ export function initServerIds(resume: {
 }) {
   const removed = removedFor(resume.id);
   const set = new Set<string>();
-  for (const arr of [
-    resume.experiences,
-    resume.educations,
-    resume.skills,
-    resume.languages,
-    resume.certifications,
-    resume.projects,
-    resume.volunteering,
-    resume.custom_sections,
-  ]) {
+  const sections = new Map<string, SectionType>();
+  for (const [sectionType, storeKey] of Object.entries(sectionToStoreKey) as [SectionType, StoreKey][]) {
+    const arr = resume[storeKey];
     for (const item of arr) {
       // A payload older than the delete still lists the row; adopting its id
       // would make the editor write to a row the server no longer has.
-      if (!removed.has(item.id)) set.add(item.id);
+      if (!removed.has(item.id)) {
+        set.add(item.id);
+        sections.set(item.id, sectionType);
+      }
     }
   }
   serverIdsByResume.set(resume.id, set);
+  serverSectionsByResume.set(resume.id, sections);
 }
 
-export function markServerIds(resumeId: string, ids: string[]) {
+export function markServerIds(resumeId: string, ids: string[], sectionType?: SectionType) {
   const set = getOrCreateSet(resumeId);
   const removed = removedFor(resumeId);
   for (const id of ids) {
-    if (!removed.has(id)) set.add(id);
+    if (!removed.has(id)) {
+      set.add(id);
+      if (sectionType) {
+        const sections = serverSectionsByResume.get(resumeId) ?? new Map<string, SectionType>();
+        sections.set(id, sectionType);
+        serverSectionsByResume.set(resumeId, sections);
+      }
+      const live = useResumeBuilderStore.getState().resume;
+      if (live?.id === resumeId) {
+        for (const [section, key] of Object.entries(sectionToStoreKey) as [SectionType, StoreKey][]) {
+          if (!live[key].some(item => item.id === id)) continue;
+          const sections = serverSectionsByResume.get(resumeId) ?? new Map<string, SectionType>();
+          sections.set(id, section);
+          serverSectionsByResume.set(resumeId, sections);
+        }
+      }
+    }
   }
 }
 
@@ -164,6 +182,9 @@ export function getServerIds(resumeId: string): ReadonlySet<string> {
 /** Clean up stored IDs for a resume that is no longer active. */
 export function clearServerIds(resumeId: string) {
   serverIdsByResume.delete(resumeId);
+  serverSectionsByResume.delete(resumeId);
+  adoptedIdsByResume.delete(resumeId);
+  clearResumeHistoryIntent(resumeId);
   pendingCreateIds.delete(resumeId);
   pendingDeleteIds.delete(resumeId);
   removedIds.delete(resumeId);
@@ -221,19 +242,6 @@ const sectionToStoreKey: Record<SectionType, StoreKey> = {
   "custom-sections": "custom_sections",
 };
 
-/** Maps store key to the batch setter method on the store. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const storeSetters: Record<StoreKey, (items: any[]) => void> = {
-  experiences: (v) => useResumeBuilderStore.getState().setExperiences(v),
-  educations: (v) => useResumeBuilderStore.getState().setEducations(v),
-  skills: (v) => useResumeBuilderStore.getState().setSkills(v),
-  languages: (v) => useResumeBuilderStore.getState().setLanguages(v),
-  certifications: (v) => useResumeBuilderStore.getState().setCertifications(v),
-  projects: (v) => useResumeBuilderStore.getState().setProjects(v),
-  volunteering: (v) => useResumeBuilderStore.getState().setVolunteering(v),
-  custom_sections: (v) => useResumeBuilderStore.getState().setCustomSections(v),
-};
-
 function createMutationKey(sectionType: SectionType, localId: string): string {
   return `create:${sectionType}:${localId}`;
 }
@@ -267,11 +275,14 @@ async function createRemotely(
   sectionType: SectionType,
   resumeId: string,
   localId: string,
+  fallback?: SectionItem,
 ): Promise<void> {
   const storeKey = sectionToStoreKey[sectionType];
-  const localItem = liveSectionItems(resumeId, storeKey)?.find(
-    (item) => item.id === localId,
-  );
+  const liveItems = liveSectionItems(resumeId, storeKey);
+  const localItem = liveItems
+    ? liveItems.find(item => item.id === localId)
+    : fallback;
+
   if (!localItem) {
     // The row is gone — removed, or the editor moved to another document.
     // Creating it now would resurrect content the user dropped.
@@ -284,22 +295,25 @@ async function createRemotely(
     withoutId(localItem),
   )) as SectionItem;
   getOrCreateSet(resumeId).add(serverItem.id);
+  const sections = serverSectionsByResume.get(resumeId) ?? new Map<string, SectionType>();
+  sections.set(serverItem.id, sectionType);
+  serverSectionsByResume.set(resumeId, sections);
+  const aliases = adoptedIdsByResume.get(resumeId) ?? new Map<string, string>();
+  aliases.set(localId, serverItem.id);
+  adoptedIdsByResume.set(resumeId, aliases);
   untrackPending(pendingCreateIds, resumeId, localId);
 
   const items = liveSectionItems(resumeId, storeKey);
-  const index = items?.findIndex((item) => item.id === localId) ?? -1;
-  if (!items || index === -1) {
-    // Removed while the create was in flight — take the new row back off the
-    // server instead of leaving an orphan behind.
-    void deleteRemotely(sectionType, resumeId, serverItem.id);
+  // Even an undone CREATE gave this row a server identity. Redo must restore
+  // that identity from history after the compensating DELETE has settled.
+  adoptResumeSectionId(resumeId, storeKey, localId, serverItem.id);
+  // A different active document does not mean the original row was removed.
+  const explicitlyRemoved = removedFor(resumeId).has(localId) && !historyRestoredIds.get(resumeId)?.has(localId);
+  if (explicitlyRemoved || (items && !items.some(item => item.id === localId))) {
+    await deleteRemotely(sectionType, resumeId, serverItem.id);
     return;
   }
 
-  // Adopt the server id but keep everything the user typed in the meantime.
-  // Overwriting the row with the server copy threw those keystrokes away.
-  const next = [...items];
-  next[index] = { ...items[index], id: serverItem.id };
-  storeSetters[storeKey](next);
 }
 
 async function deleteRemotely(
@@ -313,6 +327,7 @@ async function deleteRemotely(
   const run = async () => {
     await deleteFns[sectionType](resumeId, entryId);
     serverIdsByResume.get(resumeId)?.delete(entryId);
+    serverSectionsByResume.get(resumeId)?.delete(entryId);
     untrackPending(pendingDeleteIds, resumeId, entryId);
     trackPending(removedIds, resumeId, entryId);
   };
@@ -353,7 +368,7 @@ export function reconcilePendingSectionMutations(
   const pendingDeletes = pendingDeleteIds.get(fresh.id) ?? NO_IDS;
   const pendingCreates = pendingCreateIds.get(fresh.id) ?? NO_IDS;
   const removed = removedFor(fresh.id);
-  const rescuedIds: string[] = [];
+  const rescuedIds: {id: string; section: SectionType}[] = [];
 
   /** Removed for good, or on its way out — either way the editor is done with it. */
   const isGone = (id: string): boolean =>
@@ -362,21 +377,24 @@ export function reconcilePendingSectionMutations(
   function merge<T extends { id: string; sort_order: number }>(
     freshItems: readonly T[],
     localItems: readonly T[] | undefined,
+    section: SectionType,
   ): T[] {
     const localById = new Map(
       (localItems ?? []).map((item) => [item.id, item]),
     );
+    const restored = (id: string) => historyRestoredIds.get(fresh.id)?.has(id) && localById.has(id);
     const kept = freshItems
-      .filter((item) => !isGone(item.id))
-      .map((item) => (draftWins ? (localById.get(item.id) ?? item) : item));
+      .filter(item => (!isGone(item.id) || restored(item.id)) &&
+        (!historyOwnsStructure.has(fresh.id) || !localItems || localById.has(item.id)))
+      .map(item => (draftWins || restored(item.id) ? (localById.get(item.id) ?? item) : item));
     const freshIds = new Set(freshItems.map((item) => item.id));
     const localOnly = (localItems ?? []).filter(
-      (item) => !freshIds.has(item.id) && !isGone(item.id),
+      (item) => !freshIds.has(item.id) && (!isGone(item.id) || restored(item.id)),
     );
     for (const item of localOnly) {
       // Absent from the payload and not waiting on a create means the payload
       // simply predates a successful one — the row does exist on the server.
-      if (!pendingCreates.has(item.id)) rescuedIds.push(item.id);
+      if (!pendingCreates.has(item.id) && !isGone(item.id)) rescuedIds.push({id:item.id,section});
     }
 
     if (localOnly.length === 0) return kept;
@@ -385,17 +403,17 @@ export function reconcilePendingSectionMutations(
 
   const merged: FullResumeDTO = {
     ...fresh,
-    experiences: merge(fresh.experiences, local?.experiences),
-    educations: merge(fresh.educations, local?.educations),
-    skills: merge(fresh.skills, local?.skills),
-    languages: merge(fresh.languages, local?.languages),
-    certifications: merge(fresh.certifications, local?.certifications),
-    projects: merge(fresh.projects, local?.projects),
-    volunteering: merge(fresh.volunteering, local?.volunteering),
-    custom_sections: merge(fresh.custom_sections, local?.custom_sections),
+    experiences: merge(fresh.experiences, local?.experiences, "experiences"),
+    educations: merge(fresh.educations, local?.educations, "educations"),
+    skills: merge(fresh.skills, local?.skills, "skills"),
+    languages: merge(fresh.languages, local?.languages, "languages"),
+    certifications: merge(fresh.certifications, local?.certifications, "certifications"),
+    projects: merge(fresh.projects, local?.projects, "projects"),
+    volunteering: merge(fresh.volunteering, local?.volunteering, "volunteering"),
+    custom_sections: merge(fresh.custom_sections, local?.custom_sections, "custom-sections"),
   };
 
-  if (rescuedIds.length > 0) markServerIds(fresh.id, rescuedIds);
+  for (const {id, section} of rescuedIds) markServerIds(fresh.id, [id], section);
 
   return merged;
 }
@@ -419,7 +437,7 @@ export function useSectionPersistence<T extends DTOMap[SectionType]>(
       const resumeId = resume.id;
       const localId = (localItem as unknown as SectionItem).id;
       trackPending(pendingCreateIds, resumeId, localId);
-      const run = () => createRemotely(sectionType, resumeId, localId);
+      const run = () => createRemotely(sectionType, resumeId, localId, localItem as unknown as SectionItem);
 
       try {
         await trackDocumentMutation(
@@ -459,4 +477,93 @@ export function useSectionPersistence<T extends DTOMap[SectionType]>(
   );
 
   return { add, remove };
+}
+
+
+/** IDs whose presence this snapshot can legitimately reconcile, including pending creates. */
+export function captureResumeSectionIds(resumeId: string): ReadonlySet<string> {
+  return new Set([
+    ...getServerIds(resumeId),
+    ...(pendingCreateIds.get(resumeId) ?? NO_IDS),
+  ]);
+}
+
+function resolveSectionId(resumeId: string, initialId: string): string {
+  const aliases = adoptedIdsByResume.get(resumeId);
+  const visited = new Set<string>();
+  let id = initialId;
+  while (aliases?.has(id) && !visited.has(id)) {
+    visited.add(id);
+    id = aliases.get(id) ?? id;
+  }
+  return id;
+}
+
+/** Resolves IDs in outgoing snapshots retained while another document is open. */
+export function resolveResumeSectionIds(resume: FullResumeDTO): FullResumeDTO {
+  if (!adoptedIdsByResume.has(resume.id)) return resume;
+  let resolved = resume;
+  for (const key of Object.values(sectionToStoreKey)) {
+    if (!resolved[key].some(item => resolveSectionId(resume.id, item.id) !== item.id)) continue;
+    resolved = {
+      ...resolved,
+      [key]: resolved[key].map(item => ({
+        ...item,
+        id: resolveSectionId(resume.id, item.id),
+      })),
+    };
+  }
+  return resolved;
+}
+
+/** History changes arrays without add/remove hooks; flush reconciles their structure. */
+export async function reconcileResumeSectionStructure(
+  resume: FullResumeDTO,
+  knownAtSnapshot: ReadonlySet<string>,
+  getLatestDesired: () => FullResumeDTO,
+): Promise<FullResumeDTO> {
+  const latestDesired = () => resolveResumeSectionIds(getLatestDesired());
+  for (const [sectionType, storeKey] of Object.entries(sectionToStoreKey) as [SectionType, StoreKey][]) {
+    for (const candidate of latestDesired()[storeKey]) {
+      if (getServerIds(resume.id).has(candidate.id)) continue;
+      // An immediate CREATE may have started after this save's initial wait.
+      // Let it settle before deciding this row still needs a structural CREATE.
+      await waitForDocumentMutations(resume.id);
+      const currentId = resolveSectionId(resume.id, candidate.id);
+      const item = latestDesired()[storeKey].find(current => current.id === currentId);
+      // A newer Undo or outgoing revision may have removed it during the wait.
+      if (!item || getServerIds(resume.id).has(item.id)) continue;
+      if (removedFor(resume.id).has(item.id)) trackPending(historyRestoredIds, resume.id, item.id);
+      await createRemotely(sectionType, resume.id, item.id, item as unknown as SectionItem);
+    }
+    const eligible = new Set(
+      [...knownAtSnapshot].map(id => resolveSectionId(resume.id, id)),
+    );
+    for (const [id, section] of serverSectionsByResume.get(resume.id) ?? []) {
+      if (section !== sectionType || !eligible.has(id)) continue;
+      // A save only owns rows it knew about when it was queued. Re-read the
+      // current intent after each await; newer rows and Redo must survive.
+      if (latestDesired()[storeKey].some(item => item.id === id)) continue;
+      await deleteRemotely(sectionType, resume.id, id);
+    }
+  }
+  return resolveResumeSectionIds(resume);
+}
+
+
+/** Keeps history's explicit row presence authoritative while a stale fetch lands. */
+export function noteResumeHistoryChange(resume: FullResumeDTO): void {
+  historyOwnsStructure.add(resume.id);
+  const restored = new Set<string>();
+  for (const key of Object.values(sectionToStoreKey)) {
+    for (const item of resume[key]) {
+      if (removedFor(resume.id).has(item.id) || pendingDeleteIds.get(resume.id)?.has(item.id)) restored.add(item.id);
+    }
+  }
+  historyRestoredIds.set(resume.id, restored);
+}
+
+export function clearResumeHistoryIntent(resumeId: string): void {
+  historyOwnsStructure.delete(resumeId);
+  historyRestoredIds.delete(resumeId);
 }

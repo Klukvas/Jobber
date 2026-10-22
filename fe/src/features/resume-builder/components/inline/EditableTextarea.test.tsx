@@ -69,7 +69,7 @@ describe("EditableTextarea", () => {
     await user.type(textarea, "Changed");
     await user.keyboard("{Escape}");
 
-    expect(defaultProps.onChange).not.toHaveBeenCalled();
+    expect(defaultProps.onChange).toHaveBeenLastCalledWith("A summary of experience");
     expect(
       screen.getByText("A summary of experience"),
     ).toBeInTheDocument();
@@ -107,4 +107,28 @@ describe("EditableTextarea", () => {
     const display = screen.getByText("A summary of experience");
     expect(display.tagName).toBe("P");
   });
+});
+
+
+it("never renders editing placeholders for an empty read-only field", () => {
+  const {container} = render(<EditableTextarea value="   " onChange={vi.fn()} placeholder="Position" editable={false} />);
+  expect(container).toBeEmptyDOMElement();
+});
+
+it("publishes an active draft before blur", async () => {
+  const user = userEvent.setup();
+  const onChange = vi.fn();
+  render(<EditableTextarea value="Original" onChange={onChange} placeholder="Edit" />);
+  await user.click(screen.getByText("Original"));
+  await user.type(screen.getByDisplayValue("Original"), " updated");
+  expect(onChange).toHaveBeenLastCalledWith("Original updated");
+  expect(screen.getByDisplayValue("Original updated")).toHaveFocus();
+});
+
+it("applies the native maximum length while editing", async () => {
+  const user = userEvent.setup();
+  render(<EditableTextarea value="text" onChange={vi.fn()} placeholder="Edit" maxLength={5} />);
+  await user.click(screen.getByText("text"));
+  await user.type(screen.getByDisplayValue("text"), "123");
+  expect(screen.getByDisplayValue("text1")).toHaveAttribute("maxlength", "5");
 });

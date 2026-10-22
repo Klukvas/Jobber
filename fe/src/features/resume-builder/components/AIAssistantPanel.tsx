@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { flushResumeDocument } from "../lib/resumeDocumentSync";
+import { resolveResumeSectionIds } from "../hooks/useSectionPersistence";
 import { useTranslation } from "react-i18next";
 import { Sparkles, Loader2, Check, X, Briefcase } from "lucide-react";
 import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
@@ -36,42 +38,143 @@ export function AIAssistantPanel() {
 
   const experiences = resume?.experiences ?? [];
 
-  const handleSuggestSummary = () => {
-    if (!resume) return;
-    suggestSummary.mutate({ resume_id: resume.id });
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const [summaryResult, setSummaryResult] = useState<{
+    revision: string;
+    summary: string;
+  } | null>(null);
+  const [bulletResult, setBulletResult] = useState<{
+    revision: string;
+    entryId: string;
+    bullets: string[];
+  } | null>(null);
+  const [textResult, setTextResult] = useState<{
+    revision: string;
+    source: string;
+    improved: string;
+  } | null>(null);
+  const revision = resume ? JSON.stringify(resume) : null;
+  const isCurrent = (origin: string) =>
+    JSON.stringify(useResumeBuilderStore.getState().resume) === origin;
+  const summary = summaryResult?.revision === revision ? summaryResult : null;
+  const bullets =
+    bulletResult?.revision === revision &&
+    bulletResult.entryId === selectedExpId
+      ? bulletResult
+      : null;
+  const improved =
+    textResult?.revision === revision && textResult.source === textToImprove
+      ? textResult
+      : null;
+
+  // Analysis reads the stored document. Capture its revision only after all
+  // writes have landed, and never let a result cross a document/edit boundary.
+  const prepareAnalysis = async () => {
+    if (!resume) return null;
+    setIsSyncing(true);
+    setSaveError(false);
+    try {
+      await flushResumeDocument(resume.id);
+      const live = useResumeBuilderStore.getState().resume;
+      if (!live || live.id !== resume.id) return null;
+      return { resume: live, revision: JSON.stringify(live) };
+    } catch {
+      if (useResumeBuilderStore.getState().resume?.id === resume.id)
+        setSaveError(true);
+      return null;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleSuggestSummary = async () => {
+    const origin = await prepareAnalysis();
+    if (!origin) return;
+    setSummaryResult(null);
+    suggestSummary.mutate(
+      { resume_id: origin.resume.id },
+      {
+        onSuccess: (data) => {
+          if (isCurrent(origin.revision))
+            setSummaryResult({ ...data, revision: origin.revision });
+        },
+      },
+    );
   };
 
   const handleApplySummary = () => {
-    if (!suggestSummary.data) return;
-    updateSummary({ content: suggestSummary.data.summary });
+    if (!summary || !isCurrent(summary.revision)) return;
+    updateSummary({ content: summary.summary });
+    setSummaryResult(null);
     suggestSummary.reset();
   };
 
-  const handleSuggestBullets = () => {
-    const exp = experiences.find((e) => e.id === selectedExpId);
+  const handleSuggestBullets = async () => {
+    if (!resume) return;
+    const selectedIndex = experiences.findIndex(
+      (entry) => entry.id === selectedExpId,
+    );
+    if (selectedIndex < 0) return;
+    const selectedDocument = resume;
+    const origin = await prepareAnalysis();
+    if (!origin) return;
+    // A pending CREATE can acquire its server ID during the flush. Resolve
+    // that alias in the captured selection instead of losing the selection.
+    const selectedId =
+      resolveResumeSectionIds(selectedDocument).experiences[selectedIndex]?.id;
+    const exp = origin.resume.experiences.find(
+      (entry) => entry.id === selectedId,
+    );
     if (!exp) return;
-    suggestBullets.mutate({
-      job_title: exp.position,
-      company: exp.company,
-      current_description: exp.description,
-    });
+    setSelectedExpId(exp.id);
+    setBulletResult(null);
+    suggestBullets.mutate(
+      {
+        job_title: exp.position,
+        company: exp.company,
+        current_description: exp.description,
+      },
+      {
+        onSuccess: (data) => {
+          if (isCurrent(origin.revision))
+            setBulletResult({
+              ...data,
+              revision: origin.revision,
+              entryId: exp.id,
+            });
+        },
+      },
+    );
   };
 
   const handleApplyBullets = () => {
-    if (!suggestBullets.data || !selectedExpId) return;
-    const description = suggestBullets.data.bullets
-      .map((b) => `• ${b}`)
-      .join("\n");
-    updateExperience(selectedExpId, { description });
+    if (!bullets || !isCurrent(bullets.revision)) return;
+    updateExperience(bullets.entryId, {
+      description: bullets.bullets.map((bullet) => `• ${bullet}`).join("\n"),
+    });
+    setBulletResult(null);
     suggestBullets.reset();
   };
 
-  const handleImproveText = () => {
+  const handleImproveText = async () => {
     if (!textToImprove.trim()) return;
+    const source = textToImprove;
     const instruction = t(
       `resumeBuilder.ai.instructions.${selectedInstruction}`,
     );
-    improveText.mutate({ text: textToImprove, instruction });
+    const origin = await prepareAnalysis();
+    if (!origin) return;
+    setTextResult(null);
+    improveText.mutate(
+      { text: source, instruction },
+      {
+        onSuccess: (data) => {
+          if (isCurrent(origin.revision))
+            setTextResult({ ...data, source, revision: origin.revision });
+        },
+      },
+    );
   };
 
   return (
@@ -82,12 +185,19 @@ export function AIAssistantPanel() {
       </div>
 
       {aiLimitReached && <UpgradeBanner resource="ai" />}
+      {saveError && (
+        <p role="alert" className="text-sm text-destructive">
+          {t("resumeBuilder.analysis.saveError")}
+        </p>
+      )}
 
       {/* Suggest Summary */}
       <section className="space-y-3">
         <Button
           onClick={handleSuggestSummary}
-          disabled={suggestSummary.isPending || !resume || aiLimitReached}
+          disabled={
+            isSyncing || suggestSummary.isPending || !resume || aiLimitReached
+          }
           variant="outline"
           className="w-full"
         >
@@ -108,12 +218,15 @@ export function AIAssistantPanel() {
           <p className="text-sm text-destructive">{t("common.error")}</p>
         )}
 
-        {suggestSummary.data && (
+        {summary && (
           <SuggestionCard
             title={t("resumeBuilder.ai.result")}
-            content={suggestSummary.data.summary}
+            content={summary.summary}
             onApply={handleApplySummary}
-            onDismiss={() => suggestSummary.reset()}
+            onDismiss={() => {
+              setSummaryResult(null);
+              suggestSummary.reset();
+            }}
           />
         )}
       </section>
@@ -147,7 +260,10 @@ export function AIAssistantPanel() {
           <Button
             onClick={handleSuggestBullets}
             disabled={
-              suggestBullets.isPending || !selectedExpId || aiLimitReached
+              isSyncing ||
+              suggestBullets.isPending ||
+              !selectedExpId ||
+              aiLimitReached
             }
             variant="outline"
             className="w-full"
@@ -169,7 +285,7 @@ export function AIAssistantPanel() {
             <p className="text-sm text-destructive">{t("common.error")}</p>
           )}
 
-          {suggestBullets.data && (
+          {bullets && (
             <Card className="border-primary/20 bg-primary/5">
               <CardHeader className="p-4 pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm font-medium">
@@ -179,7 +295,7 @@ export function AIAssistantPanel() {
               </CardHeader>
               <CardContent className="p-4 pt-0">
                 <ul className="mb-3 space-y-1.5">
-                  {suggestBullets.data.bullets.map((bullet, i) => (
+                  {bullets.bullets.map((bullet, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm">
                       <span className="mt-1.5 block h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
                       {bullet}
@@ -194,7 +310,10 @@ export function AIAssistantPanel() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => suggestBullets.reset()}
+                    onClick={() => {
+                      setBulletResult(null);
+                      suggestBullets.reset();
+                    }}
                   >
                     <X className="h-3.5 w-3.5" />
                     {t("resumeBuilder.ai.dismiss")}
@@ -240,7 +359,10 @@ export function AIAssistantPanel() {
         <Button
           onClick={handleImproveText}
           disabled={
-            improveText.isPending || !textToImprove.trim() || aiLimitReached
+            isSyncing ||
+            improveText.isPending ||
+            !textToImprove.trim() ||
+            aiLimitReached
           }
           variant="outline"
           className="w-full"
@@ -262,15 +384,20 @@ export function AIAssistantPanel() {
           <p className="text-sm text-destructive">{t("common.error")}</p>
         )}
 
-        {improveText.data && (
+        {improved && (
           <SuggestionCard
             title={t("resumeBuilder.ai.result")}
-            content={improveText.data.improved}
+            content={improved.improved}
             onApply={() => {
-              setTextToImprove(improveText.data.improved);
+              if (!isCurrent(improved.revision)) return;
+              setTextToImprove(improved.improved);
+              setTextResult(null);
               improveText.reset();
             }}
-            onDismiss={() => improveText.reset()}
+            onDismiss={() => {
+              setTextResult(null);
+              improveText.reset();
+            }}
           />
         )}
       </section>

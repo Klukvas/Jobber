@@ -1,0 +1,12 @@
+Main synthetic resume 004fa6d4-fb23-47f2-b63a-f7c029587aff
+React PDF: HTTP200 110235 bytes, 1.08 seconds
+DOCX: HTTP200 42122 bytes, 0.04 seconds
+Parent CUA export backend log: HTTP200 2813ms, React PDF 110235 bytes
+
+Duplicate synthetic resume e408bd85-cf35-47a7-9704-2879cc6970db, experience.is_visible=false
+React PDF: HTTP200 95722 bytes; hidden company absent
+DOCX: HTTP200 42070 bytes; hidden company absent
+Fallback PDF: HTTP200 58644 bytes, 0.92 seconds; hidden company PRESENT
+Fallback forced on separate runtime backend8081 with FRONTEND_URL=http://127.0.0.1:1; log ERR_UNSAFE_PORT then Go templates success. Secondary backend stopped after test. Main runtime unchanged.
+
+React PDFs include cookie consent banner and editable placeholders Position/Add dates. DOCX does not.

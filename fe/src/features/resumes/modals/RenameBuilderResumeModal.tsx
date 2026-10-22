@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { resumeBuilderService } from "@/services/resumeBuilderService";
+import { renameResumeDocument } from "@/features/resume-builder/lib/resumeDocumentSync";
 import { resumeQueryKeys } from "@/shared/lib/resumeQueryKeys";
 import {
   Dialog,
@@ -19,7 +19,7 @@ import {
   showErrorNotification,
 } from "@/shared/lib/notifications";
 import { Loader2 } from "lucide-react";
-import type { ResumeBuilderDTO } from "@/shared/types/resume-builder";
+import type { FullResumeDTO, ResumeBuilderDTO } from "@/shared/types/resume-builder";
 
 interface RenameBuilderResumeModalProps {
   open: boolean;
@@ -36,9 +36,18 @@ function ModalContent({
   const [title, setTitle] = useState(resume.title);
 
   const renameMutation = useMutation({
-    mutationFn: (newTitle: string) =>
-      resumeBuilderService.update(resume.id, { title: newTitle }),
-    onSuccess: () => {
+    mutationFn: async (newTitle: string) => {
+      await queryClient.cancelQueries({ queryKey: resumeQueryKeys.builderDetail(resume.id) });
+      return renameResumeDocument(resume.id, newTitle);
+    },
+    onSuccess: (updated, newTitle) => {
+      queryClient.setQueryData<FullResumeDTO>(resumeQueryKeys.builderDetail(resume.id), cached =>
+        cached ? { ...cached, title: newTitle, updated_at: updated.updated_at } : cached,
+      );
+      void queryClient.invalidateQueries({
+        queryKey: resumeQueryKeys.builderDetail(resume.id),
+        refetchType: "none",
+      });
       queryClient.invalidateQueries({
         queryKey: resumeQueryKeys.builderList(),
       });

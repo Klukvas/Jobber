@@ -3,7 +3,7 @@ import { RouterProvider } from "react-router-dom";
 import { router } from "./router";
 import { I18nextProvider } from "react-i18next";
 import i18n from "@/shared/lib/i18n";
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useThemeStore } from "@/stores/themeStore";
 import { AuthProvider } from "./providers/AuthProvider";
 import { GlobalErrorBoundary } from "@/shared/ui/GlobalErrorBoundary";
@@ -12,6 +12,13 @@ import { Toaster } from "sonner";
 import { getQueryClient } from "@/shared/lib/queryClient";
 
 export function Providers() {
+  // Subscribe outside RouterProvider so print navigation also unmounts overlays
+  // and releases consent's body padding before the renderer measures the page.
+  const pathname = useSyncExternalStore(
+    router.subscribe,
+    () => router.state.location.pathname,
+  );
+  const isResumePrint = pathname.replace(/\/$/, "") === "/print/resume";
   const theme = useThemeStore((state) => state.theme);
 
   useEffect(() => {
@@ -26,8 +33,12 @@ export function Providers() {
         <QueryClientProvider client={getQueryClient()}>
           <AuthProvider>
             <RouterProvider router={router} />
-            <Toaster position="top-right" richColors closeButton />
-            <CookieConsent />
+            {!isResumePrint && (
+              <>
+                <Toaster position="top-right" richColors closeButton />
+                <CookieConsent />
+              </>
+            )}
           </AuthProvider>
         </QueryClientProvider>
       </I18nextProvider>

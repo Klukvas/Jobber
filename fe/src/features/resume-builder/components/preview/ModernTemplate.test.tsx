@@ -3,7 +3,8 @@ import { render, screen } from "@testing-library/react";
 import { ModernTemplate } from "./ModernTemplate";
 import { createMockSetup } from "./__tests__/templateTestHelpers";
 
-let mockReturnValue: ReturnType<typeof createMockSetup> | null = createMockSetup();
+let mockReturnValue: ReturnType<typeof createMockSetup> | null =
+  createMockSetup();
 
 vi.mock("./shared/useTemplateSetup", () => ({
   useTemplateSetup: () => mockReturnValue,
@@ -17,7 +18,13 @@ vi.mock("./shared/TemplateSections", () => ({
 }));
 
 vi.mock("./TwoColumnLayout", () => ({
-  TwoColumnLayout: ({ sidebarContent, mainContent }: { sidebarContent: React.ReactNode; mainContent: React.ReactNode }) => (
+  TwoColumnLayout: ({
+    sidebarContent,
+    mainContent,
+  }: {
+    sidebarContent: React.ReactNode;
+    mainContent: React.ReactNode;
+  }) => (
     <div data-testid="two-column-layout">
       <div data-testid="sidebar-content">{sidebarContent}</div>
       <div data-testid="main-content">{mainContent}</div>
@@ -96,10 +103,43 @@ describe("ModernTemplate", () => {
 
   it("hides optional contact fields when empty and not editable", () => {
     mockReturnValue = createMockSetup({
-      contact: { full_name: "Jane Doe", email: "", phone: "", location: "", website: "", linkedin: "", github: "" },
+      contact: {
+        full_name: "Jane Doe",
+        email: "",
+        phone: "",
+        location: "",
+        website: "",
+        linkedin: "",
+        github: "",
+      },
     });
     render(<ModernTemplate editable={false} />);
     expect(screen.getByText("Jane Doe")).toBeInTheDocument();
     expect(screen.queryByText("jane@example.com")).not.toBeInTheDocument();
   });
 });
+
+it.each([false, true])(
+  "keeps an empty Contact section only while editable=%s",
+  (editable) => {
+    mockReturnValue = createMockSetup({
+      contact: {
+        full_name: "Jane",
+        email: " ",
+        phone: "",
+        location: "",
+        website: "",
+        linkedin: "",
+        github: "",
+      },
+      visibleSections: [{ section_key: "contact", sort_order: 0 }],
+    });
+    render(<ModernTemplate editable={editable} />);
+    if (editable) {
+      expect(screen.getByText("Contact")).toBeInTheDocument();
+      expect(screen.getByText("email@example.com")).toBeInTheDocument();
+    } else {
+      expect(screen.queryByText("Contact")).not.toBeInTheDocument();
+    }
+  },
+);

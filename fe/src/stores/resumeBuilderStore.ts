@@ -289,3 +289,32 @@ export const useResumeBuilderStore = create<ResumeBuilderState>()(
     },
   ),
 );
+
+
+/** Server-assigned IDs identify the same edit, so adoption must not add history. */
+export function adoptResumeSectionId(
+  resumeId: string,
+  section: ArraySectionKey,
+  localId: string,
+  serverId: string,
+): void {
+  const remap = (resume: FullResumeDTO | null): FullResumeDTO | null => {
+    if (!resume || resume.id !== resumeId) return resume;
+    if (!resume[section].some(item => item.id === localId)) return resume;
+    return {
+      ...resume,
+      [section]: resume[section].map(item => item.id === localId ? { ...item, id: serverId } : item),
+    };
+  };
+  const temporal = useResumeBuilderStore.temporal.getState();
+  const wasTracking = temporal.isTracking;
+  temporal.pause();
+  const state = useResumeBuilderStore.getState();
+  const resume = remap(state.resume);
+  if (resume !== state.resume) useResumeBuilderStore.setState({ resume });
+  useResumeBuilderStore.temporal.setState({
+    pastStates: temporal.pastStates.map(state => ({ ...state, resume: remap(state.resume ?? null) })),
+    futureStates: temporal.futureStates.map(state => ({ ...state, resume: remap(state.resume ?? null) })),
+  });
+  if (wasTracking) temporal.resume();
+}

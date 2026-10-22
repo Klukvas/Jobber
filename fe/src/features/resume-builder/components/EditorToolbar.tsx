@@ -1,3 +1,4 @@
+import { ApiError } from "@/services/api";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -105,8 +106,15 @@ export function EditorToolbar({
         setTimeout(() => URL.revokeObjectURL(url), 200);
         showSuccessNotification(t("resumeBuilder.toolbar.exportSuccess"));
       },
-      onError: () => {
-        showErrorNotification(t("resumeBuilder.toolbar.exportError"));
+      onError: (error) => {
+        showErrorNotification(
+          t(
+            error instanceof ApiError &&
+              error.code === "PDF_RENDERER_UNAVAILABLE"
+              ? "resumeBuilder.toolbar.pdfUnavailable"
+              : "resumeBuilder.toolbar.exportError",
+          ),
+        );
       },
     });
   }, [resume, exportPDF, syncBeforeExport, t]);
@@ -138,7 +146,7 @@ export function EditorToolbar({
   const isExporting = exportPDF.isPending || exportDOCX.isPending || isSyncing;
 
   return (
-    <div className="flex items-center gap-1 sm:gap-2">
+    <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-2">
       {/* Undo / Redo */}
       <Tooltip content={t("resumeBuilder.toolbar.undo")} side="bottom">
         <Button
@@ -171,6 +179,11 @@ export function EditorToolbar({
       <div className="relative shrink-0">
         <Button
           ref={exportBtnRef}
+          aria-label={t(
+            isExporting
+              ? "resumeBuilder.toolbar.exporting"
+              : "resumeBuilder.toolbar.export",
+          )}
           variant="outline"
           size="sm"
           onClick={() => setShowExportMenu(!showExportMenu)}

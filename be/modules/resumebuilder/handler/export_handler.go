@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,7 +12,6 @@ import (
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	"github.com/andreypavlenko/jobber/internal/platform/docx"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
-	"github.com/andreypavlenko/jobber/internal/platform/pdf"
 	"github.com/andreypavlenko/jobber/modules/resumebuilder/model"
 	"github.com/andreypavlenko/jobber/modules/resumebuilder/service"
 	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
@@ -19,16 +19,21 @@ import (
 	"go.uber.org/zap"
 )
 
+type resumePDFGenerator interface {
+	HasFrontendPDF() bool
+	GenerateResumePDFFromFrontend(context.Context, *model.FullResumeDTO) ([]byte, error)
+}
+
 // ExportHandler handles PDF and DOCX export HTTP requests.
 type ExportHandler struct {
 	service     *service.ResumeBuilderService
-	pdfService  *pdf.PDFService
+	pdfService  resumePDFGenerator
 	docxService *docx.DOCXService
 	logger      *zap.Logger
 }
 
 // NewExportHandler creates a new ExportHandler.
-func NewExportHandler(service *service.ResumeBuilderService, pdfService *pdf.PDFService, logger *zap.Logger) *ExportHandler {
+func NewExportHandler(service *service.ResumeBuilderService, pdfService resumePDFGenerator, logger *zap.Logger) *ExportHandler {
 	return &ExportHandler{
 		service:    service,
 		pdfService: pdfService,
@@ -67,35 +72,18 @@ func (h *ExportHandler) ExportResumePDF(c *gin.Context) {
 		return
 	}
 
-	// Generate PDF — try React frontend rendering first, fallback to Go templates.
-	var pdfBytes []byte
-	if h.pdfService.HasFrontendPDF() {
-		pdfBytes, err = h.pdfService.GenerateResumePDFFromFrontend(c.Request.Context(), resume)
-		if err != nil {
-			h.logger.Warn("frontend PDF rendering failed, falling back to Go templates",
-				zap.String("resume_id", id),
-				zap.Error(err),
-			)
-			pdfBytes = nil
-		} else {
-			h.logger.Info("PDF generated via React frontend",
-				zap.String("resume_id", id),
-				zap.Int("size_bytes", len(pdfBytes)),
-			)
-		}
-	} else {
-		h.logger.Debug("frontend PDF not configured, using Go templates")
+	// Resume export requires the same renderer as the editor. Legacy templates
+	// cannot faithfully preserve section visibility/order and must never be used
+	// after a renderer outage or when FRONTEND_URL is missing.
+	if h.pdfService == nil || !h.pdfService.HasFrontendPDF() {
+		httpPlatform.RespondWithError(c, http.StatusServiceUnavailable, "PDF_RENDERER_UNAVAILABLE", "PDF export is temporarily unavailable. Please try again later.")
+		return
 	}
-	if pdfBytes == nil {
-		pdfBytes, err = h.pdfService.GenerateResumePDF(c.Request.Context(), resume)
-		if err != nil {
-			httpPlatform.RespondWithError(c, http.StatusInternalServerError, "PDF_GENERATION_FAILED", "Failed to generate PDF")
-			return
-		}
-		h.logger.Info("PDF generated via Go templates",
-			zap.String("resume_id", id),
-			zap.Int("size_bytes", len(pdfBytes)),
-		)
+	pdfBytes, err := h.pdfService.GenerateResumePDFFromFrontend(c.Request.Context(), resume)
+	if err != nil {
+		h.logger.Warn("frontend PDF rendering failed", zap.String("resume_id", id), zap.Error(err))
+		httpPlatform.RespondWithError(c, http.StatusServiceUnavailable, "PDF_RENDERER_UNAVAILABLE", "PDF export is temporarily unavailable. Please try again later.")
+		return
 	}
 
 	// Set response headers and send PDF

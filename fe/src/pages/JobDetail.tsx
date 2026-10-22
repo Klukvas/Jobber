@@ -25,6 +25,7 @@ import { JobTags } from "@/features/jobs/components/JobTags";
 import { JobDetailHeader } from "@/features/jobs/components/JobDetailHeader";
 import { JobInfoCard } from "@/features/jobs/components/JobInfoCard";
 import { JobPipelineCard } from "@/features/jobs/components/JobPipelineCard";
+import { JobResumeTailoringCard } from "@/features/jobs/resume-tailoring/JobResumeTailoringCard";
 import { JobMatchScoreCard } from "@/features/jobs/components/JobMatchScoreCard";
 import { JobCommentsSection } from "@/features/jobs/components/JobCommentsSection";
 import { AddStageModal } from "@/features/jobs/modals/AddStageModal";
@@ -100,7 +101,11 @@ export default function JobDetail() {
     enabled: !!id,
   });
 
-  const { data: builderResumes } = useQuery({
+  const {
+    data: builderResumes,
+    isLoading: isLoadingBuilderResumes,
+    isError: isBuilderResumesError,
+  } = useQuery({
     queryKey: resumeQueryKeys.builderList(),
     queryFn: () => resumeBuilderService.list(),
     enabled: !!id,
@@ -260,6 +265,16 @@ export default function JobDetail() {
           />
         </CardContent>
       </Card>
+
+      <JobResumeTailoringCard
+        key={job.id}
+        job={job}
+        builderResumes={builderResumesList}
+        isLoading={isLoadingBuilderResumes}
+        isError={isBuilderResumesError}
+        isJobDirty={isDirty}
+        isJobSaving={updateMutation.isPending}
+      />
 
       {/* Check Match */}
       <JobMatchScoreCard

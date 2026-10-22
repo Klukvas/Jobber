@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { flushResumeDocument } from "../lib/resumeDocumentSync";
 import { useTranslation } from "react-i18next";
 import {
   ShieldCheck,
@@ -51,21 +52,46 @@ export function ATSCheckerPanel() {
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   // A failed re-check used to wipe the score that was already on screen, so a
   // customer who hit the monthly limit lost the report they had just read.
-  const [lastResult, setLastResult] = useState<ATSCheckResult | null>(null);
+  const [lastResult, setLastResult] = useState<{
+    revision: string;
+    data: ATSCheckResult;
+  } | null>(null);
   const resetDate = useMonthlyResetDate();
   // The ATS check spends the same monthly AI allowance as match scoring and
   // resume assistance, so the message has to name the allowance — and its size
   // — rather than a single feature the customer may not even have used.
   const { limits } = useSubscription();
 
-  const handleCheck = () => {
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const handleCheck = async () => {
     if (!resume) return;
-    atsCheck.mutate(resume.id, {
-      onSuccess: (data) => setLastResult(data),
-    });
+    setIsSyncing(true);
+    setSaveError(false);
+    try {
+      await flushResumeDocument(resume.id);
+      const live = useResumeBuilderStore.getState().resume;
+      if (!live || live.id !== resume.id) return;
+      const revision = JSON.stringify(live);
+      atsCheck.mutate(live.id, {
+        onSuccess: (data) => {
+          if (
+            JSON.stringify(useResumeBuilderStore.getState().resume) === revision
+          ) {
+            setLastResult({ revision, data });
+          }
+        },
+      });
+    } catch {
+      if (useResumeBuilderStore.getState().resume?.id === resume.id)
+        setSaveError(true);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
-  const result = atsCheck.data ?? lastResult;
+  const result =
+    lastResult?.revision === JSON.stringify(resume) ? lastResult.data : null;
 
   const isQuotaError =
     atsCheck.error instanceof ApiError &&
@@ -82,7 +108,7 @@ export function ATSCheckerPanel() {
 
       <Button
         onClick={handleCheck}
-        disabled={atsCheck.isPending || !resume}
+        disabled={isSyncing || atsCheck.isPending || !resume}
         variant="outline"
         className="w-full"
       >
@@ -98,6 +124,12 @@ export function ATSCheckerPanel() {
           </>
         )}
       </Button>
+
+      {saveError && (
+        <p role="alert" className="text-sm text-destructive">
+          {t("resumeBuilder.analysis.saveError")}
+        </p>
+      )}
 
       {atsCheck.isError &&
         (isQuotaError ? (

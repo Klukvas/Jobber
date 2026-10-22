@@ -17,8 +17,12 @@ import { resumeQueryKeys } from "@/shared/lib/resumeQueryKeys";
 import type { FullResumeDTO } from "@/shared/types/resume-builder";
 import {
   initServerIds,
-  isServerItem,
+  captureResumeSectionIds,
+  clearResumeHistoryIntent,
+  getServerIds,
   reconcilePendingSectionMutations,
+  reconcileResumeSectionStructure,
+  resolveResumeSectionIds,
 } from "../hooks/useSectionPersistence";
 
 /** Array section keys that are saved item by item. */
@@ -54,6 +58,9 @@ type SectionItem = Record<string, unknown> & { id: string };
 type SectionSnapshot = Record<ArraySectionKey, string>;
 
 type ResumeSnapshot = DocumentSyncSnapshot<FullResumeDTO>;
+
+// The scope belongs to this enqueue, rather than to a mutable server registry.
+const sectionIdsAtSnapshot = new WeakMap<ResumeSnapshot, ReadonlySet<string>>();
 
 /**
  * Section state as the server last accepted it, per resume.
@@ -142,11 +149,13 @@ function buildSectionSnapshot(resume: FullResumeDTO): SectionSnapshot {
 function resumeSnapshot(): ResumeSnapshot | null {
   const resume = useResumeBuilderStore.getState().resume;
   if (!resume) return null;
-  return {
+  const snapshot: ResumeSnapshot = {
     documentId: resume.id,
     revision: JSON.stringify(resume),
     document: resume,
   };
+  sectionIdsAtSnapshot.set(snapshot, captureResumeSectionIds(resume.id));
+  return snapshot;
 }
 
 function persistTopLevel(resume: FullResumeDTO): Promise<unknown>[] {
@@ -220,7 +229,7 @@ async function persistSectionItems(resume: FullResumeDTO): Promise<void> {
     const writes = (resume[key] as unknown as SectionItem[])
       .filter(
         (item) =>
-          isServerItem(item.id) &&
+          getServerIds(resume.id).has(item.id) &&
           JSON.stringify(item) !== sentById.get(item.id),
       )
       .map((item) =>
@@ -246,9 +255,22 @@ async function persistResume(snapshot: ResumeSnapshot): Promise<void> {
   // the next attempt then raced them with a different revision of the same
   // fields — the loser of that race decided what the server kept.
   await drainWrites(persistTopLevel(document));
-  await persistSectionItems(document);
+  const latestDesired = () => {
+    const live = useResumeBuilderStore.getState().resume;
+    if (live?.id === documentId) return live;
+    // A route change hands its newest outgoing revision to this same queue.
+    // The active store alone cannot describe document A once B is on screen.
+    return queues.get(documentId)?.queuedSnapshot()?.document ?? document;
+  };
+  const structured = await reconcileResumeSectionStructure(
+    document,
+    sectionIdsAtSnapshot.get(snapshot) ?? new Set<string>(),
+    latestDesired,
+  );
+  await waitForDocumentMutations(documentId);
+  await persistSectionItems(structured);
 
-  sentSections.set(documentId, buildSectionSnapshot(document));
+  sentSections.set(documentId, buildSectionSnapshot(structured));
   persistedTitles.recordPersisted(documentId, document.title);
   markStoredResumeStale(documentId);
 }
@@ -278,6 +300,7 @@ function queueFor(resumeId: string): DocumentSyncQueue<FullResumeDTO> {
       if (live.revision !== snapshot.revision) return;
 
       const { markClean, setSaveStatus } = useResumeBuilderStore.getState();
+      clearResumeHistoryIntent(snapshot.documentId);
       markClean();
       setSaveStatus("saved");
     },
@@ -413,7 +436,7 @@ export function reconcileLoadedResume(fresh: FullResumeDTO): LoadedResume {
   const failedDraft = failedResumeDraft(fresh.id);
   const draft = liveDraft ?? failedDraft ?? queuedResumeDraft(fresh.id);
 
-  const base = reconcilePendingSectionMutations(ahead ?? fresh, draft);
+  const base = reconcilePendingSectionMutations(resolveResumeSectionIds(ahead ?? fresh), draft ? resolveResumeSectionIds(draft) : draft);
   const failed = failedDraft !== null || hasDocumentMutationFailures(fresh.id);
 
   if (!draft) return { resume: base, unsaved: failed ? "failed" : "none" };
@@ -432,7 +455,7 @@ export function isResumeSaving(resumeId: string): boolean {
 export function enqueueResumeSave(): Promise<void> {
   const live = resumeSnapshot();
   if (!live) return Promise.resolve();
-  return queueFor(live.documentId).enqueue(live);
+  return queueFor(live.documentId).enqueue(live, { force: useResumeBuilderStore.getState().isDirty });
 }
 
 /**
@@ -486,7 +509,24 @@ export async function flushResumeDocument(resumeId: string): Promise<void> {
   if (!live || live.documentId !== resumeId) {
     throw new DocumentSwitchedError(resumeId);
   }
-  await queueFor(resumeId).enqueue(live);
+  await queueFor(resumeId).enqueue(live, { force: useResumeBuilderStore.getState().isDirty });
+}
+
+/**
+ * Prepares a persisted source for a workflow outside the editor. An inactive
+ * draft must be reopened and saved explicitly; analysing the older stored
+ * document would silently omit edits the user already made.
+ */
+export async function ensureStoredResumeDocument(resumeId: string): Promise<void> {
+  if (isLiveDocument(resumeId)) {
+    await flushResumeDocument(resumeId);
+    return;
+  }
+  await waitForDocumentMutations(resumeId);
+  const queue = queues.get(resumeId);
+  if (queue?.isSaving() || queue?.queuedSnapshot() || queue?.unsavedSnapshot()) {
+    throw new Error("Source resume has unsaved editor changes");
+  }
 }
 
 /** Test seam: drops the per-document queues, baselines and fetch dates. */
@@ -495,4 +535,28 @@ export function resetResumeDocumentSync(): void {
   persistedTitles.clear();
   queues.clear();
   resumeFetches.clear();
+}
+
+
+/** Serializes a list rename after any outgoing editor save for this document. */
+export async function renameResumeDocument(resumeId: string, title: string) {
+  const queue = queues.get(resumeId);
+  const queued = queue?.queuedSnapshot();
+  if (queued && queue) await queue.enqueue(queued);
+  const state = useResumeBuilderStore.getState();
+  if (state.resume?.id === resumeId && state.isDirty) await enqueueResumeSave();
+  const renamed = await resumeBuilderService.update(resumeId, { title });
+  // The old stored revision must not take precedence over the renamed cache.
+  queues.delete(resumeId);
+  sentSections.delete(resumeId);
+  persistedTitles.setKnown(resumeId, title);
+  const live = useResumeBuilderStore.getState().resume;
+  if (live?.id === resumeId) {
+    const history = useResumeBuilderStore.temporal.getState();
+    const wasTracking = history.isTracking;
+    history.pause();
+    useResumeBuilderStore.setState({ resume: { ...live, title } });
+    if (wasTracking) history.resume();
+  }
+  return renamed;
 }

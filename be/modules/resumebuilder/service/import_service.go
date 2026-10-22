@@ -104,7 +104,7 @@ func (s *ImportService) createFromParsed(ctx context.Context, userID string, par
 
 	var resumeID string
 
-	txErr := s.repo.RunInTransaction(ctx, func(txRepo ports.ResumeBuilderRepository) error {
+	txErr := runResumeCreation(ctx, s.repo, s.limitChecker, userID, func(txRepo ports.ResumeBuilderRepository) error {
 		rb := newDefaultResumeBuilder(userID, title, DefaultTemplateID)
 
 		if err := txRepo.Create(ctx, rb); err != nil {

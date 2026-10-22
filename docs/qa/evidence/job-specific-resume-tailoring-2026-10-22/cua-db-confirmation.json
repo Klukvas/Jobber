@@ -1,0 +1,13 @@
+{
+  "checks": [
+    "source exact equality with immutable generated proposal snapshot",
+    "declined experience preserved",
+    "selected summary applied",
+    "selected skill order applied",
+    "Job links separatecopy"
+  ],
+  "source_id": "9c2be53b-305d-4ecd-9c40-265195d491f9",
+  "copy_id": "8867c9b3-481b-4534-bda7-a3298e3a745f",
+  "job_id": "31e01895-2759-4b6a-b00a-d9831fc0a59d",
+  "source_sha256": "08b520460cb4de8b968a1b99bac15e5bfe049f11ac222368a249969a1447ebc9"
+}

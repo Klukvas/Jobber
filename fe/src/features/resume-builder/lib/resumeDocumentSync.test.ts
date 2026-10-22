@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { useUndoRedo } from "../hooks/useUndoRedo";
 import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
 import { getQueryClient } from "@/shared/lib/queryClient";
 import { resumeQueryKeys } from "@/shared/lib/resumeQueryKeys";
@@ -23,6 +24,7 @@ import {
 } from "../hooks/useSectionPersistence";
 import {
   enqueueOutgoingResumeSave,
+  isResumeSaving,
   enqueueResumeSave,
   flushResumeDocument,
   forgetResumeBaseline,
@@ -1073,5 +1075,417 @@ describe("resume document sync — a cached resume older than the save", () => {
 
     expect(loaded.resume.skills.map((item) => item.id)).toEqual(["server-1"]);
     expect(isServerItem("server-1")).toBe(true);
+  });
+});
+
+
+describe("structural history persistence", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetResumeDocumentSync();
+    clearServerIds("resume-1");
+    mockUpdate.mockResolvedValue({});
+    mockUpdateSkill.mockResolvedValue({});
+    mockDeleteSkill.mockResolvedValue(undefined);
+  });
+
+  it("restores a deleted row remotely on Undo and survives a reload", async () => {
+    const original = skill();
+    let remote: SkillDTO[] = [original];
+    mockDeleteSkill.mockImplementation(async (_id, entryId) => { remote = remote.filter(row => row.id !== entryId); });
+    mockCreateSkill.mockImplementation(async (_id, data) => {
+      const created = { ...data, id: "restored" };
+      remote = [...remote, created];
+      return created;
+    });
+    const initial = makeResume({ skills: [original] });
+    loadResume(initial);
+    initServerIds(initial);
+    useResumeBuilderStore.temporal.getState().clear();
+    const persistence = renderHook(() => useSectionPersistence("skills"));
+    const history = renderHook(() => useUndoRedo());
+    act(() => useResumeBuilderStore.getState().removeSkill(original.id));
+    await act(async () => { await persistence.result.current.remove(original.id); });
+    act(() => history.result.current.undo());
+    await act(async () => { await enqueueResumeSave(); });
+    expect(remote.map(row => row.name)).toEqual([original.name]);
+    act(() => useResumeBuilderStore.getState().setResume(makeResume({ skills: remote })));
+    expect(useResumeBuilderStore.getState().resume?.skills).toEqual(remote);
+    expect(useResumeBuilderStore.getState().saveStatus).not.toBe("error");
+  });
+
+  it("first Undo removes an added row after server ID adoption, Redo restores it", async () => {
+    let remote: SkillDTO[] = [];
+    mockCreateSkill.mockImplementation(async (_id, data) => {
+      const created = { ...data, id: `created-${remote.length}` };
+      remote = [...remote, created];
+      return created;
+    });
+    mockDeleteSkill.mockImplementation(async (_id, entryId) => { remote = remote.filter(row => row.id !== entryId); });
+    const initial = makeResume(); loadResume(initial); initServerIds(initial);
+    useResumeBuilderStore.temporal.getState().clear();
+    const persistence = renderHook(() => useSectionPersistence("skills"));
+    const history = renderHook(() => useUndoRedo());
+    const added = skill({id:"local"});
+    act(() => useResumeBuilderStore.getState().addSkill(added));
+    await act(async () => { await persistence.result.current.add(added); });
+    act(() => history.result.current.undo());
+    expect(useResumeBuilderStore.getState().resume?.skills).toEqual([]);
+    await act(async () => { await enqueueResumeSave(); });
+    expect(remote).toEqual([]);
+    act(() => history.result.current.redo());
+    await act(async () => { await enqueueResumeSave(); });
+    expect(remote.map(row => row.name)).toEqual([added.name]);
+  });
+
+  it.each(["delete", "add"] as const)("preserves Undo-%s structure when an older detail payload arrives before flush", async direction => {
+    const original = skill();
+    let remote: SkillDTO[] = direction === "delete" ? [original] : [];
+    let nextId = 0;
+    mockCreateSkill.mockImplementation(async (_id, data) => {
+      const created = {...data, id:`remote-${++nextId}`}; remote = [...remote, created]; return created;
+    });
+    mockDeleteSkill.mockImplementation(async (_id, id) => {remote = remote.filter(row => row.id !== id);});
+    const initial = makeResume({skills: remote}); loadResume(initial); initServerIds(initial);
+    useResumeBuilderStore.temporal.getState().clear();
+    const persistence = renderHook(() => useSectionPersistence("skills"));
+    const history = renderHook(() => useUndoRedo());
+    if (direction === "delete") {
+      act(() => useResumeBuilderStore.getState().removeSkill(original.id));
+      await act(async () => {await persistence.result.current.remove(original.id);});
+    } else {
+      act(() => useResumeBuilderStore.getState().addSkill(original));
+      await act(async () => {await persistence.result.current.add(original);});
+    }
+    act(() => history.result.current.undo());
+    const expectedNames = direction === "delete" ? [original.name] : [];
+    const loaded = reconcileLoadedResume(makeResume({skills: remote}));
+    expect(loaded.resume.skills.map(row => row.name)).toEqual(expectedNames);
+    act(() => {useResumeBuilderStore.getState().setResume(loaded.resume); useResumeBuilderStore.getState().markDirty();});
+    await act(async () => {await enqueueResumeSave();});
+    expect(remote.map(row => row.name)).toEqual(expectedNames);
+  });
+
+  it("retries an Undo restoration failure without marking the document saved", async () => {
+    const original = skill(); const initial = makeResume({skills:[original]});
+    loadResume(initial); initServerIds(initial); useResumeBuilderStore.temporal.getState().clear();
+    const persistence = renderHook(() => useSectionPersistence("skills")); const history = renderHook(() => useUndoRedo());
+    act(() => useResumeBuilderStore.getState().removeSkill(original.id));
+    await act(async () => {await persistence.result.current.remove(original.id);});
+    act(() => history.result.current.undo());
+    mockCreateSkill.mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce({...original, id:"restored-retry"});
+    await act(async () => {await expect(enqueueResumeSave()).rejects.toThrow("offline");});
+    expect(useResumeBuilderStore.getState().isDirty).toBe(true);
+    expect(useResumeBuilderStore.getState().saveStatus).toBe("error");
+    await act(async () => {await enqueueResumeSave();});
+    expect(useResumeBuilderStore.getState().resume?.skills[0].id).toBe("restored-retry");
+    expect(useResumeBuilderStore.getState().saveStatus).toBe("saved");
+  });
+
+  it("flushes a create with the latest edits into its original document after switching", async () => {
+    const gate = deferred();
+    mockCreateSkill.mockImplementation(async (_id, data) => {await gate.promise; return {...data,id:"outgoing-created"};});
+    const initial = makeResume(); loadResume(initial); initServerIds(initial);
+    const persistence = renderHook(() => useSectionPersistence("skills")); const added = skill({id:"outgoing-local"});
+    act(() => useResumeBuilderStore.getState().addSkill(added));
+    let creation:Promise<void> = Promise.resolve();
+    act(() => {creation = persistence.result.current.add(added);});
+    act(() => useResumeBuilderStore.getState().updateSkill(added.id,{name:"Latest typed"}));
+    act(() => {enqueueOutgoingResumeSave("other");});
+    act(() => useResumeBuilderStore.getState().setResume(makeResume({id:"other"})));
+    await act(async () => {gate.resolve(); await creation;});
+    await waitFor(() => expect(isResumeSaving(initial.id)).toBe(false));
+    expect(mockDeleteSkill).not.toHaveBeenCalled();
+    expect(mockUpdateSkill).toHaveBeenLastCalledWith(initial.id,"outgoing-created",expect.objectContaining({name:"Latest typed"}));
+    const loaded = reconcileLoadedResume(makeResume());
+    expect(loaded.resume.skills).toEqual([expect.objectContaining({id:"outgoing-created",name:"Latest typed"})]);
+  });
+
+  it("keeps a successful pending CREATE when another document becomes active", async () => {
+    const gate = deferred();
+    mockCreateSkill.mockImplementation(async (_id, data) => { await gate.promise; return {...data, id:"created-away"}; });
+    const initial = makeResume(); loadResume(initial); initServerIds(initial);
+    const persistence = renderHook(() => useSectionPersistence("skills"));
+    const added = skill({id:"local-away"});
+    act(() => useResumeBuilderStore.getState().addSkill(added));
+    let pending: Promise<void> = Promise.resolve();
+    act(() => { pending = persistence.result.current.add(added); });
+    act(() => useResumeBuilderStore.getState().setResume(makeResume({id:"other"})));
+    await act(async () => { gate.resolve(); await pending; });
+    expect(mockDeleteSkill).not.toHaveBeenCalled();
+    expect(useResumeBuilderStore.getState().resume?.id).toBe("other");
+  });
+});
+
+
+describe("new section rows racing an older save", () => {
+  it.each([false, true])("keeps a newer CREATE through old-save completion and refetch (outgoing=%s)", async outgoing => {
+    const topWrite = deferred();
+    const deleteWrite = deferred();
+    let remote: SkillDTO[] = [];
+    mockUpdate.mockImplementationOnce(async () => { await topWrite.promise; return {}; });
+    mockDeleteSkill.mockImplementation(async (_resumeId, entryId) => {
+      await deleteWrite.promise;
+      remote = remote.filter(row => row.id !== entryId);
+    });
+    mockCreateSkill.mockImplementation(async (_resumeId, data) => {
+      const created = { ...data, id: "server-new" };
+      remote = [...remote, created];
+      return created;
+    });
+    const initial = makeResume();
+    loadResume(initial);
+    initServerIds(initial);
+    const persistence = renderHook(() => useSectionPersistence("skills"));
+    act(() => useResumeBuilderStore.getState().updateDesign({ title: "New title" }));
+    let saving: Promise<void> = Promise.resolve();
+    act(() => { saving = enqueueResumeSave(); });
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+    const added = skill({ id: "new-local" });
+    act(() => useResumeBuilderStore.getState().addSkill(added));
+    await act(async () => { await persistence.result.current.add(added); });
+    if (outgoing) {
+      act(() => {
+        enqueueOutgoingResumeSave("resume-2");
+        useResumeBuilderStore.getState().setResume(makeResume({ id: "resume-2" }));
+      });
+    }
+    // The old implementation starts DELETE(server-new) from this stale snapshot.
+    await act(async () => { topWrite.resolve(); await settleMicrotasks(); });
+    const loaded = reconcileLoadedResume(makeResume({ title: "New title", skills: remote }));
+    act(() => {
+      useResumeBuilderStore.getState().setResume(loaded.resume);
+      useResumeBuilderStore.getState().markDirty();
+    });
+    await act(async () => { deleteWrite.resolve(); await saving; await enqueueResumeSave(); });
+    await waitFor(() => expect(isResumeSaving(initial.id)).toBe(false));
+    expect(mockDeleteSkill).not.toHaveBeenCalled();
+    expect(remote.map(row => row.name)).toEqual([added.name]);
+    expect(useResumeBuilderStore.getState().resume?.skills.map(row => row.name)).toEqual([added.name]);
+    expect(useResumeBuilderStore.getState().isDirty).toBe(false);
+    expect(useResumeBuilderStore.getState().saveStatus).toBe("saved");
+  });
+});
+
+
+describe("structural reconciliation revision scope", () => {
+  it("leaves a later successful CREATE intact when only the older save is queued after switching", async () => {
+    const topWrite = deferred();
+    mockUpdate.mockImplementationOnce(async () => { await topWrite.promise; return {}; });
+    mockCreateSkill.mockImplementation(async (_id, data) => ({...data, id:"late-created"}));
+    const initial = makeResume(); loadResume(initial); initServerIds(initial);
+    const persistence = renderHook(() => useSectionPersistence("skills"));
+    act(() => useResumeBuilderStore.getState().updateDesign({title:"Older save"}));
+    let saving:Promise<void> = Promise.resolve();
+    act(() => { saving = enqueueResumeSave(); });
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+    const added = skill({id:"local-late"});
+    act(() => useResumeBuilderStore.getState().addSkill(added));
+    await act(async () => { await persistence.result.current.add(added); });
+    act(() => useResumeBuilderStore.getState().setResume(makeResume({id:"resume-2"})));
+    await act(async () => { topWrite.resolve(); await saving; });
+    expect(mockDeleteSkill).not.toHaveBeenCalled();
+    expect(isServerItem("late-created")).toBe(true);
+    expect(useResumeBuilderStore.getState().resume?.id).toBe("resume-2");
+  });
+
+  it("persists an explicit Undo of a pending CREATE after navigating away", async () => {
+    const creation = deferred();
+    let remote:SkillDTO[] = [];
+    mockCreateSkill.mockImplementation(async (_id, data) => {
+      await creation.promise;
+      const created = {...data, id:"pending-undone"}; remote = [created]; return created;
+    });
+    mockDeleteSkill.mockImplementation(async (_id, entryId) => {remote = remote.filter(row => row.id !== entryId);});
+    const initial = makeResume(); loadResume(initial); initServerIds(initial);
+    useResumeBuilderStore.temporal.getState().clear();
+    const persistence = renderHook(() => useSectionPersistence("skills"));
+    const history = renderHook(() => useUndoRedo());
+    const added = skill({id:"pending-local"});
+    act(() => useResumeBuilderStore.getState().addSkill(added));
+    let adding:Promise<void> = Promise.resolve();
+    act(() => { adding = persistence.result.current.add(added); });
+    act(() => history.result.current.undo());
+    let saving:Promise<void> = Promise.resolve();
+    act(() => {
+      saving = enqueueResumeSave();
+      useResumeBuilderStore.getState().setResume(makeResume({id:"resume-2"}));
+    });
+    await act(async () => {creation.resolve(); await adding; await saving;});
+    expect(mockDeleteSkill).toHaveBeenCalledExactlyOnceWith(initial.id,"pending-undone");
+    expect(remote).toEqual([]);
+    expect(useResumeBuilderStore.getState().resume?.id).toBe("resume-2");
+  });
+
+  it("uses a newer outgoing Redo instead of deleting from an older Undo snapshot", async () => {
+    const topWrite = deferred();
+    mockCreateSkill.mockImplementation(async (_id, data) => ({...data,id:"redo-present"}));
+    const initial = makeResume(); loadResume(initial); initServerIds(initial);
+    useResumeBuilderStore.temporal.getState().clear();
+    const persistence = renderHook(() => useSectionPersistence("skills"));
+    const history = renderHook(() => useUndoRedo());
+    const added = skill({id:"redo-local"});
+    act(() => useResumeBuilderStore.getState().addSkill(added));
+    await act(async () => {await persistence.result.current.add(added);});
+    act(() => history.result.current.undo());
+    mockUpdate.mockImplementationOnce(async () => {await topWrite.promise; return {};});
+    let saving:Promise<void> = Promise.resolve();
+    act(() => {saving = enqueueResumeSave();});
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+    act(() => {
+      history.result.current.redo();
+      enqueueOutgoingResumeSave("resume-2");
+      useResumeBuilderStore.getState().setResume(makeResume({id:"resume-2"}));
+    });
+    await act(async () => {topWrite.resolve(); await saving;});
+    expect(mockDeleteSkill).not.toHaveBeenCalled();
+    expect(mockCreateSkill).toHaveBeenCalledTimes(1);
+    expect(isServerItem("redo-present")).toBe(true);
+    expect(useResumeBuilderStore.getState().resume?.id).toBe("resume-2");
+  });
+});
+
+
+describe("pending CREATE racing older top-level writes", () => {
+  it.each([false, true])("does not create a pending new row twice (outgoing=%s)", async outgoing => {
+    const topWrite = deferred();
+    const creation = deferred();
+    let createNumber = 0;
+    let remote:SkillDTO[] = [];
+    mockUpdate.mockImplementationOnce(async () => {await topWrite.promise; return {};});
+    mockCreateSkill.mockImplementation(async (_id, data) => {
+      const id = `pending-server-${++createNumber}`;
+      await creation.promise;
+      const created = {...data,id}; remote = [...remote,created]; return created;
+    });
+    mockDeleteSkill.mockImplementation(async (_id, entryId) => {remote = remote.filter(row => row.id !== entryId);});
+    const initial = makeResume(); loadResume(initial); initServerIds(initial);
+    const persistence = renderHook(() => useSectionPersistence("skills"));
+    act(() => useResumeBuilderStore.getState().updateDesign({title:"First snapshot"}));
+    let saving:Promise<void> = Promise.resolve();
+    act(() => {saving = enqueueResumeSave();});
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+    const added = skill({id:"new-pending-local"});
+    act(() => useResumeBuilderStore.getState().addSkill(added));
+    let adding:Promise<void> = Promise.resolve();
+    act(() => {adding = persistence.result.current.add(added);});
+    expect(mockCreateSkill).toHaveBeenCalledTimes(1);
+    if (outgoing) {
+      act(() => {
+        enqueueOutgoingResumeSave("resume-2");
+        useResumeBuilderStore.getState().setResume(makeResume({id:"resume-2"}));
+      });
+    }
+    await act(async () => {topWrite.resolve(); await settleMicrotasks();});
+    const callsWhilePending = mockCreateSkill.mock.calls.length;
+    await act(async () => {creation.resolve(); await adding; await saving;});
+    expect(callsWhilePending).toBe(1);
+    expect(mockCreateSkill).toHaveBeenCalledTimes(1);
+    expect(mockDeleteSkill).not.toHaveBeenCalled();
+    expect(remote).toEqual([expect.objectContaining({id:"pending-server-1",name:added.name})]);
+    if (outgoing) {
+      expect(useResumeBuilderStore.getState().resume?.id).toBe("resume-2");
+    } else {
+      expect(useResumeBuilderStore.getState().resume?.skills).toEqual(remote);
+      expect(useResumeBuilderStore.getState().saveStatus).toBe("saved");
+    }
+  });
+});
+
+
+describe("Redo after compensating a pending CREATE", () => {
+  it.each([false, true])("restores the row remotely after Undo compensated its CREATE (outgoing=%s)", async outgoing => {
+    const creation = deferred();
+    let createNumber = 0;
+    let remote:SkillDTO[] = [];
+    mockCreateSkill.mockImplementation(async (_id, data) => {
+      const number = ++createNumber;
+      if (number === 1) await creation.promise;
+      const created = {...data,id:`compensated-server-${number}`};
+      remote = [...remote,created];
+      return created;
+    });
+    mockDeleteSkill.mockImplementation(async (_id, entryId) => {remote = remote.filter(row => row.id !== entryId);});
+    const initial = makeResume(); loadResume(initial); initServerIds(initial);
+    useResumeBuilderStore.temporal.getState().clear();
+    const persistence = renderHook(() => useSectionPersistence("skills"));
+    const history = renderHook(() => useUndoRedo());
+    const added = skill({id:"compensated-local"});
+    act(() => useResumeBuilderStore.getState().addSkill(added));
+    let adding:Promise<void> = Promise.resolve();
+    act(() => {adding = persistence.result.current.add(added);});
+    act(() => history.result.current.undo());
+    await act(async () => {creation.resolve(); await adding;});
+    expect(remote).toEqual([]);
+    expect(mockDeleteSkill).toHaveBeenCalledExactlyOnceWith(initial.id,"compensated-server-1");
+    act(() => history.result.current.redo());
+    await act(async () => {await enqueueResumeSave();});
+    if (outgoing) {
+      act(() => {
+        enqueueOutgoingResumeSave("resume-2");
+        useResumeBuilderStore.getState().setResume(makeResume({id:"resume-2"}));
+      });
+    }
+    expect(mockCreateSkill).toHaveBeenCalledTimes(2);
+    expect(remote).toEqual([expect.objectContaining({id:"compensated-server-2",name:added.name})]);
+    const reloaded = reconcileLoadedResume(makeResume({skills:remote}));
+    expect(reloaded.resume.skills.map(row => row.name)).toEqual([added.name]);
+  });
+});
+
+describe("persisted sources for Job resume tailoring", () => {
+  it("stores the selected active resume before analysis", async () => {
+    const { ensureStoredResumeDocument } = await import("./resumeDocumentSync");
+    const resume = makeResume();
+    loadResume(resume);
+    useResumeBuilderStore.setState({ resume: { ...resume, title: "Edited source" }, isDirty: true });
+    await ensureStoredResumeDocument(resume.id);
+    expect(mockUpdate).toHaveBeenCalledWith(resume.id, expect.objectContaining({ title: "Edited source" }));
+    expect(useResumeBuilderStore.getState().isDirty).toBe(false);
+  });
+  it("blocks a failed inactive draft without replacing the current editor", async () => {
+    const { ensureStoredResumeDocument } = await import("./resumeDocumentSync");
+    const resume = makeResume();
+    loadResume(resume);
+    useResumeBuilderStore.setState({ resume: { ...resume, title: "Unsaved source" }, isDirty: true });
+    mockUpdate.mockRejectedValueOnce(new Error("offline"));
+    await expect(enqueueResumeSave()).rejects.toThrow("offline");
+    const current = makeResume({ id: "resume-2", title: "Current editor" });
+    loadResume(current);
+    mockUpdate.mockClear();
+    await expect(ensureStoredResumeDocument(resume.id)).rejects.toThrow("unsaved editor changes");
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(useResumeBuilderStore.getState().resume).toEqual(current);
+    expect(reconcileLoadedResume(resume).unsaved).toBe("failed");
+  });
+  it("blocks an inactive source while its outgoing save is still pending", async () => {
+    const { ensureStoredResumeDocument } = await import("./resumeDocumentSync");
+    const resume = makeResume();
+    loadResume(resume);
+    const pending = deferred();
+    mockUpdate.mockReturnValueOnce(pending.promise);
+    useResumeBuilderStore.setState({ resume: { ...resume, title: "Saving source" }, isDirty: true });
+    const save = enqueueResumeSave();
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+    loadResume(makeResume({ id: "resume-2" }));
+    await expect(ensureStoredResumeDocument(resume.id)).rejects.toThrow("unsaved editor changes");
+    pending.resolve();
+    await save;
+    await expect(ensureStoredResumeDocument(resume.id)).resolves.toBeUndefined();
+  });
+  it("waits for inactive section writes and preserves their failures", async () => {
+    const { ensureStoredResumeDocument } = await import("./resumeDocumentSync");
+    const pending = deferred();
+    trackDocumentMutation("inactive-source", pending.promise);
+    let settled = false;
+    const ready = ensureStoredResumeDocument("inactive-source").then(() => { settled = true; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    pending.resolve();
+    await ready;
+    const failing = Promise.reject(new Error("section failed"));
+    void failing.catch(() => {});
+    trackDocumentMutation("inactive-source", failing);
+    await expect(ensureStoredResumeDocument("inactive-source")).rejects.toThrow("section failed");
   });
 });

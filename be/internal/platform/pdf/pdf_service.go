@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -212,84 +213,15 @@ func sanitizeTemplateData(data *model.FullResumeDTO) *model.FullResumeDTO {
 	return &out
 }
 
-// GenerateResumePDF generates a PDF from resume data.
+// ErrResumeRendererUnavailable prevents an unsafe legacy export when the React
+// renderer cannot be used. The Go resume templates do not share its section
+// order, visibility, or layout contract.
+var ErrResumeRendererUnavailable = errors.New("React renderer is required for resume PDF export")
+
+// GenerateResumePDF fails closed instead of rendering the legacy Go templates.
+// Cover letters continue to use their separate Go renderer.
 func (s *PDFService) GenerateResumePDF(ctx context.Context, data *model.FullResumeDTO) ([]byte, error) {
-	if err := s.acquireBrowser(); err != nil {
-		return nil, fmt.Errorf("browser init failed: %w", err)
-	}
-	defer s.mu.RUnlock()
-
-	// Resolve template name from ID
-	templateName := "professional"
-	if name, ok := templateIDMap[data.TemplateID]; ok {
-		templateName = name
-	}
-
-	tmpl, ok := s.templates[templateName]
-	if !ok {
-		return nil, fmt.Errorf("template %q not found", templateName)
-	}
-
-	// Defense-in-depth: sanitize user-controlled CSS values
-	safe := sanitizeTemplateData(data)
-
-	var htmlBuf bytes.Buffer
-	if err := tmpl.Execute(&htmlBuf, safe); err != nil {
-		return nil, fmt.Errorf("failed to render template: %w", err)
-	}
-
-	// Propagate request context to Rod page operations
-	page, err := s.browser.Context(ctx).Page(proto.TargetCreateTarget{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create page: %w", err)
-	}
-	defer page.Close()
-
-	if err := page.SetDocumentContent(htmlBuf.String()); err != nil {
-		return nil, fmt.Errorf("failed to set page content: %w", err)
-	}
-
-	if err := page.WaitStable(pageStabilizeTimeoutMs); err != nil {
-		s.logger.Warn("page did not stabilize", zap.Error(err))
-	}
-
-	// Parse margins
-	marginTop := 0.4
-	marginBottom := 0.4
-	marginLeft := 0.4
-	marginRight := 0.4
-	if safe.MarginTop > 0 {
-		marginTop = float64(safe.MarginTop) / 96.0 // px to inches
-	}
-	if safe.MarginBottom > 0 {
-		marginBottom = float64(safe.MarginBottom) / 96.0
-	}
-	if safe.MarginLeft > 0 {
-		marginLeft = float64(safe.MarginLeft) / 96.0
-	}
-	if safe.MarginRight > 0 {
-		marginRight = float64(safe.MarginRight) / 96.0
-	}
-
-	pdfData, err := page.PDF(&proto.PagePrintToPDF{
-		PrintBackground: true,
-		PaperWidth:      float64Ptr(8.27),  // A4
-		PaperHeight:     float64Ptr(11.69), // A4
-		MarginTop:       &marginTop,
-		MarginBottom:    &marginBottom,
-		MarginLeft:      &marginLeft,
-		MarginRight:     &marginRight,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate PDF: %w", err)
-	}
-
-	result, err := io.ReadAll(pdfData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read PDF bytes: %w", err)
-	}
-
-	return result, nil
+	return nil, ErrResumeRendererUnavailable
 }
 
 // sanitizeCoverLetterData applies defense-in-depth sanitization on user-controlled fields.
@@ -371,7 +303,7 @@ func (s *PDFService) HasFrontendPDF() bool {
 
 // GenerateResumePDFFromFrontend navigates headless Chrome to the frontend print route,
 // injects resume data, waits for React to render, then captures a PDF.
-// This guarantees a 1:1 match with what users see in the editor.
+// This uses the same React templates and document layout as the editor.
 func (s *PDFService) GenerateResumePDFFromFrontend(ctx context.Context, data *model.FullResumeDTO) ([]byte, error) {
 	if err := s.acquireBrowser(); err != nil {
 		return nil, fmt.Errorf("browser init failed: %w", err)
@@ -440,14 +372,14 @@ func (s *PDFService) GenerateResumePDFFromFrontend(ctx context.Context, data *mo
 	// Generate PDF with zero margins (the React page handles its own padding via CSS).
 	margin := 0.0
 	pdfReader, err := page.PDF(&proto.PagePrintToPDF{
-		PrintBackground:    true,
-		PreferCSSPageSize:  true,
-		PaperWidth:         float64Ptr(8.27),  // A4
-		PaperHeight:        float64Ptr(11.69), // A4
-		MarginTop:          &margin,
-		MarginBottom:       &margin,
-		MarginLeft:         &margin,
-		MarginRight:        &margin,
+		PrintBackground:   true,
+		PreferCSSPageSize: true,
+		PaperWidth:        float64Ptr(8.27),  // A4
+		PaperHeight:       float64Ptr(11.69), // A4
+		MarginTop:         &margin,
+		MarginBottom:      &margin,
+		MarginLeft:        &margin,
+		MarginRight:       &margin,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate PDF: %w", err)

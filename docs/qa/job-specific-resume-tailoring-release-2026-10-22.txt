@@ -1,0 +1,33 @@
+Job-specific Resume Tailoring + reviewed Resume Builder audit fixes — production release
+Date: 2026-10-22
+Role: CODEX DEVELOPER
+User authorization: current request “давай в прод тогда”; existing Codex executor selection remains in force. Necessary release commit/push/deploy is in scope after orchestrator acceptance.
+
+Candidate preparation:
+- Original branch codex/job-specific-resume-tailoring at 757820022e0f19053ecf9d02056cf7ac372f7559 and its dirty index/source/evidence are preserved.
+- Release worktree: temp/tailoring/release, branch codex/job-specific-resume-tailoring-release, based on actual remote main 8304b365b37a88845bb0a0a69ba6568e56348d60 (11 newer commits already deployed).
+- Explicit reviewed manifest: 140 files, comprising 46 tracked source/test modifications and 94 new source/tests/sanitized QA reports/evidence. No runtime fixture, access token, environment file, compiled binary, dependency install or generated build output is included.
+- Three-way integration preserved all newer main work. Only three locale insertion conflicts required manual resolution: existing archived-Job keys and new tailoring keys are both retained. ImportResumeModal retains subscription cache invalidation after both text and PDF imports. Other main improvements remain unchanged, including API/auth/plan UX, Dockerfile plans.yaml copy, Free-plan cover-letter limit zero and migration 48.
+- No workflow, compose, configuration, dependency or migration changes are in the release delta. Existing main migration 48 has already been deployed; this release introduces no migration.
+
+Merged-candidate verification:
+- fe/: npm test — PASS, 259 files / 2,933 tests, 92.96 seconds.
+- fe/: npm run lint — PASS, exit 0.
+- fe/: npm run build — PASS, TypeScript plus Vite production build, 12.39 seconds for Vite. Existing Browserslist freshness and chunk-size warnings remain.
+- be/: full go test -race -coverprofile=<task-owned ignored path> ./... — PASS, exit 0, all packages.
+- be/: go test -race -tags=integration ./modules/resumebuilder/service -run TestTailoringPostgres -v -count=1 — PASS, 3/3 actual isolated PostgreSQL tests. Database restricted by the tests to localhost jobber_builder_verify. Provider credentials explicitly empty in test processes; no paid provider check is part of the release.
+- Independent release QA: 32 overlap frontend tests PASS; semantic locale union and exact 140-file manifest inspected; final disposition pending final candidate acceptance.
+- The preceding implementation's broader API/CUA/PDF and Sol/Astra review evidence is recorded in the separate feature and audit-fixes reports; those historical reports remain byte-identical.
+- git diff --cached --check reports one inherited trailing blank line in docs/qa/evidence/resume-builder-2026-10-22/persistence-repro.txt:9. The orchestrator accepted this evidence-only whitespace nit to preserve exact prior evidence; no source whitespace issue was found.
+
+Release mechanism and safety:
+- Use existing .github/workflows/deploy-dev.yml through a non-force push to main only after fresh QA and orchestrator acceptance. Both be/ and fe/ changed, so both services run quality gates and build immutable images at the same release SHA.
+- The workflow pins payments/billing webhook OFF, preserves server .env and data volumes, takes a database backup, checks schema cleanliness, compares legacy-subscription fingerprints before/after, and does not seed production users/data. Existing automatic rollback remains unchanged.
+- scripts/deploy.sh is not used: it has environment-copy and rsync-delete behavior unsuitable for this scoped release.
+- Production smoke will be GET-only: public application/assets and unauthenticated API contract; backend health and schema/preservation evidence must come from successful workflow logs because public /health serves SPA HTML.
+- No production fixture creation, paid AI generation, secret changes, destructive operation, adjacent cleanup or next task is authorized/performed by this release.
+
+Instruction compliance:
+Read /Users/andreypavlenko/Desktop/Projects/AGENTS.md completely; /Users/andreypavlenko/Desktop/Projects/CLAUDE.md; ~/.claude/rules/common/*.md, ~/.claude/rules/golang/*.md, ~/.claude/rules/typescript/*.md; docs/CONTEXT.md; README deployment section, .github/README.md, .github/QUICK_REFERENCE.md and full deployment workflow. No jobber-local/b2c-parent AGENTS.md or CLAUDE.md was found. Applied resolving-merge-conflicts and golang-how-to/testing guidance for integration/verification. Canonical role/scope/safety boundaries take precedence over standing commit/continuation guidance; current explicit deployment request supplies release authorization. No policy changes or source fixes outside the reviewed merge were made. The prior feature report's single synthetic real-provider call and unknown billing impact remain disclosed there; release verification made no such call.
+
+Release result: pending acceptance; no commit, push or deployment yet.

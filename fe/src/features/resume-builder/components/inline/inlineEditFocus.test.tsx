@@ -20,36 +20,31 @@ import { EditableTextarea } from "./EditableTextarea";
  * hand would pass with the bug still in place.
  */
 describe("inline edit focus", () => {
-  /**
-   * Two fields whose text lives above them, re-keyed on every commit.
-   *
-   * The resume preview rebuilds when the store is written to, which is what
-   * replaced the node the old focus callback was holding.
-   */
-  function TwoFields() {
+  /** Controlled fields retain their identity while publishing each keystroke. */
+  function TwoFields({ remountOnBlur = false }: { remountOnBlur?: boolean }) {
     const [name, setName] = useState("John Doe");
     const [title, setTitle] = useState("Engineer");
     const [revision, setRevision] = useState(0);
-    const commit = (set: (value: string) => void) => (value: string) => {
-      set(value);
-      setRevision((current) => current + 1);
-    };
-
     return (
-      <div key={revision}>
-        <EditableField
-          value={name}
-          onChange={commit(setName)}
-          placeholder="Name"
-        />
-        <EditableField
-          value={title}
-          onChange={commit(setTitle)}
-          placeholder="Title"
-        />
+      <div key={revision} onBlur={remountOnBlur ? () => setRevision(current => current + 1) : undefined}>
+        <EditableField value={name} onChange={setName} placeholder="Name" />
+        <EditableField value={title} onChange={setTitle} placeholder="Title" />
       </div>
     );
   }
+
+  it("focuses the next field after leaving an edited field remounted its ancestor", async () => {
+    const user = userEvent.setup();
+    render(<><TwoFields remountOnBlur /><button>Outside</button></>);
+    await user.click(screen.getByText("John Doe"));
+    await user.keyboard(" updated");
+    expect(screen.getByDisplayValue("John Doe updated")).toHaveFocus();
+    await user.click(screen.getByText("Outside"));
+    expect(screen.getByText("John Doe updated")).toBeInTheDocument();
+    await user.click(screen.getByText("Engineer"));
+    await user.keyboard("!");
+    expect(screen.getByDisplayValue("Engineer!")).toHaveFocus();
+  });
 
   it("focuses the input a click opens", async () => {
     const user = userEvent.setup();

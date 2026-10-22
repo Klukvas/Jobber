@@ -41,13 +41,7 @@ describe("EditableDateRange", () => {
   });
 
   it("shows 'Add dates' when no dates are set", () => {
-    render(
-      <EditableDateRange
-        {...defaultProps}
-        startDate=""
-        endDate=""
-      />,
-    );
+    render(<EditableDateRange {...defaultProps} startDate="" endDate="" />);
     expect(screen.getByText("Add dates")).toBeInTheDocument();
   });
 
@@ -115,4 +109,33 @@ describe("EditableDateRange", () => {
 
     expect(screen.queryByText("Start Date")).not.toBeInTheDocument();
   });
+});
+
+it("omits empty dates from read-only output", () => {
+  const { container } = render(
+    <EditableDateRange
+      startDate=""
+      endDate=""
+      isCurrent={false}
+      editable={false}
+      onStartDateChange={vi.fn()}
+      onEndDateChange={vi.fn()}
+      onIsCurrentChange={vi.fn()}
+    />,
+  );
+  expect(container).toBeEmptyDOMElement();
+});
+it("retains a partial date in read-only output", () => {
+  render(
+    <EditableDateRange
+      startDate="2020-01-15"
+      endDate=""
+      isCurrent={false}
+      editable={false}
+      onStartDateChange={vi.fn()}
+      onEndDateChange={vi.fn()}
+      onIsCurrentChange={vi.fn()}
+    />,
+  );
+  expect(screen.getByText("Jan 2020")).toBeInTheDocument();
 });
