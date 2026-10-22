@@ -1,0 +1,7 @@
+REVIEW role=SECURITY status=PASS findings=0
+Fresh independent Astra High exact-byte review of final adapter/worker/Unicode delta
+before recovery, manifest af11a1531e969f0f7e56ed7793eebee3d5318c9a436462fda30f8f8ab1d92537.
+Code-point, compact JSONB and breaker-refund changes are closed; actual service
+and textarea behavior, 28 hashes and assembly content were independently checked.
+Supplied mutating DB/browser checks were inspected rather than independently rerun.
+This is historical evidence only; it does not approve the subsequent recovery route.

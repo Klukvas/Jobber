@@ -1,0 +1,1132 @@
+
+> fe@0.0.0 test
+> vitest run
+
+
+ RUN  v4.1.0 /Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe
+
+stderr | src/pages/__tests__/ResetPassword.behavior.test.tsx > ResetPassword page > shows the invalid-link state when no code is present
+React does not recognize the `asChild` prop on a DOM element. If you intentionally want it to appear in the DOM as a custom attribute, spell it as lowercase `aschild` instead. If you accidentally passed it from a parent component, remove it from the DOM element.
+
+stderr | src/features/auth/__tests__/loginErrorCopy.test.tsx > credentials the server refused, in en > is explained in the login form's own language
+An update to DialogContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ModalContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/auth/__tests__/loginErrorCopy.test.tsx > credentials the server refused, in en > never shows the API's error code
+An update to DialogContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ModalContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/auth/__tests__/loginErrorCopy.test.tsx > credentials the server refused, in en > falls back to one generic line for a failure it cannot name
+An update to DialogContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ModalContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/auth/__tests__/loginErrorCopy.test.tsx > credentials the server refused, in en > falls back to the same line when the request never reached the API
+An update to DialogContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ModalContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/auth/__tests__/loginErrorCopy.test.tsx > credentials the server refused, in ru > is explained in the login form's own language
+An update to DialogContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ModalContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/auth/__tests__/loginErrorCopy.test.tsx > credentials the server refused, in ru > never shows the API's error code
+An update to DialogContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ModalContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/auth/__tests__/loginErrorCopy.test.tsx > credentials the server refused, in ru > falls back to one generic line for a failure it cannot name
+An update to DialogContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ModalContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/auth/__tests__/loginErrorCopy.test.tsx > credentials the server refused, in ru > falls back to the same line when the request never reached the API
+An update to DialogContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ModalContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/features/stages/modals/__tests__/StageTemplateModals.behavior.test.tsx (16 tests) 1835ms
+     ✓ keeps the submit button disabled until name and order are filled  337ms
+ ✓ src/features/auth/modals/__tests__/ForgotPasswordModal.password.test.tsx (6 tests) 1897ms
+     ✓ rejects a seven-character password  596ms
+     ✓ accepts an eight-code-point Unicode password  316ms
+stderr | src/features/auth/__tests__/loginErrorCopy.test.tsx > credentials the server refused, in uk > is explained in the login form's own language
+An update to DialogContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ModalContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/features/jobs/resume-tailoring/ResumeTailoringModal.test.tsx (15 tests) 2023ms
+     ✓ requires explicit keyboard selection and applies only the accepted change before opening the new editor  582ms
+stderr | src/features/auth/__tests__/loginErrorCopy.test.tsx > credentials the server refused, in uk > never shows the API's error code
+An update to DialogContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ModalContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/features/resumes/modals/__tests__/ResumeModals.behavior.test.tsx (20 tests) 2214ms
+     ✓ keeps submit disabled until title and url are provided  427ms
+     ✓ submits a URL-based create and calls onCreated + success  309ms
+stderr | src/features/auth/__tests__/loginErrorCopy.test.tsx > credentials the server refused, in uk > falls back to one generic line for a failure it cannot name
+An update to DialogContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ModalContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/auth/__tests__/loginErrorCopy.test.tsx > credentials the server refused, in uk > falls back to the same line when the request never reached the API
+An update to DialogContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ModalContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/auth/__tests__/loginErrorCopy.test.tsx > an unverified email > still takes its own path rather than the generic message
+An update to DialogContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ModalContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/features/auth/__tests__/loginErrorCopy.test.tsx (13 tests) 2548ms
+     ✓ is explained in the login form's own language  505ms
+ ✓ src/pages/__tests__/ResetPassword.behavior.test.tsx (17 tests) 3240ms
+     ✓ rejects a password longer than 72 bytes before submitting  642ms
+     ✓ counts multi-byte characters by byte, not by character  360ms
+     ✓ accepts a password that is exactly 72 bytes  542ms
+ ✓ src/pages/__tests__/JobsPage.behavior.test.tsx (27 tests) 1682ms
+stderr | src/features/auth/__tests__/passwordErrorCopy.test.tsx > a password the server refused, in en > is explained in the reset form's own language
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ResetPassword inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/pages/ResumeBuilderPrint.test.tsx > prints saved content only, with section visibility and order: 00000000-0000-0000-0000-000000000001
+react-i18next:: useTranslation: You will need to pass in an i18next instance by using initReactI18next { code: 'NO_I18NEXT_INSTANCE' }
+
+stderr | src/features/auth/__tests__/passwordErrorCopy.test.tsx > a password the server refused, in en > is explained in the registration form's own language
+An update to DialogContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ModalContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/auth/__tests__/passwordErrorCopy.test.tsx > a password the server refused, in ru > is explained in the reset form's own language
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ResetPassword inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/pages/__tests__/JobsPage.urlState.test.tsx > Jobs page — list state lives in the URL > drops a debounce that fires after a Back navigation
+An update to JobsPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/auth/__tests__/passwordErrorCopy.test.tsx > a password the server refused, in ru > is explained in the registration form's own language
+An update to DialogContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ModalContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/auth/__tests__/passwordErrorCopy.test.tsx > a password the server refused, in uk > is explained in the reset form's own language
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ResetPassword inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/auth/__tests__/passwordErrorCopy.test.tsx > a password the server refused, in uk > is explained in the registration form's own language
+An update to DialogContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to PasswordInput inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to ModalContent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/features/auth/__tests__/passwordErrorCopy.test.tsx (6 tests) 1458ms
+     ✓ is explained in the reset form's own language  401ms
+ ✓ src/features/resume-builder/components/__tests__/ContentLibraryPanel.behavior.test.tsx (10 tests) 1219ms
+ ✓ src/pages/__tests__/JobsPage.urlState.test.tsx (11 tests) 2941ms
+     ✓ writes the page into the URL and restores it with Back  609ms
+     ✓ commits the search once typing settles, then restores it with Back  491ms
+     ✓ drops a debounce that fires after a Back navigation  968ms
+ ✓ src/features/resume-builder/components/AnalysisDocument.test.tsx (13 tests) 1050ms
+ ✓ src/features/jobs/components/__tests__/JobCommentsSection.test.tsx (24 tests) 1780ms
+ ✓ src/pages/ResumeBuilderPrint.test.tsx (36 tests) 2253ms
+ ✓ src/pages/__tests__/CompaniesPage.behavior.test.tsx (10 tests) 786ms
+ ✓ src/pages/__tests__/JobsPage.board.test.tsx (7 tests) 1159ms
+     ✓ brings in every remaining card page by page, past the old 500 ceiling  530ms
+ ✓ src/features/jobs/modals/__tests__/CreateJobModal.behavior.test.tsx (10 tests) 1138ms
+ ✓ src/features/resume-builder/components/__tests__/EditorToolbar.export.test.tsx (11 tests) 830ms
+ ✓ src/features/support/__tests__/SupportButton.test.tsx (9 tests) 1173ms
+ ✓ src/features/jobs/interview-prep/InterviewPrepDialog.test.tsx (7 tests) 1460ms
+     ✓ saves answers independently before offering feedback  377ms
+     ✓ reconciles a saved answer after a lost response without carrying its draft to the next question  322ms
+     ✓ retains an unsaved draft when starting another session is cancelled  302ms
+ ✓ src/features/jobs/modals/__tests__/AddStageModal.test.tsx (6 tests) 593ms
+ ✓ src/features/companies/modals/__tests__/CompanyModals.behavior.test.tsx (11 tests) 861ms
+ ✓ src/features/jobs/modals/__tests__/AddCommentModal.test.tsx (6 tests) 524ms
+ ✓ src/features/resume-builder/components/inline/inlineEditFocus.test.tsx (12 tests) 677ms
+     ✓ focuses the next field after leaving an edited field remounted its ancestor  309ms
+ ✓ src/features/resume-builder/components/sidebar/DesignSidebar.test.tsx (10 tests) 481ms
+ ✓ src/features/jobs/hooks/__tests__/useJobDetailMutations.test.tsx (26 tests) 1301ms
+stderr | src/services/__tests__/api.refresh.test.ts > apiClient 401 refresh-and-retry > does not retry when the refresh itself fails, and clears auth
+[ApiClient] token refresh failed: Request failed with status code 401: POST http://api.test/api/v1/auth/refresh
+
+ ✓ src/features/onboarding/__tests__/WelcomeWizard.test.tsx (20 tests) 523ms
+ ✓ src/features/subscription/components/__tests__/ManageSubscriptionModal.test.tsx (28 tests) 972ms
+stderr | src/app/__tests__/landingAuthRoutes.test.tsx > auth modal routes > keeps the landing page mounted while a modal route is open
+react-i18next:: useTranslation: You will need to pass in an i18next instance by using initReactI18next { code: 'NO_I18NEXT_INSTANCE' }
+
+ ✓ src/features/jobs/components/__tests__/Timeline.test.tsx (9 tests) 511ms
+stderr | src/shared/ui/__tests__/CookieConsent.test.tsx > CookieConsent > reopens on the consent-reset event (footer Cookie settings)
+An update to CookieConsent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/shared/ui/__tests__/CookieConsent.test.tsx > CookieConsent > layout compensation > reserves space again when the banner is reopened
+An update to CookieConsent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/shared/ui/__tests__/CookieConsent.test.tsx > CookieConsent > layout compensation > re-publishes the height when the banner is reopened
+An update to CookieConsent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/shared/ui/__tests__/CookieConsent.test.tsx (21 tests) 448ms
+ ✓ src/pages/__tests__/EditorRouteSwitch.test.tsx (6 tests) 623ms
+ ✓ src/services/__tests__/api.refresh.test.ts (25 tests) 1163ms
+     ✓ never surfaces the transport's own message to the caller  908ms
+ ✓ src/app/__tests__/landingAuthRoutes.test.tsx (5 tests) 921ms
+     ✓ keeps the landing page mounted while a modal route is open  372ms
+ ✓ src/features/resume-builder/components/inline/EditableField.test.tsx (15 tests) 516ms
+ ✓ src/widgets/__tests__/Sidebar.modal.test.tsx (12 tests) 416ms
+ ✓ src/features/jobs/components/__tests__/JobReminders.test.tsx (6 tests) 528ms
+ ✓ src/features/resume-builder/components/inline/EditableTextarea.test.tsx (14 tests) 508ms
+ ✓ src/shared/ui/__tests__/components.test.tsx (59 tests) 396ms
+ ✓ src/features/sharing/components/__tests__/ShareStatsModal.test.tsx (16 tests) 641ms
+ ✓ src/features/home/components/__tests__/HomeNavbar.test.tsx (38 tests) 408ms
+ ✓ src/features/subscription/components/__tests__/SubscriptionModals.test.tsx (26 tests) 546ms
+ ✓ src/shared/ui/__tests__/Dialog.test.tsx (41 tests) 388ms
+ ✓ src/features/resume-builder/components/ImportResumeModal.test.tsx (11 tests) 614ms
+ ✓ src/features/resume-builder/components/inline/EditableDateRange.test.tsx (12 tests) 366ms
+ ✓ src/pages/__tests__/StageTemplatesKind.test.tsx (3 tests) 390ms
+ ✓ src/features/calendar/modals/__tests__/ScheduleStageModal.behavior.test.tsx (7 tests) 395ms
+ ✓ src/pages/__tests__/CoverLetterEditor.test.tsx (17 tests) 340ms
+ ✓ src/features/jobs/components/__tests__/JobTags.test.tsx (5 tests) 462ms
+ ✓ src/features/resume-builder/components/sidebar/SkillDisplayPopover.test.tsx (6 tests) 293ms
+ ✓ src/features/jobs/modals/__tests__/UpdateStageStatusModal.test.tsx (6 tests) 321ms
+ ✓ src/features/jobs/components/__tests__/JobMobileAccordion.test.tsx (3 tests) 359ms
+ ✓ src/features/home/components/__tests__/HomeComponents.test.tsx (41 tests) 407ms
+ ✓ src/features/resume-builder/components/sections/CertificationsEditor.test.tsx (8 tests) 253ms
+ ✓ src/pages/__tests__/EditorReopenFreshness.test.tsx (11 tests) 13716ms
+     ✓ shows the stored revision, not the payload the cache still holds  1632ms
+     ✓ keeps the stored revision on screen when the refetch fails  1046ms
+     ✓ keeps the stored edit when a pre-write payload arrives after it  3127ms
+     ✓ leaves the open letter alone while a save marks it stale  1522ms
+     ✓ shows the stored revision, not the payload the cache still holds  1560ms
+     ✓ keeps the stored edit when a pre-write payload arrives after it  3115ms
+     ✓ leaves the open resume alone while a save marks it stale  1562ms
+ ✓ src/features/resume-builder/lib/resumeDocumentSync.test.ts (59 tests) 645ms
+ ✓ src/features/cover-letter/components/__tests__/CoverLetterAIPanel.test.tsx (6 tests) 279ms
+ ✓ src/features/resume-builder/components/sidebar/LayoutPopover.test.tsx (9 tests) 348ms
+ ✓ src/features/resume-builder/components/sections/ProjectsEditor.test.tsx (8 tests) 434ms
+ ✓ src/features/resumes/components/UploadedResumeCard.test.tsx (17 tests) 388ms
+stderr | src/features/jobs/components/__tests__/JobKanbanBoard.test.tsx > JobKanbanBoard — single-axis columns > writes the move into the cache synchronously on drop
+An update to JobKanbanBoard inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/features/auth/modals/__tests__/AuthModals.test.tsx (14 tests) 291ms
+ ✓ src/features/resume-builder/components/sections/EducationEditor.test.tsx (10 tests) 278ms
+ ✓ src/features/jobs/components/__tests__/JobKanbanBoard.test.tsx (9 tests) 334ms
+ ✓ src/pages/__tests__/CoverLetters.test.tsx (9 tests) 373ms
+ ✓ src/features/resume-builder/components/sidebar/TypographyPopover.test.tsx (10 tests) 322ms
+ ✓ src/features/resume-builder/components/EditorToolbar.test.tsx (11 tests) 405ms
+ ✓ src/features/resume-builder/components/sections/LanguagesEditor.test.tsx (7 tests) 307ms
+ ✓ src/shared/ui/__tests__/DialogAccessibleName.test.tsx (7 tests) 289ms
+ ✓ src/features/resume-builder/components/sections/VolunteeringEditor.test.tsx (7 tests) 302ms
+ ✓ src/features/resume-builder/components/ATSCheckerPanel.test.tsx (17 tests) 408ms
+ ✓ src/features/resume-builder/components/sections/ExperienceEditor.test.tsx (10 tests) 297ms
+ ✓ src/features/resume-builder/components/__tests__/SectionOrderPanel.behavior.test.tsx (5 tests) 308ms
+ ✓ src/features/resume-builder/components/inline/AddSectionButton.test.tsx (6 tests) 266ms
+ ✓ src/features/resume-builder/components/inline/EditableSelect.test.tsx (8 tests) 370ms
+ ✓ src/shared/ui/__tests__/PageSkeleton.test.tsx (13 tests) 268ms
+ ✓ src/features/cover-letter/components/__tests__/CoverLetterTemplatePickerModal.test.tsx (8 tests) 289ms
+ ✓ src/shared/hooks/__tests__/useDialogFocus.transition.test.tsx (5 tests) 239ms
+stderr | src/shared/hooks/__tests__/useSubscription.test.ts > useSubscription > returns free plan defaults when no subscription data
+Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["subscription"]
+
+ ✓ src/features/subscription/components/__tests__/UpgradeBanner.test.tsx (18 tests) 186ms
+ ✓ src/app/layouts/__tests__/AppLayout.checkout.test.tsx (23 tests) 257ms
+stderr | src/shared/hooks/__tests__/useSubscription.test.ts > useSubscription > provides default limits when subscription has no limits
+Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["subscription"]
+
+stderr | src/shared/hooks/__tests__/useSubscription.test.ts > useSubscription > provides default usage when subscription has no usage
+Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["subscription"]
+
+ ✓ src/shared/hooks/__tests__/useSubscription.test.ts (10 tests) 419ms
+ ✓ src/features/resumes/modals/__tests__/RenameBuilderResumeModal.integration.test.tsx (1 test) 301ms
+ ✓ src/features/resume-builder/hooks/useAISuggestions.test.ts (8 tests) 480ms
+ ✓ src/features/resume-builder/components/sections/SkillsEditor.test.tsx (9 tests) 292ms
+ ✓ src/shared/hooks/__tests__/useDialogFocus.visibility.test.tsx (6 tests) 366ms
+ ✓ src/features/resume-builder/components/sections/CustomSectionsEditor.test.tsx (8 tests) 286ms
+ ✓ src/features/resume-builder/components/sidebar/ColorPickerPopover.test.tsx (10 tests) 310ms
+ ✓ src/features/resume-builder/components/inline/SectionDivider.test.tsx (8 tests) 244ms
+ ✓ src/features/resume-builder/components/sidebar/TemplatePickerPopover.test.tsx (8 tests) 296ms
+ ✓ src/features/resumes/components/BuilderResumeCard.test.tsx (10 tests) 422ms
+ ✓ src/shared/ui/__tests__/StackedEscape.test.tsx (8 tests) 261ms
+ ✓ src/features/resume-builder/hooks/useExportDOCX.test.ts (6 tests) 388ms
+ ✓ src/features/resume-builder/components/EditorPanel.test.tsx (6 tests) 276ms
+ ✓ src/features/resume-builder/components/sidebar/SidebarPopover.test.tsx (6 tests) 218ms
+ ✓ src/features/resumes/modals/__tests__/CreateEditResumeModals.test.tsx (7 tests) 287ms
+ ✓ src/shared/ui/__tests__/PoweredByFluxLab.test.tsx (7 tests) 216ms
+stderr | src/app/__tests__/resetPasswordRoute.test.tsx > the /reset-password route > renders the reset form for a link carrying an email and a code
+react-i18next:: useTranslation: You will need to pass in an i18next instance by using initReactI18next { code: 'NO_I18NEXT_INSTANCE' }
+
+stderr | src/app/__tests__/resetPasswordRoute.test.tsx > the /reset-password route > names a link it cannot use instead of pretending to work
+React does not recognize the `asChild` prop on a DOM element. If you intentionally want it to appear in the DOM as a custom attribute, spell it as lowercase `aschild` instead. If you accidentally passed it from a parent component, remove it from the DOM element.
+
+ ✓ src/app/__tests__/resetPasswordRoute.test.tsx (3 tests) 413ms
+     ✓ renders the reset form for a link carrying an email and a code  323ms
+stderr | src/features/resume-builder/hooks/useATSCheck.test.ts > useATSCheck > sets isError on failure
+[ATS] check failed: Error: Network error
+    at /Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/src/features/resume-builder/hooks/useATSCheck.test.ts:139:53
+    at file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:296:11
+    at file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:1258:26
+    at file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:1681:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:1678:10)
+    at file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:1660:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:1627:10)
+    at file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:2309:64
+
+ ✓ src/features/resume-builder/hooks/useExportPDF.test.ts (6 tests) 366ms
+ ✓ src/features/resume-builder/hooks/useATSCheck.test.ts (6 tests) 373ms
+ ✓ src/app/providers.print.test.tsx (2 tests) 244ms
+ ✓ src/features/blog/components/__tests__/BlogPostCard.a11y.test.tsx (7 tests) 406ms
+ ✓ src/features/companies/modals/__tests__/CreateCompanyModal.test.tsx (4 tests) 235ms
+ ✓ src/features/jobs/modals/__tests__/CreateJobModal.test.tsx (4 tests) 217ms
+stderr | src/app/__tests__/landingBodyClass.test.tsx > the landing body class > on the real route table > styles the landing page
+react-i18next:: useTranslation: You will need to pass in an i18next instance by using initReactI18next { code: 'NO_I18NEXT_INSTANCE' }
+
+ ✓ src/app/__tests__/landingBodyClass.test.tsx (17 tests) 534ms
+ ✓ src/features/home/components/__tests__/HeroSection.test.tsx (9 tests) 303ms
+ ✓ src/features/jobs/components/__tests__/JobInfoCard.test.tsx (6 tests) 248ms
+ ✓ src/pages/__tests__/ResumeBuilderEditor.documentSync.test.tsx (5 tests) 183ms
+ ✓ src/pages/__tests__/Resumes.test.tsx (10 tests) 215ms
+ ✓ src/shared/locales/__tests__/localeParity.test.ts (9 tests) 253ms
+ ✓ src/shared/ui/__tests__/Switch.test.tsx (4 tests) 190ms
+ ✓ src/features/resume-builder/components/PremiumGate.test.tsx (4 tests) 164ms
+ ✓ src/features/resume-builder/components/preview/shared/sectionContent/SummarySection.limit.test.tsx (2 tests) 224ms
+ ✓ src/app/layouts/__tests__/AppLayout.footer.test.tsx (11 tests) 210ms
+ ✓ src/shared/ui/__tests__/LanguageSwitcher.test.tsx (11 tests) 231ms
+ ✓ src/features/resume-builder/components/SaveIndicator.test.tsx (13 tests) 191ms
+ ✓ src/features/calendar/modals/__tests__/ScheduleStageModal.test.tsx (2 tests) 189ms
+ ✓ src/features/jobs/components/__tests__/StageSelector.test.tsx (6 tests) 260ms
+stderr | src/pages/__tests__/StaticPages.test.tsx > NotFound > renders without crash and shows 404
+React does not recognize the `asChild` prop on a DOM element. If you intentionally want it to appear in the DOM as a custom attribute, spell it as lowercase `aschild` instead. If you accidentally passed it from a parent component, remove it from the DOM element.
+
+ ✓ src/pages/__tests__/StaticPages.test.tsx (10 tests) 208ms
+ ✓ src/widgets/__tests__/Sidebar.test.tsx (22 tests) 205ms
+ ✓ src/features/resume-builder/components/inline/EntryWrapper.test.tsx (7 tests) 138ms
+ ✓ src/features/cover-letter/hooks/__tests__/useExportCoverLetter.test.ts (4 tests) 270ms
+ ✓ src/features/cover-letter/hooks/__tests__/useCoverLetterAI.test.ts (3 tests) 191ms
+ ✓ src/features/cover-letter/components/__tests__/CoverLetterSaveIndicator.test.tsx (5 tests) 173ms
+ ✓ src/shared/locales/__tests__/applicationCount.test.ts (15 tests) 180ms
+ ✓ src/features/resume-builder/components/preview/IconicTemplate.test.tsx (8 tests) 78ms
+ ✓ src/features/resume-builder/hooks/useAutoSave.test.ts (23 tests) 136ms
+ ✓ src/features/resume-builder/components/sidebar/LayoutPresetThumbnail.test.tsx (7 tests) 161ms
+ ✓ src/features/home/components/__tests__/PricingSection.test.tsx (10 tests) 112ms
+ ✓ src/features/resume-builder/components/DesignPanel.test.tsx (9 tests) 161ms
+ ✓ src/features/resumes/modals/__tests__/RenameBuilderResumeModal.test.tsx (4 tests) 160ms
+ ✓ src/features/onboarding/__tests__/WizardStepContent.test.tsx (7 tests) 236ms
+ ✓ src/pages/__tests__/AppPages.test.tsx (28 tests) 251ms
+ ✓ src/features/resume-builder/components/SectionOrderPanel.test.tsx (6 tests) 74ms
+ ✓ src/features/cover-letter/components/__tests__/CoverLetterPreview.test.tsx (10 tests) 111ms
+ ✓ src/pages/__tests__/SharedStats.test.tsx (2 tests) 116ms
+ ✓ src/shared/lib/__tests__/scrollToSection.test.ts (17 tests) 191ms
+ ✓ src/pages/__tests__/StageTemplatesReorder.test.tsx (4 tests) 98ms
+ ✓ src/features/resume-builder/components/preview/AccentTemplate.test.tsx (7 tests) 80ms
+ ✓ src/features/resume-builder/components/preview/shared/sectionContent/SkillsContent.test.tsx (21 tests) 154ms
+ ✓ src/features/resume-builder/components/preview/shared/sectionContent/EducationContent.test.tsx (12 tests) 72ms
+ ✓ src/features/companies/modals/__tests__/DeleteCompanyDialog.test.tsx (4 tests) 51ms
+ ✓ src/features/stages/modals/__tests__/EditStageTemplateModal.test.tsx (3 tests) 50ms
+ ✓ src/features/resume-builder/components/inline/useInlineSection.test.ts (26 tests) 56ms
+ ✓ src/pages/__tests__/PublicPages.test.tsx (17 tests) 137ms
+ ✓ src/features/resume-builder/components/preview/PreviewPanel.test.tsx (5 tests) 53ms
+ ✓ src/features/resume-builder/components/preview/VividTemplate.test.tsx (8 tests) 75ms
+ ✓ src/features/jobs/components/JobCardBase.test.tsx (8 tests) 87ms
+ ✓ src/features/settings/__tests__/ProfileSection.test.tsx (7 tests) 74ms
+ ✓ src/app/providers/AuthProvider.test.tsx (9 tests) 114ms
+ ✓ src/features/cover-letter/components/__tests__/CoverLetterTemplateThumbnail.test.tsx (15 tests) 40ms
+ ✓ src/shared/ui/__tests__/PasswordInput.test.tsx (5 tests) 32ms
+ ✓ src/features/resume-builder/components/preview/MinimalTemplate.test.tsx (9 tests) 63ms
+ ✓ src/shared/lib/__tests__/i18n.test.ts (7 tests) 78ms
+ ✓ src/features/analytics/components/__tests__/FunnelVisualization.test.tsx (6 tests) 76ms
+ ✓ src/features/resume-builder/components/preview/shared/sectionContent/ExperienceContent.test.tsx (16 tests) 61ms
+ ✓ src/features/resume-builder/components/preview/CompactTemplate.test.tsx (8 tests) 72ms
+ ✓ src/features/stages/modals/__tests__/StageModals.test.tsx (3 tests) 96ms
+ ✓ src/features/resume-builder/components/ContentLibraryPanel.test.tsx (5 tests) 73ms
+ ✓ src/features/resume-builder/components/preview/CreativeTemplate.test.tsx (8 tests) 67ms
+ ✓ src/shared/lib/__tests__/useDocumentLanguage.test.ts (10 tests) 60ms
+ ✓ src/features/subscription/__tests__/useCheckout.test.tsx (36 tests) 120ms
+ ✓ src/features/blog/components/__tests__/BlogComponents.test.tsx (10 tests) 77ms
+ ✓ src/features/resume-builder/components/preview/BoldTemplate.test.tsx (7 tests) 90ms
+ ✓ src/features/resume-builder/components/preview/ProfessionalTemplate.test.tsx (6 tests) 86ms
+ ✓ src/features/resume-builder/components/preview/shared/sectionContent/SupportSections.test.tsx (21 tests) 79ms
+ ✓ src/widgets/__tests__/Header.test.tsx (12 tests) 55ms
+ ✓ src/shared/lib/__tests__/resumeQueryKeys.test.tsx (4 tests) 81ms
+ ✓ src/features/resume-builder/components/preview/ModernTemplate.test.tsx (10 tests) 244ms
+ ✓ src/features/resumes/modals/__tests__/ResumeModals.test.tsx (4 tests) 235ms
+ ✓ src/features/resume-builder/components/inline/SectionHeader.test.tsx (24 tests) 252ms
+ ✓ src/pages/__tests__/EditorPages.test.tsx (13 tests) 62ms
+ ✓ src/features/resume-builder/components/preview/shared/sectionContent/SectionIcon.test.tsx (2 tests) 92ms
+ ✓ src/features/resume-builder/hooks/useSectionPersistence.test.ts (23 tests) 113ms
+ ✓ src/features/resume-builder/components/preview/ElegantTemplate.test.tsx (8 tests) 105ms
+ ✓ src/features/resume-builder/components/preview/TimelineTemplate.test.tsx (6 tests) 82ms
+ ✓ src/features/resume-builder/components/sections/ContactEditor.test.tsx (5 tests) 68ms
+ ✓ src/features/resume-builder/components/preview/shared/sectionContent/LanguagesContent.test.tsx (11 tests) 44ms
+ ✓ src/features/jobs/components/__tests__/MatchScoreCard.test.tsx (6 tests) 42ms
+ ✓ src/shared/lib/__tests__/usePageMeta.test.ts (14 tests) 56ms
+ ✓ src/features/resume-builder/components/AIAssistantPanel.test.tsx (7 tests) 87ms
+ ✓ src/features/resume-builder/hooks/useSectionVisibility.test.ts (17 tests) 34ms
+ ✓ plugins/__tests__/vite-plugin-sitemap.test.ts (12 tests) 49ms
+stderr | src/features/settings/__tests__/accountSwitch.test.tsx > signing out of one account and into another > never shows or stores the previous account's profile
+An update to WhoAmI inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/settings/__tests__/accountSwitch.test.tsx > signing out of one account and into another > reads the account once per mount, not twice
+An update to WhoAmI inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/settings/__tests__/accountSwitch.test.tsx > signing out of one account and into another > serves a second mount from the cache rather than reading again
+An update to WhoAmI inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/settings/__tests__/accountSwitch.test.tsx > signing out of one account and into another > cannot serve one account's cached profile to another
+An update to WhoAmI inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/features/settings/__tests__/accountSwitch.test.tsx (5 tests) 112ms
+ ✓ src/features/resumes/hooks/useUnifiedResumes.test.ts (13 tests) 31ms
+stderr | src/pages/__tests__/AuthPages.test.tsx > VerifyEmail > renders without crash
+React does not recognize the `asChild` prop on a DOM element. If you intentionally want it to appear in the DOM as a custom attribute, spell it as lowercase `aschild` instead. If you accidentally passed it from a parent component, remove it from the DOM element.
+
+ ✓ src/pages/__tests__/AuthPages.test.tsx (5 tests) 35ms
+ ✓ src/shared/lib/__tests__/consent.test.ts (56 tests) 54ms
+ ✓ src/features/cover-letter/hooks/__tests__/useAutoSaveCoverLetter.test.ts (11 tests) 45ms
+ ✓ src/features/resume-builder/components/PreviewErrorBoundary.test.tsx (3 tests) 53ms
+ ✓ src/features/resume-builder/components/sections/SummaryEditor.test.tsx (6 tests) 51ms
+ ✓ src/features/resume-builder/components/sidebar/LayoutConfigurator.test.tsx (3 tests) 25ms
+ ✓ src/features/cover-letter/lib/coverLetterDocumentSync.test.ts (18 tests) 33ms
+ ✓ src/features/resume-builder/components/ResumeThumbnail.test.tsx (3 tests) 32ms
+ ✓ src/features/resume-builder/components/sidebar/SectionsConfigurator.test.tsx (2 tests) 57ms
+ ✓ src/features/resume-builder/components/preview/ExecutiveTemplate.test.tsx (8 tests) 66ms
+ ✓ src/shared/ui/__tests__/GlobalErrorBoundary.test.tsx (3 tests) 29ms
+ ✓ src/features/home/components/__tests__/FaqJsonLd.test.tsx (4 tests) 46ms
+ ✓ src/features/subscription/__tests__/useMonthlyResetDate.test.ts (3 tests) 41ms
+ ✓ src/features/jobs/components/__tests__/CompanySelectWithQuickAdd.test.tsx (2 tests) 38ms
+ ✓ src/shared/ui/__tests__/BrowserMockup.test.tsx (4 tests) 82ms
+ ✓ src/shared/hooks/__tests__/useMediaQuery.test.ts (6 tests) 51ms
+ ✓ src/shared/lib/__tests__/utils.test.ts (10 tests) 21ms
+ ✓ src/app/layouts/__tests__/Layouts.test.tsx (6 tests) 22ms
+ ✓ src/features/resume-builder/components/preview/shared/useTemplateSetup.test.ts (14 tests) 57ms
+ ✓ src/shared/hooks/__tests__/useBodyScrollLock.test.tsx (7 tests) 63ms
+ ✓ src/features/resume-builder/components/preview/TwoColumnLayout.test.tsx (3 tests) 31ms
+ ✓ src/features/onboarding/__tests__/useOnboarding.test.ts (10 tests) 25ms
+ ✓ src/shared/locales/__tests__/limitPlurals.test.ts (24 tests) 79ms
+ ✓ src/features/cover-letter/hooks/__tests__/useUndoRedoCoverLetter.test.ts (6 tests) 20ms
+stderr | src/features/resume-builder/components/preview/shared/sectionContent/SummarySection.test.tsx > SummaryContent > renders summary content text when not editable
+react-i18next:: useTranslation: You will need to pass in an i18next instance by using initReactI18next { code: 'NO_I18NEXT_INSTANCE' }
+
+ ✓ src/features/resume-builder/components/preview/shared/sectionContent/SummarySection.test.tsx (3 tests) 30ms
+ ✓ src/features/auth/hooks/useResendCode.test.ts (5 tests) 20ms
+ ✓ src/features/resume-builder/hooks/useUndoRedo.test.ts (12 tests) 43ms
+ ✓ src/features/resume-builder/components/sidebar/SectionsPopover.test.tsx (2 tests) 40ms
+ ✓ src/shared/lib/__tests__/validation.test.ts (54 tests) 18ms
+ ✓ src/features/blog/components/__tests__/BlogPostJsonLd.test.tsx (3 tests) 27ms
+stderr | src/shared/lib/__tests__/notifications.test.ts > requestNotificationPermission > returns 'denied' when Notification is not supported
+This browser does not support notifications
+
+stderr | src/shared/lib/__tests__/notifications.test.ts > registerServiceWorker > returns null when serviceWorker is not supported
+Service Workers are not supported
+
+stderr | src/shared/lib/__tests__/notifications.test.ts > registerServiceWorker > returns null when serviceWorker registration fails
+Service Worker registration failed: Error: SW failed
+    at /Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/src/shared/lib/__tests__/notifications.test.ts:179:47
+    at file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:296:11
+    at file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:1258:26
+    at file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:1681:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:1678:10)
+    at file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:1660:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:1627:10)
+    at file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:2309:64
+
+stderr | src/shared/lib/__tests__/notifications.test.ts > subscribeToPushNotifications > returns null when subscription fails
+Failed to subscribe to push notifications: Error: Subscribe failed
+    at /Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/src/shared/lib/__tests__/notifications.test.ts:225:26
+    at file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:296:11
+    at file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:1258:26
+    at file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:1681:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:1678:10)
+    at file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:1660:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:1627:10)
+    at file:///Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe/node_modules/@vitest/runner/dist/index.js:2309:64
+
+stderr | src/shared/lib/__tests__/notifications.test.ts > initializePushNotifications > stops when service worker registration fails
+Service Workers are not supported
+
+ ✓ src/shared/lib/__tests__/notifications.test.ts (32 tests) 15ms
+ ✓ src/services/__tests__/resumesService.test.ts (18 tests) 13ms
+ ✓ src/shared/lib/documentSync.test.ts (35 tests) 29ms
+ ✓ src/shared/locales/__tests__/planCopy.test.ts (64 tests) 13ms
+ ✓ src/services/__tests__/jobsService.test.ts (13 tests) 7ms
+ ✓ src/services/__tests__/stageTemplatesService.test.ts (5 tests) 8ms
+ ✓ src/services/__tests__/resumeBuilderService.test.ts (39 tests) 30ms
+ ✓ src/features/resume-builder/components/preview/templates.test.ts (24 tests) 16ms
+ ✓ src/services/__tests__/resumeTailoringService.test.ts (9 tests) 6ms
+ ✓ scripts/__tests__/prerenderConsent.test.mjs (3 tests) 9ms
+ ✓ src/stores/__tests__/resumeBuilderStore.test.ts (15 tests) 6ms
+ ✓ src/stores/__tests__/authStore.test.ts (6 tests) 4ms
+ ✓ src/shared/lib/__tests__/dateFnsLocale.test.ts (5 tests) 16ms
+ ✓ src/features/subscription/__tests__/safeHttpsUrl.test.ts (44 tests) 8ms
+ ✓ src/services/__tests__/remindersService.test.ts (4 tests) 7ms
+ ✓ src/services/__tests__/matchScoreService.test.ts (2 tests) 36ms
+ ✓ src/features/subscription/__tests__/checkoutSignals.test.ts (30 tests) 50ms
+ ✓ src/services/__tests__/analyticsService.test.ts (5 tests) 10ms
+ ✓ src/services/__tests__/subscriptionService.test.ts (5 tests) 8ms
+ ✓ src/stores/__tests__/themeStore.test.ts (7 tests) 6ms
+ ✓ src/services/__tests__/profileService.test.ts (4 tests) 8ms
+ ✓ src/features/resume-builder/components/preview/shared/configs.test.ts (14 tests) 19ms
+ ✓ src/features/blog/lib/blogLoader.test.ts (18 tests) 46ms
+ ✓ src/services/__tests__/tagsService.test.ts (6 tests) 6ms
+ ✓ src/services/__tests__/authService.test.ts (12 tests) 7ms
+ ✓ src/stores/__tests__/coverLetterStore.test.ts (14 tests) 8ms
+ ✓ src/services/__tests__/companiesService.test.ts (8 tests) 4ms
+ ✓ src/services/interviewPrepService.test.ts (4 tests) 5ms
+ ✓ src/services/__tests__/supportService.test.ts (2 tests) 9ms
+ ✓ src/features/auth/__tests__/authModalRoutes.test.ts (13 tests) 3ms
+ ✓ scripts/__tests__/shellHtml.test.mjs (8 tests) 9ms
+ ✓ src/features/resume-builder/components/preview/shared/templateConfig.test.ts (4 tests) 4ms
+ ✓ src/services/__tests__/contentLibraryService.test.ts (3 tests) 4ms
+ ✓ src/stores/__tests__/sidebarStore.test.ts (9 tests) 15ms
+ ✓ src/services/__tests__/api.test.ts (8 tests) 6ms
+ ✓ src/features/cover-letter/lib/coverLetterQueryKeys.test.ts (2 tests) 4ms
+ ✓ src/services/__tests__/sharingService.test.ts (5 tests) 4ms
+ ✓ src/features/resume-builder/components/sidebar/colorPalettes.test.ts (7 tests) 11ms
+ ✓ src/services/__tests__/calendarService.test.ts (5 tests) 4ms
+ ✓ src/shared/lib/__tests__/features.test.ts (6 tests) 4ms
+ ✓ src/services/__tests__/commentsService.test.ts (3 tests) 3ms
+ ✓ src/features/resume-builder/components/sidebar/layoutPresets.test.ts (4 tests) 3ms
+ ✓ src/services/__tests__/coverLetterService.test.ts (3 tests) 3ms
+ ✓ src/shared/lib/__tests__/jsonLd.test.ts (3 tests) 3ms
+ ✓ src/features/resume-builder/components/preview/shared/TemplateSections.test.ts (6 tests) 2ms
+ ✓ src/features/blog/lib/formatPostDate.test.ts (4 tests) 3ms
+
+ Test Files  257 passed (257)
+      Tests  2897 passed (2897)
+   Start at  22:32:13
+   Duration  43.87s (transform 8.70s, setup 14.90s, import 91.22s, tests 92.14s, environment 133.88s)
+

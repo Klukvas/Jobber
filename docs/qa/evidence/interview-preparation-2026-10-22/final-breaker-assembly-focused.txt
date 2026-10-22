@@ -1,0 +1,10 @@
+=== RUN   TestRealAdapterOpenBreakerRefundsOnlyNeverSentOperation
+2026/10/22 22:49:11 INFO interview AI operation operation_id=b7b9fcd3-eb10-46d6-855d-7a07b3111ac9 kind=plan attempt=0 duration_ms=18 outcome=AI_UNAVAILABLE
+2026/10/22 22:49:11 INFO interview AI operation operation_id=b7b9fcd3-eb10-46d6-855d-7a07b3111ac9 kind=plan attempt=0 duration_ms=15 outcome=AI_UNAVAILABLE
+2026/10/22 22:49:11 INFO interview AI operation operation_id=b7b9fcd3-eb10-46d6-855d-7a07b3111ac9 kind=plan attempt=0 duration_ms=11 outcome=AI_UNAVAILABLE
+2026/10/22 22:49:11 INFO interview AI operation operation_id=b7b9fcd3-eb10-46d6-855d-7a07b3111ac9 kind=plan attempt=0 duration_ms=12 outcome=AI_UNAVAILABLE
+2026/10/22 22:49:11 INFO interview AI operation operation_id=b7b9fcd3-eb10-46d6-855d-7a07b3111ac9 kind=plan attempt=1 duration_ms=12 outcome=AI_UNAVAILABLE
+2026/10/22 22:49:11 INFO interview AI operation operation_id=b7b9fcd3-eb10-46d6-855d-7a07b3111ac9 kind=plan attempt=2 duration_ms=22 outcome=succeeded
+--- PASS: TestRealAdapterOpenBreakerRefundsOnlyNeverSentOperation (0.79s)
+PASS
+ok  	github.com/andreypavlenko/jobber/modules/interviewprep	2.581s

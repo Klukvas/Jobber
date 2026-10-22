@@ -1,0 +1,109 @@
+?   	github.com/andreypavlenko/jobber/cmd/api	[no test files]
+?   	github.com/andreypavlenko/jobber/cmd/seed	[no test files]
+?   	github.com/andreypavlenko/jobber/docs	[no test files]
+ok  	github.com/andreypavlenko/jobber/internal/config	(cached)
+ok  	github.com/andreypavlenko/jobber/internal/platform/ai	1.422s
+ok  	github.com/andreypavlenko/jobber/internal/platform/auth	(cached)
+ok  	github.com/andreypavlenko/jobber/internal/platform/circuitbreaker	(cached)
+ok  	github.com/andreypavlenko/jobber/internal/platform/docx	(cached)
+ok  	github.com/andreypavlenko/jobber/internal/platform/email	(cached)
+ok  	github.com/andreypavlenko/jobber/internal/platform/http	(cached)
+?   	github.com/andreypavlenko/jobber/internal/platform/logger	[no test files]
+ok  	github.com/andreypavlenko/jobber/internal/platform/netsafe	(cached)
+ok  	github.com/andreypavlenko/jobber/internal/platform/pdf	(cached)
+?   	github.com/andreypavlenko/jobber/internal/platform/postgres	[no test files]
+?   	github.com/andreypavlenko/jobber/internal/platform/redis	[no test files]
+?   	github.com/andreypavlenko/jobber/internal/platform/sentry	[no test files]
+ok  	github.com/andreypavlenko/jobber/internal/platform/storage	(cached)
+?   	github.com/andreypavlenko/jobber/internal/platform/telegram	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/analytics/handler	(cached)
+?   	github.com/andreypavlenko/jobber/modules/analytics/model	[no test files]
+?   	github.com/andreypavlenko/jobber/modules/analytics/ports	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/analytics/repository	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/analytics/service	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/auth/handler	(cached)
+?   	github.com/andreypavlenko/jobber/modules/auth/model	[no test files]
+?   	github.com/andreypavlenko/jobber/modules/auth/ports	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/auth/repository	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/auth/service	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/calendar/handler	(cached)
+?   	github.com/andreypavlenko/jobber/modules/calendar/model	[no test files]
+?   	github.com/andreypavlenko/jobber/modules/calendar/ports	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/calendar/repository	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/calendar/service	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/comments/handler	(cached)
+?   	github.com/andreypavlenko/jobber/modules/comments/model	[no test files]
+?   	github.com/andreypavlenko/jobber/modules/comments/ports	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/comments/repository	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/comments/service	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/companies/handler	(cached)
+?   	github.com/andreypavlenko/jobber/modules/companies/model	[no test files]
+?   	github.com/andreypavlenko/jobber/modules/companies/ports	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/companies/repository	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/companies/service	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/contentlibrary/handler	(cached)
+?   	github.com/andreypavlenko/jobber/modules/contentlibrary/model	[no test files]
+?   	github.com/andreypavlenko/jobber/modules/contentlibrary/ports	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/contentlibrary/repository	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/contentlibrary/service	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/coverletters/handler	2.395s
+?   	github.com/andreypavlenko/jobber/modules/coverletters/model	[no test files]
+?   	github.com/andreypavlenko/jobber/modules/coverletters/ports	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/coverletters/repository	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/coverletters/service	1.475s
+ok  	github.com/andreypavlenko/jobber/modules/interviewprep	12.857s
+ok  	github.com/andreypavlenko/jobber/modules/jobimport/handler	1.534s
+?   	github.com/andreypavlenko/jobber/modules/jobimport/model	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/jobimport/service	1.350s
+ok  	github.com/andreypavlenko/jobber/modules/jobs/handler	1.553s
+ok  	github.com/andreypavlenko/jobber/modules/jobs/model	(cached)
+?   	github.com/andreypavlenko/jobber/modules/jobs/ports	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/jobs/repository	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/jobs/service	1.432s
+ok  	github.com/andreypavlenko/jobber/modules/matchscore/handler	1.511s
+?   	github.com/andreypavlenko/jobber/modules/matchscore/model	[no test files]
+?   	github.com/andreypavlenko/jobber/modules/matchscore/ports	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/matchscore/repository	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/matchscore/service	3.594s
+ok  	github.com/andreypavlenko/jobber/modules/reminders/handler	(cached)
+?   	github.com/andreypavlenko/jobber/modules/reminders/model	[no test files]
+?   	github.com/andreypavlenko/jobber/modules/reminders/ports	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/reminders/repository	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/reminders/service	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/resumebuilder/handler	3.241s
+?   	github.com/andreypavlenko/jobber/modules/resumebuilder/model	[no test files]
+?   	github.com/andreypavlenko/jobber/modules/resumebuilder/ports	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/resumebuilder/repository	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/resumebuilder/service	1.484s
+ok  	github.com/andreypavlenko/jobber/modules/resumes/handler	1.639s
+?   	github.com/andreypavlenko/jobber/modules/resumes/model	[no test files]
+?   	github.com/andreypavlenko/jobber/modules/resumes/ports	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/resumes/repository	1.390s
+ok  	github.com/andreypavlenko/jobber/modules/resumes/service	1.443s
+ok  	github.com/andreypavlenko/jobber/modules/sharing/handler	(cached)
+?   	github.com/andreypavlenko/jobber/modules/sharing/model	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/sharing/ogimage	(cached)
+?   	github.com/andreypavlenko/jobber/modules/sharing/ports	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/sharing/repository	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/sharing/service	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/subscriptions/creem	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/subscriptions/handler	1.532s
+?   	github.com/andreypavlenko/jobber/modules/subscriptions/model	[no test files]
+?   	github.com/andreypavlenko/jobber/modules/subscriptions/ports	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/subscriptions/repository	1.409s
+ok  	github.com/andreypavlenko/jobber/modules/subscriptions/service	1.396s
+ok  	github.com/andreypavlenko/jobber/modules/support/handler	(cached)
+?   	github.com/andreypavlenko/jobber/modules/support/model	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/support/service	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/tags/handler	(cached)
+?   	github.com/andreypavlenko/jobber/modules/tags/model	[no test files]
+?   	github.com/andreypavlenko/jobber/modules/tags/ports	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/tags/repository	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/tags/service	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/users/handler	(cached)
+?   	github.com/andreypavlenko/jobber/modules/users/model	[no test files]
+?   	github.com/andreypavlenko/jobber/modules/users/ports	[no test files]
+ok  	github.com/andreypavlenko/jobber/modules/users/repository	(cached)
+ok  	github.com/andreypavlenko/jobber/modules/users/service	(cached)
+?   	github.com/andreypavlenko/jobber/scripts	[no test files]
+ok  	github.com/andreypavlenko/jobber/scripts/prune-orphan-resumes	(cached)

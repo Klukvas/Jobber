@@ -1,0 +1,1305 @@
+=== RUN   TestRealAdapterOpenBreakerRefundsOnlyNeverSentOperation
+2026/10/22 22:55:14 INFO interview AI operation operation_id=4b0320c3-0344-45e7-85ee-f784ba5e59d5 kind=plan attempt=0 duration_ms=76 outcome=AI_UNAVAILABLE
+2026/10/22 22:55:14 INFO interview AI operation operation_id=4b0320c3-0344-45e7-85ee-f784ba5e59d5 kind=plan attempt=0 duration_ms=27 outcome=AI_UNAVAILABLE
+2026/10/22 22:55:14 INFO interview AI operation operation_id=4b0320c3-0344-45e7-85ee-f784ba5e59d5 kind=plan attempt=0 duration_ms=58 outcome=AI_UNAVAILABLE
+2026/10/22 22:55:14 INFO interview AI operation operation_id=4b0320c3-0344-45e7-85ee-f784ba5e59d5 kind=plan attempt=0 duration_ms=145 outcome=AI_UNAVAILABLE
+2026/10/22 22:55:14 INFO interview AI operation operation_id=4b0320c3-0344-45e7-85ee-f784ba5e59d5 kind=plan attempt=1 duration_ms=251 outcome=AI_UNAVAILABLE
+2026/10/22 22:55:15 INFO interview AI operation operation_id=4b0320c3-0344-45e7-85ee-f784ba5e59d5 kind=plan attempt=2 duration_ms=252 outcome=succeeded
+--- PASS: TestRealAdapterOpenBreakerRefundsOnlyNeverSentOperation (2.74s)
+=== RUN   TestServeBrowserFixture
+    browser_fixture_integration_test.go:37: explicit synthetic browser fixture only
+--- SKIP: TestServeBrowserFixture (0.00s)
+=== RUN   TestLosslessBudgetReservesAllFollowupsAndEscapedSkips
+--- PASS: TestLosslessBudgetReservesAllFollowupsAndEscapedSkips (17.16s)
+=== RUN   TestProductionAdapterSourceGuardThroughActualHTTPDispatch
+2026/10/22 22:55:34 INFO interview AI operation operation_id=704d97ca-07fa-4e42-badb-87cb582571ec kind=plan attempt=1 duration_ms=83 outcome=SOURCE_CHANGED
+--- PASS: TestProductionAdapterSourceGuardThroughActualHTTPDispatch (1.68s)
+=== RUN   TestHTTPForeignObjectsAndStrictInput
+2026/10/22 22:55:36 INFO interview AI operation operation_id=7bec569c-f4d4-4e37-985d-5a2af097a5cf kind=plan attempt=1 duration_ms=248 outcome=succeeded
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+[GIN-debug] GET    /api/v1/jobs/:id/interview-prep --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).history-fm (2 handlers)
+[GIN-debug] GET    /api/v1/jobs/:id/interview-prep/versions/:versionId --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).version-fm (2 handlers)
+[GIN-debug] GET    /api/v1/jobs/:id/interview-prep/sessions/:sessionId --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).session-fm (2 handlers)
+[GIN-debug] GET    /api/v1/jobs/:id/interview-prep/operations/:operationId --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).operation-fm (2 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/generate --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).generate-fm (3 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/operations/:operationId/retry --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).retry-fm (3 handlers)
+[GIN-debug] PUT    /api/v1/jobs/:id/interview-prep/versions/:versionId/studied --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).studied-fm (2 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/sessions --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).start-fm (2 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/sessions/:sessionId/answers --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).answer-fm (2 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/sessions/:sessionId/action --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).action-fm (2 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/sessions/:sessionId/answers/:answerId/feedback --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).feedback-fm (3 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/sessions/:sessionId/summary --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).summary-fm (3 handlers)
+=== RUN   TestHTTPForeignObjectsAndStrictInput/GET
+=== RUN   TestHTTPForeignObjectsAndStrictInput/GET/versions/f40c5d43-df29-47f6-85ba-3f5ef6a98290
+=== RUN   TestHTTPForeignObjectsAndStrictInput/GET/sessions/7ec21068-9ea0-4748-8fe8-7324d125bdab
+=== RUN   TestHTTPForeignObjectsAndStrictInput/GET/operations/148d8ded-bf9c-4a2a-a31a-796c2a7f315e
+=== RUN   TestHTTPForeignObjectsAndStrictInput/PUT/versions/f40c5d43-df29-47f6-85ba-3f5ef6a98290/studied
+=== RUN   TestHTTPForeignObjectsAndStrictInput/POST/generate
+=== RUN   TestHTTPForeignObjectsAndStrictInput/POST/operations/148d8ded-bf9c-4a2a-a31a-796c2a7f315e/retry
+=== RUN   TestHTTPForeignObjectsAndStrictInput/POST/sessions
+=== RUN   TestHTTPForeignObjectsAndStrictInput/POST/sessions/7ec21068-9ea0-4748-8fe8-7324d125bdab/answers
+=== RUN   TestHTTPForeignObjectsAndStrictInput/POST/sessions/7ec21068-9ea0-4748-8fe8-7324d125bdab/action
+=== RUN   TestHTTPForeignObjectsAndStrictInput/POST/sessions/7ec21068-9ea0-4748-8fe8-7324d125bdab/answers/906e8bca-635e-4678-9631-635209099e1c/feedback
+=== RUN   TestHTTPForeignObjectsAndStrictInput/POST/sessions/7ec21068-9ea0-4748-8fe8-7324d125bdab/summary
+--- PASS: TestHTTPForeignObjectsAndStrictInput (2.92s)
+    --- PASS: TestHTTPForeignObjectsAndStrictInput/GET (0.00s)
+    --- PASS: TestHTTPForeignObjectsAndStrictInput/GET/versions/f40c5d43-df29-47f6-85ba-3f5ef6a98290 (0.01s)
+    --- PASS: TestHTTPForeignObjectsAndStrictInput/GET/sessions/7ec21068-9ea0-4748-8fe8-7324d125bdab (0.00s)
+    --- PASS: TestHTTPForeignObjectsAndStrictInput/GET/operations/148d8ded-bf9c-4a2a-a31a-796c2a7f315e (0.00s)
+    --- PASS: TestHTTPForeignObjectsAndStrictInput/PUT/versions/f40c5d43-df29-47f6-85ba-3f5ef6a98290/studied (0.02s)
+    --- PASS: TestHTTPForeignObjectsAndStrictInput/POST/generate (0.02s)
+    --- PASS: TestHTTPForeignObjectsAndStrictInput/POST/operations/148d8ded-bf9c-4a2a-a31a-796c2a7f315e/retry (0.01s)
+    --- PASS: TestHTTPForeignObjectsAndStrictInput/POST/sessions (0.01s)
+    --- PASS: TestHTTPForeignObjectsAndStrictInput/POST/sessions/7ec21068-9ea0-4748-8fe8-7324d125bdab/answers (0.01s)
+    --- PASS: TestHTTPForeignObjectsAndStrictInput/POST/sessions/7ec21068-9ea0-4748-8fe8-7324d125bdab/action (0.01s)
+    --- PASS: TestHTTPForeignObjectsAndStrictInput/POST/sessions/7ec21068-9ea0-4748-8fe8-7324d125bdab/answers/906e8bca-635e-4678-9631-635209099e1c/feedback (0.00s)
+    --- PASS: TestHTTPForeignObjectsAndStrictInput/POST/sessions/7ec21068-9ea0-4748-8fe8-7324d125bdab/summary (0.00s)
+=== RUN   TestRealRedisRateLimitAndDatabaseFallback
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+[GIN-debug] GET    /api/v1/jobs/:id/interview-prep --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).history-fm (2 handlers)
+[GIN-debug] GET    /api/v1/jobs/:id/interview-prep/versions/:versionId --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).version-fm (2 handlers)
+[GIN-debug] GET    /api/v1/jobs/:id/interview-prep/sessions/:sessionId --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).session-fm (2 handlers)
+[GIN-debug] GET    /api/v1/jobs/:id/interview-prep/operations/:operationId --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).operation-fm (2 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/generate --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).generate-fm (3 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/operations/:operationId/retry --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).retry-fm (3 handlers)
+[GIN-debug] PUT    /api/v1/jobs/:id/interview-prep/versions/:versionId/studied --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).studied-fm (2 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/sessions --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).start-fm (2 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/sessions/:sessionId/answers --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).answer-fm (2 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/sessions/:sessionId/action --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).action-fm (2 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/sessions/:sessionId/answers/:answerId/feedback --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).feedback-fm (3 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/sessions/:sessionId/summary --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).summary-fm (3 handlers)
+--- PASS: TestRealRedisRateLimitAndDatabaseFallback (2.02s)
+=== RUN   TestOldFailedSummaryReceiptRecoveryBeyondHistoryWindow
+2026/10/22 22:55:41 INFO interview AI operation operation_id=4ba1e692-4cce-4723-a836-5c7caaadeac4 kind=plan attempt=1 duration_ms=146 outcome=succeeded
+2026/10/22 22:55:41 INFO interview AI operation operation_id=feddf248-469d-49dd-9288-7c290aa55c40 kind=summary attempt=1 duration_ms=97 outcome=AI_FAILED
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+[GIN-debug] GET    /api/v1/jobs/:id/interview-prep --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).history-fm (2 handlers)
+[GIN-debug] GET    /api/v1/jobs/:id/interview-prep/versions/:versionId --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).version-fm (2 handlers)
+[GIN-debug] GET    /api/v1/jobs/:id/interview-prep/sessions/:sessionId --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).session-fm (2 handlers)
+[GIN-debug] GET    /api/v1/jobs/:id/interview-prep/operations/:operationId --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).operation-fm (2 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/generate --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).generate-fm (3 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/operations/:operationId/retry --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).retry-fm (3 handlers)
+[GIN-debug] PUT    /api/v1/jobs/:id/interview-prep/versions/:versionId/studied --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).studied-fm (2 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/sessions --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).start-fm (2 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/sessions/:sessionId/answers --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).answer-fm (2 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/sessions/:sessionId/action --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).action-fm (2 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/sessions/:sessionId/answers/:answerId/feedback --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).feedback-fm (3 handlers)
+[GIN-debug] POST   /api/v1/jobs/:id/interview-prep/sessions/:sessionId/summary --> github.com/andreypavlenko/jobber/modules/interviewprep.(*Handler).summary-fm (3 handlers)
+2026/10/22 22:55:41 INFO interview AI operation operation_id=feddf248-469d-49dd-9288-7c290aa55c40 kind=summary attempt=2 duration_ms=92 outcome=succeeded
+--- PASS: TestOldFailedSummaryReceiptRecoveryBeyondHistoryWindow (2.67s)
+=== RUN   TestDispatchGuardBlocksHideUntilBodyWritten
+--- PASS: TestDispatchGuardBlocksHideUntilBodyWritten (1.98s)
+=== RUN   TestAdmissionBudgetRejectsBeforePersistenceAndStillSummarizes
+2026/10/22 22:55:45 INFO interview AI operation operation_id=2e2c449b-bdac-495e-bb3b-4c4a73b9d286 kind=plan attempt=1 duration_ms=120 outcome=succeeded
+2026/10/22 22:55:45 INFO interview AI operation operation_id=ae411d58-666f-4f76-84fd-5ec32e5d56a2 kind=summary attempt=1 duration_ms=120 outcome=succeeded
+--- PASS: TestAdmissionBudgetRejectsBeforePersistenceAndStillSummarizes (2.11s)
+=== RUN   TestFeedbackReplayCannotCrossOwnedSessions
+2026/10/22 22:55:47 INFO interview AI operation operation_id=3d727bed-2863-449e-8a25-16215a7eb43b kind=plan attempt=1 duration_ms=85 outcome=succeeded
+--- PASS: TestFeedbackReplayCannotCrossOwnedSessions (1.22s)
+=== RUN   TestTelemetryReportsCommittedSourceChanged
+--- PASS: TestTelemetryReportsCommittedSourceChanged (1.59s)
+=== RUN   TestWorkerNormalizesJSONBBeforeProviderBudget
+--- PASS: TestWorkerNormalizesJSONBBeforeProviderBudget (2.86s)
+=== RUN   TestFullPracticeAndOwnership
+--- PASS: TestFullPracticeAndOwnership (4.30s)
+=== RUN   TestAtomicQuotaDedupeAndReplay
+--- PASS: TestAtomicQuotaDedupeAndReplay (2.74s)
+=== RUN   TestVisibilityStalenessAndLateResult
+--- PASS: TestVisibilityStalenessAndLateResult (2.75s)
+=== RUN   TestRestartLeaseFencingAndRetries
+--- PASS: TestRestartLeaseFencingAndRetries (2.88s)
+=== RUN   TestUnavailableAndMigrationRollback
+--- PASS: TestUnavailableAndMigrationRollback (0.81s)
+=== RUN   TestLegacyReservationReleaseAndConsume
+--- PASS: TestLegacyReservationReleaseAndConsume (0.49s)
+=== RUN   TestExpiredLegacyReservationAndMixedQuotaRace
+--- PASS: TestExpiredLegacyReservationAndMixedQuotaRace (0.57s)
+=== RUN   TestLegacyCommitFailureRetainsPendingReceipt
+--- PASS: TestLegacyCommitFailureRetainsPendingReceipt (0.51s)
+=== RUN   TestIdenticalContentJobsHaveIndependentOperations
+--- PASS: TestIdenticalContentJobsHaveIndependentOperations (0.55s)
+=== RUN   TestNoCallRefundAndUnavailableRetry
+--- PASS: TestNoCallRefundAndUnavailableRetry (0.67s)
+=== RUN   TestDuringCallSourceChangeKeepsSingleCharge
+--- PASS: TestDuringCallSourceChangeKeepsSingleCharge (0.62s)
+=== RUN   TestLeanBoundedHistoryPagination
+--- PASS: TestLeanBoundedHistoryPagination (0.54s)
+=== RUN   TestAutofillReservationPreservesUsageCategory
+--- PASS: TestAutofillReservationPreservesUsageCategory (0.48s)
+=== RUN   TestValidatePlan
+=== RUN   TestValidatePlan/valid
+=== RUN   TestValidatePlan/unknown_field
+=== RUN   TestValidatePlan/trailing_json
+=== RUN   TestValidatePlan/unknown_evidence
+=== RUN   TestValidatePlan/fabricated_quote
+=== RUN   TestValidatePlan/invalid_utf8
+=== RUN   TestValidatePlan/missing_required_kind
+=== RUN   TestValidatePlan/missing_star
+=== RUN   TestValidatePlan/oversized_advice
+--- PASS: TestValidatePlan (0.01s)
+    --- PASS: TestValidatePlan/valid (0.00s)
+    --- PASS: TestValidatePlan/unknown_field (0.00s)
+    --- PASS: TestValidatePlan/trailing_json (0.00s)
+    --- PASS: TestValidatePlan/unknown_evidence (0.00s)
+    --- PASS: TestValidatePlan/fabricated_quote (0.00s)
+    --- PASS: TestValidatePlan/invalid_utf8 (0.00s)
+    --- PASS: TestValidatePlan/missing_required_kind (0.00s)
+    --- PASS: TestValidatePlan/missing_star (0.00s)
+    --- PASS: TestValidatePlan/oversized_advice (0.00s)
+=== RUN   TestValidateReview
+=== RUN   TestValidateReview/valid
+=== RUN   TestValidateReview/followup_recursion
+=== RUN   TestValidateReview/missing_score
+=== RUN   TestValidateReview/out_of_range
+=== RUN   TestValidateReview/duplicate_criterion
+=== RUN   TestValidateReview/bad_quote
+--- PASS: TestValidateReview (0.00s)
+    --- PASS: TestValidateReview/valid (0.00s)
+    --- PASS: TestValidateReview/followup_recursion (0.00s)
+    --- PASS: TestValidateReview/missing_score (0.00s)
+    --- PASS: TestValidateReview/out_of_range (0.00s)
+    --- PASS: TestValidateReview/duplicate_criterion (0.00s)
+    --- PASS: TestValidateReview/bad_quote (0.00s)
+PASS
+ok  	github.com/andreypavlenko/jobber/modules/interviewprep	58.647s
+=== RUN   TestParseJobPage
+=== RUN   TestParseJobPage/success
+=== RUN   TestParseJobPage/uses_provided_URL_as_fallback_when_response_URL_is_nil
+=== RUN   TestParseJobPage/API_error
+=== RUN   TestParseJobPage/empty_response_content
+=== RUN   TestParseJobPage/invalid_JSON_response
+=== RUN   TestParseJobPage/empty_title_returns_error
+=== RUN   TestParseJobPage/validates_parsed_job_fields
+--- PASS: TestParseJobPage (0.00s)
+    --- PASS: TestParseJobPage/success (0.00s)
+    --- PASS: TestParseJobPage/uses_provided_URL_as_fallback_when_response_URL_is_nil (0.00s)
+    --- PASS: TestParseJobPage/API_error (0.00s)
+    --- PASS: TestParseJobPage/empty_response_content (0.00s)
+    --- PASS: TestParseJobPage/invalid_JSON_response (0.00s)
+    --- PASS: TestParseJobPage/empty_title_returns_error (0.00s)
+    --- PASS: TestParseJobPage/validates_parsed_job_fields (0.00s)
+=== RUN   TestMatchResumeToJob
+=== RUN   TestMatchResumeToJob/success
+=== RUN   TestMatchResumeToJob/API_error
+=== RUN   TestMatchResumeToJob/empty_response
+=== RUN   TestMatchResumeToJob/validates_match_result
+--- PASS: TestMatchResumeToJob (0.00s)
+    --- PASS: TestMatchResumeToJob/success (0.00s)
+    --- PASS: TestMatchResumeToJob/API_error (0.00s)
+    --- PASS: TestMatchResumeToJob/empty_response (0.00s)
+    --- PASS: TestMatchResumeToJob/validates_match_result (0.00s)
+=== RUN   TestSuggestBulletPoints
+=== RUN   TestSuggestBulletPoints/success
+=== RUN   TestSuggestBulletPoints/API_error
+=== RUN   TestSuggestBulletPoints/empty_response
+=== RUN   TestSuggestBulletPoints/invalid_JSON
+--- PASS: TestSuggestBulletPoints (0.00s)
+    --- PASS: TestSuggestBulletPoints/success (0.00s)
+    --- PASS: TestSuggestBulletPoints/API_error (0.00s)
+    --- PASS: TestSuggestBulletPoints/empty_response (0.00s)
+    --- PASS: TestSuggestBulletPoints/invalid_JSON (0.00s)
+=== RUN   TestSuggestSummary
+=== RUN   TestSuggestSummary/success
+=== RUN   TestSuggestSummary/truncates_long_summary
+=== RUN   TestSuggestSummary/API_error
+=== RUN   TestSuggestSummary/empty_response
+--- PASS: TestSuggestSummary (0.00s)
+    --- PASS: TestSuggestSummary/success (0.00s)
+    --- PASS: TestSuggestSummary/truncates_long_summary (0.00s)
+    --- PASS: TestSuggestSummary/API_error (0.00s)
+    --- PASS: TestSuggestSummary/empty_response (0.00s)
+=== RUN   TestImproveText
+=== RUN   TestImproveText/success
+=== RUN   TestImproveText/truncates_long_result
+=== RUN   TestImproveText/API_error
+=== RUN   TestImproveText/empty_response
+=== RUN   TestImproveText/invalid_JSON
+--- PASS: TestImproveText (0.00s)
+    --- PASS: TestImproveText/success (0.00s)
+    --- PASS: TestImproveText/truncates_long_result (0.00s)
+    --- PASS: TestImproveText/API_error (0.00s)
+    --- PASS: TestImproveText/empty_response (0.00s)
+    --- PASS: TestImproveText/invalid_JSON (0.00s)
+=== RUN   TestAnalyzeATS
+=== RUN   TestAnalyzeATS/success
+=== RUN   TestAnalyzeATS/clamps_score_above_100
+=== RUN   TestAnalyzeATS/with_non-english_locale
+=== RUN   TestAnalyzeATS/API_error
+=== RUN   TestAnalyzeATS/empty_response
+--- PASS: TestAnalyzeATS (0.00s)
+    --- PASS: TestAnalyzeATS/success (0.00s)
+    --- PASS: TestAnalyzeATS/clamps_score_above_100 (0.00s)
+    --- PASS: TestAnalyzeATS/with_non-english_locale (0.00s)
+    --- PASS: TestAnalyzeATS/API_error (0.00s)
+    --- PASS: TestAnalyzeATS/empty_response (0.00s)
+=== RUN   TestParseResumeText
+=== RUN   TestParseResumeText/success
+=== RUN   TestParseResumeText/validates_parsed_resume
+=== RUN   TestParseResumeText/API_error
+=== RUN   TestParseResumeText/empty_response
+=== RUN   TestParseResumeText/invalid_JSON
+--- PASS: TestParseResumeText (0.00s)
+    --- PASS: TestParseResumeText/success (0.00s)
+    --- PASS: TestParseResumeText/validates_parsed_resume (0.00s)
+    --- PASS: TestParseResumeText/API_error (0.00s)
+    --- PASS: TestParseResumeText/empty_response (0.00s)
+    --- PASS: TestParseResumeText/invalid_JSON (0.00s)
+=== RUN   TestGenerateCoverLetter
+=== RUN   TestGenerateCoverLetter/success
+=== RUN   TestGenerateCoverLetter/truncates_paragraphs_beyond_3
+=== RUN   TestGenerateCoverLetter/empty_paragraphs_returns_error
+=== RUN   TestGenerateCoverLetter/API_error
+=== RUN   TestGenerateCoverLetter/empty_response
+=== RUN   TestGenerateCoverLetter/with_minimal_input_uses_generic_message
+=== RUN   TestGenerateCoverLetter/truncates_long_greeting_and_closing
+--- PASS: TestGenerateCoverLetter (0.00s)
+    --- PASS: TestGenerateCoverLetter/success (0.00s)
+    --- PASS: TestGenerateCoverLetter/truncates_paragraphs_beyond_3 (0.00s)
+    --- PASS: TestGenerateCoverLetter/empty_paragraphs_returns_error (0.00s)
+    --- PASS: TestGenerateCoverLetter/API_error (0.00s)
+    --- PASS: TestGenerateCoverLetter/empty_response (0.00s)
+    --- PASS: TestGenerateCoverLetter/with_minimal_input_uses_generic_message (0.00s)
+    --- PASS: TestGenerateCoverLetter/truncates_long_greeting_and_closing (0.00s)
+=== RUN   TestValidateParsedResume
+=== RUN   TestValidateParsedResume/truncates_long_text_fields
+=== RUN   TestValidateParsedResume/limits_experience_count
+=== RUN   TestValidateParsedResume/truncates_experience_fields
+=== RUN   TestValidateParsedResume/limits_education_count
+=== RUN   TestValidateParsedResume/truncates_education_fields
+=== RUN   TestValidateParsedResume/limits_skills_count
+=== RUN   TestValidateParsedResume/limits_languages_count
+=== RUN   TestValidateParsedResume/limits_certifications_count
+=== RUN   TestValidateParsedResume/valid_resume_unchanged
+=== RUN   TestValidateParsedResume/empty_resume_no_panic
+--- PASS: TestValidateParsedResume (0.00s)
+    --- PASS: TestValidateParsedResume/truncates_long_text_fields (0.00s)
+    --- PASS: TestValidateParsedResume/limits_experience_count (0.00s)
+    --- PASS: TestValidateParsedResume/truncates_experience_fields (0.00s)
+    --- PASS: TestValidateParsedResume/limits_education_count (0.00s)
+    --- PASS: TestValidateParsedResume/truncates_education_fields (0.00s)
+    --- PASS: TestValidateParsedResume/limits_skills_count (0.00s)
+    --- PASS: TestValidateParsedResume/limits_languages_count (0.00s)
+    --- PASS: TestValidateParsedResume/limits_certifications_count (0.00s)
+    --- PASS: TestValidateParsedResume/valid_resume_unchanged (0.00s)
+    --- PASS: TestValidateParsedResume/empty_resume_no_panic (0.00s)
+=== RUN   TestExtractTextFromResponse_AdditionalCases
+=== RUN   TestExtractTextFromResponse_AdditionalCases/array_starting_with_bracket
+=== RUN   TestExtractTextFromResponse_AdditionalCases/nested_JSON_extraction
+=== RUN   TestExtractTextFromResponse_AdditionalCases/whitespace_only
+=== RUN   TestExtractTextFromResponse_AdditionalCases/code_fence_with_json_label
+=== RUN   TestExtractTextFromResponse_AdditionalCases/code_fence_with_plain_label
+=== RUN   TestExtractTextFromResponse_AdditionalCases/multiple_text_blocks
+=== RUN   TestExtractTextFromResponse_AdditionalCases/thinking_block_ignored
+--- PASS: TestExtractTextFromResponse_AdditionalCases (0.00s)
+    --- PASS: TestExtractTextFromResponse_AdditionalCases/array_starting_with_bracket (0.00s)
+    --- PASS: TestExtractTextFromResponse_AdditionalCases/nested_JSON_extraction (0.00s)
+    --- PASS: TestExtractTextFromResponse_AdditionalCases/whitespace_only (0.00s)
+    --- PASS: TestExtractTextFromResponse_AdditionalCases/code_fence_with_json_label (0.00s)
+    --- PASS: TestExtractTextFromResponse_AdditionalCases/code_fence_with_plain_label (0.00s)
+    --- PASS: TestExtractTextFromResponse_AdditionalCases/multiple_text_blocks (0.00s)
+    --- PASS: TestExtractTextFromResponse_AdditionalCases/thinking_block_ignored (0.00s)
+=== RUN   TestCoverLetterContentJSON
+--- PASS: TestCoverLetterContentJSON (0.00s)
+=== RUN   TestParsedJobJSON
+--- PASS: TestParsedJobJSON (0.00s)
+=== RUN   TestMatchResultJSON
+--- PASS: TestMatchResultJSON (0.00s)
+=== RUN   TestATSCheckResultJSON
+--- PASS: TestATSCheckResultJSON (0.00s)
+=== RUN   TestParsedResumeJSON
+--- PASS: TestParsedResumeJSON (0.00s)
+=== RUN   TestAntiInjectionClause
+--- PASS: TestAntiInjectionClause (0.00s)
+=== RUN   TestSanitizeForLLM
+=== RUN   TestSanitizeForLLM/normal_text
+=== RUN   TestSanitizeForLLM/text_with_null_bytes
+=== RUN   TestSanitizeForLLM/text_exceeding_maxLen_is_truncated_rune-safe
+=== RUN   TestSanitizeForLLM/empty_string
+=== RUN   TestSanitizeForLLM/unicode_text_within_limit
+=== RUN   TestSanitizeForLLM/unicode_text_truncated_at_rune_boundary
+=== RUN   TestSanitizeForLLM/null_bytes_and_truncation_combined
+--- PASS: TestSanitizeForLLM (0.00s)
+    --- PASS: TestSanitizeForLLM/normal_text (0.00s)
+    --- PASS: TestSanitizeForLLM/text_with_null_bytes (0.00s)
+    --- PASS: TestSanitizeForLLM/text_exceeding_maxLen_is_truncated_rune-safe (0.00s)
+    --- PASS: TestSanitizeForLLM/empty_string (0.00s)
+    --- PASS: TestSanitizeForLLM/unicode_text_within_limit (0.00s)
+    --- PASS: TestSanitizeForLLM/unicode_text_truncated_at_rune_boundary (0.00s)
+    --- PASS: TestSanitizeForLLM/null_bytes_and_truncation_combined (0.00s)
+=== RUN   TestTruncateString
+=== RUN   TestTruncateString/short_string_no_truncation
+=== RUN   TestTruncateString/exact_length
+=== RUN   TestTruncateString/exceeds_maxLen
+=== RUN   TestTruncateString/empty_string
+=== RUN   TestTruncateString/unicode_multibyte_chars_within_limit
+=== RUN   TestTruncateString/unicode_multibyte_chars_truncated
+=== RUN   TestTruncateString/emoji_truncation
+--- PASS: TestTruncateString (0.00s)
+    --- PASS: TestTruncateString/short_string_no_truncation (0.00s)
+    --- PASS: TestTruncateString/exact_length (0.00s)
+    --- PASS: TestTruncateString/exceeds_maxLen (0.00s)
+    --- PASS: TestTruncateString/empty_string (0.00s)
+    --- PASS: TestTruncateString/unicode_multibyte_chars_within_limit (0.00s)
+    --- PASS: TestTruncateString/unicode_multibyte_chars_truncated (0.00s)
+    --- PASS: TestTruncateString/emoji_truncation (0.00s)
+=== RUN   TestLocaleToLanguage
+=== RUN   TestLocaleToLanguage/Russian
+=== RUN   TestLocaleToLanguage/Ukrainian_ua
+=== RUN   TestLocaleToLanguage/Ukrainian_uk
+=== RUN   TestLocaleToLanguage/German
+=== RUN   TestLocaleToLanguage/French
+=== RUN   TestLocaleToLanguage/Spanish
+=== RUN   TestLocaleToLanguage/Portuguese
+=== RUN   TestLocaleToLanguage/Italian
+=== RUN   TestLocaleToLanguage/Polish
+=== RUN   TestLocaleToLanguage/English_explicit
+=== RUN   TestLocaleToLanguage/unknown_locale
+=== RUN   TestLocaleToLanguage/empty_string
+=== RUN   TestLocaleToLanguage/mixed_case_RU
+=== RUN   TestLocaleToLanguage/mixed_case_De
+=== RUN   TestLocaleToLanguage/whitespace_padded
+--- PASS: TestLocaleToLanguage (0.00s)
+    --- PASS: TestLocaleToLanguage/Russian (0.00s)
+    --- PASS: TestLocaleToLanguage/Ukrainian_ua (0.00s)
+    --- PASS: TestLocaleToLanguage/Ukrainian_uk (0.00s)
+    --- PASS: TestLocaleToLanguage/German (0.00s)
+    --- PASS: TestLocaleToLanguage/French (0.00s)
+    --- PASS: TestLocaleToLanguage/Spanish (0.00s)
+    --- PASS: TestLocaleToLanguage/Portuguese (0.00s)
+    --- PASS: TestLocaleToLanguage/Italian (0.00s)
+    --- PASS: TestLocaleToLanguage/Polish (0.00s)
+    --- PASS: TestLocaleToLanguage/English_explicit (0.00s)
+    --- PASS: TestLocaleToLanguage/unknown_locale (0.00s)
+    --- PASS: TestLocaleToLanguage/empty_string (0.00s)
+    --- PASS: TestLocaleToLanguage/mixed_case_RU (0.00s)
+    --- PASS: TestLocaleToLanguage/mixed_case_De (0.00s)
+    --- PASS: TestLocaleToLanguage/whitespace_padded (0.00s)
+=== RUN   TestClampScore
+=== RUN   TestClampScore/negative
+=== RUN   TestClampScore/zero
+=== RUN   TestClampScore/mid_range
+=== RUN   TestClampScore/max_boundary
+=== RUN   TestClampScore/over_100
+--- PASS: TestClampScore (0.00s)
+    --- PASS: TestClampScore/negative (0.00s)
+    --- PASS: TestClampScore/zero (0.00s)
+    --- PASS: TestClampScore/mid_range (0.00s)
+    --- PASS: TestClampScore/max_boundary (0.00s)
+    --- PASS: TestClampScore/over_100 (0.00s)
+=== RUN   TestValidateParsedJob
+=== RUN   TestValidateParsedJob/truncates_long_title
+=== RUN   TestValidateParsedJob/truncates_long_description
+=== RUN   TestValidateParsedJob/truncates_long_company_name
+=== RUN   TestValidateParsedJob/truncates_long_source
+=== RUN   TestValidateParsedJob/handles_nil_optional_fields
+=== RUN   TestValidateParsedJob/leaves_short_fields_unchanged
+--- PASS: TestValidateParsedJob (0.00s)
+    --- PASS: TestValidateParsedJob/truncates_long_title (0.00s)
+    --- PASS: TestValidateParsedJob/truncates_long_description (0.00s)
+    --- PASS: TestValidateParsedJob/truncates_long_company_name (0.00s)
+    --- PASS: TestValidateParsedJob/truncates_long_source (0.00s)
+    --- PASS: TestValidateParsedJob/handles_nil_optional_fields (0.00s)
+    --- PASS: TestValidateParsedJob/leaves_short_fields_unchanged (0.00s)
+=== RUN   TestValidateMatchResult
+=== RUN   TestValidateMatchResult/clamps_overall_score
+=== RUN   TestValidateMatchResult/clamps_negative_overall_score
+=== RUN   TestValidateMatchResult/truncates_summary
+=== RUN   TestValidateMatchResult/limits_categories_count
+=== RUN   TestValidateMatchResult/clamps_category_scores_and_truncates_details
+=== RUN   TestValidateMatchResult/limits_missing_keywords_count
+=== RUN   TestValidateMatchResult/limits_strengths_count
+=== RUN   TestValidateMatchResult/valid_result_unchanged
+--- PASS: TestValidateMatchResult (0.00s)
+    --- PASS: TestValidateMatchResult/clamps_overall_score (0.00s)
+    --- PASS: TestValidateMatchResult/clamps_negative_overall_score (0.00s)
+    --- PASS: TestValidateMatchResult/truncates_summary (0.00s)
+    --- PASS: TestValidateMatchResult/limits_categories_count (0.00s)
+    --- PASS: TestValidateMatchResult/clamps_category_scores_and_truncates_details (0.00s)
+    --- PASS: TestValidateMatchResult/limits_missing_keywords_count (0.00s)
+    --- PASS: TestValidateMatchResult/limits_strengths_count (0.00s)
+    --- PASS: TestValidateMatchResult/valid_result_unchanged (0.00s)
+=== RUN   TestExtractTextFromResponse
+=== RUN   TestExtractTextFromResponse/empty_content
+=== RUN   TestExtractTextFromResponse/single_text_block
+=== RUN   TestExtractTextFromResponse/multiple_text_blocks_concatenated
+=== RUN   TestExtractTextFromResponse/ignores_non-text_blocks
+=== RUN   TestExtractTextFromResponse/strips_markdown_code_fences
+=== RUN   TestExtractTextFromResponse/extracts_JSON_object_from_surrounding_text
+=== RUN   TestExtractTextFromResponse/text_starting_with_brace_returned_as_is
+--- PASS: TestExtractTextFromResponse (0.00s)
+    --- PASS: TestExtractTextFromResponse/empty_content (0.00s)
+    --- PASS: TestExtractTextFromResponse/single_text_block (0.00s)
+    --- PASS: TestExtractTextFromResponse/multiple_text_blocks_concatenated (0.00s)
+    --- PASS: TestExtractTextFromResponse/ignores_non-text_blocks (0.00s)
+    --- PASS: TestExtractTextFromResponse/strips_markdown_code_fences (0.00s)
+    --- PASS: TestExtractTextFromResponse/extracts_JSON_object_from_surrounding_text (0.00s)
+    --- PASS: TestExtractTextFromResponse/text_starting_with_brace_returned_as_is (0.00s)
+=== RUN   TestInterviewUsesUntrustedDataBoundary
+--- PASS: TestInterviewUsesUntrustedDataBoundary (0.00s)
+=== RUN   TestInterviewRejectsUnknownKindAndUnboundedOutput
+--- PASS: TestInterviewRejectsUnknownKindAndUnboundedOutput (0.00s)
+=== RUN   TestInterviewDispatchReleasesBeforeResponseAndNeverRedirects
+--- PASS: TestInterviewDispatchReleasesBeforeResponseAndNeverRedirects (0.01s)
+=== RUN   TestInterviewTransportRemovesReplayBody
+--- PASS: TestInterviewTransportRemovesReplayBody (0.00s)
+=== RUN   TestTailorResume
+=== RUN   TestTailorResume/structured_response
+=== RUN   TestTailorResume/unknown_fields_rejected
+=== RUN   TestTailorResume/malformed_JSON
+=== RUN   TestTailorResume/trailing_object
+=== RUN   TestTailorResume/token_truncation
+=== RUN   TestTailorResume/provider_error
+--- PASS: TestTailorResume (0.00s)
+    --- PASS: TestTailorResume/structured_response (0.00s)
+    --- PASS: TestTailorResume/unknown_fields_rejected (0.00s)
+    --- PASS: TestTailorResume/malformed_JSON (0.00s)
+    --- PASS: TestTailorResume/trailing_object (0.00s)
+    --- PASS: TestTailorResume/token_truncation (0.00s)
+    --- PASS: TestTailorResume/provider_error (0.00s)
+=== RUN   TestTailorResumeBoundsInput
+--- PASS: TestTailorResumeBoundsInput (0.00s)
+PASS
+ok  	github.com/andreypavlenko/jobber/internal/platform/ai	1.704s
+=== RUN   TestBaseURLFor
+--- PASS: TestBaseURLFor (0.00s)
+=== RUN   TestNewClient_DefaultsToTheTestHost
+--- PASS: TestNewClient_DefaultsToTheTestHost (0.00s)
+=== RUN   TestClient_NotConfigured
+--- PASS: TestClient_NotConfigured (0.00s)
+=== RUN   TestClient_CreateCheckout
+=== RUN   TestClient_CreateCheckout/sends_the_key_and_the_request,_returns_the_hosted_URL
+=== RUN   TestClient_CreateCheckout/omits_optional_fields_that_are_empty
+=== RUN   TestClient_CreateCheckout/a_response_with_no_URL_is_an_error
+=== RUN   TestClient_CreateCheckout/a_body_that_is_not_JSON_is_an_error
+--- PASS: TestClient_CreateCheckout (0.02s)
+    --- PASS: TestClient_CreateCheckout/sends_the_key_and_the_request,_returns_the_hosted_URL (0.01s)
+    --- PASS: TestClient_CreateCheckout/omits_optional_fields_that_are_empty (0.00s)
+    --- PASS: TestClient_CreateCheckout/a_response_with_no_URL_is_an_error (0.00s)
+    --- PASS: TestClient_CreateCheckout/a_body_that_is_not_JSON_is_an_error (0.00s)
+=== RUN   TestClient_SubscriptionManagement
+=== RUN   TestClient_SubscriptionManagement/upgrade_prorates_immediately
+=== RUN   TestClient_SubscriptionManagement/cancel_is_scheduled_for_the_end_of_the_period
+=== RUN   TestClient_SubscriptionManagement/a_subscription_ID_cannot_escape_its_path_segment
+=== RUN   TestClient_SubscriptionManagement/portal_link
+=== RUN   TestClient_SubscriptionManagement/a_portal_response_with_no_link_is_an_error
+--- PASS: TestClient_SubscriptionManagement (0.01s)
+    --- PASS: TestClient_SubscriptionManagement/upgrade_prorates_immediately (0.00s)
+    --- PASS: TestClient_SubscriptionManagement/cancel_is_scheduled_for_the_end_of_the_period (0.00s)
+    --- PASS: TestClient_SubscriptionManagement/a_subscription_ID_cannot_escape_its_path_segment (0.00s)
+    --- PASS: TestClient_SubscriptionManagement/portal_link (0.00s)
+    --- PASS: TestClient_SubscriptionManagement/a_portal_response_with_no_link_is_an_error (0.00s)
+=== RUN   TestClient_Errors
+=== RUN   TestClient_Errors/a_4xx_surfaces_its_status_and_a_truncated_body
+=== RUN   TestClient_Errors/4xx_responses_never_trip_the_breaker
+=== RUN   TestClient_Errors/a_caller_that_gives_up_cannot_re-close_a_breaker_that_Creem_tripped
+=== RUN   TestClient_Errors/a_caller_that_gives_up_never_counts_against_Creem
+=== RUN   TestClient_Errors/a_timeout_still_counts_against_Creem,_unlike_a_caller_giving_up
+=== RUN   TestClient_Errors/repeated_server_faults_open_the_breaker_instead_of_hammering_Creem
+=== RUN   TestClient_Errors/a_response_larger_than_the_cap_is_cut_off
+--- PASS: TestClient_Errors (0.18s)
+    --- PASS: TestClient_Errors/a_4xx_surfaces_its_status_and_a_truncated_body (0.00s)
+    --- PASS: TestClient_Errors/4xx_responses_never_trip_the_breaker (0.01s)
+    --- PASS: TestClient_Errors/a_caller_that_gives_up_cannot_re-close_a_breaker_that_Creem_tripped (0.00s)
+    --- PASS: TestClient_Errors/a_caller_that_gives_up_never_counts_against_Creem (0.00s)
+    --- PASS: TestClient_Errors/a_timeout_still_counts_against_Creem,_unlike_a_caller_giving_up (0.08s)
+    --- PASS: TestClient_Errors/repeated_server_faults_open_the_breaker_instead_of_hammering_Creem (0.00s)
+    --- PASS: TestClient_Errors/a_response_larger_than_the_cap_is_cut_off (0.08s)
+=== RUN   TestVerifySignature
+=== RUN   TestVerifySignature/valid
+=== RUN   TestVerifySignature/valid_with_surrounding_whitespace
+=== RUN   TestVerifySignature/upper-case_hex_is_the_same_digest
+=== RUN   TestVerifySignature/no_secret_configured
+=== RUN   TestVerifySignature/no_signature
+=== RUN   TestVerifySignature/blank_signature
+=== RUN   TestVerifySignature/not_hex
+=== RUN   TestVerifySignature/truncated
+=== RUN   TestVerifySignature/odd_length
+=== RUN   TestVerifySignature/wrong_secret
+=== RUN   TestVerifySignature/body_changed_after_signing
+--- PASS: TestVerifySignature (0.00s)
+    --- PASS: TestVerifySignature/valid (0.00s)
+    --- PASS: TestVerifySignature/valid_with_surrounding_whitespace (0.00s)
+    --- PASS: TestVerifySignature/upper-case_hex_is_the_same_digest (0.00s)
+    --- PASS: TestVerifySignature/no_secret_configured (0.00s)
+    --- PASS: TestVerifySignature/no_signature (0.00s)
+    --- PASS: TestVerifySignature/blank_signature (0.00s)
+    --- PASS: TestVerifySignature/not_hex (0.00s)
+    --- PASS: TestVerifySignature/truncated (0.00s)
+    --- PASS: TestVerifySignature/odd_length (0.00s)
+    --- PASS: TestVerifySignature/wrong_secret (0.00s)
+    --- PASS: TestVerifySignature/body_changed_after_signing (0.00s)
+=== RUN   TestParseEvent
+=== RUN   TestParseEvent/reads_the_envelope
+=== RUN   TestParseEvent/rejects_a_body_that_is_not_JSON
+--- PASS: TestParseEvent (0.00s)
+    --- PASS: TestParseEvent/reads_the_envelope (0.00s)
+    --- PASS: TestParseEvent/rejects_a_body_that_is_not_JSON (0.00s)
+=== RUN   TestParseSubscription
+=== RUN   TestParseSubscription/reads_an_expanded_object
+=== RUN   TestParseSubscription/reads_bare_ID_strings
+=== RUN   TestParseSubscription/falls_back_to_the_item's_product_when_the_product_is_absent
+=== RUN   TestParseSubscription/test_and_sandbox_objects_are_not_live,_a_missing_mode_is_unknown
+=== RUN   TestParseSubscription/timestamps_in_epoch_milliseconds_are_understood
+=== RUN   TestParseSubscription/an_unusable_timestamp_is_absent_instead_of_failing_the_event
+=== RUN   TestParseSubscription/an_object_with_no_ID_is_rejected
+=== RUN   TestParseSubscription/a_payload_that_is_not_an_object_is_rejected
+--- PASS: TestParseSubscription (0.00s)
+    --- PASS: TestParseSubscription/reads_an_expanded_object (0.00s)
+    --- PASS: TestParseSubscription/reads_bare_ID_strings (0.00s)
+    --- PASS: TestParseSubscription/falls_back_to_the_item's_product_when_the_product_is_absent (0.00s)
+    --- PASS: TestParseSubscription/test_and_sandbox_objects_are_not_live,_a_missing_mode_is_unknown (0.00s)
+    --- PASS: TestParseSubscription/timestamps_in_epoch_milliseconds_are_understood (0.00s)
+    --- PASS: TestParseSubscription/an_unusable_timestamp_is_absent_instead_of_failing_the_event (0.00s)
+    --- PASS: TestParseSubscription/an_object_with_no_ID_is_rejected (0.00s)
+    --- PASS: TestParseSubscription/a_payload_that_is_not_an_object_is_rejected (0.00s)
+=== RUN   TestParseCompletedCheckout
+--- PASS: TestParseCompletedCheckout (0.00s)
+=== RUN   TestParseCompletedCheckout_RejectsAnObjectThatIsNotJSON
+--- PASS: TestParseCompletedCheckout_RejectsAnObjectThatIsNotJSON (0.00s)
+PASS
+ok  	github.com/andreypavlenko/jobber/modules/subscriptions/creem	1.865s
+=== RUN   TestAIRequestScopeOnlyBoundsAIConsumers
+=== RUN   TestAIRequestScopeOnlyBoundsAIConsumers//api/v1/match-score
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+[GIN-debug] GET    /api/v1/match-score       --> github.com/andreypavlenko/jobber/modules/subscriptions/handler.TestAIRequestScopeOnlyBoundsAIConsumers.func1.1 (2 handlers)
+=== RUN   TestAIRequestScopeOnlyBoundsAIConsumers//api/v1/resume-builder/ai/improve-text
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+[GIN-debug] GET    /api/v1/resume-builder/ai/improve-text --> github.com/andreypavlenko/jobber/modules/subscriptions/handler.TestAIRequestScopeOnlyBoundsAIConsumers.func1.1 (2 handlers)
+=== RUN   TestAIRequestScopeOnlyBoundsAIConsumers//api/v1/resume-builder/:id/ats-check
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+[GIN-debug] GET    /api/v1/resume-builder/:id/ats-check --> github.com/andreypavlenko/jobber/modules/subscriptions/handler.TestAIRequestScopeOnlyBoundsAIConsumers.func1.1 (2 handlers)
+=== RUN   TestAIRequestScopeOnlyBoundsAIConsumers//api/v1/resumes/:id/autofill-profile
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+[GIN-debug] GET    /api/v1/resumes/:id/autofill-profile --> github.com/andreypavlenko/jobber/modules/subscriptions/handler.TestAIRequestScopeOnlyBoundsAIConsumers.func1.1 (2 handlers)
+=== RUN   TestAIRequestScopeOnlyBoundsAIConsumers//api/v1/jobs/:id/resume-tailoring
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+[GIN-debug] GET    /api/v1/jobs/:id/resume-tailoring --> github.com/andreypavlenko/jobber/modules/subscriptions/handler.TestAIRequestScopeOnlyBoundsAIConsumers.func1.1 (2 handlers)
+=== RUN   TestAIRequestScopeOnlyBoundsAIConsumers//api/v1/resumes/:id/export
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+[GIN-debug] GET    /api/v1/resumes/:id/export --> github.com/andreypavlenko/jobber/modules/subscriptions/handler.TestAIRequestScopeOnlyBoundsAIConsumers.func1.1 (2 handlers)
+--- PASS: TestAIRequestScopeOnlyBoundsAIConsumers (0.00s)
+    --- PASS: TestAIRequestScopeOnlyBoundsAIConsumers//api/v1/match-score (0.00s)
+    --- PASS: TestAIRequestScopeOnlyBoundsAIConsumers//api/v1/resume-builder/ai/improve-text (0.00s)
+    --- PASS: TestAIRequestScopeOnlyBoundsAIConsumers//api/v1/resume-builder/:id/ats-check (0.00s)
+    --- PASS: TestAIRequestScopeOnlyBoundsAIConsumers//api/v1/resumes/:id/autofill-profile (0.00s)
+    --- PASS: TestAIRequestScopeOnlyBoundsAIConsumers//api/v1/jobs/:id/resume-tailoring (0.00s)
+    --- PASS: TestAIRequestScopeOnlyBoundsAIConsumers//api/v1/resumes/:id/export (0.00s)
+=== RUN   TestSubscriptionHandler_CreateCheckoutSession_Success
+--- PASS: TestSubscriptionHandler_CreateCheckoutSession_Success (0.00s)
+=== RUN   TestSubscriptionHandler_ChangePlan_Success
+--- PASS: TestSubscriptionHandler_ChangePlan_Success (0.00s)
+=== RUN   TestSubscriptionHandler_CancelSubscription_Success
+--- PASS: TestSubscriptionHandler_CancelSubscription_Success (0.00s)
+=== RUN   TestSubscriptionHandler_CreatePortalSession_Success
+--- PASS: TestSubscriptionHandler_CreatePortalSession_Success (0.00s)
+=== RUN   TestWebhookHandler_OversizedBodyIsRejected
+--- PASS: TestWebhookHandler_OversizedBodyIsRejected (0.01s)
+=== RUN   TestWebhookHandler_BodyReadFailure
+--- PASS: TestWebhookHandler_BodyReadFailure (0.00s)
+=== RUN   TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber
+=== RUN   TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber/paused_gets_409
+=== RUN   TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber/cancellation_scheduled_gets_409
+=== RUN   TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber/active_gets_409
+=== RUN   TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber/past_due_gets_409
+=== RUN   TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber/a_cancelled_subscriber_may_start_a_new_checkout
+--- PASS: TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber (0.00s)
+    --- PASS: TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber/paused_gets_409 (0.00s)
+    --- PASS: TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber/cancellation_scheduled_gets_409 (0.00s)
+    --- PASS: TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber/active_gets_409 (0.00s)
+    --- PASS: TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber/past_due_gets_409 (0.00s)
+    --- PASS: TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber/a_cancelled_subscriber_may_start_a_new_checkout (0.00s)
+=== RUN   TestSubscriptionHandler_CreateCheckoutSession_ProviderFailureIsAGenericError
+--- PASS: TestSubscriptionHandler_CreateCheckoutSession_ProviderFailureIsAGenericError (0.00s)
+=== RUN   TestSubscriptionHandler_GetSubscription
+=== RUN   TestSubscriptionHandler_GetSubscription/returns_subscription_successfully
+=== RUN   TestSubscriptionHandler_GetSubscription/auto-creates_free_subscription_when_not_found
+=== RUN   TestSubscriptionHandler_GetSubscription/returns_401_when_not_authenticated
+=== RUN   TestSubscriptionHandler_GetSubscription/returns_500_when_ensure_free_subscription_fails
+=== RUN   TestSubscriptionHandler_GetSubscription/returns_500_when_get_subscription_after_ensure_fails
+=== RUN   TestSubscriptionHandler_GetSubscription/returns_500_for_non-not-found_error
+--- PASS: TestSubscriptionHandler_GetSubscription (0.00s)
+    --- PASS: TestSubscriptionHandler_GetSubscription/returns_subscription_successfully (0.00s)
+    --- PASS: TestSubscriptionHandler_GetSubscription/auto-creates_free_subscription_when_not_found (0.00s)
+    --- PASS: TestSubscriptionHandler_GetSubscription/returns_401_when_not_authenticated (0.00s)
+    --- PASS: TestSubscriptionHandler_GetSubscription/returns_500_when_ensure_free_subscription_fails (0.00s)
+    --- PASS: TestSubscriptionHandler_GetSubscription/returns_500_when_get_subscription_after_ensure_fails (0.00s)
+    --- PASS: TestSubscriptionHandler_GetSubscription/returns_500_for_non-not-found_error (0.00s)
+=== RUN   TestSubscriptionHandler_GetCheckoutConfig
+=== RUN   TestSubscriptionHandler_GetCheckoutConfig/returns_checkout_config
+--- PASS: TestSubscriptionHandler_GetCheckoutConfig (0.00s)
+    --- PASS: TestSubscriptionHandler_GetCheckoutConfig/returns_checkout_config (0.00s)
+=== RUN   TestSubscriptionHandler_CreateCheckoutSession
+=== RUN   TestSubscriptionHandler_CreateCheckoutSession/returns_401_when_not_authenticated
+=== RUN   TestSubscriptionHandler_CreateCheckoutSession/rejects_an_unknown_plan
+=== RUN   TestSubscriptionHandler_CreateCheckoutSession/ignores_a_user_id_supplied_by_the_client
+--- PASS: TestSubscriptionHandler_CreateCheckoutSession (0.00s)
+    --- PASS: TestSubscriptionHandler_CreateCheckoutSession/returns_401_when_not_authenticated (0.00s)
+    --- PASS: TestSubscriptionHandler_CreateCheckoutSession/rejects_an_unknown_plan (0.00s)
+    --- PASS: TestSubscriptionHandler_CreateCheckoutSession/ignores_a_user_id_supplied_by_the_client (0.00s)
+=== RUN   TestSubscriptionHandler_CreatePortalSession
+=== RUN   TestSubscriptionHandler_CreatePortalSession/returns_401_when_not_authenticated
+=== RUN   TestSubscriptionHandler_CreatePortalSession/returns_404_when_the_user_has_no_billing_account
+=== RUN   TestSubscriptionHandler_CreatePortalSession/returns_500_when_the_provider_call_fails
+--- PASS: TestSubscriptionHandler_CreatePortalSession (0.00s)
+    --- PASS: TestSubscriptionHandler_CreatePortalSession/returns_401_when_not_authenticated (0.00s)
+    --- PASS: TestSubscriptionHandler_CreatePortalSession/returns_404_when_the_user_has_no_billing_account (0.00s)
+    --- PASS: TestSubscriptionHandler_CreatePortalSession/returns_500_when_the_provider_call_fails (0.00s)
+=== RUN   TestSubscriptionHandler_ChangePlan
+=== RUN   TestSubscriptionHandler_ChangePlan/returns_401_when_not_authenticated
+=== RUN   TestSubscriptionHandler_ChangePlan/returns_400_for_invalid_JSON
+=== RUN   TestSubscriptionHandler_ChangePlan/returns_400_for_missing_plan
+=== RUN   TestSubscriptionHandler_ChangePlan/returns_400_for_invalid_plan_name
+=== RUN   TestSubscriptionHandler_ChangePlan/returns_400_for_free_plan
+=== RUN   TestSubscriptionHandler_ChangePlan/returns_404_when_there_is_no_subscription_to_change
+=== RUN   TestSubscriptionHandler_ChangePlan/returns_500_when_the_provider_call_fails
+--- PASS: TestSubscriptionHandler_ChangePlan (0.00s)
+    --- PASS: TestSubscriptionHandler_ChangePlan/returns_401_when_not_authenticated (0.00s)
+    --- PASS: TestSubscriptionHandler_ChangePlan/returns_400_for_invalid_JSON (0.00s)
+    --- PASS: TestSubscriptionHandler_ChangePlan/returns_400_for_missing_plan (0.00s)
+    --- PASS: TestSubscriptionHandler_ChangePlan/returns_400_for_invalid_plan_name (0.00s)
+    --- PASS: TestSubscriptionHandler_ChangePlan/returns_400_for_free_plan (0.00s)
+    --- PASS: TestSubscriptionHandler_ChangePlan/returns_404_when_there_is_no_subscription_to_change (0.00s)
+    --- PASS: TestSubscriptionHandler_ChangePlan/returns_500_when_the_provider_call_fails (0.00s)
+=== RUN   TestSubscriptionHandler_CancelSubscription
+=== RUN   TestSubscriptionHandler_CancelSubscription/returns_401_when_not_authenticated
+=== RUN   TestSubscriptionHandler_CancelSubscription/returns_404_when_the_user_has_no_subscription_to_cancel
+=== RUN   TestSubscriptionHandler_CancelSubscription/returns_500_when_the_provider_call_fails
+--- PASS: TestSubscriptionHandler_CancelSubscription (0.00s)
+    --- PASS: TestSubscriptionHandler_CancelSubscription/returns_401_when_not_authenticated (0.00s)
+    --- PASS: TestSubscriptionHandler_CancelSubscription/returns_404_when_the_user_has_no_subscription_to_cancel (0.00s)
+    --- PASS: TestSubscriptionHandler_CancelSubscription/returns_500_when_the_provider_call_fails (0.00s)
+=== RUN   TestSubscriptionHandler_RegisterRoutes
+--- PASS: TestSubscriptionHandler_RegisterRoutes (0.00s)
+=== RUN   TestSubscriptionHandler_RegisterRoutes_PaymentsDisabled
+=== RUN   TestSubscriptionHandler_RegisterRoutes_PaymentsDisabled/GET_/subscription_is_registered
+--- PASS: TestSubscriptionHandler_RegisterRoutes_PaymentsDisabled (0.00s)
+    --- PASS: TestSubscriptionHandler_RegisterRoutes_PaymentsDisabled/GET_/subscription_is_registered (0.00s)
+=== RUN   TestWebhookHandler_RejectsUnverifiedPayloads
+=== RUN   TestWebhookHandler_RejectsUnverifiedPayloads/empty_body
+=== RUN   TestWebhookHandler_RejectsUnverifiedPayloads/missing_signature
+=== RUN   TestWebhookHandler_RejectsUnverifiedPayloads/wrong_signature
+=== RUN   TestWebhookHandler_RejectsUnverifiedPayloads/signature_for_a_different_body
+--- PASS: TestWebhookHandler_RejectsUnverifiedPayloads (0.00s)
+    --- PASS: TestWebhookHandler_RejectsUnverifiedPayloads/empty_body (0.00s)
+    --- PASS: TestWebhookHandler_RejectsUnverifiedPayloads/missing_signature (0.00s)
+    --- PASS: TestWebhookHandler_RejectsUnverifiedPayloads/wrong_signature (0.00s)
+    --- PASS: TestWebhookHandler_RejectsUnverifiedPayloads/signature_for_a_different_body (0.00s)
+=== RUN   TestWebhookHandler_AcknowledgesAnAppliedEvent
+--- PASS: TestWebhookHandler_AcknowledgesAnAppliedEvent (0.00s)
+=== RUN   TestWebhookHandler_AcknowledgesAnEventItDoesNotActOn
+--- PASS: TestWebhookHandler_AcknowledgesAnEventItDoesNotActOn (0.00s)
+=== RUN   TestWebhookHandler_LogsPermanentDropsLouderThanOrdinarySkips
+=== RUN   TestWebhookHandler_LogsPermanentDropsLouderThanOrdinarySkips/an_environment_mismatch_is_an_error
+=== RUN   TestWebhookHandler_LogsPermanentDropsLouderThanOrdinarySkips/a_customer_shared_by_two_users_is_an_error
+=== RUN   TestWebhookHandler_LogsPermanentDropsLouderThanOrdinarySkips/a_refund_is_a_warning
+=== RUN   TestWebhookHandler_LogsPermanentDropsLouderThanOrdinarySkips/an_event_Jobber_does_not_act_on_stays_informational
+--- PASS: TestWebhookHandler_LogsPermanentDropsLouderThanOrdinarySkips (0.00s)
+    --- PASS: TestWebhookHandler_LogsPermanentDropsLouderThanOrdinarySkips/an_environment_mismatch_is_an_error (0.00s)
+    --- PASS: TestWebhookHandler_LogsPermanentDropsLouderThanOrdinarySkips/a_customer_shared_by_two_users_is_an_error (0.00s)
+    --- PASS: TestWebhookHandler_LogsPermanentDropsLouderThanOrdinarySkips/a_refund_is_a_warning (0.00s)
+    --- PASS: TestWebhookHandler_LogsPermanentDropsLouderThanOrdinarySkips/an_event_Jobber_does_not_act_on_stays_informational (0.00s)
+=== RUN   TestWebhookHandler_ASecondLiveSubscriptionIsRetriedAndLoggedAsAnError
+--- PASS: TestWebhookHandler_ASecondLiveSubscriptionIsRetriedAndLoggedAsAnError (0.00s)
+=== RUN   TestWebhookHandler_AFailedEventAsksForRetry
+--- PASS: TestWebhookHandler_AFailedEventAsksForRetry (0.00s)
+=== RUN   TestWebhookHandler_MissingSecretAsksForRetry
+--- PASS: TestWebhookHandler_MissingSecretAsksForRetry (0.00s)
+=== RUN   TestWebhookHandler_RegisterRoutes
+=== RUN   TestWebhookHandler_RegisterRoutes/the_route_is_registered
+=== RUN   TestWebhookHandler_RegisterRoutes/the_rate_limiter_runs_in_front_of_it
+--- PASS: TestWebhookHandler_RegisterRoutes (0.00s)
+    --- PASS: TestWebhookHandler_RegisterRoutes/the_route_is_registered (0.00s)
+    --- PASS: TestWebhookHandler_RegisterRoutes/the_rate_limiter_runs_in_front_of_it (0.00s)
+PASS
+ok  	github.com/andreypavlenko/jobber/modules/subscriptions/handler	1.831s
+?   	github.com/andreypavlenko/jobber/modules/subscriptions/model	[no test files]
+?   	github.com/andreypavlenko/jobber/modules/subscriptions/ports	[no test files]
+=== RUN   TestIntegrationApplySubscriptionEventOrdering
+    subscription_repository_integration_test.go:167: TEST_DATABASE_URL is not set — skipping live-PostgreSQL test
+--- SKIP: TestIntegrationApplySubscriptionEventOrdering (0.00s)
+=== RUN   TestIntegrationApplySubscriptionEventCancellationTie
+    subscription_repository_integration_test.go:293: TEST_DATABASE_URL is not set — skipping live-PostgreSQL test
+--- SKIP: TestIntegrationApplySubscriptionEventCancellationTie (0.00s)
+=== RUN   TestIntegrationApplySubscriptionEventAccountConflict
+    subscription_repository_integration_test.go:346: TEST_DATABASE_URL is not set — skipping live-PostgreSQL test
+--- SKIP: TestIntegrationApplySubscriptionEventAccountConflict (0.00s)
+=== RUN   TestIntegrationApplySubscriptionEventConcurrentDeliveries
+    subscription_repository_integration_test.go:407: TEST_DATABASE_URL is not set — skipping live-PostgreSQL test
+--- SKIP: TestIntegrationApplySubscriptionEventConcurrentDeliveries (0.00s)
+=== RUN   TestIntegrationApplySubscriptionEventLinkGuard
+    subscription_repository_integration_test.go:585: TEST_DATABASE_URL is not set — skipping live-PostgreSQL test
+--- SKIP: TestIntegrationApplySubscriptionEventLinkGuard (0.00s)
+=== RUN   TestIntegrationApplySubscriptionEventConcurrentActivations
+    subscription_repository_integration_test.go:633: TEST_DATABASE_URL is not set — skipping live-PostgreSQL test
+--- SKIP: TestIntegrationApplySubscriptionEventConcurrentActivations (0.00s)
+=== RUN   TestSubscriptionRepository_GetByUserID
+=== RUN   TestSubscriptionRepository_GetByUserID/returns_subscription
+=== RUN   TestSubscriptionRepository_GetByUserID/maps_no_rows_to_ErrSubscriptionNotFound
+=== RUN   TestSubscriptionRepository_GetByUserID/propagates_generic_db_error
+--- PASS: TestSubscriptionRepository_GetByUserID (0.00s)
+    --- PASS: TestSubscriptionRepository_GetByUserID/returns_subscription (0.00s)
+    --- PASS: TestSubscriptionRepository_GetByUserID/maps_no_rows_to_ErrSubscriptionNotFound (0.00s)
+    --- PASS: TestSubscriptionRepository_GetByUserID/propagates_generic_db_error (0.00s)
+=== RUN   TestSubscriptionRepository_GetByExternalSubscriptionID
+=== RUN   TestSubscriptionRepository_GetByExternalSubscriptionID/returns_subscription
+=== RUN   TestSubscriptionRepository_GetByExternalSubscriptionID/maps_no_rows_to_ErrSubscriptionNotFound
+=== RUN   TestSubscriptionRepository_GetByExternalSubscriptionID/propagates_generic_db_error
+--- PASS: TestSubscriptionRepository_GetByExternalSubscriptionID (0.00s)
+    --- PASS: TestSubscriptionRepository_GetByExternalSubscriptionID/returns_subscription (0.00s)
+    --- PASS: TestSubscriptionRepository_GetByExternalSubscriptionID/maps_no_rows_to_ErrSubscriptionNotFound (0.00s)
+    --- PASS: TestSubscriptionRepository_GetByExternalSubscriptionID/propagates_generic_db_error (0.00s)
+=== RUN   TestSubscriptionRepository_Counts
+=== RUN   TestSubscriptionRepository_Counts/CountUserJobs
+=== RUN   TestSubscriptionRepository_Counts/CountUserJobs/returns_count
+=== RUN   TestSubscriptionRepository_Counts/CountUserJobs/propagates_db_error
+=== RUN   TestSubscriptionRepository_Counts/CountUserResumes
+=== RUN   TestSubscriptionRepository_Counts/CountUserResumes/returns_count
+=== RUN   TestSubscriptionRepository_Counts/CountUserResumes/propagates_db_error
+=== RUN   TestSubscriptionRepository_Counts/CountUserResumes_leaves_out_unfinalized_upload_placeholders
+=== RUN   TestSubscriptionRepository_Counts/CountUserResumes_leaves_out_unfinalized_upload_placeholders/returns_count
+=== RUN   TestSubscriptionRepository_Counts/CountUserResumes_leaves_out_unfinalized_upload_placeholders/propagates_db_error
+=== RUN   TestSubscriptionRepository_Counts/CountUserAIRequestsThisMonth
+=== RUN   TestSubscriptionRepository_Counts/CountUserAIRequestsThisMonth/returns_count
+=== RUN   TestSubscriptionRepository_Counts/CountUserAIRequestsThisMonth/propagates_db_error
+=== RUN   TestSubscriptionRepository_Counts/CountUserJobParsesThisMonth
+=== RUN   TestSubscriptionRepository_Counts/CountUserJobParsesThisMonth/returns_count
+=== RUN   TestSubscriptionRepository_Counts/CountUserJobParsesThisMonth/propagates_db_error
+=== RUN   TestSubscriptionRepository_Counts/CountUserResumeBuilders
+=== RUN   TestSubscriptionRepository_Counts/CountUserResumeBuilders/returns_count
+=== RUN   TestSubscriptionRepository_Counts/CountUserResumeBuilders/propagates_db_error
+=== RUN   TestSubscriptionRepository_Counts/CountUserCoverLetters
+=== RUN   TestSubscriptionRepository_Counts/CountUserCoverLetters/returns_count
+=== RUN   TestSubscriptionRepository_Counts/CountUserCoverLetters/propagates_db_error
+--- PASS: TestSubscriptionRepository_Counts (0.01s)
+    --- PASS: TestSubscriptionRepository_Counts/CountUserJobs (0.00s)
+        --- PASS: TestSubscriptionRepository_Counts/CountUserJobs/returns_count (0.00s)
+        --- PASS: TestSubscriptionRepository_Counts/CountUserJobs/propagates_db_error (0.00s)
+    --- PASS: TestSubscriptionRepository_Counts/CountUserResumes (0.00s)
+        --- PASS: TestSubscriptionRepository_Counts/CountUserResumes/returns_count (0.00s)
+        --- PASS: TestSubscriptionRepository_Counts/CountUserResumes/propagates_db_error (0.00s)
+    --- PASS: TestSubscriptionRepository_Counts/CountUserResumes_leaves_out_unfinalized_upload_placeholders (0.00s)
+        --- PASS: TestSubscriptionRepository_Counts/CountUserResumes_leaves_out_unfinalized_upload_placeholders/returns_count (0.00s)
+        --- PASS: TestSubscriptionRepository_Counts/CountUserResumes_leaves_out_unfinalized_upload_placeholders/propagates_db_error (0.00s)
+    --- PASS: TestSubscriptionRepository_Counts/CountUserAIRequestsThisMonth (0.01s)
+        --- PASS: TestSubscriptionRepository_Counts/CountUserAIRequestsThisMonth/returns_count (0.00s)
+        --- PASS: TestSubscriptionRepository_Counts/CountUserAIRequestsThisMonth/propagates_db_error (0.00s)
+    --- PASS: TestSubscriptionRepository_Counts/CountUserJobParsesThisMonth (0.00s)
+        --- PASS: TestSubscriptionRepository_Counts/CountUserJobParsesThisMonth/returns_count (0.00s)
+        --- PASS: TestSubscriptionRepository_Counts/CountUserJobParsesThisMonth/propagates_db_error (0.00s)
+    --- PASS: TestSubscriptionRepository_Counts/CountUserResumeBuilders (0.00s)
+        --- PASS: TestSubscriptionRepository_Counts/CountUserResumeBuilders/returns_count (0.00s)
+        --- PASS: TestSubscriptionRepository_Counts/CountUserResumeBuilders/propagates_db_error (0.00s)
+    --- PASS: TestSubscriptionRepository_Counts/CountUserCoverLetters (0.00s)
+        --- PASS: TestSubscriptionRepository_Counts/CountUserCoverLetters/returns_count (0.00s)
+        --- PASS: TestSubscriptionRepository_Counts/CountUserCoverLetters/propagates_db_error (0.00s)
+=== RUN   TestSubscriptionRepository_RecordAIUsage
+--- PASS: TestSubscriptionRepository_RecordAIUsage (0.00s)
+=== RUN   TestSubscriptionRepository_RecordJobParseUsage
+--- PASS: TestSubscriptionRepository_RecordJobParseUsage (0.00s)
+=== RUN   TestSubscriptionRepository_RecordResumeAutofillUsage
+--- PASS: TestSubscriptionRepository_RecordResumeAutofillUsage (0.00s)
+=== RUN   TestSubscriptionRepository_GetAllCounts
+=== RUN   TestSubscriptionRepository_GetAllCounts/returns_all_six_counts_in_order
+=== RUN   TestSubscriptionRepository_GetAllCounts/propagates_db_error
+--- PASS: TestSubscriptionRepository_GetAllCounts (0.01s)
+    --- PASS: TestSubscriptionRepository_GetAllCounts/returns_all_six_counts_in_order (0.00s)
+    --- PASS: TestSubscriptionRepository_GetAllCounts/propagates_db_error (0.01s)
+=== RUN   TestSubscriptionRepository_ApplySubscriptionEvent
+=== RUN   TestSubscriptionRepository_ApplySubscriptionEvent/first_delivery_claims_and_writes
+=== RUN   TestSubscriptionRepository_ApplySubscriptionEvent/redelivery_of_a_claimed_event_writes_nothing
+=== RUN   TestSubscriptionRepository_ApplySubscriptionEvent/claimed_but_not_newer_than_the_applied_state
+=== RUN   TestSubscriptionRepository_ApplySubscriptionEvent/a_user_with_no_row_yet_is_written_without_a_link_check_to_make
+=== RUN   TestSubscriptionRepository_ApplySubscriptionEvent/propagates_db_error_without_claiming_anything
+=== RUN   TestSubscriptionRepository_ApplySubscriptionEvent/an_unreadable_link_is_an_error,_never_a_silent_overwrite
+=== RUN   TestSubscriptionRepository_ApplySubscriptionEvent/a_failed_commit_is_reported_rather_than_counted_as_applied
+=== RUN   TestSubscriptionRepository_ApplySubscriptionEvent/a_transaction_that_cannot_be_opened_is_an_error
+--- PASS: TestSubscriptionRepository_ApplySubscriptionEvent (0.03s)
+    --- PASS: TestSubscriptionRepository_ApplySubscriptionEvent/first_delivery_claims_and_writes (0.01s)
+    --- PASS: TestSubscriptionRepository_ApplySubscriptionEvent/redelivery_of_a_claimed_event_writes_nothing (0.01s)
+    --- PASS: TestSubscriptionRepository_ApplySubscriptionEvent/claimed_but_not_newer_than_the_applied_state (0.00s)
+    --- PASS: TestSubscriptionRepository_ApplySubscriptionEvent/a_user_with_no_row_yet_is_written_without_a_link_check_to_make (0.00s)
+    --- PASS: TestSubscriptionRepository_ApplySubscriptionEvent/propagates_db_error_without_claiming_anything (0.00s)
+    --- PASS: TestSubscriptionRepository_ApplySubscriptionEvent/an_unreadable_link_is_an_error,_never_a_silent_overwrite (0.00s)
+    --- PASS: TestSubscriptionRepository_ApplySubscriptionEvent/a_failed_commit_is_reported_rather_than_counted_as_applied (0.00s)
+    --- PASS: TestSubscriptionRepository_ApplySubscriptionEvent/a_transaction_that_cannot_be_opened_is_an_error (0.00s)
+=== RUN   TestApplySubscriptionEventLinkGuard
+=== RUN   TestApplySubscriptionEventLinkGuard/nothing_linked_yet,_so_the_first_activation_links
+=== RUN   TestApplySubscriptionEventLinkGuard/an_empty_stored_id_is_no_link_either
+=== RUN   TestApplySubscriptionEventLinkGuard/the_same_subscription_moving_through_its_lifecycle
+=== RUN   TestApplySubscriptionEventLinkGuard/a_second_subscription_while_the_first_is_active
+=== RUN   TestApplySubscriptionEventLinkGuard/a_second_subscription_while_the_first_is_past_due
+=== RUN   TestApplySubscriptionEventLinkGuard/a_second_subscription_while_the_first_is_paused
+=== RUN   TestApplySubscriptionEventLinkGuard/a_second_subscription_while_the_first_is_winding_down
+=== RUN   TestApplySubscriptionEventLinkGuard/a_replacement_once_the_provider_has_ended_the_old_one
+=== RUN   TestApplySubscriptionEventLinkGuard/an_event_that_carries_no_subscription_id_cannot_erase_a_live_link
+--- PASS: TestApplySubscriptionEventLinkGuard (0.01s)
+    --- PASS: TestApplySubscriptionEventLinkGuard/nothing_linked_yet,_so_the_first_activation_links (0.00s)
+    --- PASS: TestApplySubscriptionEventLinkGuard/an_empty_stored_id_is_no_link_either (0.00s)
+    --- PASS: TestApplySubscriptionEventLinkGuard/the_same_subscription_moving_through_its_lifecycle (0.00s)
+    --- PASS: TestApplySubscriptionEventLinkGuard/a_second_subscription_while_the_first_is_active (0.00s)
+    --- PASS: TestApplySubscriptionEventLinkGuard/a_second_subscription_while_the_first_is_past_due (0.00s)
+    --- PASS: TestApplySubscriptionEventLinkGuard/a_second_subscription_while_the_first_is_paused (0.00s)
+    --- PASS: TestApplySubscriptionEventLinkGuard/a_second_subscription_while_the_first_is_winding_down (0.00s)
+    --- PASS: TestApplySubscriptionEventLinkGuard/a_replacement_once_the_provider_has_ended_the_old_one (0.00s)
+    --- PASS: TestApplySubscriptionEventLinkGuard/an_event_that_carries_no_subscription_id_cannot_erase_a_live_link (0.00s)
+=== RUN   TestApplySubscriptionEventKeepsItsGuardsInOneStatement
+--- PASS: TestApplySubscriptionEventKeepsItsGuardsInOneStatement (0.00s)
+=== RUN   TestStoredCancelledStatusMatchesTheService
+--- PASS: TestStoredCancelledStatusMatchesTheService (0.00s)
+=== RUN   TestSubscriptionRepository_GetByExternalAccountID
+=== RUN   TestSubscriptionRepository_GetByExternalAccountID/returns_subscription
+=== RUN   TestSubscriptionRepository_GetByExternalAccountID/maps_no_rows_to_ErrSubscriptionNotFound
+--- PASS: TestSubscriptionRepository_GetByExternalAccountID (0.00s)
+    --- PASS: TestSubscriptionRepository_GetByExternalAccountID/returns_subscription (0.00s)
+    --- PASS: TestSubscriptionRepository_GetByExternalAccountID/maps_no_rows_to_ErrSubscriptionNotFound (0.00s)
+=== RUN   TestSubscriptionRepository_LinkExternalAccount
+=== RUN   TestSubscriptionRepository_LinkExternalAccount/links_the_account_without_granting_a_plan
+=== RUN   TestSubscriptionRepository_LinkExternalAccount/keeps_a_customer_already_on_the_row
+=== RUN   TestSubscriptionRepository_LinkExternalAccount/a_customer_owned_by_another_user_is_reported_as_such
+=== RUN   TestSubscriptionRepository_LinkExternalAccount/a_user_who_no_longer_exists_is_reported_as_such
+=== RUN   TestSubscriptionRepository_LinkExternalAccount/any_other_unique_violation_is_not_blamed_on_a_shared_customer
+=== RUN   TestSubscriptionRepository_LinkExternalAccount/propagates_db_error
+--- PASS: TestSubscriptionRepository_LinkExternalAccount (0.00s)
+    --- PASS: TestSubscriptionRepository_LinkExternalAccount/links_the_account_without_granting_a_plan (0.00s)
+    --- PASS: TestSubscriptionRepository_LinkExternalAccount/keeps_a_customer_already_on_the_row (0.00s)
+    --- PASS: TestSubscriptionRepository_LinkExternalAccount/a_customer_owned_by_another_user_is_reported_as_such (0.00s)
+    --- PASS: TestSubscriptionRepository_LinkExternalAccount/a_user_who_no_longer_exists_is_reported_as_such (0.00s)
+    --- PASS: TestSubscriptionRepository_LinkExternalAccount/any_other_unique_violation_is_not_blamed_on_a_shared_customer (0.00s)
+    --- PASS: TestSubscriptionRepository_LinkExternalAccount/propagates_db_error (0.00s)
+=== RUN   TestSubscriptionRepository_EnsureFree
+=== RUN   TestSubscriptionRepository_EnsureFree/creates_the_row
+=== RUN   TestSubscriptionRepository_EnsureFree/a_user_who_does_not_exist_is_reported_as_such
+=== RUN   TestSubscriptionRepository_EnsureFree/any_other_failure_is_passed_through
+--- PASS: TestSubscriptionRepository_EnsureFree (0.00s)
+    --- PASS: TestSubscriptionRepository_EnsureFree/creates_the_row (0.00s)
+    --- PASS: TestSubscriptionRepository_EnsureFree/a_user_who_does_not_exist_is_reported_as_such (0.00s)
+    --- PASS: TestSubscriptionRepository_EnsureFree/any_other_failure_is_passed_through (0.00s)
+=== RUN   TestSubscriptionRepository_GetUserContact
+=== RUN   TestSubscriptionRepository_GetUserContact/returns_the_buyer_details
+=== RUN   TestSubscriptionRepository_GetUserContact/maps_a_missing_user_to_ErrSubscriptionNotFound
+=== RUN   TestSubscriptionRepository_GetUserContact/propagates_generic_db_error
+--- PASS: TestSubscriptionRepository_GetUserContact (0.00s)
+    --- PASS: TestSubscriptionRepository_GetUserContact/returns_the_buyer_details (0.00s)
+    --- PASS: TestSubscriptionRepository_GetUserContact/maps_a_missing_user_to_ErrSubscriptionNotFound (0.00s)
+    --- PASS: TestSubscriptionRepository_GetUserContact/propagates_generic_db_error (0.00s)
+=== RUN   TestApplySubscriptionEventPreservesLinkedAccount
+--- PASS: TestApplySubscriptionEventPreservesLinkedAccount (0.00s)
+=== RUN   TestApplySubscriptionEventReportsAnAccountAlreadyLinkedElsewhere
+--- PASS: TestApplySubscriptionEventReportsAnAccountAlreadyLinkedElsewhere (0.00s)
+PASS
+ok  	github.com/andreypavlenko/jobber/modules/subscriptions/repository	1.745s
+=== RUN   TestGetCheckoutConfig
+=== RUN   TestGetCheckoutConfig/advertises_the_provider,_environment_and_configured_plans_only
+=== RUN   TestGetCheckoutConfig/a_plan_without_a_product_is_never_advertised
+=== RUN   TestGetCheckoutConfig/exposes_no_product_IDs_or_credentials
+--- PASS: TestGetCheckoutConfig (0.00s)
+    --- PASS: TestGetCheckoutConfig/advertises_the_provider,_environment_and_configured_plans_only (0.00s)
+    --- PASS: TestGetCheckoutConfig/a_plan_without_a_product_is_never_advertised (0.00s)
+    --- PASS: TestGetCheckoutConfig/exposes_no_product_IDs_or_credentials (0.00s)
+=== RUN   TestCreateCheckoutSession
+=== RUN   TestCreateCheckoutSession/creates_a_hosted_checkout_bound_to_the_authenticated_user
+=== RUN   TestCreateCheckoutSession/the_enterprise_plan_buys_the_enterprise_product
+=== RUN   TestCreateCheckoutSession/a_plan_that_cannot_be_bought_never_reaches_the_API
+=== RUN   TestCreateCheckoutSession/a_plan_with_no_configured_product_is_refused
+=== RUN   TestCreateCheckoutSession/a_user_who_already_pays_cannot_start_a_second_subscription
+=== RUN   TestCreateCheckoutSession/a_scheduled_cancellation_still_bills,_so_it_is_refused_too
+=== RUN   TestCreateCheckoutSession/a_cancelled_subscriber_can_buy_again
+=== RUN   TestCreateCheckoutSession/an_unreadable_subscription_fails_the_checkout_instead_of_bypassing_the_guard
+=== RUN   TestCreateCheckoutSession/a_checkout_URL_that_is_not_absolute_HTTPS_is_never_handed_to_the_browser
+=== RUN   TestCreateCheckoutSession/an_API_failure_surfaces_as_an_error
+=== RUN   TestCreateCheckoutSession/billing_without_an_API_key_reports_itself_as_unavailable
+--- PASS: TestCreateCheckoutSession (0.05s)
+    --- PASS: TestCreateCheckoutSession/creates_a_hosted_checkout_bound_to_the_authenticated_user (0.01s)
+    --- PASS: TestCreateCheckoutSession/the_enterprise_plan_buys_the_enterprise_product (0.00s)
+    --- PASS: TestCreateCheckoutSession/a_plan_that_cannot_be_bought_never_reaches_the_API (0.00s)
+    --- PASS: TestCreateCheckoutSession/a_plan_with_no_configured_product_is_refused (0.00s)
+    --- PASS: TestCreateCheckoutSession/a_user_who_already_pays_cannot_start_a_second_subscription (0.00s)
+    --- PASS: TestCreateCheckoutSession/a_scheduled_cancellation_still_bills,_so_it_is_refused_too (0.00s)
+    --- PASS: TestCreateCheckoutSession/a_cancelled_subscriber_can_buy_again (0.00s)
+    --- PASS: TestCreateCheckoutSession/an_unreadable_subscription_fails_the_checkout_instead_of_bypassing_the_guard (0.00s)
+    --- PASS: TestCreateCheckoutSession/a_checkout_URL_that_is_not_absolute_HTTPS_is_never_handed_to_the_browser (0.03s)
+    --- PASS: TestCreateCheckoutSession/an_API_failure_surfaces_as_an_error (0.00s)
+    --- PASS: TestCreateCheckoutSession/billing_without_an_API_key_reports_itself_as_unavailable (0.00s)
+=== RUN   TestChangePlan
+=== RUN   TestChangePlan/upgrades_the_subscription_the_user_already_pays_for
+=== RUN   TestChangePlan/the_local_plan_is_not_touched,_the_webhook_moves_it
+=== RUN   TestChangePlan/a_free_user_has_nothing_to_change
+=== RUN   TestChangePlan/an_unknown_plan_is_refused_before_any_lookup
+=== RUN   TestChangePlan/a_provider_failure_is_reported
+--- PASS: TestChangePlan (0.00s)
+    --- PASS: TestChangePlan/upgrades_the_subscription_the_user_already_pays_for (0.00s)
+    --- PASS: TestChangePlan/the_local_plan_is_not_touched,_the_webhook_moves_it (0.00s)
+    --- PASS: TestChangePlan/a_free_user_has_nothing_to_change (0.00s)
+    --- PASS: TestChangePlan/an_unknown_plan_is_refused_before_any_lookup (0.00s)
+    --- PASS: TestChangePlan/a_provider_failure_is_reported (0.00s)
+=== RUN   TestCancelSubscription
+=== RUN   TestCancelSubscription/schedules_the_cancellation_for_the_end_of_the_period
+=== RUN   TestCancelSubscription/a_user_without_a_subscription_has_nothing_to_cancel
+--- PASS: TestCancelSubscription (0.00s)
+    --- PASS: TestCancelSubscription/schedules_the_cancellation_for_the_end_of_the_period (0.00s)
+    --- PASS: TestCancelSubscription/a_user_without_a_subscription_has_nothing_to_cancel (0.00s)
+=== RUN   TestCreatePortalSession
+=== RUN   TestCreatePortalSession/returns_the_customer_portal_link
+=== RUN   TestCreatePortalSession/a_user_with_no_Creem_customer_has_no_portal
+=== RUN   TestCreatePortalSession/a_link_that_is_not_absolute_HTTPS_is_refused
+--- PASS: TestCreatePortalSession (0.01s)
+    --- PASS: TestCreatePortalSession/returns_the_customer_portal_link (0.00s)
+    --- PASS: TestCreatePortalSession/a_user_with_no_Creem_customer_has_no_portal (0.00s)
+    --- PASS: TestCreatePortalSession/a_link_that_is_not_absolute_HTTPS_is_refused (0.01s)
+=== RUN   TestCheckoutSuccessURL
+--- PASS: TestCheckoutSuccessURL (0.00s)
+=== RUN   TestRequirePaidPlan
+=== RUN   TestRequirePaidPlan/free_plan_is_rejected
+=== RUN   TestRequirePaidPlan/active_pro_passes
+=== RUN   TestRequirePaidPlan/past_due_pro_keeps_the_grace_window
+=== RUN   TestRequirePaidPlan/paused_pro_falls_back_to_free
+=== RUN   TestRequirePaidPlan/cancelled_enterprise_falls_back_to_free
+=== RUN   TestRequirePaidPlan/active_enterprise_passes
+=== RUN   TestRequirePaidPlan/missing_subscription_is_treated_as_free
+=== RUN   TestRequirePaidPlan/repo_failure_propagates_as_error,_not_as_free
+--- PASS: TestRequirePaidPlan (0.00s)
+    --- PASS: TestRequirePaidPlan/free_plan_is_rejected (0.00s)
+    --- PASS: TestRequirePaidPlan/active_pro_passes (0.00s)
+    --- PASS: TestRequirePaidPlan/past_due_pro_keeps_the_grace_window (0.00s)
+    --- PASS: TestRequirePaidPlan/paused_pro_falls_back_to_free (0.00s)
+    --- PASS: TestRequirePaidPlan/cancelled_enterprise_falls_back_to_free (0.00s)
+    --- PASS: TestRequirePaidPlan/active_enterprise_passes (0.00s)
+    --- PASS: TestRequirePaidPlan/missing_subscription_is_treated_as_free (0.00s)
+    --- PASS: TestRequirePaidPlan/repo_failure_propagates_as_error,_not_as_free (0.00s)
+=== RUN   TestCheckLimit
+=== RUN   TestCheckLimit/returns_nil_when_under_job_limit_(free_plan)
+=== RUN   TestCheckLimit/returns_ErrLimitReached_when_at_job_limit_(free_plan)
+=== RUN   TestCheckLimit/returns_nil_for_unlimited_resource_(pro_plan,_AI_requests)
+=== RUN   TestCheckLimit/returns_nil_for_resumes_under_limit_(free_plan)
+=== RUN   TestCheckLimit/returns_ErrLimitReached_for_resumes_at_limit_(free_plan)
+=== RUN   TestCheckLimit/falls_back_to_free_plan_when_no_subscription_found
+=== RUN   TestCheckLimit/returns_nil_for_unknown_resource_type
+=== RUN   TestCheckLimit/returns_nil_for_enterprise_plan_(all_unlimited)
+=== RUN   TestCheckLimit/returns_ErrLimitReached_for_job_parses_at_limit_(free_plan)
+=== RUN   TestCheckLimit/returns_ErrLimitReached_for_resume_builders_at_zero-max_plan
+=== RUN   TestCheckLimit/returns_ErrLimitReached_for_cover_letters_at_limit_(free_plan)
+=== RUN   TestCheckLimit/returns_error_when_repo_returns_non-subscription_error
+=== RUN   TestCheckLimit/returns_error_when_count_fails
+--- PASS: TestCheckLimit (0.00s)
+    --- PASS: TestCheckLimit/returns_nil_when_under_job_limit_(free_plan) (0.00s)
+    --- PASS: TestCheckLimit/returns_ErrLimitReached_when_at_job_limit_(free_plan) (0.00s)
+    --- PASS: TestCheckLimit/returns_nil_for_unlimited_resource_(pro_plan,_AI_requests) (0.00s)
+    --- PASS: TestCheckLimit/returns_nil_for_resumes_under_limit_(free_plan) (0.00s)
+    --- PASS: TestCheckLimit/returns_ErrLimitReached_for_resumes_at_limit_(free_plan) (0.00s)
+    --- PASS: TestCheckLimit/falls_back_to_free_plan_when_no_subscription_found (0.00s)
+    --- PASS: TestCheckLimit/returns_nil_for_unknown_resource_type (0.00s)
+    --- PASS: TestCheckLimit/returns_nil_for_enterprise_plan_(all_unlimited) (0.00s)
+    --- PASS: TestCheckLimit/returns_ErrLimitReached_for_job_parses_at_limit_(free_plan) (0.00s)
+    --- PASS: TestCheckLimit/returns_ErrLimitReached_for_resume_builders_at_zero-max_plan (0.00s)
+    --- PASS: TestCheckLimit/returns_ErrLimitReached_for_cover_letters_at_limit_(free_plan) (0.00s)
+    --- PASS: TestCheckLimit/returns_error_when_repo_returns_non-subscription_error (0.00s)
+    --- PASS: TestCheckLimit/returns_error_when_count_fails (0.00s)
+=== RUN   TestGetSubscription
+=== RUN   TestGetSubscription/returns_subscription_with_usage
+=== RUN   TestGetSubscription/returns_error_when_subscription_not_found
+=== RUN   TestGetSubscription/returns_error_when_usage_query_fails
+--- PASS: TestGetSubscription (0.00s)
+    --- PASS: TestGetSubscription/returns_subscription_with_usage (0.00s)
+    --- PASS: TestGetSubscription/returns_error_when_subscription_not_found (0.00s)
+    --- PASS: TestGetSubscription/returns_error_when_usage_query_fails (0.00s)
+=== RUN   TestEnsureFreeSubscription
+=== RUN   TestEnsureFreeSubscription/creates_a_free_row_for_the_user
+=== RUN   TestEnsureFreeSubscription/never_overwrites_an_existing_subscription
+=== RUN   TestEnsureFreeSubscription/returns_error_when_the_write_fails
+--- PASS: TestEnsureFreeSubscription (0.00s)
+    --- PASS: TestEnsureFreeSubscription/creates_a_free_row_for_the_user (0.00s)
+    --- PASS: TestEnsureFreeSubscription/never_overwrites_an_existing_subscription (0.00s)
+    --- PASS: TestEnsureFreeSubscription/returns_error_when_the_write_fails (0.00s)
+=== RUN   TestRecordAIUsage
+=== RUN   TestRecordAIUsage/delegates_to_repository
+=== RUN   TestRecordAIUsage/returns_error_from_repository
+--- PASS: TestRecordAIUsage (0.00s)
+    --- PASS: TestRecordAIUsage/delegates_to_repository (0.00s)
+    --- PASS: TestRecordAIUsage/returns_error_from_repository (0.00s)
+=== RUN   TestRecordJobParseUsage
+=== RUN   TestRecordJobParseUsage/delegates_to_repository
+=== RUN   TestRecordJobParseUsage/returns_error_from_repository
+--- PASS: TestRecordJobParseUsage (0.00s)
+    --- PASS: TestRecordJobParseUsage/delegates_to_repository (0.00s)
+    --- PASS: TestRecordJobParseUsage/returns_error_from_repository (0.00s)
+=== RUN   TestRecordResumeAutofillUsage
+=== RUN   TestRecordResumeAutofillUsage/delegates_to_repository
+=== RUN   TestRecordResumeAutofillUsage/returns_error_from_repository
+--- PASS: TestRecordResumeAutofillUsage (0.00s)
+    --- PASS: TestRecordResumeAutofillUsage/delegates_to_repository (0.00s)
+    --- PASS: TestRecordResumeAutofillUsage/returns_error_from_repository (0.00s)
+=== RUN   TestResourceLimit
+=== RUN   TestResourceLimit/free_plan_resumes
+=== RUN   TestResourceLimit/pro_plan_resumes
+=== RUN   TestResourceLimit/enterprise_is_unlimited
+=== RUN   TestResourceLimit/jobs
+=== RUN   TestResourceLimit/cover_letters
+=== RUN   TestResourceLimit/an_unknown_resource_is_unmetered
+=== RUN   TestResourceLimit/a_cancelled_paid_plan_is_charged_free_limits
+=== RUN   TestResourceLimit/a_missing_subscription_is_the_free_plan
+=== RUN   TestResourceLimit/a_storage_failure_is_reported_rather_than_guessed_at
+--- PASS: TestResourceLimit (0.00s)
+    --- PASS: TestResourceLimit/free_plan_resumes (0.00s)
+    --- PASS: TestResourceLimit/pro_plan_resumes (0.00s)
+    --- PASS: TestResourceLimit/enterprise_is_unlimited (0.00s)
+    --- PASS: TestResourceLimit/jobs (0.00s)
+    --- PASS: TestResourceLimit/cover_letters (0.00s)
+    --- PASS: TestResourceLimit/an_unknown_resource_is_unmetered (0.00s)
+    --- PASS: TestResourceLimit/a_cancelled_paid_plan_is_charged_free_limits (0.00s)
+    --- PASS: TestResourceLimit/a_missing_subscription_is_the_free_plan (0.00s)
+    --- PASS: TestResourceLimit/a_storage_failure_is_reported_rather_than_guessed_at (0.00s)
+=== RUN   TestEffectivePlan_ALapsedScheduledCancellationFallsBackToFree
+=== RUN   TestEffectivePlan_ALapsedScheduledCancellationFallsBackToFree/no_cancellation_scheduled
+=== RUN   TestEffectivePlan_ALapsedScheduledCancellationFallsBackToFree/cancellation_still_ahead
+=== RUN   TestEffectivePlan_ALapsedScheduledCancellationFallsBackToFree/end_date_just_passed:_a_late_webhook_may_still_be_coming
+=== RUN   TestEffectivePlan_ALapsedScheduledCancellationFallsBackToFree/inside_the_grace_window
+=== RUN   TestEffectivePlan_ALapsedScheduledCancellationFallsBackToFree/past_the_grace_window:_the_cancel_webhook_never_arrived
+=== RUN   TestEffectivePlan_ALapsedScheduledCancellationFallsBackToFree/a_stale_date_on_a_past_due_row_is_left_to_the_dunning_flow
+--- PASS: TestEffectivePlan_ALapsedScheduledCancellationFallsBackToFree (0.00s)
+    --- PASS: TestEffectivePlan_ALapsedScheduledCancellationFallsBackToFree/no_cancellation_scheduled (0.00s)
+    --- PASS: TestEffectivePlan_ALapsedScheduledCancellationFallsBackToFree/cancellation_still_ahead (0.00s)
+    --- PASS: TestEffectivePlan_ALapsedScheduledCancellationFallsBackToFree/end_date_just_passed:_a_late_webhook_may_still_be_coming (0.00s)
+    --- PASS: TestEffectivePlan_ALapsedScheduledCancellationFallsBackToFree/inside_the_grace_window (0.00s)
+    --- PASS: TestEffectivePlan_ALapsedScheduledCancellationFallsBackToFree/past_the_grace_window:_the_cancel_webhook_never_arrived (0.00s)
+    --- PASS: TestEffectivePlan_ALapsedScheduledCancellationFallsBackToFree/a_stale_date_on_a_past_due_row_is_left_to_the_dunning_flow (0.00s)
+=== RUN   TestGetSubscription_ShowsTheLimitsThatAreEnforced
+=== RUN   TestGetSubscription_ShowsTheLimitsThatAreEnforced/an_active_paid_subscription_shows_paid_limits
+=== RUN   TestGetSubscription_ShowsTheLimitsThatAreEnforced/a_paused_subscription_keeps_its_plan_but_is_shown_the_free_limits_it_is_held_to
+=== RUN   TestGetSubscription_ShowsTheLimitsThatAreEnforced/past_due_keeps_its_grace_window
+=== RUN   TestGetSubscription_ShowsTheLimitsThatAreEnforced/a_cancellation_date_long_past_is_shown_as_the_cancelled_free_plan_it_already_is
+=== RUN   TestGetSubscription_ShowsTheLimitsThatAreEnforced/a_cancellation_date_inside_the_grace_window_is_still_shown_as_paid
+=== RUN   TestGetSubscription_ShowsTheLimitsThatAreEnforced/what_is_shown_is_what_CheckLimit_enforces
+--- PASS: TestGetSubscription_ShowsTheLimitsThatAreEnforced (0.00s)
+    --- PASS: TestGetSubscription_ShowsTheLimitsThatAreEnforced/an_active_paid_subscription_shows_paid_limits (0.00s)
+    --- PASS: TestGetSubscription_ShowsTheLimitsThatAreEnforced/a_paused_subscription_keeps_its_plan_but_is_shown_the_free_limits_it_is_held_to (0.00s)
+    --- PASS: TestGetSubscription_ShowsTheLimitsThatAreEnforced/past_due_keeps_its_grace_window (0.00s)
+    --- PASS: TestGetSubscription_ShowsTheLimitsThatAreEnforced/a_cancellation_date_long_past_is_shown_as_the_cancelled_free_plan_it_already_is (0.00s)
+    --- PASS: TestGetSubscription_ShowsTheLimitsThatAreEnforced/a_cancellation_date_inside_the_grace_window_is_still_shown_as_paid (0.00s)
+    --- PASS: TestGetSubscription_ShowsTheLimitsThatAreEnforced/what_is_shown_is_what_CheckLimit_enforces (0.00s)
+=== RUN   TestHoldsLiveProviderSubscription
+=== RUN   TestHoldsLiveProviderSubscription/no_provider_id
+=== RUN   TestHoldsLiveProviderSubscription/empty_provider_id
+=== RUN   TestHoldsLiveProviderSubscription/live
+=== RUN   TestHoldsLiveProviderSubscription/past_due_still_bills
+=== RUN   TestHoldsLiveProviderSubscription/ended
+--- PASS: TestHoldsLiveProviderSubscription (0.00s)
+    --- PASS: TestHoldsLiveProviderSubscription/no_provider_id (0.00s)
+    --- PASS: TestHoldsLiveProviderSubscription/empty_provider_id (0.00s)
+    --- PASS: TestHoldsLiveProviderSubscription/live (0.00s)
+    --- PASS: TestHoldsLiveProviderSubscription/past_due_still_bills (0.00s)
+    --- PASS: TestHoldsLiveProviderSubscription/ended (0.00s)
+=== RUN   TestHandleWebhook_RejectsUntrustedDeliveries
+=== RUN   TestHandleWebhook_RejectsUntrustedDeliveries/missing_signature
+=== RUN   TestHandleWebhook_RejectsUntrustedDeliveries/wrong_signature
+=== RUN   TestHandleWebhook_RejectsUntrustedDeliveries/signature_that_is_not_hex
+=== RUN   TestHandleWebhook_RejectsUntrustedDeliveries/signature_of_a_different_body
+=== RUN   TestHandleWebhook_RejectsUntrustedDeliveries/no_secret_configured
+=== RUN   TestHandleWebhook_RejectsUntrustedDeliveries/a_signed_body_that_is_not_JSON_is_rejected
+--- PASS: TestHandleWebhook_RejectsUntrustedDeliveries (0.00s)
+    --- PASS: TestHandleWebhook_RejectsUntrustedDeliveries/missing_signature (0.00s)
+    --- PASS: TestHandleWebhook_RejectsUntrustedDeliveries/wrong_signature (0.00s)
+    --- PASS: TestHandleWebhook_RejectsUntrustedDeliveries/signature_that_is_not_hex (0.00s)
+    --- PASS: TestHandleWebhook_RejectsUntrustedDeliveries/signature_of_a_different_body (0.00s)
+    --- PASS: TestHandleWebhook_RejectsUntrustedDeliveries/no_secret_configured (0.00s)
+    --- PASS: TestHandleWebhook_RejectsUntrustedDeliveries/a_signed_body_that_is_not_JSON_is_rejected (0.00s)
+=== RUN   TestHandleWebhook_MapsSubscriptionState
+=== RUN   TestHandleWebhook_MapsSubscriptionState/a_paid_subscription_grants_the_purchased_plan
+=== RUN   TestHandleWebhook_MapsSubscriptionState/the_enterprise_product_grants_enterprise
+=== RUN   TestHandleWebhook_MapsSubscriptionState/a_product_given_as_a_bare_ID_is_understood
+=== RUN   TestHandleWebhook_MapsSubscriptionState/a_trial_is_active
+=== RUN   TestHandleWebhook_MapsSubscriptionState/a_scheduled_cancellation_keeps_access_until_the_period_ends
+=== RUN   TestHandleWebhook_MapsSubscriptionState/a_failed_payment_is_a_dunning_period,_not_a_cancellation
+=== RUN   TestHandleWebhook_MapsSubscriptionState/a_pause_keeps_the_purchase_on_the_row
+=== RUN   TestHandleWebhook_MapsSubscriptionState/an_unpaid_subscription_stops_paid_quotas_but_keeps_the_purchase
+=== RUN   TestHandleWebhook_MapsSubscriptionState/a_cancelled_subscription_drops_to_free_with_no_period
+=== RUN   TestHandleWebhook_MapsSubscriptionState/cancelling_never_consults_the_product,_so_a_catalog_mistake_cannot_keep_access_alive
+--- PASS: TestHandleWebhook_MapsSubscriptionState (0.00s)
+    --- PASS: TestHandleWebhook_MapsSubscriptionState/a_paid_subscription_grants_the_purchased_plan (0.00s)
+    --- PASS: TestHandleWebhook_MapsSubscriptionState/the_enterprise_product_grants_enterprise (0.00s)
+    --- PASS: TestHandleWebhook_MapsSubscriptionState/a_product_given_as_a_bare_ID_is_understood (0.00s)
+    --- PASS: TestHandleWebhook_MapsSubscriptionState/a_trial_is_active (0.00s)
+    --- PASS: TestHandleWebhook_MapsSubscriptionState/a_scheduled_cancellation_keeps_access_until_the_period_ends (0.00s)
+    --- PASS: TestHandleWebhook_MapsSubscriptionState/a_failed_payment_is_a_dunning_period,_not_a_cancellation (0.00s)
+    --- PASS: TestHandleWebhook_MapsSubscriptionState/a_pause_keeps_the_purchase_on_the_row (0.00s)
+    --- PASS: TestHandleWebhook_MapsSubscriptionState/an_unpaid_subscription_stops_paid_quotas_but_keeps_the_purchase (0.00s)
+    --- PASS: TestHandleWebhook_MapsSubscriptionState/a_cancelled_subscription_drops_to_free_with_no_period (0.00s)
+    --- PASS: TestHandleWebhook_MapsSubscriptionState/cancelling_never_consults_the_product,_so_a_catalog_mistake_cannot_keep_access_alive (0.00s)
+=== RUN   TestHandleWebhook_NeverGrantsAnUnknownProduct
+--- PASS: TestHandleWebhook_NeverGrantsAnUnknownProduct (0.00s)
+=== RUN   TestHandleWebhook_RejectsAnUnrecognisedStatus
+--- PASS: TestHandleWebhook_RejectsAnUnrecognisedStatus (0.00s)
+=== RUN   TestHandleWebhook_OrdersEventsByTheObjectsOwnTimestamp
+=== RUN   TestHandleWebhook_OrdersEventsByTheObjectsOwnTimestamp/uses_the_object's_updated_at,_not_the_envelope
+=== RUN   TestHandleWebhook_OrdersEventsByTheObjectsOwnTimestamp/falls_back_to_the_envelope_when_the_object_has_no_timestamp
+=== RUN   TestHandleWebhook_OrdersEventsByTheObjectsOwnTimestamp/accepts_epoch_milliseconds_as_the_timestamp
+--- PASS: TestHandleWebhook_OrdersEventsByTheObjectsOwnTimestamp (0.00s)
+    --- PASS: TestHandleWebhook_OrdersEventsByTheObjectsOwnTimestamp/uses_the_object's_updated_at,_not_the_envelope (0.00s)
+    --- PASS: TestHandleWebhook_OrdersEventsByTheObjectsOwnTimestamp/falls_back_to_the_envelope_when_the_object_has_no_timestamp (0.00s)
+    --- PASS: TestHandleWebhook_OrdersEventsByTheObjectsOwnTimestamp/accepts_epoch_milliseconds_as_the_timestamp (0.00s)
+=== RUN   TestHandleWebhook_ResolvesTheOwner
+=== RUN   TestHandleWebhook_ResolvesTheOwner/the_subscription_ID_already_on_a_row_wins_over_the_metadata
+=== RUN   TestHandleWebhook_ResolvesTheOwner/the_checkout_metadata_resolves_a_first_purchase
+=== RUN   TestHandleWebhook_ResolvesTheOwner/the_customer_on_a_row_resolves_an_event_that_arrives_without_metadata
+=== RUN   TestHandleWebhook_ResolvesTheOwner/metadata_that_is_not_a_UUID_is_ignored,_never_queried
+=== RUN   TestHandleWebhook_ResolvesTheOwner/our_product_that_cannot_be_placed_is_retried,_not_dropped
+=== RUN   TestHandleWebhook_ResolvesTheOwner/another_product_on_the_same_account_is_acknowledged_and_ignored
+--- PASS: TestHandleWebhook_ResolvesTheOwner (0.00s)
+    --- PASS: TestHandleWebhook_ResolvesTheOwner/the_subscription_ID_already_on_a_row_wins_over_the_metadata (0.00s)
+    --- PASS: TestHandleWebhook_ResolvesTheOwner/the_checkout_metadata_resolves_a_first_purchase (0.00s)
+    --- PASS: TestHandleWebhook_ResolvesTheOwner/the_customer_on_a_row_resolves_an_event_that_arrives_without_metadata (0.00s)
+    --- PASS: TestHandleWebhook_ResolvesTheOwner/metadata_that_is_not_a_UUID_is_ignored,_never_queried (0.00s)
+    --- PASS: TestHandleWebhook_ResolvesTheOwner/our_product_that_cannot_be_placed_is_retried,_not_dropped (0.00s)
+    --- PASS: TestHandleWebhook_ResolvesTheOwner/another_product_on_the_same_account_is_acknowledged_and_ignored (0.00s)
+=== RUN   TestHandleWebhook_EnvironmentGuard
+=== RUN   TestHandleWebhook_EnvironmentGuard/a_live_event_is_refused_by_a_test_deployment
+=== RUN   TestHandleWebhook_EnvironmentGuard/a_test_event_is_refused_by_a_live_deployment
+=== RUN   TestHandleWebhook_EnvironmentGuard/the_sandbox_counts_as_test
+=== RUN   TestHandleWebhook_EnvironmentGuard/an_object_that_states_no_mode_cannot_be_placed_and_is_let_through
+--- PASS: TestHandleWebhook_EnvironmentGuard (0.00s)
+    --- PASS: TestHandleWebhook_EnvironmentGuard/a_live_event_is_refused_by_a_test_deployment (0.00s)
+    --- PASS: TestHandleWebhook_EnvironmentGuard/a_test_event_is_refused_by_a_live_deployment (0.00s)
+    --- PASS: TestHandleWebhook_EnvironmentGuard/the_sandbox_counts_as_test (0.00s)
+    --- PASS: TestHandleWebhook_EnvironmentGuard/an_object_that_states_no_mode_cannot_be_placed_and_is_let_through (0.00s)
+=== RUN   TestHandleWebhook_AtomicWriteOutcomes
+=== RUN   TestHandleWebhook_AtomicWriteOutcomes/applied
+=== RUN   TestHandleWebhook_AtomicWriteOutcomes/a_redelivery_is_acknowledged
+=== RUN   TestHandleWebhook_AtomicWriteOutcomes/a_stale_event_is_acknowledged
+=== RUN   TestHandleWebhook_AtomicWriteOutcomes/a_customer_shared_by_two_users_is_acknowledged_and_flagged
+=== RUN   TestHandleWebhook_AtomicWriteOutcomes/a_second_live_subscription_is_retried,_not_lost
+=== RUN   TestHandleWebhook_AtomicWriteOutcomes/a_database_failure_is_retried
+=== RUN   TestHandleWebhook_AtomicWriteOutcomes/an_actionable_event_with_no_ID_cannot_be_de-duplicated_and_is_retried
+--- PASS: TestHandleWebhook_AtomicWriteOutcomes (0.01s)
+    --- PASS: TestHandleWebhook_AtomicWriteOutcomes/applied (0.00s)
+    --- PASS: TestHandleWebhook_AtomicWriteOutcomes/a_redelivery_is_acknowledged (0.00s)
+    --- PASS: TestHandleWebhook_AtomicWriteOutcomes/a_stale_event_is_acknowledged (0.00s)
+    --- PASS: TestHandleWebhook_AtomicWriteOutcomes/a_customer_shared_by_two_users_is_acknowledged_and_flagged (0.00s)
+    --- PASS: TestHandleWebhook_AtomicWriteOutcomes/a_second_live_subscription_is_retried,_not_lost (0.00s)
+    --- PASS: TestHandleWebhook_AtomicWriteOutcomes/a_database_failure_is_retried (0.00s)
+    --- PASS: TestHandleWebhook_AtomicWriteOutcomes/an_actionable_event_with_no_ID_cannot_be_de-duplicated_and_is_retried (0.00s)
+=== RUN   TestHandleWebhook_EventsThatAreNotActedOn
+=== RUN   TestHandleWebhook_EventsThatAreNotActedOn/expiry_is_not_the_end_while_Creem_is_still_retrying_the_charge
+=== RUN   TestHandleWebhook_EventsThatAreNotActedOn/credits_are_unrelated
+=== RUN   TestHandleWebhook_EventsThatAreNotActedOn/a_refund_is_surfaced_for_a_person
+=== RUN   TestHandleWebhook_EventsThatAreNotActedOn/a_dispute_is_surfaced_for_a_person
+--- PASS: TestHandleWebhook_EventsThatAreNotActedOn (0.00s)
+    --- PASS: TestHandleWebhook_EventsThatAreNotActedOn/expiry_is_not_the_end_while_Creem_is_still_retrying_the_charge (0.00s)
+    --- PASS: TestHandleWebhook_EventsThatAreNotActedOn/credits_are_unrelated (0.00s)
+    --- PASS: TestHandleWebhook_EventsThatAreNotActedOn/a_refund_is_surfaced_for_a_person (0.00s)
+    --- PASS: TestHandleWebhook_EventsThatAreNotActedOn/a_dispute_is_surfaced_for_a_person (0.00s)
+=== RUN   TestHandleWebhook_CheckoutCompletedLinksTheCustomer
+=== RUN   TestHandleWebhook_CheckoutCompletedLinksTheCustomer/records_the_customer_against_the_user_and_grants_nothing
+=== RUN   TestHandleWebhook_CheckoutCompletedLinksTheCustomer/a_purchase_of_another_product_is_ignored
+=== RUN   TestHandleWebhook_CheckoutCompletedLinksTheCustomer/a_checkout_with_no_Jobber_metadata_is_ignored
+=== RUN   TestHandleWebhook_CheckoutCompletedLinksTheCustomer/a_customer_already_owned_by_someone_else_is_acknowledged_and_flagged
+=== RUN   TestHandleWebhook_CheckoutCompletedLinksTheCustomer/a_database_failure_is_retried
+=== RUN   TestHandleWebhook_CheckoutCompletedLinksTheCustomer/a_live_checkout_is_refused_by_a_test_deployment
+--- PASS: TestHandleWebhook_CheckoutCompletedLinksTheCustomer (0.00s)
+    --- PASS: TestHandleWebhook_CheckoutCompletedLinksTheCustomer/records_the_customer_against_the_user_and_grants_nothing (0.00s)
+    --- PASS: TestHandleWebhook_CheckoutCompletedLinksTheCustomer/a_purchase_of_another_product_is_ignored (0.00s)
+    --- PASS: TestHandleWebhook_CheckoutCompletedLinksTheCustomer/a_checkout_with_no_Jobber_metadata_is_ignored (0.00s)
+    --- PASS: TestHandleWebhook_CheckoutCompletedLinksTheCustomer/a_customer_already_owned_by_someone_else_is_acknowledged_and_flagged (0.00s)
+    --- PASS: TestHandleWebhook_CheckoutCompletedLinksTheCustomer/a_database_failure_is_retried (0.00s)
+    --- PASS: TestHandleWebhook_CheckoutCompletedLinksTheCustomer/a_live_checkout_is_refused_by_a_test_deployment (0.00s)
+=== RUN   TestSkipReport
+=== RUN   TestSkipReport/environment_mismatch_loses_the_event
+=== RUN   TestSkipReport/customer_shared_by_two_users_loses_a_paid_purchase
+=== RUN   TestSkipReport/refund_needs_a_person
+=== RUN   TestSkipReport/a_deleted_user's_purchase_loses_the_event
+=== RUN   TestSkipReport/a_second_subscription_needs_a_person
+=== RUN   TestSkipReport/nothing_to_end_is_routine
+=== RUN   TestSkipReport/wrapped_sentinel_is_still_recognised
+=== RUN   TestSkipReport/duplicate_is_routine
+=== RUN   TestSkipReport/superseded_is_routine
+=== RUN   TestSkipReport/foreign_product_is_routine
+=== RUN   TestSkipReport/not_actionable_is_routine
+--- PASS: TestSkipReport (0.00s)
+    --- PASS: TestSkipReport/environment_mismatch_loses_the_event (0.00s)
+    --- PASS: TestSkipReport/customer_shared_by_two_users_loses_a_paid_purchase (0.00s)
+    --- PASS: TestSkipReport/refund_needs_a_person (0.00s)
+    --- PASS: TestSkipReport/a_deleted_user's_purchase_loses_the_event (0.00s)
+    --- PASS: TestSkipReport/a_second_subscription_needs_a_person (0.00s)
+    --- PASS: TestSkipReport/nothing_to_end_is_routine (0.00s)
+    --- PASS: TestSkipReport/wrapped_sentinel_is_still_recognised (0.00s)
+    --- PASS: TestSkipReport/duplicate_is_routine (0.00s)
+    --- PASS: TestSkipReport/superseded_is_routine (0.00s)
+    --- PASS: TestSkipReport/foreign_product_is_routine (0.00s)
+    --- PASS: TestSkipReport/not_actionable_is_routine (0.00s)
+=== RUN   TestHandleWebhook_AnotherProductNeverReachesALinkedUser
+=== RUN   TestHandleWebhook_AnotherProductNeverReachesALinkedUser/status_active
+=== RUN   TestHandleWebhook_AnotherProductNeverReachesALinkedUser/status_canceled
+--- PASS: TestHandleWebhook_AnotherProductNeverReachesALinkedUser (0.00s)
+    --- PASS: TestHandleWebhook_AnotherProductNeverReachesALinkedUser/status_active (0.00s)
+    --- PASS: TestHandleWebhook_AnotherProductNeverReachesALinkedUser/status_canceled (0.00s)
+=== RUN   TestHandleWebhook_OurCheckoutSurvivesAReconfiguredCatalog
+--- PASS: TestHandleWebhook_OurCheckoutSurvivesAReconfiguredCatalog (0.00s)
+=== RUN   TestHandleWebhook_CancellationOfALinkedSubscriptionNeedsNoKnownProduct
+--- PASS: TestHandleWebhook_CancellationOfALinkedSubscriptionNeedsNoKnownProduct (0.00s)
+=== RUN   TestHandleWebhook_AnEventThatOmitsFieldsKeepsTheStoredOnes
+=== RUN   TestHandleWebhook_AnEventThatOmitsFieldsKeepsTheStoredOnes/a_current_stored_period_survives_a_partial_payload
+=== RUN   TestHandleWebhook_AnEventThatOmitsFieldsKeepsTheStoredOnes/a_customer_the_event_does_not_carry_is_left_to_the_write_to_keep
+=== RUN   TestHandleWebhook_AnEventThatOmitsFieldsKeepsTheStoredOnes/a_customer_the_event_carries_is_written
+=== RUN   TestHandleWebhook_AnEventThatOmitsFieldsKeepsTheStoredOnes/a_scheduled_cancellation_still_gets_its_end_date
+=== RUN   TestHandleWebhook_AnEventThatOmitsFieldsKeepsTheStoredOnes/a_stale_stored_period_is_not_carried_onto_a_later_cancellation
+=== RUN   TestHandleWebhook_AnEventThatOmitsFieldsKeepsTheStoredOnes/a_cancellation_still_clears_the_period
+--- PASS: TestHandleWebhook_AnEventThatOmitsFieldsKeepsTheStoredOnes (0.00s)
+    --- PASS: TestHandleWebhook_AnEventThatOmitsFieldsKeepsTheStoredOnes/a_current_stored_period_survives_a_partial_payload (0.00s)
+    --- PASS: TestHandleWebhook_AnEventThatOmitsFieldsKeepsTheStoredOnes/a_customer_the_event_does_not_carry_is_left_to_the_write_to_keep (0.00s)
+    --- PASS: TestHandleWebhook_AnEventThatOmitsFieldsKeepsTheStoredOnes/a_customer_the_event_carries_is_written (0.00s)
+    --- PASS: TestHandleWebhook_AnEventThatOmitsFieldsKeepsTheStoredOnes/a_scheduled_cancellation_still_gets_its_end_date (0.00s)
+    --- PASS: TestHandleWebhook_AnEventThatOmitsFieldsKeepsTheStoredOnes/a_stale_stored_period_is_not_carried_onto_a_later_cancellation (0.00s)
+    --- PASS: TestHandleWebhook_AnEventThatOmitsFieldsKeepsTheStoredOnes/a_cancellation_still_clears_the_period (0.00s)
+=== RUN   TestHandleWebhook_RefusedReplacementOfALiveSubscription
+=== RUN   TestHandleWebhook_RefusedReplacementOfALiveSubscription/a_newer_paid_event_is_retried:_the_old_subscription's_cancel_may_just_be_late
+=== RUN   TestHandleWebhook_RefusedReplacementOfALiveSubscription/the_cancellation_of_a_subscription_the_row_does_not_track_is_acknowledged,_not_retried
+=== RUN   TestHandleWebhook_RefusedReplacementOfALiveSubscription/a_paid_event_that_is_not_newer_than_the_row_is_acknowledged_and_flagged
+=== RUN   TestHandleWebhook_RefusedReplacementOfALiveSubscription/a_replacement_that_lost_the_ordering_to_the_old_subscription's_cancel_is_flagged
+=== RUN   TestHandleWebhook_RefusedReplacementOfALiveSubscription/a_routine_replay_of_the_linked_subscription_stays_routine
+--- PASS: TestHandleWebhook_RefusedReplacementOfALiveSubscription (0.00s)
+    --- PASS: TestHandleWebhook_RefusedReplacementOfALiveSubscription/a_newer_paid_event_is_retried:_the_old_subscription's_cancel_may_just_be_late (0.00s)
+    --- PASS: TestHandleWebhook_RefusedReplacementOfALiveSubscription/the_cancellation_of_a_subscription_the_row_does_not_track_is_acknowledged,_not_retried (0.00s)
+    --- PASS: TestHandleWebhook_RefusedReplacementOfALiveSubscription/a_paid_event_that_is_not_newer_than_the_row_is_acknowledged_and_flagged (0.00s)
+    --- PASS: TestHandleWebhook_RefusedReplacementOfALiveSubscription/a_replacement_that_lost_the_ordering_to_the_old_subscription's_cancel_is_flagged (0.00s)
+    --- PASS: TestHandleWebhook_RefusedReplacementOfALiveSubscription/a_routine_replay_of_the_linked_subscription_stays_routine (0.00s)
+=== RUN   TestHandleWebhook_AUserWithNoRowIsStillGranted
+=== RUN   TestHandleWebhook_AUserWithNoRowIsStillGranted/the_free_row_is_created_and_the_purchase_lands
+=== RUN   TestHandleWebhook_AUserWithNoRowIsStillGranted/a_user_who_no_longer_exists_is_acknowledged_and_flagged
+=== RUN   TestHandleWebhook_AUserWithNoRowIsStillGranted/a_checkout_for_a_deleted_user_is_acknowledged_too
+=== RUN   TestHandleWebhook_AUserWithNoRowIsStillGranted/a_failure_creating_the_row_is_retried
+--- PASS: TestHandleWebhook_AUserWithNoRowIsStillGranted (0.00s)
+    --- PASS: TestHandleWebhook_AUserWithNoRowIsStillGranted/the_free_row_is_created_and_the_purchase_lands (0.00s)
+    --- PASS: TestHandleWebhook_AUserWithNoRowIsStillGranted/a_user_who_no_longer_exists_is_acknowledged_and_flagged (0.00s)
+    --- PASS: TestHandleWebhook_AUserWithNoRowIsStillGranted/a_checkout_for_a_deleted_user_is_acknowledged_too (0.00s)
+    --- PASS: TestHandleWebhook_AUserWithNoRowIsStillGranted/a_failure_creating_the_row_is_retried (0.00s)
+=== RUN   TestHandleWebhook_CheckoutCompletedWithoutACustomerIsAcknowledged
+--- PASS: TestHandleWebhook_CheckoutCompletedWithoutACustomerIsAcknowledged (0.00s)
+=== RUN   TestHandleWebhook_AMalformedObjectIsRejectedForRetryWithoutWriting
+--- PASS: TestHandleWebhook_AMalformedObjectIsRejectedForRetryWithoutWriting (0.00s)
+PASS
+ok  	github.com/andreypavlenko/jobber/modules/subscriptions/service	1.763s

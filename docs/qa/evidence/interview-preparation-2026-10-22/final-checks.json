@@ -1,0 +1,21 @@
+{
+  "production_files": 29,
+  "production_manifest_sha256": "5f2067a8668eeccb5575bb10ff95d310030bd42780df9e38fee0dda0d073e60f",
+  "baseline_files_preserved": 1258,
+  "expected_shared_changes": 8,
+  "unexpected_changes": 0,
+  "validated_local_paths": [
+    "docs/qa/interview-preparation-2026-10-22.txt",
+    "docs/qa/evidence/interview-preparation-2026-10-22/production-source-manifest.json",
+    "docs/qa/evidence/interview-preparation-2026-10-22/assembly-manifest.json",
+    "docs/qa/evidence/interview-preparation-2026-10-22/desktop-history-recovery.png",
+    "docs/qa/evidence/interview-preparation-2026-10-22/mobile-history-recovery.png",
+    "SYSTEM_SPECIFICATION.md"
+  ],
+  "evidence_nonignored": true,
+  "head_origin_main_unchanged": true,
+  "index_unchanged_empty": true,
+  "browser_cases_passed": 6,
+  "full_frontend_tests_passed": 2905,
+  "independent_findings_open": 0
+}

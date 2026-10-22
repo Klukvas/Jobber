@@ -1,0 +1,8 @@
+{
+  ".github/workflows/deploy-dev.yml": "d66a8006188927806f252def4beb74752bb94e7d92bd2f1714c7db4d49315c24",
+  ".github/scripts/interview-preparation-release.sh": "7051add3d6f65509a3c44897932f22daef78e66432ad81d1028b9fe54835eab7",
+  ".github/scripts/interview-preparation-release-test.py": "ef4f65685de4737b19c35ef7e610fdface2f365916f506f317f5e944ea769e69",
+  "fe/Dockerfile": "7f3acfaff20af03e4aa6f7b9e6270b5775273adaf252e2ca89674c386a1ddcd4",
+  "fe/.dockerignore": "92c64f0d0340664ea45c7ac6ab6d4668f4ea50dc7834f9f3660ce44dce71c158",
+  "SYSTEM_SPECIFICATION.md": "098524f800d75d6ef25941cc152069dc7a6fd19ddf0b919d610ebdef3fe7c3ac"
+}

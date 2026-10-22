@@ -1,0 +1,9 @@
+REVIEW role=QA status=CHANGES_REQUESTED findings=3
+Independent Sol High first comprehensive review, faithfully summarized from the
+orchestrator's report (original stdout was not retained as a separate file).
+MAJOR: lost SaveAnswer response refreshed to q2 while preserving q1 draft globally.
+MAJOR: twelve individually valid Unicode answers could serialize above 400KB and
+make final summary permanently fail after those answers had been accepted.
+MINOR: starting another practice session discarded an unsaved draft without asking.
+Concrete closures and regression evidence: findings 1,2,3 in the primary report.
+This historical report is superseded by clean later reviews and final acceptance.

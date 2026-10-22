@@ -1,0 +1,253 @@
+Job-specific interview preparation — implementation and release evidence
+Date: 2026-10-22, Europe/Kiev
+Status: DONE — implemented, verified and independently reviewed; no open findings.
+
+Scope
+Per-Job preparation using visible Builder Resume content; EN/RU/UK plan versions,
+requirements/evidence, inferred questions and hypothetical STAR prompts, gaps,
+studied progress, durable practice answers, answerable followups, pause/resume,
+skip, final criterion explanations, operation recovery and existing AI allowance.
+Source Job/Builder Resume are never modified by feature actions. Existing visual
+components/design are preserved. No next task, commit, push, deploy, production
+migration/database write, real paid AI call or secret edit was performed.
+
+Instruction sources
+Checked canonical /Users/andreypavlenko/Desktop/Projects/AGENTS.md and
+/Users/andreypavlenko/Desktop/Projects/CLAUDE.md; project .cursor/rules.md,
+CURSOR_INSTRUCTIONS.md, docs/CONTEXT.md and SYSTEM_SPECIFICATION.md;
+~/.claude/rules/common, golang and typescript; golang-how-to and relevant database,
+concurrency/context/testing/security/error-handling skills; frontend-design.
+No project-local AGENTS.md/CLAUDE.md exists. User explicitly selected Codex.
+User-authorized migrations supersede the database skill's generic schema-change
+restriction; preserving current design supersedes a new aesthetic direction.
+Canonical scope/safety rules supersede standing automatic next-task/commit text.
+No other waiver. Fresh Sol QA and Astra security/migration reviews completed; all findings closed.
+
+Baseline and compatibility
+The original checkout is branch codex/job-specific-resume-tailoring, HEAD
+757820022e0f19053ecf9d02056cf7ac372f7559, 12 commits behind current origin/main
+22561cb40ff049274bd5e3b60e88a7bc685c1d10. Its extensive pre-existing dirty content
+was snapshotted before edits (1,258 nonsecret source files) in the existing ignored
+path evidence/interview-preparation-2026-10-22/tmp/baseline. No fetch/rebase/reset,
+index/ref change or replacement of pre-existing work occurred.
+Migration 048 already exists on current main, so this feature uses 049. Tests
+include current main's 048 comments-trigger migration before 049. A release
+compatibility assembly uses git archive of the exact current main commit plus
+ONLY baseline-relative feature hunks, new feature files and jobs.interview locale
+subtrees. It preserves upstream subscription/config/model fixes. The entire old
+checkout diff must NOT be applied to release. Local assembly manifest and patch
+are under the ignored task tmp directory; sanitized manifests accompany evidence.
+
+Safety and production behavior
+All nested resources bind owner and Job, with route-level synthetic HTTP checks.
+Only visible allowlisted content enters repeatable-read source snapshots; custom
+and custom_sections aliases both hide custom data. Contact/layout/hidden metadata
+are omitted. Every new AI operation against stale source is blocked; history,
+feedback, saved answers and non-AI practice actions remain readable/usable.
+Source parents/content/visibility are locked until net/http WroteRequest confirms
+actual body transmission, then unlocked before response wait. A 5-second dispatch
+timer cancels a stalled connection/write; cleanup waits for call return. Redirects,
+transparent body replay and SDK retries are disabled. Final publication rechecks
+source atomically. Crash after durable send intent is conservatively ambiguous;
+exactly-once external provider execution is not claimed. Two workers, operation
+80s/provider 60s/lease 90s, fenced completion, at most three explicit attempts.
+Telemetry contains operation identity/type/attempt/duration/outcome only.
+
+Answers persist independently of AI feedback/quota. The final release admits
+answers before persistence against a 120,000-byte lossless serialized summary
+budget, reserving every future followup and skipped-answer metadata. Source input
+is capped at 48,000 bytes; original question context at 24,000 bytes; followups at
+2,048 bytes. No answer is truncated and drafts survive capacity rejection. Minimal
+review inputs include question context and answers, omitting prior feedback and
+timestamps. Migration 049 is new/never deployed: pre-fix synthetic rows create no
+production backward-compatibility requirement. Every session accepted under the
+final release contract remains summarizable.
+
+Quota reservation shares the existing per-user advisory lock and allowance with
+legacy AI endpoints. Interview enqueue/receipt/usage are atomic; retained retries
+charge once. Known no-call failures refund unused charges, and retry reacquires
+the same receipt atomically. During-call/ambiguous calls retain the single charge.
+Legacy pending reservations expire after 120s, above the AI-only request deadline
+of 90s; successful Record commits original match_score/resume_autofill_parse
+categories idempotently. Failed commit leaves a recoverable pending receipt.
+Redis fail-open cannot bypass PostgreSQL pending/enqueue guards.
+Sensitive dialog content is excluded from PostHog capture/replay, and all AI/user
+prose renders as escaped React text.
+
+Verification environment and exact commands
+Only isolated synthetic PostgreSQL 16 at 127.0.0.1:55481/interview_test and Redis
+at 127.0.0.1:56381 were mutated. The API fixture exists only in integration-test
+binaries: feature endpoints, PostgreSQL and Redis are real; ancillary Job/auth APIs
+and model responses are injected synthetic fixtures. No production fake-provider
+option exists. Every test/app child process used an explicit allowlisted environment
+with external credentials blank, including variables otherwise loaded by godotenv.
+No .env values were read or printed.
+
+Sanitized runner: evidence/interview-preparation-2026-10-22/tmp/verify.py MODE [ROOT]
+MODE integration: go test -race -tags=integration ./modules/interviewprep
+  ./internal/platform/ai ./modules/subscriptions/... -count=1 -v
+MODE backend: go test -race ./...
+MODE vet: go vet ./...
+MODE unit: npm test
+MODE build: npm run build (includes typecheck)
+MODE lint: npm run lint
+MODE browser: npx playwright test --config e2e/interview-prep/playwright.config.ts
+Commands run in be/ or fe/. Assembly ROOT is the absolute path ending
+ evidence/interview-preparation-2026-10-22/tmp/current-main.
+Focused retry command, original and current-main assembly:
+go test -race -tags=integration ./modules/interviewprep
+  -run TestRealAdapterOpenBreakerRefundsOnlyNeverSentOperation -timeout 45s
+  -count=1 -v
+
+Final observed checks
+- Full frontend: 257 files / 2,905 tests PASS, 55.89s.
+- Focused feature/service frontend: 19/19 PASS, including Unicode boundaries,
+  capacity draft retention, lost response, explicit old-summary/feedback recovery.
+- Original and current-main real PostgreSQL/Redis integration-race PASS, including
+  populated old-schema up/down/up, ownership, leases, source privacy, quotas,
+  mixed legacy callers, no-call refunds and metadata-history recovery.
+- Current-main broad go test -race ./... PASS and go vet ./... PASS.
+- Original build/typecheck PASS 4.11s; current-main build/typecheck PASS 10.80s.
+- Final ESLint PASS. No dependencies added. Scoped git diff --check PASS.
+- Browser: six desktop/mobile cases PASS, 2.3m. Full plan/practice/followups/final
+  review, failure/retry/stale privacy, pending generation and saved-answer feedback
+  reload, interrupted retry, quota denial, old-summary recovery beyond 30 operations,
+  explicit retry/no automatic POST, Escape/focus return and no horizontal overflow.
+- Screenshots inspected directly, including desktop/mobile history-recovery images.
+Expected existing build warnings concern large JavaScript chunks and old Browserslist
+metadata; no update/install was performed outside the requested scope.
+
+Final immutable source/evidence
+Production manifest: 29 files; SHA256
+5f2067a8668eeccb5575bb10ff95d310030bd42780df9e38fee0dda0d073e60f.
+Temporary and durable manifests match disk. Current-main assembly contains all
+39 new feature files/tests, five baseline-relative shared hunks and only the
+jobs.interview locale subtree. All 1,258 baseline files remain: exactly eight
+owned shared files changed, zero removed/unexpected changes. HEAD and origin/main
+remain the exact original hashes above; index remains unchanged/empty.
+Evidence/report paths are nonignored and local references were checked.
+Historical af11a153...92537 reports are explicitly pre-recovery; final acceptance
+uses the 29-file snapshot above. Reviewers respected read-only roles and distinguished
+independent static/service checks from supplied mutating DB/browser evidence.
+
+Independent review closure matrix (first and second passes requested changes)
+1 MAJOR — lost SaveAnswer response carried q1 draft into q2.
+  Fix: drafts keyed by session/question; refresh reconciles a matching persisted
+  answer. Test: lost-response RTL regression asserts saved q1 and empty q2 draft.
+2 MINOR — new-session action silently discarded unsaved draft.
+  Fix: confirmation precedes request/state mutation. RTL cancellation keeps draft
+  and proves no extra start request.
+3 MAJOR — accepted Unicode answers could exceed summary's former 400KB cap.
+  Fix: lossless compact inputs + final-contract pre-save admission/reserves above.
+  TestLosslessBudgetReservesAllFollowupsAndEscapedSkips exercises controls, quotes,
+  backslash, emoji/Cyrillic and 24 contexts/answers; real integration admission
+  test proves rejection before persistence, then skip/finish/successful summary.
+4 MAJOR — source visibility could change between preflight and actual dispatch.
+  Fix: source guard through actual HTTP body write, bounded cancellation/release;
+  marker before guard supports MaxConns=1. TestDispatchGuardBlocksHideUntilBodyWritten
+  and actual HTTP dispatch/redirect/replay tests plus stale pre/during-call tests.
+  TestProductionAdapterSourceGuardThroughActualHTTPDispatch combines real PG
+  visibility locks and the production Anthropic adapter against a local HTTP
+  destination: pre-write hide waits; post-write hide commits before response;
+  a prior committed hide prevents any further network call.
+5 MINOR — feedback receipt replay could return another owned session's operation.
+  Fix: validate answer/session membership before replay and include session in
+  feedback fingerprint. TestFeedbackReplayCannotCrossOwnedSessions.
+6 MINOR — final publication source change logged a successful outcome.
+  Fix: completion returns committed outcome; telemetry uses it.
+  TestTelemetryReportsCommittedSourceChanged asserts SOURCE_CHANGED and no content.
+7 MAJOR — PostgreSQL jsonb formatting could exceed the provider byte cap even
+  when the lossless compact input was admitted (reviewer reproduction: compact
+  118,976 bytes versus jsonb 121,537 bytes).
+  Fix: worker re-marshals the decoded AIInput to the same compact representation
+  before dispatch. TestWorkerNormalizesJSONBBeforeProviderBudget compares actual
+  DB bytes with the exact input captured by the provider.
+8 MAJOR — frontend UTF-16 .max(12000) rejected valid backend Unicode answers/facts.
+  Fix: shared DTO natural-language text bounds count Unicode code points, matching
+  Go runes. Answer input/counter uses the same measure; an excessive paste keeps
+  the previous draft with EN/RU/UK guidance. Actual-service tests load 7,000 emoji
+  source facts and 7,000/12,000 emoji answers and reject 12,001-code-point data;
+  RTL proves 7,000 emoji entry and non-truncating over-limit paste rejection.
+9 MAJOR — an open provider circuit breaker was definitely not dispatched but
+  lost that distinction through error sanitization, consuming allowance/retries.
+  Fix: adapter exposes a sanitized definite-not-dispatched sentinel only for
+  proven preflight/breaker rejection. Worker restores the prior send flag,
+  refunds/reacquires only never-sent receipts and does not spend an external
+  attempt. Transport/partial-send errors remain conservatively ambiguous.
+  TestRealAdapterOpenBreakerRefundsOnlyNeverSentOperation trips the production
+  adapter's breaker through five local HTTP failures, proves zero further HTTP
+  calls over repeated retries, exact refund/reacquisition and preserved prior
+  sent/ambiguous usage; recovery can succeed without another charge.
+10 MINOR — an older failed summary outside the latest 30 operations replayed its
+  receipt but exposed no retry, and operation-only history could not page Older.
+  Fix: bounded returned-receipt recovery hook, owner/Job-scoped read-only operation
+  GET, explicit feedback/summary Retry and terminal detail refresh; no automatic
+  provider retry. Older considers full operation windows too; offset steps of 20
+  intentionally overlap the 30-operation windows without gaps.
+  RTL tests cover old summary receipt → explicit queued retry → terminal summary,
+  no automatic feedback retry, and operation-only paging. Real DB metadata-history
+  regression covers >30 newer operations, owned GET, unchanged retry usage and
+  successful old summary; HTTP matrices cover wrong owner and wrong Job.
+Additional root findings fixed/tested: preserve legacy autofill usage category;
+90s deadline only current AI-consuming routes; migration index 049; Job identity
+in active plan uniqueness; lean metadata polling; privacy aliases and no-call
+refunds. All findings are closed by verified fixes and fresh reviews. The recovery reviewers
+passed functional/auth review; their documentation-only minor was independently
+verified CLOSED by root/orchestrator after SYSTEM_SPEC and assembly were synchronized.
+No finding was waived.
+
+Release plan (documentation only; no release performed)
+1 Review/apply only this task's baseline-relative delta onto current main, preserving
+  all unrelated dirty and upstream content. Require fresh clean Sol+Astra reports,
+  current-main checks and browser evidence. Back up production database using the
+  operator's existing verified procedure, including feature history/usage receipts.
+2 Confirm deployed schema's highest migration is 048; feature migration is 049,
+  with no duplicate sequence. Stop/drain old AI workers during coordinated rollout
+  so old non-atomic quota callers cannot overlap the shared reservation contract.
+3 Apply 049 with the existing migration runner against the explicitly selected
+  release database, then start the matched API/frontend build. API startup may
+  auto-migrate; never point a test startup at production/current developer DB.
+4 Smoke-check owned Job history, source selection, generation receipt/polling,
+  save answer independent of feedback, pause/resume, quota and stale messages.
+  Observe sanitized failures, queue depth/leases and existing AI allowance counts.
+
+Safe rollback
+Prefer application rollback with schema 049 retained: additive tables preserve
+saved preparation/practice history, and rollback does not require deleting data.
+Drain/cancel workers, wait for bounded calls/leases, prevent new interview requests,
+then restore the prior matched API/frontend build. Retain one-charge ai_usage
+history. Do not run migration down while feature/legacy reservation callers run.
+If schema rollback is explicitly required, first export/verify feature history
+and durable operation/receipt records and inspect pending reservations. Migration
+049 down drops only interview_operations, interview_receipts, interview_answers,
+interview_sessions, interview_versions and ai_quota_reservations; it permanently
+removes saved feature data, so operator confirmation and verified backup are
+required. Use the existing runner for exactly one down step only after confirming
+049 is current. Never roll back current main's unrelated migration 048. Up/down/up
+was exercised on an isolated populated old-schema fixture, not production.
+
+Evidence and final review outcome
+All sanitized logs, source/assembly/baseline manifests, screenshots, review reports
+and cleanup.json are under docs/qa/evidence/interview-preparation-2026-10-22.
+The ignored task tmp directory retains only local baseline/assembly/raw logs/traces;
+these are not release artifacts. First, second and third review passes retain all
+ten findings and their verified fixes. Fresh recovery Sol/Astra reviews passed
+functional/auth review; the sole documentation minor was independently confirmed
+closed against updated SYSTEM_SPEC and identical assembly documentation. No open
+finding, waiver or automatically started next task remains.
+
+Final cleanup (2026-10-22 23:00 Europe/Kiev)
+Stopped only this task's jobber-interview-api, jobber-interview-fe and
+jobber-interview-redis tmux sessions; Redis 127.0.0.1:56381 was explicitly shut down
+without persistence. Stopped, did not remove, jobber-interview-prep-pg-20261022.
+No listeners remain on ports 58081/53081/56381. Unrelated Builder/tailoring/FluxRadar
+processes were untouched. Synthetic database data, baseline and evidence preserved.
+
+Limits
+No production migration/deploy or real paid provider call was performed. The browser
+fixture's auth/ancillary APIs are synthetic; actual auth middleware regressions ran
+in the broad backend suite. Model semantic quality was tested with injected data,
+not a billed live response. External calls after process crash can be ambiguous;
+logical operations and quota receipts are durable/idempotent, external exactly-once
+execution is not claimed. Release must use the verified current-main feature delta,
+not the entire dirty/older checkout.

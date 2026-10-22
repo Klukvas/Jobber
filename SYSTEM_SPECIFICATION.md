@@ -4493,3 +4493,150 @@ Content-Type: application/json
 **End of System Specification**
 
 This document represents the complete canonical reference for the Jobber system as of August 3, 2026 (merged Job + Application architecture). All features, business logic, and architectural decisions are documented here for current and future team members.
+
+## Job-specific interview preparation (October 22, 2026)
+
+A Job card opens Interview preparation using the attached Builder Resume by
+ default, with an explicit EN/RU/UK preparation language. Uploaded Resumes are
+not inputs. This feature never edits the Job, its description or source Builder
+Resume. Existing design, keyboard focus trapping and mobile Dialog layout apply.
+
+The AI-generated plan explicitly labels likely questions as assumptions. It
+contains requirements and experience mapping, technical/behavioral/situational
+questions with purpose, difficulty, advice and exact source citations, hypothetical
+STAR prompts, prioritized gaps/actions and questions for the interviewer. Missing
+facts require clarification rather than invented experience. Scores describe
+content, specificity and structure on an explained 0–4 scale; they do not predict
+hiring outcomes.
+
+Backend responsibilities:
+
+- Own every Job/version/session/answer/operation lookup, including parent binding.
+- Read Job context and allowlisted visible Builder Resume content in one
+  repeatable-read snapshot. Contact details, hidden section content/metadata and
+  layout data are not sent. Both `custom` and `custom_sections` visibility keys
+  hide custom content. Hash material visible input and source title for staleness.
+- Keep immutable plan versions, provenance, timestamps and studied question IDs.
+  Source deletion preserves history and marks it stale. New AI work against stale
+  data is rejected with SOURCE_CHANGED; saved plans, feedback and answers remain
+  available and save/pause/finish remain available. Refresh preparation and start
+  a session from the new version for further AI feedback.
+- Admit answers under the session row lock against a 120,000-byte serialized AI
+  input budget before persistence, with exact JSON escaping and reserved capacity
+  for every potential followup/skipped answer. Source input is at most 48,000 bytes,
+  original question context at most 24,000 bytes, and each followup context at most
+  2,048 bytes. Reviews use lossless answer/question projections without previous
+  feedback or timestamps. All answers accepted by this release remain summarizable;
+  no truncation occurs. Feature migration 049 has never been deployed, so there are
+  no earlier production interview sessions requiring a different input contract.
+- Save each practice answer before any separate AI request. Answers are immutable;
+  one answer per question. Session revisions serialize updates. Followups are
+  actual answerable questions, at most one per original, without recursion.
+  Sessions can skip, pause, resume and finish. Final review is requested separately
+  after finishing, including an explanatory insufficient-evidence review when no
+  answers were supplied.
+- Persist logical AI operations in PostgreSQL. Request UUID receipts and body
+  fingerprints replay committed objects; changed bodies conflict. Active plan
+  deduplication includes owner, Job, Builder Resume, language and snapshot hash.
+  New terminal generations create new versions. Feedback/summary deduplicate by
+  immutable answer/session. Two application workers claim at most two globally
+  running operations; 90-second leases and fencing tokens reject late results.
+  Each attempt has an 80-second operation bound and a 60-second provider bound.
+  Client disconnects do not own execution. Expired leases become interrupted and
+  need explicit retry, with at most three attempts; SDK retries are disabled on
+  this path. Exactly-once external provider execution after a crash is not claimed.
+- Lock owned source parents/content/visibility in a read-committed dispatch guard,
+  recheck the source hash, and keep those locks until net/http confirms the request
+  body was written. Release before model response wait. A five-second connect/write
+  timer cancels stalled dispatch; cleanup waits for the call to return. Disable
+  redirects, transport body replay and SDK retries. Persist send intent before
+  acquiring source locks, so a single-connection pool remains safe; a crash after
+  intent is conservatively ambiguous. Known pre-dispatch failure restores the prior
+  send state and refunds unused capacity. Lock relevant source rows again
+  for a final coherent hash check/publication. No newly hidden content is resent;
+  stale late results are discarded. Validate strict required JSON fields, bounds,
+  enums, exact fact IDs and exact quotes. Positive review scores need an answer
+  quote; absent answers cannot produce positive scores/strengths.
+- Reuse the existing AI allowance and prices. Insert one existing `ai_usage`
+  receipt atomically with enqueue under a per-user advisory lock. Retry retains
+  the receipt. Known stale requests are rejected before reservation. A source
+  change/unavailable provider discovered before any provider attempt refunds the
+  receipt; retry reacquires that same receipt atomically when appropriate.
+  A source change during an actual provider attempt retains its single charge.
+- Coordinate legacy AI consumers through the same lock and ledger, with durable
+  temporary reservations counted against the allowance. Their enforced 90-second
+  request deadline is below the 120-second pending lifetime. Record commits usage
+  idempotently; unsuccessful/rejected requests release unconsumed reservations.
+  A crash/cleanup failure expires pending capacity instead of consuming it forever.
+  Failed commit attempts retain the pending receipt and emit a sanitized signal.
+- Apply the existing Redis user limiter plus PostgreSQL pending/rate guards
+  (three pending operations per owner, ten newly enqueued operations per minute).
+  Redis outage cannot remove the durable guard.
+
+Frontend responsibilities:
+
+- Choose source/language, browse server history and request mutations with stable
+  UUID identities. History pages contain only metadata: 20 versions/sessions and
+  30 operations; plans/facts/answers are fetched only for selected detail objects.
+  Retain returned receipts outside the page in a bounded recovery cache and poll
+  their owned read-only operation endpoint. Failed feedback/summary offers an
+  explicit Retry; fetching a receipt never automatically starts paid work.
+  Older is available when any resource window is full. Offset steps are 20;
+  30-operation windows overlap intentionally, with no missing history.
+- Present saved/queued/running/failed/retry/unavailable/quota/stale/interrupted
+  states. Saved viewing remains available with AI disabled. Retried failed
+  operations never create duplicate answers or repeat an already retained charge.
+  Explain the three-attempt limit and recovery choices. Show remaining serialized
+  answer capacity and preserve drafts when admission fails. Drafts are scoped to
+  session/question; reconcile persisted answers after a lost response. Confirm
+  before replacing an unsaved draft with a new practice session.
+- Save answers independently, then offer feedback; finish independently, then
+  offer a final review. Clearly distinguish unsaved local drafts from server
+  answers and warn before discarding a draft. Render model/user text as escaped
+  React text. Exclude the entire sensitive dialog from PostHog autocapture/replay
+  through `ph-no-capture` and `ph-sensitive`.
+
+Authenticated API prefix: `/api/v1/jobs/:id/interview-prep`.
+
+| Method/path | Responsibility |
+| --- | --- |
+| GET `?offset=0` | Bounded metadata history and AI availability |
+| GET `/versions/:versionId` | Owned plan/facts/progress with live stale check |
+| POST `/generate` | `{resume_builder_id, locale, key}` → durable operation |
+| PUT `/versions/:versionId/studied` | `{question_id, studied}` → version |
+| GET `/operations/:operationId` | Owned receipt/status outside the history page |
+| POST `/operations/:operationId/retry` | Explicit bounded same-operation retry |
+| POST `/sessions` | `{version_id, key}` → saved session |
+| GET `/sessions/:sessionId` | Owned questions, immutable answers and reviews |
+| POST `/sessions/:sessionId/answers` | `{question_id,text,skip,revision,key}` → saved session; no AI |
+| POST `/sessions/:sessionId/action` | `{action:pause/resume/finish,revision,key}` → saved session |
+| POST `/sessions/:sessionId/answers/:answerId/feedback` | `{key}` → operation |
+| POST `/sessions/:sessionId/summary` | `{key}` → operation for finished session |
+
+Migration `000049_interview_preparation` is additive, after current main's
+`000048_comments_touch_updated_at_on_content_only`. It creates only feature
+history/operation/receipt tables and durable temporary AI reservations. It does
+not change existing tariffs, source data or historical usage records. Deploy code
+only with these tables available. The established GitHub deployment workflow uses
+`.github/scripts/interview-preparation-release.sh`: immutable image digests are
+prepared before a bounded frontend SIGQUIT drain and backend shutdown. The entry
+point stays closed through backup checksum and isolated PostgreSQL 15 restore,
+backend migration, exact clean-schema and authorization checks; frontend starts
+last. Public frontend activation and recovery require bounded exact HTTP 200
+readiness; redirects fail validation. Payments remain disabled without rewriting
+server environment files.
+
+Rollback depends on the observed clean schema. At 48, restart the previous image
+with its original migration source. At 49, the old 22561cb image additionally
+requires the complete migration directory through 49 mounted read-only at
+`/app/migrations`; otherwise its automatic migration startup fails. The mount is
+retained for a frontend-only redeploy after application rollback at clean 49. Retain additive
+tables and history. Dirty, unreadable or unexpected schema keeps the entry point
+closed for recovery; never force the version or automatically migrate down. The down migration destroys feature history
+and requires a separate authorized maintenance decision after backup.
+
+Operational signals use operation ID/kind/attempt/duration/outcome, validation
+failure, timeout, interruption, fencing and storage failures. No raw provider
+errors, resume text or answers are logged. Synthetic verification and safe
+release/rollback details are recorded in
+`docs/qa/interview-preparation-2026-10-22.txt`.

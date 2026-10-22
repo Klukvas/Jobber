@@ -1,0 +1,11 @@
+
+ RUN  v4.1.0 /Users/andreypavlenko/Desktop/Projects/b2c/jobber/fe
+
+ ✓ src/services/interviewPrepService.test.ts (7 tests) 7ms
+ ✓ src/features/jobs/interview-prep/InterviewPrepDialog.test.tsx (12 tests) 1580ms
+
+ Test Files  2 passed (2)
+      Tests  19 passed (19)
+   Start at  22:54:15
+   Duration  2.64s (transform 186ms, setup 130ms, import 526ms, tests 1.59s, environment 921ms)
+

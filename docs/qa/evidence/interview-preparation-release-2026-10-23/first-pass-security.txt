@@ -1,0 +1,14 @@
+REVIEW role=SECURITY status=CHANGES_REQUESTED — first release pass
+Snapshot:protocol85d0fcf881520f57b244dd43002f69f9b7ddda8ca3a5a8a301170fabeb62d0b7;
+initial payload2889223f36d8261c5042145094d289d35575f9fa218dce0c8c2cb69148d94fc8.
+Independent AstraHigh read-only CLI review, consolidated by orchestrator.
+Findings:missing ignored-helper payload; rollback failure paths falsely claim closed
+while started frontend remains, and ignored stops risk overlapping old/new AI callers;
+MAJOR frontend-only49 redeploy after old-image rollback drops mandatory readonly49
+migration-source mount and old backend cannot start; MINOR stale full payload manifest
+(extra evidence and report hash absent). See consolidated five-issue release closure matrix.
+Checks independently inspected:6/6protocol hashes; unchanged application locks/nonlocale
+feature hashes, locale changes isolated to jobs.interview; bash syntax, helper ShellCheck,
+actionlint semantic and Python AST; inherited33SC2086+2SC2129 unchanged.
+No runtime tests rerun by reviewer; no DB/app mutation, tracked/index/ref changes, external
+write, paid provider or next task. Subsequent fresh review required after fixes.

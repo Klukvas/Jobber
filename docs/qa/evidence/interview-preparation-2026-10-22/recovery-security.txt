@@ -1,0 +1,14 @@
+REVIEW role=SECURITY status=CHANGES_REQUESTED findings=1 MINOR (documentation only)
+Fresh independent Astra High recovery review of manifest
+5f2067a8668eeccb5575bb10ff95d310030bd42780df9e38fee0dda0d073e60f.
+Functional recovery, bounded receipt/polling behavior, explicit retry, owner/Job
+GET authorization and tests passed review. The only remaining issue was stale
+SYSTEM_SPEC documentation missing the new read-only operation endpoint and
+retained receipt behavior in the snapshot initially reviewed.
+Resolution: CLOSED by independent root/orchestrator read-only adjudication.
+Updated SYSTEM_SPEC lines4581-4585 and4607 describe retained receipt polling,
+explicit retry/history page behavior and GET /operations/:operationId. Current-main
+assembly contains identical documentation. All 29 production hashes are unchanged;
+no code change or waiver was needed. No remaining actionable finding.
+Reviewer respected read-only role; supplied mutating runtime/DB checks were
+inspected rather than independently rerun. No external write or next task.

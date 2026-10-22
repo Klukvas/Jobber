@@ -1,0 +1,141 @@
+Interview preparation production release — 2026-10-23
+Status: PREPARED FOR INDEPENDENT PREDEPLOY REVIEW; no production mutation or git commit/push.
+
+Scope and authority
+User continuation «давай в прод» authorizes this feature deployment, required additive049,
+backup and normal release writes. Canonical Projects/AGENTS.md §7 separately gates commit
+and push. The established GitHub Actions workflow is retained; no manual deployment bypass.
+Only approved feature delta plus the necessary release protocol/build fix is included.
+Original dirty checkout and unrelated content are preserved. No next task, secret edit,
+production down migration, version forcing or paid application AI call is authorized.
+
+Candidate
+Detached isolated worktree: evidence/interview-preparation-2026-10-22/tmp/deployment-2026-10-23/release
+Base/live commit:22561cb40ff049274bd5e3b60e88a7bc685c1d10.
+Application29-file manifest SHA256:5f2067a8668eeccb5575bb10ff95d310030bd42780df9e38fee0dda0d073e60f.
+Task-only baseline assembly preserves current main048 and unrelated upstream fixes.
+Deployment additions: reviewed workflow invokes .github/scripts/interview-preparation-release.sh;
+hermetic protocol tests; scoped SYSTEM_SPEC operational section; deterministic frontend
+Docker npm ci using the existing unchanged lockfile. npm install failed twice with npm10
+internal edgesOut error; no dependency/npm version upgrade and no prerender skip.
+
+Read-only live preflight
+Fresh helper preflight:48:0, backend health healthy/PostgreSQL+Redis up, base compose and
+Caddy hashes unchanged. PostgreSQL15. Existing frontend SIGQUIT, proxy timeout30s;
+backend graceful shutdown10s. No application replicas other than current named services.
+Old backend:klukvas/jobber-backend@sha256:142f687d3deab6091040f56eb97a05b0f2e7fd74bf0d57de68ff5fc6a1bcbc1c
+Old frontend:klukvas/jobber-frontend@sha256:d49edf307330bf34a4bdbd60b95636b95fb414d5425361297feee783df86974d
+Disk44GB available, database12.7MB at initial preflight; rechecked by helper before drain.
+No .env values, container environment dump or candidate/provider payloads were printed.
+
+Concrete established CI protocol (requires reviewed commit/push permission first)
+1. CI retains backend race/coverage55%, frontend coverage55%, integration and image builds.
+   Both changed services build immutable commit tags/OCI revision labels. Frontend flags:
+   VITE_API_BASE_URL=/api/v1,VITE_FEATURE_PAYMENTS=false,VITE_FEATURE_SENTRY=false,
+   VITE_FEATURE_EMAIL_NOTIFICATIONS=true; default prerender=true. linux/amd64 production.
+2. Workflow streams helper read-only preflight over existing SSH, then copies ONLY helper
+   and full migration source into ~/jobber/releases/interview-$GITHUB_SHA/; no .env/base
+   compose/Caddy copy. Registry login uses a private release-specific DOCKER_CONFIG and
+   logout cleanup; no existing host credential configuration rewrite.
+3. Actual mutation entry point is the established workflow SSH command:
+   bash jobber/releases/interview-$GITHUB_SHA/release.sh deploy $GITHUB_SHA $BASE_HASH $CADDY_HASH $BACKEND_REF $FRONTEND_REF
+   Arguments are validated hashes/immutable commit references. Remote flock plus Actions
+   production concurrency exclude overlapping releases. Pull and verify image revision,
+   amd64 architecture and resolve immutable digests BEFORE maintenance.
+4. docker stop -t45 jobber-frontend; require stopped, exit0, OOMKilled=false. Then
+   docker stop -t20 jobber-backend with the same proof and no old-image replicas.
+   This planned maintenance drains nginx requests through its30s bound. Forced shutdown
+   aborts before migration. Entry stays closed until all backend checks pass.
+5. Private pg_dump --no-owner --no-acl; gzip, gzip -t and SHA256 check. Restore entire
+   dump into isolated same PostgreSQL15 image, --network none/no published ports;
+   ON_ERROR_STOP, bounded restore and schema plus subscription/job/Builder Resume
+   full-record fingerprint comparisons. Preserve backup and checksum; never prune here.
+6. docker compose --no-deps up backend only. Exact49:0,6tables,9valid/ready indexes,
+   15validatedFKs,2partial unique indexes and required operation columns must pass.
+   Health must be200 with DB/Redis up; unauthenticated protected feature routes401.
+   Verify running image, payments/webhooks false, source/subscription fingerprints and
+   environment hash unchanged. Then activate frontend last; strict public HTTPS200 and
+   API401, image/config preservation checks. Activation and recovery wait for exact200
+   with bounded polling;3xx is rejected. Bounded wget/curl/SQL/restore throughout.
+7. First rollout expects fresh48:0; safe same-release rerun allows49:0 only with complete
+   validators. Future50, dirty/unreadable state and partial schema fail closed.
+
+Rollback (supersedes simple old-image wording in the feature implementation report)
+At clean48 before migration, use old digests and ORIGINAL migration source: mounting49
+here would accidentally apply049 after backup failure. At validated clean49, old22561cb
+must mount the full through49 migration directory read-only at /app/migrations.
+The pinned old golang-migrate otherwise cannot find source49 and exits startup.
+Local linux/amd64/PG15 proof: plain old image at49 exit1; same digest with readonly
+through49 source starts healthy200 with PostgreSQL/Redis. Feature history retained.
+Dirty/unreadable/unexpected schema: stop new backend, keep entry closed; no down, force,
+automatic production restore or false healthy result. Backend/frontend recovery start
+and health failures are checked explicitly and reported sanitized. Recovery stops and
+proves frontend then backend stopped before any old backend starts. Failed stop reports
+entry=unconfirmed and requires operator recovery; it cannot claim healthy/closed. Failed
+recovery frontend start/readiness closes and proves the container stopped before reporting
+entry=closed. No old/new AI caller overlap is accepted.
+
+Verification completed before predeploy review
+- Candidate exact CI backend go test -v -race -coverprofile=coverage.out ./...:PASS,71.1%.
+- Candidate exact CI frontend npx vitest run --coverage:PASS261files/2952tests,81.72%statements.
+- Actual release helper14hermetic tests:PASS50.535s, including48/49success, SQL/schema,
+  missingFK/index, forceddrain, backup/restorefailure, dirtymigration,49mountedrollback,
+  backend/frontend rollback failures, failed stop state, redirect rejection, delayed200
+  readiness, and49rollback→frontend-only mount retention; no remote execution from tests.
+- Actual migration/validator on isolated PostgreSQL15:PASS (not a mocked16-FK count).
+- Real synthetic PG15 dump/gzip/checksum/network-none restore:PASS;87,034raw bytes,
+  9,213gzip bytes,49:0 and3/3source-table fingerprint matches. No production data.
+- Old production digest rollback compatibility proof on linux/amd64/PG15:PASS.
+- bash -n, helper ShellCheck and actionlint YAML/semantic validation:PASS.
+- Full actionlint ShellCheck diagnostics have33SC2086+2SC2129 inherited baseline warnings;
+  new intended SSH client expansion is documented locally. No new diagnostic or gate waiver.
+- Backend linux/amd64 Docker build:PASS. Frontend locked linux/amd64 build:PASS; Node20 production build plus35prerendered routes,0failed.
+- Actual built image smoke on synthetic PG15/Redis:backendhealth200,feature401,
+  frontend200 and nginx-proxied feature401; schema49:0. No paid AI.
+- Earlier approved feature evidence includes final6/6desktop/mobile browser, original/main
+  integration/race/vet, full frontend, auth/privacy/budget/quota/recovery and independent reviews.
+
+
+First independent release review closure matrix (fresh re-review required)
+1 BLOCKER missing ignored helper: preexisting *.sh ignore is preserved; exact helper is
+  explicitly included in payload/staging allowlist with force_add_required=true. Future
+  git add -f is restricted to this one reviewed path after separate git permission.
+2 MAJOR recovery closure/overlap: initial rollback stops are checked, actual running state
+  proved, frontend HTTP/start failure stops frontend again; regressions assert actual
+  states and no old backend start when either stop fails, with no false healthy/closed.
+3 MAJOR strictHTTPS200: exact status polling replaces curl--fail acceptance of3xx for
+  activation and recovery; redirect and delayed readiness tests pass.
+4 MAJOR49 frontend-only compatibility: source49 retains readonly full migration mount;
+  full failed-release→old-image rollback→frontend-only deployment sequence passes.
+5 MINOR inventory drift: final payload covers all current candidate files including helper,
+  report and frozen evidence. Payload manifest and staging paths live only in ignored
+  deploymenttmp (excluded from their own inventory); protocol manifest covers six files,
+  so its durable copy is safe to include. First-pass reports and old protocol hashes retained.
+
+Immutable review and evidence boundary
+Shipping candidate report/evidence are frozen before the second release review. Fresh
+review outcomes and later production observations are stored ONLY in original-tree durable
+nonshipping release evidence/status, outside the candidate, and explicitly excluded from
+this release payload. They do not mutate the frozen candidate inventory. The original
+implementation report and earlier feature evidence remain included and unchanged.
+
+Pending before any production mutation
+Fresh independent Sol/Astra release reviews; obtain explicit commit/non-force push permission for this exact candidate.
+After permission, one reviewed commit based on22561cb and non-force update of origin/main
+would trigger established CI. Recheck remote main first; concurrent change requires rebuild
+and review, never force-push. Actual new image digests/backup location/health/schema and
+rollback outcome will be recorded only after observed deployment.
+
+Durable sanitized release evidence
+Directory:docs/qa/evidence/interview-preparation-release-2026-10-23/
+Includes source protocol hashes, actual-helper tests, actualPG15validator, fresh live read-only
+preflight, image smoke/checks and old-image migration-source rollback proof. Raw build/coverage
+logs remain in ignored tasktmp; no raw production logs or provider payloads were copied.
+
+Instructions
+Checked canonical Projects/AGENTS.md, Projects/CLAUDE.md, common/Go/TS rules, project
+Cursor/domain/SYSTEM_SPEC instructions and established GitHub deployment docs/workflow.
+Go CI skill applied preserving existing race/coverage/action versions/least privilege;
+generic suggestions for unrelated scanners/release tools do not expand canonical scope.
+No technical gate waived. Reviewers remain read-only. No Claude, automatic next task,
+commit, push, production migration, deployment or secret edit has occurred in preparation.

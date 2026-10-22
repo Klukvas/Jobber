@@ -1,0 +1,11 @@
+
+Running 6 tests using 1 worker
+
+  ✓  1 [desktop] › e2e/interview-prep/flow.spec.ts:3:1 › saved plan, answerable followups, resume, summary, failure retry and stale privacy (18.2s)
+  ✓  2 [desktop] › e2e/interview-prep/flow.spec.ts:232:1 › recovers pending generation and feedback after reload, interrupted retry and quota (42.5s)
+  ✓  3 [desktop] › e2e/interview-prep/flow.spec.ts:422:1 › explicitly recovers a failed summary outside the latest thirty operations (5.8s)
+  ✓  4 [mobile] › e2e/interview-prep/flow.spec.ts:3:1 › saved plan, answerable followups, resume, summary, failure retry and stale privacy (17.0s)
+  ✓  5 [mobile] › e2e/interview-prep/flow.spec.ts:232:1 › recovers pending generation and feedback after reload, interrupted retry and quota (41.2s)
+  ✓  6 [mobile] › e2e/interview-prep/flow.spec.ts:422:1 › explicitly recovers a failed summary outside the latest thirty operations (8.1s)
+
+  6 passed (2.3m)

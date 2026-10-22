@@ -1,0 +1,74 @@
+
+> fe@0.0.0 build
+> tsc -b && vite build
+
+vite v7.3.1 building client environment for production...
+transforming...
+Browserslist: browsers data (caniuse-lite) is 9 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+✓ 3750 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                  3.60 kB │ gzip:   1.01 kB
+dist/assets/index-D8qNk6mE.css                 110.99 kB │ gzip:  18.79 kB
+dist/assets/resumeQueryKeys-DsAUOugG.js          0.10 kB │ gzip:   0.09 kB
+dist/assets/coverLetterService-CcUT9J55.js       0.35 kB │ gzip:   0.20 kB
+dist/assets/Select-FvKxYQwe.js                   0.47 kB │ gzip:   0.31 kB
+dist/assets/PricingModal-HP1g7aoK.js             0.50 kB │ gzip:   0.32 kB
+dist/assets/stageTemplatesService-BnN7Ylt9.js    0.51 kB │ gzip:   0.28 kB
+dist/assets/Skeleton-C0O-2vu5.js                 0.56 kB │ gzip:   0.27 kB
+dist/assets/Checkbox-o9qMvg3p.js                 0.58 kB │ gzip:   0.36 kB
+dist/assets/EmptyState-BaBIUW3k.js               0.62 kB │ gzip:   0.36 kB
+dist/assets/companiesService-DAtukmc3.js         0.68 kB │ gzip:   0.33 kB
+dist/assets/ErrorState-VYb8zX6k.js               0.77 kB │ gzip:   0.47 kB
+dist/assets/CompanyAvatar-BSp1uK3w.js            0.79 kB │ gzip:   0.51 kB
+dist/assets/Card-DamfoeH_.js                     1.03 kB │ gzip:   0.40 kB
+dist/assets/jobsService-BRiXQ_cC.js              1.07 kB │ gzip:   0.41 kB
+dist/assets/resumesService-DR5XWMAl.js           1.23 kB │ gzip:   0.61 kB
+dist/assets/Sheet-lCrIup3D.js                    1.30 kB │ gzip:   0.70 kB
+dist/assets/UpgradeBanner-Bu1TO9wG.js            1.36 kB │ gzip:   0.67 kB
+dist/assets/NotFound-oq20zgE3.js                 1.84 kB │ gzip:   0.78 kB
+dist/assets/usePlanSelection-Dz_3SPzo.js         2.34 kB │ gzip:   1.24 kB
+dist/assets/SharedStats-DXUmtl-8.js              2.52 kB │ gzip:   1.13 kB
+dist/assets/documentSync-BavvMIAa.js             2.65 kB │ gzip:   1.19 kB
+dist/assets/resumeBuilderService-DA0qsTdZ.js     2.73 kB │ gzip:   0.63 kB
+dist/assets/PageSkeleton-ChU0_O8V.js             2.97 kB │ gzip:   0.66 kB
+dist/assets/ResumeBuilderPrint-CAOhYewd.js       3.29 kB │ gzip:   1.63 kB
+dist/assets/EditableTextarea-C252MOB2.js         3.47 kB │ gzip:   1.33 kB
+dist/assets/ResetPassword-VpFYk7Kr.js            4.05 kB │ gzip:   1.44 kB
+dist/assets/resumeDocumentSync-DsTqbcrc.js       5.05 kB │ gzip:   2.03 kB
+dist/assets/CoverLetters-DxCYpvJ6.js             5.30 kB │ gzip:   1.79 kB
+dist/assets/sharingService-BBpXb6l3.js           6.37 kB │ gzip:   1.89 kB
+dist/assets/useSectionPersistence-CckHWsO3.js    8.13 kB │ gzip:   2.68 kB
+dist/assets/jobsListReturn-DQVOtVeT.js          10.37 kB │ gzip:   3.03 kB
+dist/assets/sentry-S0X3QcPK.js                  10.72 kB │ gzip:   3.47 kB
+dist/assets/StageTemplates-DIT1qYP1.js          11.17 kB │ gzip:   3.18 kB
+dist/assets/Companies-DibZESGW.js               12.85 kB │ gzip:   3.77 kB
+dist/assets/Settings-DQNNoEPQ.js                13.35 kB │ gzip:   3.34 kB
+dist/assets/Analytics-C-lQyX5K.js               18.76 kB │ gzip:   3.47 kB
+dist/assets/Resumes-CFjQE16U.js                 29.54 kB │ gzip:   7.59 kB
+dist/assets/Jobs-Cl-4K1ex.js                    35.97 kB │ gzip:  10.93 kB
+dist/assets/query-BnmdfsSm.js                   36.48 kB │ gzip:  10.73 kB
+dist/assets/dnd-B3HJlccV.js                     42.60 kB │ gzip:  14.27 kB
+dist/assets/i18n-BHo4NwiH.js                    47.34 kB │ gzip:  15.46 kB
+dist/assets/date-BPxywaY_.js                    49.70 kB │ gzip:  11.81 kB
+dist/assets/CoverLetterEditor-Cd8bcO2o.js       51.89 kB │ gzip:  10.11 kB
+dist/assets/ui-icons-khXCGrIK.js                55.76 kB │ gzip:  17.07 kB
+dist/assets/markdown-DdKq1D2y.js                63.70 kB │ gzip:  20.89 kB
+dist/assets/JobDetail-CXzbnf6Q.js               70.36 kB │ gzip:  17.87 kB
+dist/assets/ResumeBuilderEditor-C2s7mQpq.js     72.46 kB │ gzip:  17.12 kB
+dist/assets/templateRegistry-oqEp05sw.js        73.28 kB │ gzip:  11.75 kB
+dist/assets/router-d_iPve4Q.js                  86.61 kB │ gzip:  29.40 kB
+dist/assets/forms-uRJeT_bl.js                   94.17 kB │ gzip:  27.70 kB
+dist/assets/vendor-CmPb57pc.js                 176.23 kB │ gzip:  57.95 kB
+dist/assets/posthog-DjUN90mv.js                176.46 kB │ gzip:  58.97 kB
+dist/assets/react-Dl3XYibk.js                  193.23 kB │ gzip:  60.64 kB
+dist/assets/index-H4ZOPcTg.js                  589.34 kB │ gzip: 160.60 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 12.61s
+✓ sitemap.xml generated with 35 URLs

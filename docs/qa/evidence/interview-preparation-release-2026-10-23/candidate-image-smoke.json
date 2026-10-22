@@ -1,0 +1,19 @@
+{
+  "backend_health": {
+    "status": 200,
+    "body": {
+      "status": "healthy",
+      "version": "1.0.0",
+      "services": {
+        "postgres": "up",
+        "redis": "up"
+      }
+    }
+  },
+  "backend_feature": 401,
+  "frontend_root": 200,
+  "frontend_proxied_feature": 401,
+  "schema": "49:0",
+  "backend_image": "sha256:33d4df55013792983fea8d084e7d66145d04ae891db7536d21b018855a8b8944 amd64",
+  "frontend_image": "sha256:01a5af86c9bcbb129cd34d44005d53998658aaf1a7d9641412da78b9632c0865 amd64"
+}

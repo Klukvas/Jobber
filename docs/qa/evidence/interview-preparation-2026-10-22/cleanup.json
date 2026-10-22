@@ -1,0 +1,25 @@
+{
+  "time": "2026-10-22T23:00:02.862619+03:00",
+  "stopped_sessions": [
+    {
+      "name": "jobber-interview-api",
+      "exit_code": 0
+    },
+    {
+      "name": "jobber-interview-fe",
+      "exit_code": 0
+    },
+    {
+      "name": "jobber-interview-redis",
+      "exit_code": 0
+    }
+  ],
+  "container": {
+    "name": "jobber-interview-prep-pg-20261022",
+    "stop_exit_code": 0,
+    "removed": false
+  },
+  "preserved_data_and_evidence": true,
+  "redis_shutdown_exit_code": 0,
+  "owned_listening_ports_remaining": ""
+}

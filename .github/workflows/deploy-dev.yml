@@ -69,7 +69,7 @@ on:
 
 # Prevent concurrent deployments to the same environment
 concurrency:
-  group: deploy-dev-${{ github.ref }}
+  group: jobber-production
   cancel-in-progress: false  # Don't cancel running deployments
 
 # Environment variables used across all jobs
@@ -111,11 +111,13 @@ jobs:
               - 'be/**'
               - 'docker-compose.yml'
               - '.github/workflows/deploy-dev.yml'
+              - '.github/scripts/interview-preparation-release*'
             frontend:
               - 'fe/**'
               - 'docker-compose.yml'
               - 'Caddyfile'
               - '.github/workflows/deploy-dev.yml'
+              - '.github/scripts/interview-preparation-release*'
       
       # What the rest of the run acts on: the path filter, widened by a manual
       # force. Everything downstream reads these outputs, so a forced service
@@ -152,6 +154,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Verify release recovery protocol
+        run: python3 .github/scripts/interview-preparation-release-test.py
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -469,585 +474,82 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Generate docker-compose.deploy.yml with image tags
+      - name: Prepare immutable release inputs
+        id: release
+        env:
+          BACKEND_TAG: ${{ needs.build-backend.outputs.image_tag }}
+          FRONTEND_TAG: ${{ needs.build-frontend.outputs.image_tag }}
         run: |
-          # Use the SHA tag from the build job if it ran, otherwise fall back to 'dev'
-          if [ "${{ needs.build-backend.result }}" = "success" ]; then
-            BACKEND_TAG="${{ needs.build-backend.outputs.image_tag }}"
-          else
-            BACKEND_TAG="dev"
-          fi
+          backend=""; frontend=""
+          if [ -n "$BACKEND_TAG" ]; then backend="${BACKEND_IMAGE}:$BACKEND_TAG"; fi
+          if [ -n "$FRONTEND_TAG" ]; then frontend="${FRONTEND_IMAGE}:$FRONTEND_TAG"; fi
+          {
+            echo "backend=$backend"
+            echo "frontend=$frontend"
+            echo "base_hash=$(sha256sum docker-compose.yml | cut -d' ' -f1)"
+            echo "caddy_hash=$(sha256sum Caddyfile | cut -d' ' -f1)"
+            if [ -n "$backend$frontend" ]; then echo 'changed=true'; else echo 'changed=false'; fi
+          } >> "$GITHUB_OUTPUT"
 
-          if [ "${{ needs.build-frontend.result }}" = "success" ]; then
-            FRONTEND_TAG="${{ needs.build-frontend.outputs.image_tag }}"
-          else
-            FRONTEND_TAG="dev"
-          fi
-
-          echo "Backend image tag: ${BACKEND_TAG}"
-          echo "Frontend image tag: ${FRONTEND_TAG}"
-
-          # Payments stay pinned OFF in production until Creem go-live (ADR-0003).
-          # The pin lives in this generated override rather than in the server's
-          # .env, because the deployment no longer rewrites .env (see the copy
-          # step below): an explicit value in the override wins over the
-          # ${FEATURE_PAYMENTS_ENABLED:-false} interpolation in the base file,
-          # whatever the server's .env happens to hold. Both flags are pinned —
-          # FEATURE_BILLING_WEBHOOK_ENABLED defaults to the value of
-          # FEATURE_PAYMENTS_ENABLED, and either one on without CREEM_*
-          # credentials makes the API refuse to boot.
-          # To go live: drop the two env lines, provision the CREEM_* values in
-          # the server's .env, and un-pin VITE_FEATURE_PAYMENTS in the frontend
-          # build args above.
-          cat > docker-compose.deploy.yml <<EOF
-          services:
-            backend:
-              image: ${{ env.BACKEND_IMAGE }}:${BACKEND_TAG}
-              environment:
-                FEATURE_PAYMENTS_ENABLED: "false"
-                FEATURE_BILLING_WEBHOOK_ENABLED: "false"
-            frontend:
-              image: ${{ env.FRONTEND_IMAGE }}:${FRONTEND_TAG}
-          EOF
-
-          cat docker-compose.deploy.yml
-
-      # Snapshot what is actually deployed BEFORE the copy overwrites it.
-      # The rollback below used to capture state with `docker compose config`
-      # *after* the scp, so the "previous version" it saved was the new, failing
-      # one (and it wrote every resolved secret into a file on the server).
-      # These two files are the real previous state — the old base compose and
-      # the old image tags — kept in ~/jobber so compose still resolves
-      # ./Caddyfile and .env relative to the same project directory.
-      #
-      # This step also carries the release preflight (below): it is the first
-      # thing that touches the server, so a refusal here happens before any scp,
-      # pull, restart or migration.
-      - name: Snapshot current server compose for rollback
+      # Documentation-only runs remain successful no-ops. An untouched service
+      # keeps its actual immutable live digest, never a mutable dev fallback.
+      - name: Release preflight (read-only)
+        if: steps.release.outputs.changed == 'true'
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+          BASE_HASH: ${{ steps.release.outputs.base_hash }}
+          CADDY_HASH: ${{ steps.release.outputs.caddy_hash }}
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
-          set -e
+          # Client-side release values are validated by the remote helper.
+          # shellcheck disable=SC2029
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "bash -s -- preflight '$RELEASE_SHA' '$BASE_HASH' '$CADDY_HASH'" < .github/scripts/interview-preparation-release.sh
 
-          # ----------------------------------------------------------------
-          # RELEASE PREFLIGHT — read-only, fail-closed, runs before anything
-          # on the server is written to.
-          #
-          # Migration 000046 changes no schema, and as of this release it
-          # changes no data either: the UPDATE that reset every subscriptions
-          # row whose identifiers do not look like Creem's (`sub_` / `cust_`)
-          # was removed before 000046 had ever been applied to production. See
-          # be/migrations/000046_creem_billing.up.sql, and
-          # be/tests/e2e/migration_creem_billing_test.go, which runs the real
-          # migration files against fixture rows and fails if any field moves.
-          # Production last deployed 0012c82 (schema 45), so 000046 is still
-          # pending and runs as soon as the new backend boots further down this
-          # job — as a no-op.
-          #
-          # What this preflight still refuses to deploy over, fail-closed:
-          # a missing project dir, a missing .env, no database, a failed or
-          # unparseable query, a dirty schema, or a schema older than 45
-          # (before 000045 the subscriptions identifier columns still carry
-          # their old names, so nothing here can be trusted, and deploying
-          # would run further unreviewed migrations). A first deploy with no
-          # database on the box is one of those cases: for this release it is a
-          # stop, not a skip.
-          #
-          # The legacy subscription rows are counted but no longer block: with
-          # 000046 a no-op they are expected to be preserved, and the count is
-          # the "before" half of that evidence. The fingerprint comparison in
-          # the deploy step below is what proves they actually survived.
-          #
-          # Read-only by construction: SELECTs only, no migration, no seed, no
-          # HTTP call. .env is probed for existence and read for DB_USER /
-          # DB_NAME exactly as the deploy step below does; nothing from it is
-          # printed, and psql's own output is never echoed either (its error
-          # text embeds the connection's user and database). Nothing but counts
-          # is ever printed — no identifiers, emails or column values.
-          # ----------------------------------------------------------------
-          if [ ! -d "$HOME/jobber" ]; then
-            echo "❌ Preflight: no ~/jobber on the server — cannot verify the pending migration against the live data; aborting"
-            exit 1
-          fi
-          cd "$HOME/jobber"
-
-          if [ ! -f .env ]; then
-            echo "❌ Preflight: ~/jobber/.env is missing — aborting (it is provisioned by hand and never written by CI)"
-            exit 1
-          fi
-          echo "✅ Preflight: ~/jobber/.env present"
-
-          if ! docker ps --format '{{.Names}}' | grep -q '^jobber-postgres$'; then
-            echo "❌ Preflight: no running jobber-postgres container — cannot check what migration 000046 would clear; aborting"
-            exit 1
-          fi
-
-          DB_USER=$(grep -E '^DB_USER=' .env | tail -1 | cut -d= -f2- || true)
-          DB_NAME=$(grep -E '^DB_NAME=' .env | tail -1 | cut -d= -f2- || true)
-          DB_USER=${DB_USER:-jobber}
-          DB_NAME=${DB_NAME:-jobber}
-
-          # ON_ERROR_STOP=1 makes psql exit non-zero on a failing statement
-          # instead of printing a message and succeeding, and the exit code —
-          # not the text — is what this guard trusts. No LIMIT: golang-migrate
-          # keeps exactly one row, so anything else is unexpected and must
-          # fail the strict parse below rather than be silently truncated.
-          PSQL_RC=0
-          MIG_RAW=$(docker exec jobber-postgres psql -X -q -v ON_ERROR_STOP=1 \
-            -U "$DB_USER" -d "$DB_NAME" -tAc \
-            "SELECT version::text || ':' || dirty::int FROM schema_migrations" 2>/dev/null) || PSQL_RC=$?
-          if [ "$PSQL_RC" -ne 0 ]; then
-            echo "❌ Preflight: schema_migrations query failed (psql exit ${PSQL_RC}) — aborting instead of assuming the migration is safe"
-            exit 1
-          fi
-          MIG=$(printf '%s' "$MIG_RAW" | tr -d '[:space:]' | grep -E '^[0-9]+:[01]$' || true)
-          if [ -z "$MIG" ]; then
-            echo "❌ Preflight: schema_migrations did not yield exactly one parseable version:dirty pair — aborting"
-            exit 1
-          fi
-          SCHEMA_VERSION=${MIG%%:*}
-          SCHEMA_DIRTY=${MIG##*:}
-          echo "ℹ️  Preflight: schema_migrations version=${SCHEMA_VERSION} dirty=${SCHEMA_DIRTY}"
-
-          if [ "$SCHEMA_DIRTY" != "0" ]; then
-            echo "❌ Preflight: schema is DIRTY at version ${SCHEMA_VERSION} — a half-applied migration must be resolved by hand before deploying; aborting"
-            exit 1
-          fi
-
-          if [ "$SCHEMA_VERSION" -lt 45 ]; then
-            echo "❌ Preflight: unexpected schema version ${SCHEMA_VERSION} (this release expects 45 with 000046 pending, or >= 46 already applied)."
-            echo "   Before 000045 the subscriptions identifier columns still carry their old names, so this check cannot be trusted, and deploying would run further unreviewed migrations. Aborting."
-            exit 1
-          elif [ "$SCHEMA_VERSION" -ge 46 ]; then
-            echo "ℹ️  Preflight: migration 000046 already applied (schema ${SCHEMA_VERSION})"
-          else
-            echo "ℹ️  Preflight: schema 45 — 000046 is pending and is a no-op in this release"
-          fi
-
-          # Count the legacy subscription rows: the rows the ORIGINAL 000046
-          # would have reset. Its WHERE clause is reproduced verbatim from
-          # be/migrations/000046_creem_billing.up.sql as it stood before this
-          # release — backslash-escaped underscores included, so `sub\_%` means a
-          # literal "sub_" prefix here exactly as it did there. The quoted
-          # heredoc and the double-quoted -c argument both pass the backslash
-          # through untouched, and the same clause keys the preservation
-          # fingerprint in the deploy step and the regression test in
-          # be/tests/e2e/migration_creem_billing_test.go.
-          #
-          # A non-zero count is expected and fine. A failed or unparseable query
-          # is not: it still aborts, so a broken query can never masquerade as
-          # "there was nothing to preserve".
-          PSQL_RC=0
-          LEGACY_RAW=$(docker exec jobber-postgres psql -X -q -v ON_ERROR_STOP=1 \
-            -U "$DB_USER" -d "$DB_NAME" -tAc \
-            "SELECT count(*) FROM subscriptions WHERE (external_subscription_id IS NOT NULL AND external_subscription_id NOT LIKE 'sub\_%') OR (external_account_id IS NOT NULL AND external_account_id NOT LIKE 'cust\_%')" 2>/dev/null) || PSQL_RC=$?
-          if [ "$PSQL_RC" -ne 0 ]; then
-            echo "❌ Preflight: could not count the legacy subscription rows (psql exit ${PSQL_RC}) — aborting before anything is copied or restarted"
-            exit 1
-          fi
-          LEGACY_ROWS=$(printf '%s' "$LEGACY_RAW" | tr -d '[:space:]' | grep -E '^[0-9]+$' || true)
-          if [ -z "$LEGACY_ROWS" ]; then
-            echo "❌ Preflight: unparseable legacy subscription row count — aborting"
-            exit 1
-          fi
-          echo "✅ Preflight: ${LEGACY_ROWS} legacy subscription row(s) present; migration 000046 clears nothing, so they are expected to be preserved"
-
-          # Guard passed: safe to take the rollback snapshot.
-          if [ -f docker-compose.yml ] && [ -f docker-compose.deploy.yml ]; then
-            cp -p docker-compose.yml .rollback-docker-compose.yml
-            cp -p docker-compose.deploy.yml .rollback-docker-compose.deploy.yml
-            echo "📸 Rollback snapshot taken from the currently deployed compose"
-          else
-            echo "ℹ️  No compose on the server yet (first deploy?) — keeping any earlier snapshot"
-          fi
-          ENDSSH
-
-      - name: Copy compose files to server
+      - name: Copy scoped release artifacts
+        if: steps.release.outputs.changed == 'true'
+        env:
+          RELEASE_SHA: ${{ github.sha }}
         run: |
-          scp docker-compose.yml \
-            docker-compose.deploy.yml \
-            Caddyfile \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:~/jobber/
+          remote="jobber/releases/interview-$RELEASE_SHA"
+          # Client-side release values are validated by the remote helper.
+          # shellcheck disable=SC2029
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "umask 077; mkdir -p '$remote/docker-auth'; chmod 700 '$remote' '$remote/docker-auth'"
+          scp .github/scripts/interview-preparation-release.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:"$remote/release.sh"
+          scp -r be/migrations ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:"$remote/"
+          # Client-side release values are validated by the remote helper.
+          # shellcheck disable=SC2029
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "chmod -R a+rX '$remote/migrations'"
 
-      # NOTE: there is deliberately no ".env sync" step here.
-      # The server's ~/jobber/.env is provisioned by hand and is the single
-      # source of runtime configuration. An earlier version of this workflow
-      # rewrote ~30 keys from GitHub Secrets on every deployment, which
-      # overwrote values an operator had set on the box and contradicted
-      # principle 2 in the header. To change runtime config, edit
-      # ~/jobber/.env on the server, then re-run this workflow (the deploy step
-      # still hard-fails if the file is missing). Settings that must not depend
-      # on .env — the payments pins — are set in docker-compose.deploy.yml above.
-
-      - name: Deploy via SSH
+      - name: Authenticate release-scoped image pull
+        if: steps.release.outputs.changed == 'true'
+        env:
+          DOCKER_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          RELEASE_SHA: ${{ github.sha }}
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
-          set -e  # Exit on any error
+          # Client-side release values are validated by the remote helper.
+          # shellcheck disable=SC2029
+          printf '%s' "$DOCKER_TOKEN" | ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "DOCKER_CONFIG=\$HOME/jobber/releases/interview-$RELEASE_SHA/docker-auth docker login -u '${{ secrets.DOCKERHUB_USERNAME }}' --password-stdin"
 
-          cd ~/jobber
+      - name: Drain, back up, restore-check and activate
+        if: steps.release.outputs.changed == 'true'
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+          BASE_HASH: ${{ steps.release.outputs.base_hash }}
+          CADDY_HASH: ${{ steps.release.outputs.caddy_hash }}
+          BACKEND_REF: ${{ steps.release.outputs.backend }}
+          FRONTEND_REF: ${{ steps.release.outputs.frontend }}
+        run: |
+          # Client-side release values are validated by the remote helper.
+          # shellcheck disable=SC2029
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "bash jobber/releases/interview-$RELEASE_SHA/release.sh deploy '$RELEASE_SHA' '$BASE_HASH' '$CADDY_HASH' '$BACKEND_REF' '$FRONTEND_REF'"
 
-          echo "================================================"
-          echo "Starting deployment at $(date)"
-          echo "================================================"
-
-          # Ensure jq is available (used for parsing docker compose health status)
-          if ! command -v jq >/dev/null 2>&1; then
-            echo "📦 jq not found — installing..."
-            apt-get update -qq && apt-get install -y -qq jq
-          fi
-
-          # CRITICAL: Verify .env file exists
-          # The .env file contains ALL runtime secrets (JWT, DB passwords, S3 credentials).
-          # If missing, deployment MUST fail to prevent running with default/missing secrets.
-          if [ ! -f .env ]; then
-            echo "❌ ERROR: .env file not found!"
-            echo "The .env file must exist on the server with all runtime secrets."
-            echo "GitHub Actions NEVER creates this file - it must be manually provisioned."
-            exit 1
-          fi
-
-          echo "✅ .env file exists"
-
-          # Authenticate with Docker Hub
-          echo ""
-          echo "🔐 Authenticating with Docker Hub..."
-          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-
-          # Rollback state was already captured, before the compose files were
-          # copied over, by the "Snapshot current server compose" step above.
-
-          # CRITICAL: Back up the database BEFORE the new backend boots and runs
-          # migrations. Migrations run on backend startup and can be irreversible
-          # (e.g. table drops/renames); the compose snapshot rollback only
-          # restores old container images, which CANNOT run against an already
-          # migrated schema. This SQL dump is the only real recovery path.
-          echo ""
-          echo "🗄️  Backing up database before migration..."
-          if docker ps --format '{{.Names}}' | grep -q '^jobber-postgres$'; then
-            DB_USER=$(grep -E '^DB_USER=' .env | tail -1 | cut -d= -f2- || true)
-            DB_NAME=$(grep -E '^DB_NAME=' .env | tail -1 | cut -d= -f2- || true)
-            DB_USER=${DB_USER:-jobber}
-            DB_NAME=${DB_NAME:-jobber}
-            mkdir -p backups
-            BACKUP_FILE="backups/predeploy-$(date +%Y%m%d-%H%M%S).sql.gz"
-            # Dump to a temp file (NOT `pg_dump | gzip`): the shell has `set -e` but no
-            # `pipefail`, so in a pipeline a failed pg_dump would be masked by gzip's
-            # exit 0. Redirecting `docker exec` propagates pg_dump's real exit code.
-            TMP_DUMP=$(mktemp)
-            if docker exec jobber-postgres pg_dump -U "$DB_USER" "$DB_NAME" > "$TMP_DUMP"; then
-              # Guard against a partial dump: a real schema dump is tens of KB+.
-              SIZE=$(wc -c < "$TMP_DUMP" | tr -d ' ')
-              if [ "${SIZE:-0}" -lt 10000 ]; then
-                echo "❌ Database backup suspiciously small (${SIZE} bytes) — likely partial; aborting deploy"
-                rm -f "$TMP_DUMP"
-                docker logout
-                exit 1
-              fi
-              gzip -c "$TMP_DUMP" > "$BACKUP_FILE"
-              rm -f "$TMP_DUMP"
-              echo "✅ Database backed up to ~/jobber/$BACKUP_FILE (raw ${SIZE} bytes, $(du -h "$BACKUP_FILE" | cut -f1) gz)"
-              # Backups are never deleted automatically — a deployment must not be
-              # able to destroy a recovery point. ~/jobber/backups needs manual
-              # pruning; the line below reports how much it currently holds.
-              echo "ℹ️  ~/jobber/backups now holds $(ls -1 backups/predeploy-*.sql.gz 2>/dev/null | wc -l | tr -d ' ') pre-deploy dumps ($(du -sh backups 2>/dev/null | cut -f1)) — prune manually when needed"
-            else
-              echo "❌ pg_dump FAILED — aborting deploy (refusing to run an irreversible migration without a backup)"
-              rm -f "$TMP_DUMP" "$BACKUP_FILE"
-              docker logout
-              exit 1
-            fi
-          else
-            echo "ℹ️  No running jobber-postgres container (first deploy?) — skipping DB backup"
-          fi
-
-          # Evidence that this release preserves the legacy subscription rows.
-          #
-          # SUBS_FP_SQL reduces exactly the rows the original 000046 targeted —
-          # the same WHERE clause as the preflight — to one count and one md5
-          # digest, read here (before the new backend boots and migrates) and
-          # again after the schema check below. Both readings happen inside this
-          # one shell, so the digest never reaches the Actions log.
-          #
-          #   - Narrowed to those rows on purpose: a registration inserts a row
-          #     with NULL identifiers, which the clause does not match, so
-          #     ordinary traffic cannot disturb the comparison. With payments and
-          #     webhook ingestion pinned off nothing writes an identifier at all.
-          #   - Every column of the table is in the digest, so a change to any
-          #     preserved field shows up — not only a cleared identifier.
-          #   - Timestamps are rendered in a fixed UTC format, so the digest does
-          #     not depend on the session time zone or DateStyle.
-          #
-          # What it does NOT prove, plainly: only that these rows are identical
-          # between the two readings in this job. A legacy row that disappears
-          # because its user deleted their account would read as a mismatch too,
-          # and a column some future migration adds to `subscriptions` would be
-          # outside the digest until this list is extended.
-          #
-          # Nothing but the row count and a pass/fail verdict is printed. A
-          # database that cannot be read here aborts before anything is pulled
-          # or restarted — the preflight has already refused the no-database
-          # case, so this can only mean the container went away mid-job.
-          SUBS_FP_SQL="SELECT count(*)::text || ':' || coalesce(md5(string_agg(sig, '|' ORDER BY sig)), '-') FROM (SELECT concat_ws(chr(31), id::text, user_id::text, coalesce(external_subscription_id, chr(30)), coalesce(external_account_id, chr(30)), status, plan, coalesce(to_char(current_period_start AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS'), chr(30)), coalesce(to_char(current_period_end AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS'), chr(30)), coalesce(to_char(cancel_at AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS'), chr(30)), coalesce(to_char(last_event_at AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS'), chr(30)), to_char(created_at AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS'), to_char(updated_at AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS')) AS sig FROM subscriptions WHERE (external_subscription_id IS NOT NULL AND external_subscription_id NOT LIKE 'sub\_%') OR (external_account_id IS NOT NULL AND external_account_id NOT LIKE 'cust\_%')) t"
-
-          echo ""
-          echo "🔎 Fingerprinting the legacy subscription rows before migration..."
-          if ! docker ps --format '{{.Names}}' | grep -q '^jobber-postgres$'; then
-            echo "❌ No running jobber-postgres container — cannot establish what the migration must preserve; aborting"
-            docker logout
-            exit 1
-          fi
-          DB_USER=$(grep -E '^DB_USER=' .env | tail -1 | cut -d= -f2- || true); DB_USER=${DB_USER:-jobber}
-          DB_NAME=$(grep -E '^DB_NAME=' .env | tail -1 | cut -d= -f2- || true); DB_NAME=${DB_NAME:-jobber}
-          PSQL_RC=0
-          SUBS_FP_RAW=$(docker exec jobber-postgres psql -X -q -v ON_ERROR_STOP=1 \
-            -U "$DB_USER" -d "$DB_NAME" -tAc "$SUBS_FP_SQL" 2>/dev/null) || PSQL_RC=$?
-          if [ "$PSQL_RC" -ne 0 ]; then
-            echo "❌ Could not fingerprint the subscription rows (psql exit ${PSQL_RC}) — aborting before anything is pulled or restarted"
-            docker logout
-            exit 1
-          fi
-          SUBS_FP_BEFORE=$(printf '%s' "$SUBS_FP_RAW" | tr -d '[:space:]' | grep -E '^[0-9]+:([0-9a-f]{32}|-)$' || true)
-          if [ -z "$SUBS_FP_BEFORE" ]; then
-            echo "❌ Unparseable subscription fingerprint — aborting before anything is pulled or restarted"
-            docker logout
-            exit 1
-          fi
-          echo "✅ Captured: ${SUBS_FP_BEFORE%%:*} legacy subscription row(s) to preserve (digest kept in this shell, never printed)"
-
-          # Pull new images from Docker Hub
-          # Uses both docker-compose.yml (base) and docker-compose.deploy.yml (SHA override)
-          echo ""
-          echo "📥 Pulling new images..."
-          if ! docker compose -f docker-compose.yml -f docker-compose.deploy.yml pull; then
-            echo "❌ Failed to pull images"
-            docker logout
-            exit 1
-          fi
-
-          # Deploy new containers
-          # SAFE: This command:
-          #   - Recreates containers with new images
-          #   - Keeps named volumes intact (postgres_data, redis_data)
-          #   - Maintains data persistence
-          #   - Does NOT run `docker compose down -v` (which would destroy volumes!)
-          echo ""
-          echo "🚀 Deploying new containers..."
-          if ! docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --remove-orphans; then
-            echo "❌ Failed to start containers"
-            docker logout
-            exit 1
-          fi
-
-          # Apply Caddyfile changes.
-          # The Caddyfile is bind-mounted read-only, so `up -d` does NOT recreate
-          # the caddy container when only the file CONTENTS change — the running
-          # process keeps its old in-memory config. Reload it explicitly
-          # (zero-downtime). Validate first so a broken Caddyfile never takes the
-          # edge proxy down; fall back to a restart if a live reload fails.
-          echo ""
-          echo "🔁 Reloading Caddy to apply Caddyfile changes..."
-          if docker exec jobber-caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile; then
-            if docker exec jobber-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile; then
-              echo "✅ Caddy reloaded"
-            else
-              echo "⚠️  caddy reload failed — restarting caddy container"
-              docker compose -f docker-compose.yml -f docker-compose.deploy.yml restart caddy || true
-            fi
-          else
-            echo "❌ Caddyfile validation failed — keeping the current running config"
-          fi
-
-          # Wait for services to become healthy with timeout
-          echo ""
-          echo "⏳ Waiting for services to become healthy..."
-          TIMEOUT=120
-          ELAPSED=0
-          FAILED=false
-
-          while [ $ELAPSED -lt $TIMEOUT ]; do
-            # Check for unhealthy or restarting containers
-            UNHEALTHY=$(docker compose -f docker-compose.yml -f docker-compose.deploy.yml ps --format json 2>/dev/null | jq -r 'select(.Health == "unhealthy" or .State == "restarting" or .State == "exited") | .Name' 2>/dev/null || true)
-
-            if [ -z "$UNHEALTHY" ]; then
-              # Check if all expected services are running (4 total)
-              RUNNING=$(docker compose -f docker-compose.yml -f docker-compose.deploy.yml ps --status running --format json 2>/dev/null | jq -s 'length' 2>/dev/null || echo "0")
-
-              # Check services with healthchecks (postgres, redis, backend)
-              HEALTHY=$(docker compose -f docker-compose.yml -f docker-compose.deploy.yml ps --format json 2>/dev/null | jq -r 'select(.Health == "healthy") | .Name' 2>/dev/null | wc -l | tr -d ' ')
-
-              echo "Status: $RUNNING/5 running, $HEALTHY/3 healthy"
-
-              if [ "$RUNNING" -ge 5 ] && [ "$HEALTHY" -ge 3 ]; then
-                echo "✅ All services are healthy"
-                break
-              fi
-            else
-              echo "⚠️  Unhealthy services detected: $UNHEALTHY"
-            fi
-
-            sleep 5
-            ELAPSED=$((ELAPSED + 5))
-          done
-
-          # Verify deployment succeeded
-          if [ $ELAPSED -ge $TIMEOUT ]; then
-            echo ""
-            echo "❌ Services failed to become healthy within ${TIMEOUT}s"
-            echo ""
-            echo "📊 Container status:"
-            docker compose -f docker-compose.yml -f docker-compose.deploy.yml ps
-            echo ""
-            echo "📋 Recent logs:"
-            docker compose -f docker-compose.yml -f docker-compose.deploy.yml logs --tail=50
-
-            # Roll back to the compose files that were in place before this run.
-            # Restoring them (not just running from the snapshot) keeps the
-            # server's on-disk config and its running containers consistent, so
-            # a later manual `docker compose up -d` does not re-apply the
-            # failing version. Schema changes are NOT undone — see the SQL dump
-            # taken above if a migration needs reverting.
-            if [ -f .rollback-docker-compose.yml ] && [ -f .rollback-docker-compose.deploy.yml ]; then
-              echo ""
-              echo "🔄 Rolling back to the previously deployed images..."
-              cp -p .rollback-docker-compose.yml docker-compose.yml
-              cp -p .rollback-docker-compose.deploy.yml docker-compose.deploy.yml
-              docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --remove-orphans || true
-              echo "⚠️  Rollback attempted - please verify system state manually"
-            else
-              echo ""
-              echo "⚠️  No rollback snapshot on the server — leaving the new containers in place for diagnosis"
-            fi
-
-            docker logout
-            exit 1
-          fi
-
-          # Run smoke tests
-          echo ""
-          echo "🧪 Running smoke tests..."
-
-          # Test backend health (port not exposed to host, so use docker exec)
-          BACKEND_HEALTHY=false
-          for i in 1 2 3; do
-            if docker exec jobber-backend wget -q --spider http://localhost:8080/health 2>/dev/null; then
-              BACKEND_HEALTHY=true
-              echo "✅ Backend health check passed"
-              break
-            fi
-            echo "⚠️  Backend health check attempt $i/3 failed, retrying..."
-            sleep 3
-          done
-
-          if [ "$BACKEND_HEALTHY" = false ]; then
-            echo "❌ Backend health check failed after 3 attempts"
-            docker compose -f docker-compose.yml -f docker-compose.deploy.yml logs backend --tail=30
-            docker logout
-            exit 1
-          fi
-
-          # Verify migrations applied cleanly (schema not left in a "dirty" state).
-          # /health only proves DB/Redis connectivity, not that migrations succeeded.
-          echo ""
-          echo "🔎 Verifying database migration state..."
-          DB_USER=$(grep -E '^DB_USER=' .env | tail -1 | cut -d= -f2- || true); DB_USER=${DB_USER:-jobber}
-          DB_NAME=$(grep -E '^DB_NAME=' .env | tail -1 | cut -d= -f2- || true); DB_NAME=${DB_NAME:-jobber}
-          MIG_RAW=$(docker exec jobber-postgres psql -U "$DB_USER" -d "$DB_NAME" -tAc \
-            "SELECT version || ':' || dirty::int FROM schema_migrations LIMIT 1" 2>&1 || true)
-          MIG=$(printf '%s' "$MIG_RAW" | grep -oE '[0-9]+:[01]' | head -1 || true)
-          echo "schema_migrations = ${MIG:-<none>}"
-          case "$MIG" in
-            *:1) echo "❌ Migration left the schema DIRTY — aborting"; docker logout; exit 1 ;;
-            "")  echo "⚠️  Could not read migration state (non-critical). psql output: ${MIG_RAW}" ;;
-            *)   echo "✅ Migrations clean (version ${MIG%%:*})" ;;
-          esac
-
-          # The other half of the preservation evidence: re-read the fingerprint
-          # captured before the pull, with the same SQL, now that migrations have
-          # run. Only the count and the verdict are printed.
-          echo ""
-          echo "🔎 Verifying the legacy subscription rows survived the migration..."
-          PSQL_RC=0
-          SUBS_FP_RAW=$(docker exec jobber-postgres psql -X -q -v ON_ERROR_STOP=1 \
-            -U "$DB_USER" -d "$DB_NAME" -tAc "$SUBS_FP_SQL" 2>/dev/null) || PSQL_RC=$?
-          if [ "$PSQL_RC" -ne 0 ]; then
-            echo "❌ Could not re-read the subscription fingerprint (psql exit ${PSQL_RC}) — preservation is unconfirmed, so this deployment is reported as failed. The containers are up; check by hand."
-            docker logout
-            exit 1
-          fi
-          SUBS_FP_AFTER=$(printf '%s' "$SUBS_FP_RAW" | tr -d '[:space:]' | grep -E '^[0-9]+:([0-9a-f]{32}|-)$' || true)
-          if [ -z "$SUBS_FP_AFTER" ]; then
-            echo "❌ Unparseable subscription fingerprint after migration — preservation is unconfirmed, so this deployment is reported as failed. The containers are up; check by hand."
-            docker logout
-            exit 1
-          fi
-          if [ "$SUBS_FP_AFTER" = "$SUBS_FP_BEFORE" ]; then
-            echo "✅ Legacy subscription rows preserved: ${SUBS_FP_BEFORE%%:*} row(s), every field unchanged"
-          else
-            echo "❌ The legacy subscription rows CHANGED during this deployment (${SUBS_FP_BEFORE%%:*} row(s) before, ${SUBS_FP_AFTER%%:*} after)."
-            echo "   Migrations have already run and are not undone by any rollback here; the pre-deploy dump in ~/jobber/backups is the recovery point."
-            echo "   This check prints no identifiers or column values — inspect the rows by hand before deciding."
-            docker logout
-            exit 1
-          fi
-
-          # Contract smoke: the merged /jobs route must be registered and reach the
-          # auth layer. Unauthenticated request should return 401 (route alive),
-          # NOT 404 (route missing) or 5xx (handler crashing on boot).
-          echo ""
-          echo "🔎 Smoke-testing /api/v1/jobs contract..."
-          # busybox wget (alpine): on a non-2xx it prints "HTTP/1.1 <code>" to stderr
-          # via -S and exits non-zero; parse the code out of the combined output.
-          JOBS_OUT=$(docker exec jobber-backend wget -O /dev/null -S http://localhost:8080/api/v1/jobs 2>&1 || true)
-          JOBS_CODE=$(echo "$JOBS_OUT" | grep -oE 'HTTP/[0-9.]+ [0-9]{3}' | head -1 | awk '{print $2}')
-          echo "GET /api/v1/jobs -> HTTP ${JOBS_CODE:-<none>}"
-          # Only a definitive 404 aborts (route not registered = broken merge). An empty
-          # code means we couldn't parse busybox wget output (e.g. no -S support) — the
-          # app already passed /health, so treat unparseable as a non-blocking warning
-          # rather than falsely failing a good deploy.
-          if [ "$JOBS_CODE" = "404" ]; then
-            echo "❌ /jobs route returned 404 (route not registered) — aborting"
-            docker compose -f docker-compose.yml -f docker-compose.deploy.yml logs backend --tail=30
-            docker logout
-            exit 1
-          elif [ "$JOBS_CODE" = "401" ]; then
-            echo "✅ /jobs route alive (401 as expected without auth)"
-          elif [ -z "$JOBS_CODE" ]; then
-            echo "⚠️  Could not determine /jobs status (wget output unparsed) — skipping (non-blocking)"
-          else
-            echo "⚠️  /jobs returned '${JOBS_CODE}' (expected 401) — continuing but verify manually"
-          fi
-
-          # Test frontend via Caddy (HTTPS)
-          if curl -f -s -k https://localhost > /dev/null 2>&1; then
-            echo "✅ Frontend health check passed (HTTPS)"
-          else
-            echo "⚠️  Frontend health check failed (non-critical)"
-          fi
-
-          # NOTE: the database seed is deliberately NOT run here.
-          # `jobber-seed` DELETEs and recreates seed@jobber.dev and
-          # reviewer@jobber.dev with fixed passwords, together with their
-          # companies, jobs, stages and resumes — a production data write on
-          # every deployment, which also resets those credentials behind
-          # anyone currently using them. Run it by hand when a fresh reviewer
-          # account is actually needed:
-          #   ssh <server> 'docker exec jobber-backend ./jobber-seed'
-
-          # Show final status
-          echo ""
-          echo "📊 Final service status:"
-          docker compose -f docker-compose.yml -f docker-compose.deploy.yml ps
-
-          # Cleanup. The rollback snapshot is kept on purpose: it is the only
-          # record of the previous image tags, and the next deployment
-          # overwrites it with the state it finds.
-          docker logout
-
-          echo ""
-          echo "================================================"
-          echo "✅ Deployment completed successfully at $(date)"
-          echo "================================================"
-
-          ENDSSH
+      - name: Clear release-scoped registry session
+        if: always() && steps.release.outputs.changed == 'true'
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          # Release ID intentionally expands locally; Docker HOME expands remotely.
+          # shellcheck disable=SC2029
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "DOCKER_CONFIG=\$HOME/jobber/releases/interview-$RELEASE_SHA/docker-auth docker logout" >/dev/null
 
   ############################################################################
   # Post-Deployment Summary
@@ -1107,37 +609,14 @@ jobs:
 # ROLLBACK PROCEDURE
 ################################################################################
 #
-# To rollback to a previous version:
+# The release helper restores immutable old images automatically on failure.
+# At clean schema48 it uses the original migration source. At clean49 it mounts
+# that release's complete migrations through49 read-only at /app/migrations.
+# Never start a <=48 image at49 without that source; never down/force the DB.
+# Dirty/unreadable/unexpected schemas keep entry closed for operator recovery.
+# Backups and isolated PG15 restore-check data are preserved, never auto-pruned.
+# Base Compose/Caddy/.env remain unchanged; only the image override is promoted.
 #
-#   1. Go to Actions tab in GitHub
-#   2. Select "Deploy DEV Environment" workflow
-#   3. Click "Run workflow"
-#   4. Select the branch and choose the commit you want to rollback to
-#      (or manually checkout the old commit locally and push)
-#   5. The workflow will rebuild images with that commit's SHA
-#   6. Server will pull and restart with the old version
-#
-# Alternative (manual rollback on server):
-#
-#   ssh into server and run:
-#   
-#   docker compose -f docker-compose.yml -f docker-compose.deploy.yml pull
-#   
-#   # Edit docker-compose.deploy.yml to use the old SHA
-#   # Then restart:
-#   
-#   docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d
-#
-# The previous compose files are kept on the server as
-# ~/jobber/.rollback-docker-compose.yml and .rollback-docker-compose.deploy.yml.
-# They are written before each deployment overwrites the live ones, so they name
-# the image tags that were actually running; restoring both files and running
-# `up -d` reverts the containers. A failed health check does this automatically.
-# Neither path reverts database migrations — use the pre-deploy SQL dump in
-# ~/jobber/backups for that.
-#
-################################################################################
-
 ################################################################################
 # REQUIRED GITHUB SECRETS
 ################################################################################

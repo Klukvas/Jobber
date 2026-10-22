@@ -1,0 +1,15 @@
+CI-equivalent gates on isolated current-main release candidate
+Backend:go test -v -race -coverprofile=coverage.out ./... PASS; total71.1% floor55.
+Frontend:npx vitest run --coverage PASS261files/2952tests; statements81.72% floor55;
+branches73.53%,functions71.42%,lines82.64%.
+Production builds explicitly linux/amd64 on local aarch64 Docker24:
+backend image sha256:33d4df55013792983fea8d084e7d66145d04ae891db7536d21b018855a8b8944
+frontend image sha256:01a5af86c9bcbb129cd34d44005d53998658aaf1a7d9641412da78b9632c0865
+Frontend Node20 npm ci uses unchanged package-lock. Build8.57s;35prerendered routes/0failed.
+Existing npm install failed twice with npm10 edgesOut internalerror; no npm/dependencyupgrade.
+Actual image smoke:backendhealthy200,feature401,frontend200,proxiedfeature401,schema49:0.
+Smoke uses isolated synthetic PG15/Redis, development runtime config/no TLS, blank AI.
+Production config was not edited; production guard rejection of insecure local TLS config
+was observed before selecting the documented synthetic runtime.
+Full actionlint includes inherited33SC2086+2SC2129, exactly baseline counts; no new warning.
+Shell helper ShellCheck and actionlint semantic/YAML pass without diagnostics.

@@ -9,7 +9,7 @@ COPY package*.json ./
 
 # Install npm deps + Playwright Chromium (used by scripts/prerender.mjs).
 # --with-deps pulls in the system libs Chromium needs (libnss3, libatk, fonts, ...).
-RUN npm install && npx playwright install --with-deps chromium
+RUN npm ci && npx playwright install --with-deps chromium
 
 # Build arguments for Vite env vars (read at npm run build time via ARG)
 # ARG-only: values are NOT persisted in the final image (no ENV promotion)

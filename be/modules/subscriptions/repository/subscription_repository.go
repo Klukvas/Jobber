@@ -184,10 +184,8 @@ func (r *SubscriptionRepository) CountUserResumes(ctx context.Context, userID st
 func (r *SubscriptionRepository) CountUserAIRequestsThisMonth(ctx context.Context, userID string) (int, error) {
 	var count int
 	err := r.pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM ai_usage
-		 WHERE user_id = $1
-		   AND usage_type IN ('match_score', 'resume_autofill_parse')
-		   AND created_at >= date_trunc('month', NOW())`, userID,
+		`SELECT (SELECT COUNT(*) FROM ai_usage
+ WHERE user_id=$1 AND usage_type IN ('match_score', 'resume_autofill_parse') AND created_at>=date_trunc('month',NOW())) + (SELECT COUNT(*) FROM ai_quota_reservations WHERE user_id=$1 AND expires_at>NOW())`, userID,
 	).Scan(&count)
 	return count, err
 }
@@ -252,7 +250,7 @@ func (r *SubscriptionRepository) GetAllCounts(ctx context.Context, userID string
 		SELECT
 			(SELECT COUNT(*) FROM jobs WHERE user_id = $1 AND is_archived = false),
 			(` + countableResumes + `),
-			(SELECT COUNT(*) FROM ai_usage WHERE user_id = $1 AND usage_type IN ('match_score', 'resume_autofill_parse') AND created_at >= date_trunc('month', NOW())),
+			((SELECT COUNT(*) FROM ai_usage WHERE user_id = $1 AND usage_type IN ('match_score', 'resume_autofill_parse') AND created_at >= date_trunc('month', NOW())) + (SELECT COUNT(*) FROM ai_quota_reservations WHERE user_id=$1 AND expires_at>NOW())),
 			(SELECT COUNT(*) FROM ai_usage WHERE user_id = $1 AND usage_type = 'job_parse' AND created_at >= date_trunc('month', NOW())),
 			(SELECT COUNT(*) FROM resume_builders WHERE user_id = $1),
 			(SELECT COUNT(*) FROM cover_letters WHERE user_id = $1)

@@ -1,0 +1,15 @@
+REVIEW role=QA status=CHANGES_REQUESTED — first release pass
+Snapshot:protocol SHA25685d0fcf881520f57b244dd43002f69f9b7ddda8ca3a5a8a301170fabeb62d0b7;
+initial payload2889223f36d8261c5042145094d289d35575f9fa218dce0c8c2cb69148d94fc8.
+Independent SolHigh read-only CLI review, consolidated by orchestrator.
+BLOCKER:ignored shell helper absent from full payload (preexisting *.sh ignore), while
+workflow requires it; payload/report/evidence hashes drifted after document advances.
+MAJOR:rollback ignored initial frontend/backend stop results under set+e; failed frontend
+HTTP readiness after start reported closed while frontend remained running. Need proved
+closure, no old/new backend overlap, actual-state failed-stop/HTTP-after-start regressions.
+MAJOR:curl --fail accepted3xx instead of strict HTTPS200 at activation/recovery. Require
+bounded exact200 readiness polling and redirect/delayed-readiness tests.
+Checks independently inspected:6/6protocol hashes; actualdiff/scoped payload; baseline
+33SC2086+2SC2129; helper bash syntax/ShellCheck, actionlint semantic and Python AST pass.
+Reviewer did not rerun runtime/DB mutation tests. No writes/provider calls/next task.
+Closure is recorded in release report and subsequent fresh review, not assumed here.

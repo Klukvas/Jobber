@@ -25,6 +25,7 @@ import { JobTags } from "@/features/jobs/components/JobTags";
 import { JobDetailHeader } from "@/features/jobs/components/JobDetailHeader";
 import { JobInfoCard } from "@/features/jobs/components/JobInfoCard";
 import { JobPipelineCard } from "@/features/jobs/components/JobPipelineCard";
+import { JobInterviewPrepCard } from "@/features/jobs/interview-prep/JobInterviewPrepCard";
 import { JobResumeTailoringCard } from "@/features/jobs/resume-tailoring/JobResumeTailoringCard";
 import { JobMatchScoreCard } from "@/features/jobs/components/JobMatchScoreCard";
 import { JobCommentsSection } from "@/features/jobs/components/JobCommentsSection";
@@ -265,6 +266,16 @@ export default function JobDetail() {
           />
         </CardContent>
       </Card>
+
+      <JobInterviewPrepCard
+        key={`interview:${job.id}`}
+        job={job}
+        builderResumes={builderResumesList}
+        isLoading={isLoadingBuilderResumes}
+        isError={isBuilderResumesError}
+        isJobDirty={isDirty}
+        isJobSaving={updateMutation.isPending}
+      />
 
       <JobResumeTailoringCard
         key={job.id}

@@ -1,0 +1,15 @@
+{
+  "baseline_files": 1258,
+  "changed_preexisting": [
+    "SYSTEM_SPECIFICATION.md",
+    "be/cmd/api/main.go",
+    "be/modules/subscriptions/repository/subscription_repository.go",
+    "be/modules/subscriptions/service/subscription_service.go",
+    "fe/src/pages/JobDetail.tsx",
+    "fe/src/shared/locales/en.json",
+    "fe/src/shared/locales/ru.json",
+    "fe/src/shared/locales/uk.json"
+  ],
+  "missing_preexisting": [],
+  "unexpected_changes": []
+}

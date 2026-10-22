@@ -1,0 +1,19 @@
+test_activation_redirect_is_not_success (__main__.ReleaseProtocol.test_activation_redirect_is_not_success) ... ok
+test_backup_failure_restores48_without49_mount (__main__.ReleaseProtocol.test_backup_failure_restores48_without49_mount) ... ok
+test_bad_schema_and_missing_constraints_fail_before_stop (__main__.ReleaseProtocol.test_bad_schema_and_missing_constraints_fail_before_stop) ... ok
+test_clean_rollout_and_rerun (__main__.ReleaseProtocol.test_clean_rollout_and_rerun) ... ok
+test_dirty_migration_stays_closed (__main__.ReleaseProtocol.test_dirty_migration_stays_closed) ... ok
+test_exact200_readiness_can_arrive_late (__main__.ReleaseProtocol.test_exact200_readiness_can_arrive_late) ... ok
+test_failed_recovery_stops_never_start_old_backend (__main__.ReleaseProtocol.test_failed_recovery_stops_never_start_old_backend) ... ok
+test_forced_drain_blocks_migration (__main__.ReleaseProtocol.test_forced_drain_blocks_migration) ... ok
+test_frontend_only_after_full49_rollback_retains_source_mount (__main__.ReleaseProtocol.test_frontend_only_after_full49_rollback_retains_source_mount) ... ok
+test_postmigration_failure_restores_old_image_with49_source (__main__.ReleaseProtocol.test_postmigration_failure_restores_old_image_with49_source) ... ok
+test_recovery_http_failure_or_redirect_closes_started_frontend (__main__.ReleaseProtocol.test_recovery_http_failure_or_redirect_closes_started_frontend) ... ok
+test_restore_failure_recovers48_before_new_start (__main__.ReleaseProtocol.test_restore_failure_recovers48_before_new_start) ... ok
+test_rollback_frontend_failure_never_claims_healthy (__main__.ReleaseProtocol.test_rollback_frontend_failure_never_claims_healthy) ... ok
+test_rollback_start_failure_never_claims_healthy (__main__.ReleaseProtocol.test_rollback_start_failure_never_claims_healthy) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 50.535s
+
+OK

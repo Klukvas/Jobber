@@ -1,0 +1,12 @@
+REVIEW role=SECURITY status=CHANGES_REQUESTED findings=4
+Independent Astra High first security/migration review, faithfully summarized from
+orchestrator messages (original stdout was not retained as a separate file).
+MAJOR: visibility could commit after source preflight but before provider dispatch,
+so a final-publication fence alone did not prevent sending newly hidden content.
+MAJOR: accepted summary input could exceed the provider's bounded input contract.
+MINOR: feedback replay could return S1 answer operation under another owned S2
+before validating answer/session membership.
+MINOR: source change detected at final completion was logged as succeeded.
+Closures and regression evidence: findings 3,4,5,6 in the primary report. Combined
+real PG/production HTTP dispatch evidence and later reviews verify their fixes.
+This historical report is superseded by clean later reviews and final acceptance.

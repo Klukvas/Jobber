@@ -1,0 +1,9 @@
+Rollback compatibility actual local proof
+Platform:linux/amd64; PostgreSQL15; real migrations Up through049; Redis7; no paid AI.
+Exact old live backend digest:
+klukvas/jobber-backend@sha256:142f687d3deab6091040f56eb97a05b0f2e7fd74bf0d57de68ff5fc6a1bcbc1c
+At49:0 old image with original<=48 migration source exited1.
+Same digest with full current migration source mounted readonly /app/migrations started
+healthy200 with PostgreSQL and Redis up. No migration down/force used.
+Plain old image rollback is unsafe after049; clean48 recovery deliberately omits49 mount.
+All resources are synthetic task-only local containers/network; production untouched.

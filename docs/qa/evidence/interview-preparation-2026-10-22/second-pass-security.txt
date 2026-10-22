@@ -1,0 +1,15 @@
+REVIEW role=SECURITY status=CHANGES_REQUESTED findings=1 Major
+Independent Astra High second pass (reported by orchestrator):
+The remaining finding was breaker-open charging: breaker.Execute can reject
+without HTTP, while worker intent was marked sent and sanitizer lost the cause.
+All six original closures were approved. Compact JSONB normalization and combined
+PG/real-HTTP dispatch evidence were inspected and passed. The reviewer independently
+verified 28 production hashes, 36 then-current assembly files, five shared patches,
+locale isolation, current-main migration 048, all 1,258 baseline files preserved
+and gofmt check. Supplied frontend/focused/browser/race evidence was inspected;
+mutating DB/browser checks were not rerun by the read-only reviewer.
+Instruction sources complied with; no repository/externals/next-task writes.
+Closure: finding 9 in the primary report; typed definite-no-dispatch sentinel,
+prior-state retention, refund/reacquisition and attempt accounting are tested
+against the production adapter's real open breaker and local HTTP/PostgreSQL.
+A fresh final independent security review is required after this correction.

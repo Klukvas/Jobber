@@ -213,6 +213,11 @@ func (s *SubscriptionService) RequirePaidPlan(ctx context.Context, userID string
 
 // CheckLimit checks if a user can create another resource of the given type.
 func (s *SubscriptionService) CheckLimit(ctx context.Context, userID, resource string) error {
+	if resource == "ai" {
+		if handled, err := s.reserveScopedAI(ctx, userID); handled {
+			return err
+		}
+	}
 	plan, err := s.effectivePlan(ctx, userID)
 	if err != nil {
 		return err
@@ -322,6 +327,9 @@ func (s *SubscriptionService) ResourceLimit(ctx context.Context, userID, resourc
 
 // RecordAIUsage records an AI usage event for the user.
 func (s *SubscriptionService) RecordAIUsage(ctx context.Context, userID string) error {
+	if handled, err := s.consumeScopedAI(ctx, userID, "match_score"); handled {
+		return err
+	}
 	return s.repo.RecordAIUsage(ctx, userID)
 }
 
@@ -332,6 +340,9 @@ func (s *SubscriptionService) RecordJobParseUsage(ctx context.Context, userID st
 
 // RecordResumeAutofillUsage records a resume autofill extraction usage event.
 func (s *SubscriptionService) RecordResumeAutofillUsage(ctx context.Context, userID string) error {
+	if handled, err := s.consumeScopedAI(ctx, userID, "resume_autofill_parse"); handled {
+		return err
+	}
 	return s.repo.RecordResumeAutofillUsage(ctx, userID)
 }
 

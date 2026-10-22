@@ -1,0 +1,8 @@
+=== RUN   TestProductionAdapterSourceGuardThroughActualHTTPDispatch
+2026/10/22 22:40:37 INFO interview AI operation operation_id=7dd43500-760a-4bf0-8ae2-54f9283e782b kind=plan attempt=1 duration_ms=19 outcome=SOURCE_CHANGED
+--- PASS: TestProductionAdapterSourceGuardThroughActualHTTPDispatch (1.02s)
+=== RUN   TestWorkerNormalizesJSONBBeforeProviderBudget
+2026/10/22 22:40:38 INFO interview AI operation operation_id=cdad6b62-81d4-4642-8a2d-2c50adf072f3 kind=plan attempt=1 duration_ms=34 outcome=succeeded
+--- PASS: TestWorkerNormalizesJSONBBeforeProviderBudget (0.58s)
+PASS
+ok  	github.com/andreypavlenko/jobber/modules/interviewprep	3.153s

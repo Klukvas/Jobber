@@ -26,6 +26,7 @@ import (
 	sentryPlatform "github.com/andreypavlenko/jobber/internal/platform/sentry"
 	"github.com/andreypavlenko/jobber/internal/platform/storage"
 	"github.com/andreypavlenko/jobber/internal/platform/telegram"
+	"github.com/andreypavlenko/jobber/modules/interviewprep"
 
 	authHandler "github.com/andreypavlenko/jobber/modules/auth/handler"
 	authRepo "github.com/andreypavlenko/jobber/modules/auth/repository"
@@ -493,12 +494,14 @@ func main() {
 	var matchScoreHdl *matchScoreHandler.MatchScoreHandler
 	var resumeAIHdl *rbHandler.AIHandler
 	var tailoringAI rbService.TailoringAIClient
+	var interviewAI interviewprep.Client
 	var resumeImportHdl *rbHandler.ImportHandler
 	var coverLetterAIHdl *cvHandler.AIHandler
 	var autofillProfileHdl *resumeHandler.AutofillProfileHandler
 	if cfg.Anthropic.APIKey != "" {
 		aiClient := ai.NewAnthropicClient(cfg.Anthropic.APIKey)
 		tailoringAI = aiClient
+		interviewAI = aiClient
 		importSvc := importService.NewImportService(aiClient, subscriptionSvc)
 		importHdl = importHandler.NewImportHandler(importSvc)
 
@@ -522,6 +525,11 @@ func main() {
 		logger.Info("ANTHROPIC_API_KEY not configured, AI features disabled")
 	}
 
+	router.Use(subHandler.AIRequestScope(subscriptionSvc))
+	interviewSvc := interviewprep.NewService(interviewprep.NewStore(pgClient.Pool), interviewAI, subscriptionSvc)
+	interviewHdl := interviewprep.NewHandler(interviewSvc)
+	stopInterviewWorkers := interviewSvc.Start(ctx)
+	defer stopInterviewWorkers()
 	tailoringStore := rbService.NewRedisTailoringProposalStore(redisClient.Client)
 	tailoringSvc := rbService.NewTailoringService(resumeBuilderRepository, resumeBuilderRepository, tailoringAI, tailoringStore, subscriptionSvc)
 	tailoringHdl := rbHandler.NewTailoringHandler(tailoringSvc)
@@ -664,6 +672,7 @@ func main() {
 		if coverLetterExportHdl != nil {
 			coverLetterExportHdl.RegisterRoutes(v1, authMiddleware, exportRateLimiter)
 		}
+		interviewHdl.RegisterRoutes(v1, authMiddleware, resumeAIRateLimiter)
 		tailoringHdl.RegisterRoutes(v1, authMiddleware, resumeAIRateLimiter)
 		if resumeAIHdl != nil {
 			resumeAIHdl.RegisterRoutes(v1, authMiddleware, resumeAIRateLimiter)
@@ -723,6 +732,7 @@ func main() {
 	<-quit
 
 	logger.Info("Shutting down server...")
+	stopInterviewWorkers()
 
 	// Graceful shutdown with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

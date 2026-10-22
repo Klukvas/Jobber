@@ -1,0 +1,12 @@
+{
+  "scope": "synthetic local PG15 only",
+  "dump_bytes": 87034,
+  "gzip_bytes": 9213,
+  "gzip_integrity": "PASS",
+  "sha256": "4070d4c11406038f2fa62c6a30b527fd06efab593ab0d0251ef4ede264cf24fc",
+  "isolated_network": "none",
+  "schema": "49:0",
+  "full_restore": "PASS",
+  "source_table_fingerprints": "3/3 match",
+  "container_stopped": true
+}
