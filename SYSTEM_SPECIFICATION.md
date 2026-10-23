@@ -4723,6 +4723,10 @@ migration down, schema force or automatic database restore runs during recovery.
   Escape, dates, undo and autosave retain their existing behavior. Preview fits
   the selected document design to the available width. Switching modes does not
   change saved template, typography, margins, skill display, visibility or order.
+- Modern displays each saved volunteering description below its role and
+  organization in desktop and mobile Preview, including two-column placements.
+  Description line breaks are preserved and content renders as escaped text.
+  Empty descriptions remain hidden in Preview and editable in the document.
 - Cover Letter Template, Color, PDF and DOCX controls have localized accessible
   names. PDF/DOCX labels remain visible on phones. Template uses the shared
   dialog focus/keyboard lifecycle; Color closes with Escape and restores focus.

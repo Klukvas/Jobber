@@ -227,6 +227,17 @@ export function VolunteeringContent({
                 inputClassName={inputClass}
                 editable={editable}
               />
+              {(vol.description || editable) && (
+                <EditableTextarea
+                  value={vol.description}
+                  onChange={(v) =>
+                    updateVolunteering(vol.id, { description: v })
+                  }
+                  placeholder="Describe your volunteering..."
+                  className={`mt-1 ${config.textSize} ${config.leadingClass} ${sectionColor ? "[&:is(textarea)]:text-gray-700" : "text-gray-700"}`}
+                  editable={editable}
+                />
+              )}
             </>
           ) : (
             <>
