@@ -26,6 +26,7 @@ import (
 	sentryPlatform "github.com/andreypavlenko/jobber/internal/platform/sentry"
 	"github.com/andreypavlenko/jobber/internal/platform/storage"
 	"github.com/andreypavlenko/jobber/internal/platform/telegram"
+	"github.com/andreypavlenko/jobber/modules/contacts"
 	"github.com/andreypavlenko/jobber/modules/interviewprep"
 
 	authHandler "github.com/andreypavlenko/jobber/modules/auth/handler"
@@ -635,6 +636,7 @@ func main() {
 		jobHdl.RegisterRoutes(v1, authMiddleware)
 		resumeHdl.RegisterRoutes(v1, authMiddleware)
 		commentHdl.RegisterRoutes(v1, authMiddleware)
+		contacts.NewHandler(contacts.NewService(contacts.NewRepository(pgClient.Pool))).RegisterRoutes(v1, authMiddleware)
 		reminderHdl.RegisterRoutes(v1, authMiddleware)
 		tagHdl.RegisterRoutes(v1, authMiddleware)
 		analyticsHdl.RegisterRoutes(v1, authMiddleware)

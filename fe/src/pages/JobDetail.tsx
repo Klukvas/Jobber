@@ -28,6 +28,7 @@ import { JobPipelineCard } from "@/features/jobs/components/JobPipelineCard";
 import { JobInterviewPrepCard } from "@/features/jobs/interview-prep/JobInterviewPrepCard";
 import { JobResumeTailoringCard } from "@/features/jobs/resume-tailoring/JobResumeTailoringCard";
 import { JobMatchScoreCard } from "@/features/jobs/components/JobMatchScoreCard";
+import { JobContacts } from "@/features/jobs/contacts/JobContacts";
 import { JobCommentsSection } from "@/features/jobs/components/JobCommentsSection";
 import { AddStageModal } from "@/features/jobs/modals/AddStageModal";
 import { PricingModal } from "@/features/subscription/components/PricingModal";
@@ -300,6 +301,8 @@ export default function JobDetail() {
 
       {/* Tags */}
       <JobTags jobId={id!} />
+
+      <JobContacts key={`contacts:${job.id}`} jobId={job.id} />
 
       {/* Comments */}
       <JobCommentsSection

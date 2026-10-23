@@ -11,6 +11,13 @@ import unittest
 HELPER = Path(__file__).with_name('interview-preparation-release.sh').resolve()
 SHA = 'a' * 40
 DIGEST = 'sha256:' + 'b' * 64
+
+def contact_probes(calls):
+    return [call for call in calls
+            if (call[0] == 'curl' or 'wget' in call)
+            and call[-1].startswith(('http://', 'https://'))
+            and call[-1].endswith('/contacts')]
+
 MOCK = r'''#!/usr/bin/env python3
 import json, os, pathlib, sys
 name=pathlib.Path(sys.argv[0]).name; a=sys.argv[1:]
@@ -24,7 +31,7 @@ if name=='timeout':
  os.execvp(a[1], a[1:])
 if name=='df': done('Filesystem 1024-blocks Used Available Capacity Mounted\nx 9999999 0 9999999 0% /\n')
 if name=='curl':
- if '/api/' in a[-1]: done('401')
+ if '/api/' in a[-1]: done('404' if '/contacts' in a[-1] and not s['supports_contacts'] else '401')
  key='recovery_http' if s.get('rolling_back') else 'activation_http'
  s[key]=s.get(key,0)+1
  if case=='delayed_readiness' and s[key]<=2: done('503')
@@ -53,16 +60,22 @@ if name=='docker':
  if a[0]=='compose':
   target=a[-1]; rollback=any('rollback' in x for x in a)
   if target=='backend':
-   if case=='frontend_only_after_rollback' and not rollback:
-    override=pathlib.Path(a[a.index('-f')+3]).read_text()
-    s['retained49mount']=':/app/migrations:ro' in override
-    if not s['retained49mount']: done(code=1)
+   files=[pathlib.Path(a[i+1]) for i,x in enumerate(a) if x=='-f']
+   mount=None
+   for file in files:
+    for line in file.read_text().splitlines():
+     if ':/app/migrations:ro' in line: mount=pathlib.Path(line.strip()[2:].split(':/app/')[0])
+   source=max(int(p.name[:6]) for p in mount.glob('*.up.sql')) if mount else 50
+   s.setdefault('backend_starts',[]).append({'rollback':rollback,'source':source,'schema_before':s['schema'],'backup_verified':s.get('backup_verified',False)})
    if rollback:
     s['rolling_back']=True
     if case=='rollback_backend_failure': done(code=1)
-   if not rollback:
-    s['schema']='49:1' if case=='migration_dirty' else '49:0'
+   else:
+    if case=='frontend_only_after_rollback': s['retained50mount']=source==50
+    if case=='frontend_only49': s['retained49mount']=source==49
     s['new_started']=True
+   s['supports_contacts']=False if rollback else (s['activating_contact_backend'] or s['supports_contacts'])
+   s['schema']='50:1' if not rollback and case=='migration_dirty' else str(source)+':0'
    s['jobber-backendRunning']=True
   if target=='frontend':
    s['jobber-frontendRunning']=True
@@ -76,12 +89,12 @@ if name=='docker':
   if 'restorecheck' in a:
    if case=='restore_failure': done(code=1)
    if 'string_agg' in q: done('0:-\n')
-   if '-tAc' in a: done(s['source']+'\n')
+   if '-tAc' in a: s['backup_verified']=True; done(s['source']+'\n')
    sys.stdin.read() if '-i' in a else None
    done()
   if 'wget' in a:
    if '-S' in a:
-    code='200' if a[-1].endswith('/health') else '401'
+    code='200' if a[-1].endswith('/health') else ('404' if '/contacts' in a[-1] and not s['supports_contacts'] else '401')
     if code=='401' and s.get('new_started') and not s.get('rolling_back') and case in ('postcheck_failure','rollback_frontend_failure','recovery_redirect','recovery_http_failure'): code='500'
     done('  HTTP/1.1 '+code+' OK\n')
    done('{"status":"healthy","services":{"postgres":"up","redis":"up"}}')
@@ -89,10 +102,14 @@ if name=='docker':
   if 'schema_migrations' in q:
    if case=='schema_sql_failure': done(code=1)
    done(s['schema']+'\n')
-  if 'information_schema.tables' in q: done(('6' if s['schema'].startswith('49') else '0')+'\n')
-  if 'pg_index i' in q: done(('8' if case=='missing_index' else '9')+'\n')
-  if 'information_schema.columns' in q: done('6\n')
-  if 'pg_constraint' in q: done(('14' if case=='missing_fk' else '15')+'\n')
+  if 'information_schema.tables' in q:
+   if "table_name='job_contacts'" in q: done(('1' if s['schema'].startswith('50') else '0')+'\n')
+   done('6\n')
+  if 'pg_index i' in q: done(('2' if "'job_contacts'::regclass" in q else ('8' if case=='missing_index' else '9'))+'\n')
+  if 'information_schema.columns' in q: done(('10' if "table_name='job_contacts'" in q else '6')+'\n')
+  if 'pg_constraint' in q:
+   if "'job_contacts'::regclass" in q: done(('6' if "contype='c'" in q else '1')+'\n')
+   done(('14' if case=='missing_fk' else '15')+'\n')
   if 'CREATE UNIQUE INDEX' in q: done('2\n')
   if 'string_agg' in q: done('0:-\n')
   done()
@@ -100,13 +117,15 @@ done(code=1)
 '''
 
 class ReleaseProtocol(unittest.TestCase):
-    def run_case(self, case, schema='48:0', phase='deploy'):
-        with tempfile.TemporaryDirectory(prefix='interview-release-') as directory:
+    def run_case(self, case, schema='49:0', phase='deploy'):
+        with tempfile.TemporaryDirectory(prefix='contacts-release-') as directory:
             root = Path(directory)
             project = root / 'jobber'
-            release = project / 'releases' / ('interview-' + SHA)
+            release = project / 'releases' / ('contacts-' + SHA)
             (release / 'migrations').mkdir(parents=True)
-            (release / 'migrations/000049_interview_preparation.up.sql').write_text('-- fixture')
+            for version, name in [(49, 'interview_preparation'), (50, 'job_contacts')]:
+                for direction in ('up', 'down'):
+                    (release / f'migrations/{version:06}_{name}.{direction}.sql').write_text('-- fixture')
             for name in ('.env', 'docker-compose.yml', 'docker-compose.deploy.yml', 'Caddyfile'):
                 (project / name).write_text('synthetic fixture\n')
             mockbin = root / 'bin'
@@ -116,48 +135,82 @@ class ReleaseProtocol(unittest.TestCase):
                 path.write_text(MOCK)
                 path.chmod(0o755)
             state = root / 'state.json'
-            state.write_text(json.dumps({'case': 'postcheck_failure' if case=='frontend_only_after_rollback' else case, 'schema': schema, 'source': schema, 'calls': []}))
+            state.write_text(json.dumps({'case': 'postcheck_failure' if case=='frontend_only_after_rollback' else case, 'schema': schema, 'source': schema, 'supports_contacts': False, 'activating_contact_backend': case != 'frontend_only49', 'calls': []}))
             digest = hashlib.sha256(b'synthetic fixture\n').hexdigest()
             env = dict(os.environ, HOME=str(root), PATH=str(mockbin)+os.pathsep+os.environ['PATH'], MOCK_STATE=str(state))
             command = ['bash', str(HELPER), phase, SHA, digest, digest,
                        'docker.io/x/jobber-backend:' + SHA[:7],
                        'docker.io/x/jobber-frontend:' + SHA[:7]]
+            if case == 'frontend_only49': command[-2] = ''
             result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=20)
             if case == 'frontend_only_after_rollback':
-                self.assertIn('rollback=healthy schema=49:0', result.stderr)
+                self.assertIn('rollback=healthy schema=50:0', result.stderr)
                 self.assertIn(':/app/migrations:ro', (project / 'docker-compose.deploy.yml').read_text())
                 current = json.loads(state.read_text())
-                current.update(case=case, source='49:0', rolling_back=False, new_started=False, calls=[])
+                current.update(case=case, source='50:0', rolling_back=False, new_started=False, activating_contact_backend=False, calls=[])
                 state.write_text(json.dumps(current))
                 command[-2] = ''
                 result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=20)
             return result, json.loads(state.read_text())
 
     def test_clean_rollout_and_rerun(self):
-        for schema in ('48:0', '49:0'):
+        for schema in ('49:0', '50:0'):
             with self.subTest(schema=schema):
                 result, state = self.run_case('success', schema)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn('release=healthy schema=49:0', result.stdout)
+                self.assertIn('release=healthy schema=50:0', result.stdout)
+                self.assertTrue(state['supports_contacts'])
+                self.assertEqual(len(contact_probes(state['calls'])), 2)
                 calls = state['calls']
                 starts = [i for i, call in enumerate(calls) if call[0:2] == ['docker', 'compose']]
                 self.assertEqual([calls[i][-1] for i in starts], ['backend', 'frontend'])
 
     def test_bad_schema_and_missing_constraints_fail_before_stop(self):
-        for case, schema in [('invalid_schema','50:0'), ('schema_sql_failure','48:0'),
+        for case, schema in [('invalid_schema','48:0'), ('schema_sql_failure','49:0'),
                              ('missing_fk','49:0'), ('missing_index','49:0')]:
             with self.subTest(case=case):
                 result, state = self.run_case(case, schema)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertFalse(any(call[:2] == ['docker','stop'] for call in state['calls']))
 
-    def test_backup_failure_restores48_without49_mount(self):
+    def test_backup_failure_restores49_without50_mount(self):
         result, state = self.run_case('backup_failure')
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('rollback=healthy schema=48:0', result.stderr)
+        self.assertIn('rollback=healthy schema=49:0', result.stderr)
         rollback = [call for call in state['calls'] if 'compose' in call]
-        self.assertFalse(any('rollback-49.yml' in ' '.join(call) for call in rollback))
+        self.assertFalse(any('rollback-50.yml' in ' '.join(call) for call in rollback))
         self.assertFalse(state.get('new_started', False))
+
+    def test_frontend_only_at49_never_applies50(self):
+        result, state = self.run_case('frontend_only49')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(state['schema'], '49:0')
+        self.assertTrue(state['retained49mount'])
+        self.assertIn('release=healthy schema=49:0', result.stdout)
+
+    def test_prebackup_failure_uses_only49_source(self):
+        for case in ('backup_failure', 'restore_failure', 'forced_drain'):
+            with self.subTest(case=case):
+                result, state = self.run_case(case)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(state['schema'], '49:0')
+                for start in state.get('backend_starts', []):
+                    self.assertTrue(start['rollback'])
+                    self.assertEqual(start['source'], 49)
+
+    def test_backup_failure_at50_retains_full50_source(self):
+        result, state = self.run_case('backup_failure', '50:0')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('rollback=healthy schema=50:0', result.stderr)
+        self.assertEqual(state['backend_starts'][0]['source'], 50)
+
+    def test_new_backend_only_starts_after_restore_verification(self):
+        result, state = self.run_case('success')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        start = state['backend_starts'][0]
+        self.assertEqual(start['schema_before'], '49:0')
+        self.assertTrue(start['backup_verified'])
+        self.assertEqual(start['source'], 50)
 
     def test_dirty_migration_stays_closed(self):
         result, state = self.run_case('migration_dirty')
@@ -171,16 +224,16 @@ class ReleaseProtocol(unittest.TestCase):
         self.assertFalse(state.get('new_started', False))
         self.assertFalse(any('pg_dump' in ' '.join(call) for call in state['calls']))
 
-    def test_postmigration_failure_restores_old_image_with49_source(self):
+    def test_postmigration_failure_restores_old_image_with50_source(self):
         result, state = self.run_case('postcheck_failure')
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('rollback=healthy schema=49:0', result.stderr)
-        self.assertTrue(any('rollback-49.yml' in ' '.join(call) for call in state['calls']))
+        self.assertIn('rollback=healthy schema=50:0', result.stderr)
+        self.assertTrue(any('rollback-50.yml' in ' '.join(call) for call in state['calls']))
 
-    def test_restore_failure_recovers48_before_new_start(self):
+    def test_restore_failure_recovers49_before_new_start(self):
         result, state = self.run_case('restore_failure')
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('rollback=healthy schema=48:0', result.stderr)
+        self.assertIn('rollback=healthy schema=49:0', result.stderr)
         self.assertFalse(state.get('new_started', False))
 
     def test_rollback_frontend_failure_never_claims_healthy(self):
@@ -215,7 +268,7 @@ class ReleaseProtocol(unittest.TestCase):
         result, state = self.run_case('activation_redirect')
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn('release=healthy', result.stdout)
-        self.assertIn('rollback=healthy schema=49:0', result.stderr)
+        self.assertIn('rollback=healthy schema=50:0', result.stderr)
         self.assertEqual(state['activation_http'], 15)
 
     def test_exact200_readiness_can_arrive_late(self):
@@ -224,10 +277,13 @@ class ReleaseProtocol(unittest.TestCase):
         self.assertEqual(state['activation_http'], 3)
         self.assertIn('release=healthy', result.stdout)
 
-    def test_frontend_only_after_full49_rollback_retains_source_mount(self):
+    def test_frontend_only_after_full50_rollback_retains_source_mount(self):
         result, state = self.run_case('frontend_only_after_rollback')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertTrue(state['retained49mount'])
+        self.assertTrue(state['retained50mount'])
+        self.assertEqual(state['schema'], '50:0')
+        self.assertFalse(state['supports_contacts'])
+        self.assertEqual(contact_probes(state['calls']), [])
         pulls = [call for call in state['calls'] if call[:2] == ['docker','pull']]
         self.assertEqual(len(pulls), 1)
         self.assertIn('jobber-frontend', pulls[0][-1])

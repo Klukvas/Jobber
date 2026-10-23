@@ -1873,5 +1873,35 @@
     "messageNoPayments": "We use essential cookies to sign you in. With your consent, we also use analytics cookies (Google Analytics, PostHog) to improve the product.",
     "messageEssentialOnlyNoPayments": "We use essential cookies to sign you in. No analytics or advertising cookies are in use on this site.",
     "messageEssentialOnly": "We use essential cookies to sign you in and to process secure payments via Creem. No analytics or advertising cookies are in use on this site."
+  },
+  "contacts": {
+    "title": "Contacts",
+    "add": "Add contact",
+    "edit": "Edit contact",
+    "delete": "Delete contact",
+    "empty": "Keep recruiters and hiring contacts for this job here.",
+    "formHint": "Name is required. All other details are optional and private to this job.",
+    "deleteConfirm": "Delete {{name}} from this job?",
+    "required": "Enter a name.",
+    "saveError": "Could not save contact. Your changes are still here. Please try again.",
+    "deleteError": "Could not delete contact. Please try again.",
+    "loadError": "Could not load contacts.",
+    "retry": "Try again",
+    "fields": {
+      "name": "Name",
+      "role": "Role / position",
+      "email": "Email",
+      "telegram": "Telegram",
+      "linkedin": "LinkedIn",
+      "note": "Note"
+    },
+    "invalid": {
+      "name": "Use up to {{max}} characters without control characters.",
+      "role": "Use up to {{max}} characters without control characters.",
+      "email": "Enter a valid email address (up to {{max}} characters).",
+      "telegram": "Enter @username or t.me/username (5–32 letters, numbers or underscores, starting with a letter).",
+      "linkedin": "Enter a LinkedIn profile URL: linkedin.com/in/username.",
+      "note": "Use up to {{max}} characters without control characters."
+    }
   }
 }

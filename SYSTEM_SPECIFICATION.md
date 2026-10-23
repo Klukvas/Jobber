@@ -4640,3 +4640,56 @@ failure, timeout, interruption, fencing and storage failures. No raw provider
 errors, resume text or answers are logged. Synthetic verification and safe
 release/rollback details are recorded in
 `docs/qa/interview-preparation-2026-10-22.txt`.
+
+
+## Private Job contacts (October 23, 2026)
+
+Each owned Job has a Contacts card below its tags for recruiters and other hiring
+contacts. A contact belongs to exactly one Job; it is visible only to the Job's
+owner. The backend joins the contact to its parent Job on every read and write,
+returns CONTACT_NOT_FOUND for an absent, foreign or mismatched parent/contact,
+and removes contacts through the Job foreign key's delete cascade. Contact writes
+do not update the Job, Stage History, Builder Resume, subscription or AI usage.
+
+Name is required (1–120 Unicode characters after trimming). Role is optional
+(up to 120), email optional (254), Telegram and LinkedIn optional (512), and note
+optional (2,000; line breaks and tabs allowed). The server validates all fields,
+rejects control characters outside the multiline allowance, and normalizes
+Telegram usernames/allowlisted t.me URLs and LinkedIn /in/ profile URLs to HTTPS.
+Arbitrary schemes, credentials, ports, queries and encoded path separators are
+rejected. Email is a validated address, never an arbitrary link. POST/PATCH bodies
+are bounded to 32 KiB. PATCH replaces the displayed contact fields as one record.
+
+Authenticated API prefix: `/api/v1/jobs/:id/contacts`.
+
+| Method/path | Responsibility |
+| --- | --- |
+| GET collection | Owned contacts ordered by creation time and ID; empty list is valid |
+| POST collection | Validate fields and create contact (201) |
+| PATCH `/:contactId` | Replace fields on the owned Job's contact (200) |
+| DELETE `/:contactId` | Delete owned contact after UI confirmation (204) |
+
+The frontend provides add/edit dialogs, delete confirmation, loading/empty/error
+states, explicit retry, and preserves form values after failed saves. Name receives
+initial focus, Tab stays inside dialogs, Escape restores the opener, and layout
+works on narrow screens. Channel links are user-initiated; no automatic mail,
+Telegram or LinkedIn message is sent. Contact text renders through escaped React
+text. The card and both dialogs carry PostHog ph-no-capture/ph-sensitive and Sentry
+sentry-block boundaries; action labels contain no contact name or other PII.
+English, Russian and Ukrainian strings are included.
+
+Migration `000050_job_contacts` creates only job_contacts, its bounds, primary key,
+Job cascade foreign key and parent/creation/ID index. It does not rewrite existing
+rows. The production workflow retains its race, coverage, integration and frontend
+gates and the established release helper. A verified compressed/checksummed backup
+and isolated network-none PostgreSQL 15 restore precede new backend startup. The
+old frontend drains and the old backend is proven stopped first; the frontend
+starts last after clean schema 50, protected-route, environment and full-record
+preservation checks. Billing remains off and .env is never rewritten.
+
+At clean 49, recovery mounts a separate migration directory ending at 49, so a
+backup failure cannot apply 50. At clean 50, the previous 24762c1 backend requires
+the complete through-50 directory mounted read-only at /app/migrations; that mount
+is retained on a later frontend-only redeploy. Frontend-only deployment at 49
+keeps schema 49. Dirty, unreadable or unexpected schema keeps entry closed. No
+migration down, schema force or automatic database restore runs during recovery.

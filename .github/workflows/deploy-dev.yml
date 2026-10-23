@@ -246,6 +246,20 @@ jobs:
           echo "🧪 Running integration tests against a real migrated Postgres + Redis..."
           go test -race -tags integration -run Integration ./tests/e2e/...
 
+      - name: Verify contacts against isolated PostgreSQL 15
+        working-directory: ./be
+        run: |
+          set -euo pipefail
+          docker run -d --name jobber-contacts-ci -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=contacts_test -p 127.0.0.1:55492:5432 postgres:15-alpine
+          trap 'docker stop -t 10 jobber-contacts-ci >/dev/null' EXIT
+          ready=false
+          for ((attempt=0;attempt<60;attempt++)); do
+            if docker exec jobber-contacts-ci pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then ready=true; break; fi
+            sleep 1
+          done
+          test "$ready" = true
+          CONTACTS_TEST_DATABASE_URL='postgres://postgres@127.0.0.1:55492/contacts_test?sslmode=disable' go test -race -tags integration -v ./modules/contacts
+
   ############################################################################
   # Job 3: Lint & Build Frontend
   # Only runs if frontend code changed
@@ -509,7 +523,7 @@ jobs:
         env:
           RELEASE_SHA: ${{ github.sha }}
         run: |
-          remote="jobber/releases/interview-$RELEASE_SHA"
+          remote="jobber/releases/contacts-$RELEASE_SHA"
           # Client-side release values are validated by the remote helper.
           # shellcheck disable=SC2029
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "umask 077; mkdir -p '$remote/docker-auth'; chmod 700 '$remote' '$remote/docker-auth'"
@@ -527,7 +541,7 @@ jobs:
         run: |
           # Client-side release values are validated by the remote helper.
           # shellcheck disable=SC2029
-          printf '%s' "$DOCKER_TOKEN" | ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "DOCKER_CONFIG=\$HOME/jobber/releases/interview-$RELEASE_SHA/docker-auth docker login -u '${{ secrets.DOCKERHUB_USERNAME }}' --password-stdin"
+          printf '%s' "$DOCKER_TOKEN" | ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "DOCKER_CONFIG=\$HOME/jobber/releases/contacts-$RELEASE_SHA/docker-auth docker login -u '${{ secrets.DOCKERHUB_USERNAME }}' --password-stdin"
 
       - name: Drain, back up, restore-check and activate
         if: steps.release.outputs.changed == 'true'
@@ -540,7 +554,7 @@ jobs:
         run: |
           # Client-side release values are validated by the remote helper.
           # shellcheck disable=SC2029
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "bash jobber/releases/interview-$RELEASE_SHA/release.sh deploy '$RELEASE_SHA' '$BASE_HASH' '$CADDY_HASH' '$BACKEND_REF' '$FRONTEND_REF'"
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "bash jobber/releases/contacts-$RELEASE_SHA/release.sh deploy '$RELEASE_SHA' '$BASE_HASH' '$CADDY_HASH' '$BACKEND_REF' '$FRONTEND_REF'"
 
       - name: Clear release-scoped registry session
         if: always() && steps.release.outputs.changed == 'true'
@@ -549,7 +563,7 @@ jobs:
         run: |
           # Release ID intentionally expands locally; Docker HOME expands remotely.
           # shellcheck disable=SC2029
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "DOCKER_CONFIG=\$HOME/jobber/releases/interview-$RELEASE_SHA/docker-auth docker logout" >/dev/null
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "DOCKER_CONFIG=\$HOME/jobber/releases/contacts-$RELEASE_SHA/docker-auth docker logout" >/dev/null
 
   ############################################################################
   # Post-Deployment Summary
@@ -610,9 +624,9 @@ jobs:
 ################################################################################
 #
 # The release helper restores immutable old images automatically on failure.
-# At clean schema48 it uses the original migration source. At clean49 it mounts
-# that release's complete migrations through49 read-only at /app/migrations.
-# Never start a <=48 image at49 without that source; never down/force the DB.
+# At clean schema49 it mounts the isolated through49 source; at clean50 it mounts
+# the full through50 source read-only at /app/migrations. The50 source is never
+# mounted at49 before a verified backup. Never down/force the DB.
 # Dirty/unreadable/unexpected schemas keep entry closed for operator recovery.
 # Backups and isolated PG15 restore-check data are preserved, never auto-pruned.
 # Base Compose/Caddy/.env remain unchanged; only the image override is promoted.
