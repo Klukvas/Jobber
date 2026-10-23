@@ -1,3 +1,4 @@
+import { useTopmostEscape } from "@/shared/hooks/useTopmostEscape";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -123,6 +124,12 @@ export default function CoverLetterEditorPage() {
   const [localColorInput, setLocalColorInput] = useState("");
   const [isSyncing, setIsSyncing] = useState(false);
   const colorDropdownRef = useRef<HTMLDivElement>(null);
+  const colorTriggerRef = useRef<HTMLButtonElement>(null);
+  const closeColorDropdown = useCallback(() => {
+    setShowColorDropdown(false);
+    colorTriggerRef.current?.focus();
+  }, []);
+  useTopmostEscape(showColorDropdown, colorDropdownRef, closeColorDropdown);
 
   const isDesktop = useMediaQuery("(min-width: 1024px)");
 
@@ -350,7 +357,8 @@ export default function CoverLetterEditorPage() {
         {/* Template picker — opens modal */}
         <button
           onClick={() => setShowTemplateModal(true)}
-          className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition-colors hover:bg-accent"
+          aria-label={t("coverLetter.design.template")}
+          className="min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition-colors hover:bg-accent"
         >
           <CoverLetterTemplateThumbnail
             templateId={coverLetter.template}
@@ -411,9 +419,12 @@ export default function CoverLetterEditorPage() {
         {/* Color picker */}
         <div ref={colorDropdownRef} className="relative">
           <button
+            ref={colorTriggerRef}
             onClick={() => setShowColorDropdown((v) => !v)}
+            aria-label={t("coverLetter.design.color")}
+            aria-expanded={showColorDropdown}
             className={cn(
-              "flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm transition-colors hover:bg-accent",
+              "min-h-11 min-w-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm transition-colors hover:bg-accent",
               showColorDropdown && "border-primary bg-accent",
             )}
           >
@@ -432,7 +443,7 @@ export default function CoverLetterEditorPage() {
                     key={color}
                     onClick={() => {
                       updateFields({ primary_color: color });
-                      setShowColorDropdown(false);
+                      closeColorDropdown();
                     }}
                     className={cn(
                       "h-6 w-6 rounded-full border-2 transition-transform hover:scale-110",
@@ -507,10 +518,12 @@ export default function CoverLetterEditorPage() {
           variant="outline"
           size="sm"
           onClick={() => void handleExportPDF()}
+          aria-label={t("coverLetter.exportPDF")}
+          className="min-h-11"
           disabled={exportPDF.isPending || isSyncing}
         >
           <Download className="h-4 w-4" />
-          <span className="hidden sm:inline">{t("coverLetter.exportPDF")}</span>
+          <span>PDF</span>
         </Button>
 
         {/* Export DOCX */}
@@ -518,12 +531,12 @@ export default function CoverLetterEditorPage() {
           variant="outline"
           size="sm"
           onClick={() => void handleExportDOCX()}
+          aria-label={t("coverLetter.exportDOCX")}
+          className="min-h-11"
           disabled={exportDOCX.isPending || isSyncing}
         >
           <Download className="h-4 w-4" />
-          <span className="hidden sm:inline">
-            {t("coverLetter.exportDOCX")}
-          </span>
+          <span>DOCX</span>
         </Button>
       </div>
 
@@ -556,7 +569,7 @@ export default function CoverLetterEditorPage() {
               </Button>
             </div>
             <div className="p-4">
-              <CoverLetterAIPanel />
+              <CoverLetterAIPanel key={coverLetter.id} />
             </div>
           </div>
         )}
@@ -583,7 +596,7 @@ export default function CoverLetterEditorPage() {
           }}
           title={t("coverLetter.ai.title")}
         >
-          <CoverLetterAIPanel />
+          <CoverLetterAIPanel key={coverLetter.id} />
         </Sheet>
       )}
     </div>

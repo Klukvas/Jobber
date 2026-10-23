@@ -1,6 +1,5 @@
-import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/Dialog";
 import { useCoverLetterStore } from "@/stores/coverLetterStore";
 import { cn } from "@/shared/lib/utils";
 import { CoverLetterTemplateThumbnail } from "./CoverLetterTemplateThumbnail";
@@ -30,53 +29,18 @@ export function CoverLetterTemplatePickerModal({
   const { t } = useTranslation();
   const coverLetter = useCoverLetterStore((s) => s.coverLetter);
   const updateField = useCoverLetterStore((s) => s.updateField);
-  const backdropRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [isOpen, onClose]);
-
-  if (!isOpen || !coverLetter) return null;
+  if (!coverLetter) return null;
 
   return (
-    <div
-      ref={backdropRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={(e) => {
-        if (e.target === backdropRef.current) onClose();
-      }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="cl-template-picker-heading"
-        className="relative mx-4 flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-background shadow-2xl"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b px-6 py-4">
-          <h2
-            id="cl-template-picker-heading"
-            className="text-lg font-semibold"
-          >
-            {t("coverLetter.chooseTemplate")}
-          </h2>
-          <button
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-muted"
-            aria-label={t("common.close")}
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }} className="max-w-4xl">
+      <DialogContent onClose={onClose} className="flex max-h-[90dvh] max-w-none flex-col overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b px-6 py-5 pr-14 text-left">
+          <DialogTitle>{t("coverLetter.chooseTemplate")}</DialogTitle>
+        </DialogHeader>
 
         {/* Template grid */}
         <div className="overflow-y-auto p-6">
-          <div className="grid grid-cols-5 gap-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {COVER_LETTER_TEMPLATES.map((tmpl) => (
               <button
                 key={tmpl.id}
@@ -85,7 +49,7 @@ export function CoverLetterTemplatePickerModal({
                   onClose();
                 }}
                 className={cn(
-                  "flex flex-col items-center rounded-xl border-2 p-4 transition-all hover:shadow-md",
+                  "flex min-h-11 flex-col items-center rounded-xl border-2 p-3 transition-colors hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   coverLetter.template === tmpl.id
                     ? "border-primary bg-primary/5 shadow-md"
                     : "border-border hover:border-primary/50",
@@ -105,7 +69,7 @@ export function CoverLetterTemplatePickerModal({
             ))}
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

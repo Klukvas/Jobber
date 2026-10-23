@@ -36,7 +36,8 @@
     "deleting": "Deleting...",
     "accessDenied": "Access denied",
     "serverError": "Server error",
-    "duplicate": "Duplicate"
+    "duplicate": "Duplicate",
+    "optional": "optional"
   },
   "auth": {
     "login": "Login",
@@ -170,7 +171,8 @@
     "sortLastModified": "Last Modified",
     "noResumesForFilter": "No resumes of this type",
     "tryOtherFilter": "Try selecting a different filter or create a new resume",
-    "notARealPdf": "That file isn't a PDF. Please choose a real PDF resume."
+    "notARealPdf": "That file isn't a PDF. Please choose a real PDF resume.",
+    "fileUrlEditLabel": "File URL"
   },
   "companies": {
     "title": "Companies",
@@ -240,7 +242,7 @@
     "updateSuccess": "Job updated successfully",
     "updateError": "Failed to update job",
     "editDescription": "Update the job posting details",
-    "createDescription": "Add a new job posting to track",
+    "createDescription": "Only Job Title is required.",
     "titlePlaceholder": "e.g., Senior Software Engineer",
     "selectCompany": "Select a company (optional)",
     "quickAddCompany": "New company",
@@ -578,7 +580,8 @@
       "exhaustedPlan": "Three attempts were used. Generate a new version; saved versions remain available.",
       "exhaustedReview": "Three attempts were used. Start a new practice session for another AI review; these answers remain saved.",
       "capacity": "Remaining session capacity: {{bytes}} serialized bytes. Long answers use more capacity; your draft is preserved if the limit is reached."
-    }
+    },
+    "titleRequired": "Enter a job title, not just spaces."
   },
   "settings": {
     "title": "Settings",
@@ -801,7 +804,7 @@
     "added": "Added",
     "addAll": "Add All",
     "stageName": "Stage Name",
-    "order": "Order",
+    "order": "Position",
     "name": "Name",
     "edit": "Edit Stage",
     "editDescription": "Modify the stage template name and order",
@@ -818,8 +821,8 @@
     "createError": "Failed to create stage template",
     "nameExists": "A stage with this name already exists",
     "stageNamePlaceholder": "e.g., Applied, Phone Screen, Interview, Offer",
-    "orderPlaceholder": "e.g., 0, 1, 2...",
-    "orderDescription": "The position of this stage in the application process (0-based)",
+    "orderPlaceholder": "e.g., 1",
+    "orderDescription": "Choose a position in your pipeline, starting at 1.",
     "deleteStage": "Delete Stage",
     "deleteConfirm": "Are you sure you want to delete the stage \"{{name}}\"?",
     "deleteError": "Failed to delete stage template",
@@ -837,7 +840,7 @@
     "followedUp": "Followed up",
     "requestedFeedback": "Requested feedback",
     "kind": "What this stage means",
-    "kindDescription": "Analytics reads this, not the name — so you can rename or reorder a stage freely. Your own stages start as \"Other\" and count towards nothing until you classify them.",
+    "kindDescription": "Choose what happens here so your progress is counted correctly. Custom steps can stay Other.",
     "kinds": {
       "saved": "Saved — not applied yet",
       "applied": "Applied — waiting for a reply",
@@ -1566,7 +1569,23 @@
       "saveError": "Save your changes before running analysis. Saving failed; retry the save, then try again."
     },
     "summaryLimit": "{{count}} / {{max}} characters",
-    "summaryTooLong": "Summary has {{count}} characters. Shorten it to {{max}} or fewer to save."
+    "summaryTooLong": "Summary has {{count}} characters. Shorten it to {{max}} or fewer to save.",
+    "mobile": {
+      "text": "Edit text",
+      "preview": "Preview",
+      "hint": "Edit at a comfortable size. Preview shows your document design."
+    },
+    "inline": {
+      "removeEntry": "Remove entry",
+      "moveUp": "Move section up",
+      "moveDown": "Move section down",
+      "removeSection": "Remove {{section}} section",
+      "addEntry": "Add {{section}}",
+      "startDate": "Start date",
+      "endDate": "End date",
+      "currentlyHere": "Currently here",
+      "addDates": "Add dates"
+    }
   },
   "coverLetter": {
     "title": "Cover Letters",
@@ -1640,7 +1659,9 @@
     },
     "design": {
       "freeFonts": "Free Fonts",
-      "premiumFonts": "Premium Fonts"
+      "premiumFonts": "Premium Fonts",
+      "color": "Color",
+      "template": "Template"
     },
     "ai": {
       "title": "AI Assistant",
@@ -1903,5 +1924,9 @@
       "linkedin": "Enter a LinkedIn profile URL: linkedin.com/in/username.",
       "note": "Use up to {{max}} characters without control characters."
     }
+  },
+  "ai": {
+    "unavailable": "AI is currently unavailable. You can keep editing and try again later.",
+    "requestFailed": "AI could not complete this request. Your input is kept. Please try again."
   }
 }

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -55,7 +56,7 @@ export function jobUpdatePayload(
   fields: Partial<EditableFields>,
 ): UpdateJobRequest {
   const payload: UpdateJobRequest = {};
-  if (fields.title !== undefined) payload.title = fields.title;
+  if (fields.title !== undefined) payload.title = fields.title.trim();
   if (fields.company_id !== undefined) payload.company_id = fields.company_id;
   if (fields.url !== undefined) payload.url = fields.url;
   if (fields.source !== undefined) payload.source = fields.source;
@@ -72,7 +73,7 @@ export function resumeSelectValue(job: JobDTO): string {
 interface UseJobDetailMutationsParams {
   readonly id: string | undefined;
   readonly effectiveMatchResumeId: string;
-  readonly setFields: (fields: EditableFields) => void;
+  readonly setFields: React.Dispatch<React.SetStateAction<EditableFields | null>>;
   readonly setNewComment: (value: string) => void;
   readonly setMatchScore: (data: MatchScoreResponse | null) => void;
   readonly setMatchScoreError: (message: string | null) => void;
@@ -91,14 +92,33 @@ export function useJobDetailMutations({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => { active.current = false; };
+  }, []);
+
 
   const updateMutation = useMutation({
-    mutationFn: (data: Partial<EditableFields>) =>
-      jobsService.update(id!, jobUpdatePayload(data)),
-    onSuccess: (updated) => {
-      queryClient.invalidateQueries({ queryKey: ["job", id] });
+    mutationFn: async (data: Partial<EditableFields>) => {
+      const jobId = id;
+      if (!jobId || (data.title !== undefined && !data.title.trim())) throw new Error(t("jobs.titleRequired"));
+      const updated = await jobsService.update(jobId, jobUpdatePayload(data));
+      return { updated, jobId, submitted: data };
+    },
+    onSuccess: ({ updated, jobId, submitted }) => {
+      queryClient.invalidateQueries({ queryKey: ["job", jobId] });
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
-      setFields(fieldsFromJob(updated));
+      if (!active.current || updated.id !== id) return;
+      setFields((current) => {
+        // A response acknowledges its snapshot; typing during that save belongs
+        // to the next one and must not be replaced by the older response.
+        const editedSinceSubmit = current && Object.entries(submitted).some(([key, value]) => {
+          const field = key as keyof EditableFields;
+          return value !== undefined && (field === "title" ? current.title.trim() !== value.trim() : current[field] !== value);
+        });
+        return editedSinceSubmit ? current : fieldsFromJob(updated);
+      });
       showSuccessNotification(t("jobs.updateSuccess"));
     },
     onError: (err: Error) => {
@@ -107,26 +127,31 @@ export function useJobDetailMutations({
   });
 
   const changeResumeMutation = useMutation({
-    mutationFn: (value: string) => {
+    mutationFn: async (value: string) => {
+      const jobId = id;
+      if (!jobId) throw new Error(t("jobs.updateError"));
       if (value.startsWith("uploaded:")) {
-        return jobsService.update(id!, {
-          resume_id: value.slice("uploaded:".length),
-        });
+        return { jobId, updated: await jobsService.update(jobId, {
+          resume_id: value.slice("uploaded:".length), resume_builder_id: "",
+        }) };
       }
       if (value.startsWith("builder:")) {
-        return jobsService.update(id!, {
-          resume_builder_id: value.slice("builder:".length),
-        });
+        return { jobId, updated: await jobsService.update(jobId, {
+          resume_builder_id: value.slice("builder:".length), resume_id: "",
+        }) };
       }
       // Empty string clears the attached resume server-side
-      return jobsService.update(id!, { resume_id: "" });
+      return { jobId, updated: await jobsService.update(jobId, { resume_id: "", resume_builder_id: "" }) };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["job", id] });
+    onSuccess: ({ jobId, updated }) => {
+      queryClient.setQueryData(["job", jobId], updated);
+      queryClient.invalidateQueries({ queryKey: ["job", jobId] });
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      if (!active.current) return;
       showSuccessNotification(t("jobs.updateSuccess"));
     },
     onError: (err: Error) => {
+      if (!active.current) return;
       showErrorNotification(err.message || t("jobs.updateError"));
     },
   });

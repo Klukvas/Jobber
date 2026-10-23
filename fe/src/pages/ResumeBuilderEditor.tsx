@@ -1,3 +1,4 @@
+import { MobileTextEditor } from "@/features/resume-builder/components/preview/MobileTextEditor";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -41,6 +42,7 @@ export default function ResumeBuilderEditorPage() {
   const { clear } = useStore(useResumeBuilderStore.temporal);
 
   const [activePanel, setActivePanel] = useState<SidePanel>(null);
+  const [mobileTextMode, setMobileTextMode] = useState(true);
   const [mobileDesignOpen, setMobileDesignOpen] = useState(false);
 
   const isDesktop = useMediaQuery("(min-width: 1024px)");
@@ -240,6 +242,10 @@ export default function ResumeBuilderEditorPage() {
         </div>
       </div>
 
+      {!isTablet && <div className="flex shrink-0 gap-2 border-b px-3 py-2" role="group" aria-label={t("resumeBuilder.editor")}>
+        <Button className="min-h-11 flex-1" size="sm" variant={mobileTextMode ? "default" : "outline"} aria-pressed={mobileTextMode} onClick={() => setMobileTextMode(true)}>{t("resumeBuilder.mobile.text")}</Button>
+        <Button className="min-h-11 flex-1" size="sm" variant={!mobileTextMode ? "default" : "outline"} aria-pressed={!mobileTextMode} onClick={() => setMobileTextMode(false)}>{t("resumeBuilder.mobile.preview")}</Button>
+      </div>}
       {/* Main content: sidebar + document + optional right panel */}
       <div className="flex flex-1 overflow-hidden">
         {/* Design sidebar — desktop (>= md) */}
@@ -253,7 +259,7 @@ export default function ResumeBuilderEditorPage() {
           )}
         >
           <PreviewErrorBoundary>
-            <PreviewPanel editable />
+            {!isTablet && mobileTextMode ? <MobileTextEditor key={resume.id} /> : <PreviewPanel editable={isTablet} fitToWidth />}
           </PreviewErrorBoundary>
         </div>
 

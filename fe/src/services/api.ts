@@ -227,14 +227,16 @@ class ApiClient {
       const status = error.response.status;
       let message = "";
       let code = "UNKNOWN_ERROR";
+      let unstructuredResponse = false;
       try {
         const errorResponse = await error.response.json<ErrorResponse>();
         message = errorResponse?.error_message ?? "";
         code = errorResponse?.error_code || code;
       } catch {
         // Non-JSON body (gateway/HTML error page): nothing quotable.
+        unstructuredResponse = true;
       }
-      throw new ApiError(message, code, status, { cause: error });
+      throw new ApiError(message, code, status, { cause: error, unstructuredResponse });
     }
 
     // A caller-cancelled request (a React Query unmount, a navigation, an
@@ -426,17 +428,19 @@ function logClientFailure(operation: string, error: unknown): void {
 export class ApiError extends Error {
   code: string;
   status: number;
+  readonly unstructuredResponse: boolean;
 
   constructor(
     message: string,
     code: string,
     status: number,
-    options?: ErrorOptions,
+    options?: ErrorOptions & { unstructuredResponse?: boolean },
   ) {
     super(message, options);
     this.name = "ApiError";
     this.code = code;
     this.status = status;
+    this.unstructuredResponse = options?.unstructuredResponse ?? false;
   }
 }
 

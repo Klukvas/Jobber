@@ -1,3 +1,5 @@
+import { useAIAvailability, aiErrorKey } from "@/shared/hooks/useAIAvailability";
+import { AIAvailabilityNotice } from "@/shared/ui/AIAvailabilityNotice";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -14,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
 
 export function CoverLetterAIPanel() {
   const { t } = useTranslation();
+  const { unavailable, isChecking, markUnavailable } = useAIAvailability();
   const coverLetter = useCoverLetterStore((s) => s.coverLetter);
   const updateFields = useCoverLetterStore((s) => s.updateFields);
   const { generate } = useCoverLetterAI();
@@ -61,11 +64,11 @@ export function CoverLetterAIPanel() {
   };
 
   const handleGenerate = () => {
-    if (!coverLetter) return;
+    if (!coverLetter || unavailable || isChecking || generate.isPending) return;
     generate.mutate({
       cover_letter_id: coverLetter.id,
       job_description: jobDescription || undefined,
-    });
+    }, { onError: markUnavailable });
   };
 
   const handleApply = () => {
@@ -85,6 +88,7 @@ export function CoverLetterAIPanel() {
         <h2 className="text-lg font-semibold">{t("coverLetter.ai.title")}</h2>
       </div>
 
+      <AIAvailabilityNotice unavailable={unavailable} />
       {aiLimitReached && <UpgradeBanner resource="ai" />}
 
       <section className="space-y-3">
@@ -136,7 +140,7 @@ export function CoverLetterAIPanel() {
 
         <Button
           onClick={handleGenerate}
-          disabled={generate.isPending || !coverLetter || aiLimitReached}
+          disabled={unavailable || isChecking || generate.isPending || !coverLetter || aiLimitReached}
           variant="outline"
           className="w-full"
         >
@@ -154,8 +158,8 @@ export function CoverLetterAIPanel() {
         </Button>
 
         {generate.isError && (
-          <p className="text-sm text-destructive">
-            {t("coverLetter.ai.error")}
+          <p role="alert" className="text-sm text-destructive">
+            {t(aiErrorKey(generate.error))}
           </p>
         )}
 

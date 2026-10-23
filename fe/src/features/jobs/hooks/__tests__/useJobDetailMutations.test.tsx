@@ -104,7 +104,7 @@ function createWrapper() {
 
 function makeSetters() {
   return {
-    setFields: vi.fn<(fields: EditableFields) => void>(),
+    setFields: vi.fn<React.Dispatch<React.SetStateAction<EditableFields | null>>>(),
     setNewComment: vi.fn<(value: string) => void>(),
     setMatchScore: vi.fn<(data: MatchScoreResponse | null) => void>(),
     setMatchScoreError: vi.fn<(message: string | null) => void>(),
@@ -227,7 +227,9 @@ describe("useJobDetailMutations", () => {
         queryKey: ["job", "job-1"],
       });
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["jobs"] });
-      expect(setters.setFields).toHaveBeenCalledWith(fieldsFromJob(updated));
+      expect(setters.setFields.mock.calls[0][0]).toEqual(expect.any(Function));
+      const apply = setters.setFields.mock.calls[0][0];
+      if (typeof apply === "function") expect(apply(fieldsFromJob(updated))).toEqual(fieldsFromJob(updated));
       expect(mockNotifications.showSuccessNotification).toHaveBeenCalledWith(
         "jobs.updateSuccess",
       );
@@ -264,6 +266,7 @@ describe("useJobDetailMutations", () => {
       );
       expect(mockJobsService.update).toHaveBeenCalledWith("job-1", {
         resume_id: "up-9",
+        resume_builder_id: "",
       });
     });
 
@@ -279,6 +282,7 @@ describe("useJobDetailMutations", () => {
       );
       expect(mockJobsService.update).toHaveBeenCalledWith("job-1", {
         resume_builder_id: "rb-3",
+        resume_id: "",
       });
     });
 
@@ -294,6 +298,7 @@ describe("useJobDetailMutations", () => {
       );
       expect(mockJobsService.update).toHaveBeenCalledWith("job-1", {
         resume_id: "",
+        resume_builder_id: "",
       });
     });
   });
@@ -562,4 +567,44 @@ describe("useJobDetailMutations", () => {
       expect(setters.setMatchScoreError).toHaveBeenCalledWith("plain failure");
     });
   });
+});
+
+
+beforeEach(() => { vi.clearAllMocks(); });
+
+it("a pending save invalidates its original Job after a route parameter changes", async () => {
+  let resolve!: (value: JobDTO) => void;
+  mockJobsService.update.mockReturnValue(new Promise<JobDTO>((done) => { resolve = done; }));
+  const setters = makeSetters();
+  const { Wrapper, invalidateSpy } = createWrapper();
+  const { result, rerender } = renderHook(({ id }) => useJobDetailMutations({ id, effectiveMatchResumeId: "", ...setters }), { wrapper: Wrapper, initialProps: { id: "job-1" } });
+  act(() => result.current.updateMutation.mutate({ title: "First draft" }));
+  await waitFor(() => expect(mockJobsService.update).toHaveBeenCalled());
+  rerender({ id: "job-2" });
+  await act(async () => resolve(makeJob({ id: "job-1", title: "First draft" })));
+  await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["job", "job-1"] }));
+  expect(setters.setFields).not.toHaveBeenCalled();
+});
+
+it("does not replace text entered while a save was in flight", async () => {
+  mockJobsService.update.mockResolvedValue(makeJob({ title: "Submitted" }));
+  const setters = makeSetters();
+  const { result } = renderMutations(setters);
+  act(() => result.current.updateMutation.mutate({ title: "Submitted" }));
+  await waitFor(() => expect(setters.setFields).toHaveBeenCalled());
+  const apply = setters.setFields.mock.calls[0][0];
+  const newer = fieldsFromJob(makeJob({ title: "Newer unsaved typing" }));
+  if (typeof apply === "function") expect(apply(newer)).toEqual(newer);
+});
+
+it("a failed resume selection does not replace the cached persisted selection", async () => {
+  const attached = makeJob({ resume: { id: "rb-1", name: "Builder", type: "builder" } });
+  const { Wrapper, queryClient } = createWrapper();
+  queryClient.setQueryDefaults(["job"], { gcTime: Infinity });
+  queryClient.setQueryData(["job", "job-1"], attached);
+  mockJobsService.update.mockRejectedValue(new Error("synthetic failure"));
+  const { result } = renderHook(() => useJobDetailMutations({ id: "job-1", effectiveMatchResumeId: "", ...makeSetters() }), { wrapper: Wrapper });
+  act(() => result.current.changeResumeMutation.mutate(""));
+  await waitFor(() => expect(result.current.changeResumeMutation.isError).toBe(true));
+  expect(queryClient.getQueryData(["job", "job-1"])).toEqual(attached);
 });

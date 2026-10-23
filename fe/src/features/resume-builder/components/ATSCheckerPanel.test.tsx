@@ -136,7 +136,7 @@ describe("ATSCheckerPanel", () => {
       isError: true,
     };
     render(<ATSCheckerPanel />);
-    expect(screen.getByText("resumeBuilder.ats.error")).toBeInTheDocument();
+    expect(screen.getByText("ai.requestFailed")).toBeInTheDocument();
   });
 
   it("renders the score when result data is available", async () => {
@@ -271,7 +271,7 @@ describe("ATSCheckerPanel — monthly AI limit", () => {
       screen.getByText("settings.subscription.limitReachedAIMonthly:1"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("resumeBuilder.ats.error"),
+      screen.queryByText("ai.requestFailed"),
     ).not.toBeInTheDocument();
   });
 
@@ -333,9 +333,14 @@ describe("ATSCheckerPanel — monthly AI limit", () => {
     };
     render(<ATSCheckerPanel />);
 
-    expect(screen.getByText("resumeBuilder.ats.error")).toBeInTheDocument();
+    expect(screen.getByText("ai.requestFailed")).toBeInTheDocument();
     expect(
       screen.queryByText("settings.subscription.limitReachedAIMonthly:1"),
     ).not.toBeInTheDocument();
   });
 });
+
+vi.mock("@/shared/hooks/useAIAvailability", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/shared/hooks/useAIAvailability")>(),
+  useAIAvailability: () => ({ unavailable: false, isChecking: false, markUnavailable: vi.fn() }),
+}));

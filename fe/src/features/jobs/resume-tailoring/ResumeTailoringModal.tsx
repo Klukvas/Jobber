@@ -1,3 +1,5 @@
+import { useAIAvailability } from "@/shared/hooks/useAIAvailability";
+import { AIAvailabilityNotice } from "@/shared/ui/AIAvailabilityNotice";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -24,6 +26,7 @@ type Props = {
 
 export function ResumeTailoringModal({ job, builderResumes, isLoading, isError, onClose }: Props) {
   const { t, i18n } = useTranslation();
+  const { unavailable, isChecking } = useAIAvailability();
   const navigate = useNavigate();
   const initialSource = job.resume?.type === "builder" && builderResumes.some((resume) => resume.id === job.resume?.id) ? job.resume.id : builderResumes[0]?.id ?? "";
   const [sourceId, setSourceId] = useState(initialSource);
@@ -38,7 +41,7 @@ export function ResumeTailoringModal({ job, builderResumes, isLoading, isError, 
   const canSave = !!review && !mustRegenerate && tailoring.acceptedIds.length > 0 && !!title.trim() && title.trim().length <= 255;
   const close = () => { if (!tailoring.isSaving) onClose(); };
   const locale = i18n.language.startsWith("ru") ? "ru" : i18n.language.startsWith("uk") ? "uk" : "en";
-  const generate = () => { if (source) void tailoring.generate(source.id, locale); };
+  const generate = () => { if (source && !unavailable && !isChecking) void tailoring.generate(source.id, locale); };
   const save = async () => {
     if (!source || !canSave) return;
     const result = await tailoring.apply(title, source.id);
@@ -56,6 +59,7 @@ export function ResumeTailoringModal({ job, builderResumes, isLoading, isError, 
         </DialogHeader>
         <div className="min-h-0 space-y-5 overflow-y-auto overscroll-contain p-5 sm:p-6">
           <p className="text-sm text-muted-foreground">{t("jobs.tailoring.description")}</p>
+          <AIAvailabilityNotice unavailable={unavailable} />
           {isLoading ? <p role="status" className="text-sm text-muted-foreground">{t("common.loading")}</p>
             : isError ? <p role="alert" className="text-sm text-destructive">{t("jobs.tailoring.errors.resumesFailed")}</p>
               : builderResumes.length === 0 ? (
@@ -109,7 +113,7 @@ export function ResumeTailoringModal({ job, builderResumes, isLoading, isError, 
               {tailoring.isSaving && <Loader2 className="h-4 w-4 animate-spin" />}{t("jobs.tailoring.saveCopy")}
             </Button>
           ) : (
-            <Button onClick={generate} disabled={!source || isLoading || isError || tailoring.isGenerating || tailoring.isSaving}>
+            <Button onClick={generate} disabled={unavailable || isChecking || !source || isLoading || isError || tailoring.isGenerating || tailoring.isSaving}>
               {tailoring.isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               {t(review ? "jobs.tailoring.regenerate" : "jobs.tailoring.generate")}
             </Button>

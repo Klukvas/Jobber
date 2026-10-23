@@ -356,7 +356,6 @@ describe("EditResumeModal", () => {
       expect(mockUpdate).toHaveBeenCalledWith("r-1", {
         title: "New Title",
         is_active: true,
-        file_url: "https://example.com/r.pdf",
       }),
     );
     await waitFor(() =>
@@ -574,4 +573,17 @@ describe("RenameBuilderResumeModal", () => {
       expect(mockShowError).toHaveBeenCalledWith("rename failed"),
     );
   });
+});
+
+
+it("sends an explicit empty external URL and retains the cleared draft after a failed save", async () => {
+  mockUpdate.mockRejectedValue(new Error("synthetic failure"));
+  const user = userEvent.setup();
+  renderWithClient(<EditResumeModal open resume={makeResume()} onOpenChange={vi.fn()} />);
+  const url = screen.getByLabelText(/resumes.fileUrlEditLabel/);
+  await user.clear(url);
+  await user.click(screen.getByRole("button", { name: "common.save" }));
+  await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith("r-1", { title: "My Resume", is_active: true, file_url: "" }));
+  expect(url).toHaveValue("");
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
 });

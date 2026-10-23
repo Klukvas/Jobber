@@ -623,6 +623,7 @@ func main() {
 		// under /auth: the frontend 401 interceptor skips token refresh for
 		// /auth/* endpoints, and this endpoint must trigger that refresh.
 		v1.GET("/session", authMiddleware, sessionHandler)
+		v1.GET("/features/ai", authMiddleware, httpPlatform.AIAvailabilityHandler(resumeAIHdl != nil))
 
 		// Register module routes
 		authHdl.RegisterRoutes(v1, authHandler.AuthRouteConfig{

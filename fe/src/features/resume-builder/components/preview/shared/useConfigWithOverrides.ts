@@ -1,3 +1,4 @@
+import { useMobileTextEditing } from "../mobileTextEditing";
 import { useMemo } from "react";
 import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
 import type { TemplateConfig, SkillRenderMode } from "./templateConfig";
@@ -18,11 +19,13 @@ const CONTAINER_CLASS_MAP: Partial<Record<SkillRenderMode, string>> = {
  * If skill_display is empty, the original template config is returned unchanged.
  */
 export function useConfigWithOverrides(config: TemplateConfig): TemplateConfig {
+  const textEditing = useMobileTextEditing();
   const skillDisplay = useResumeBuilderStore(
     (s) => s.resume?.skill_display ?? "",
   );
 
   return useMemo(() => {
+    if (textEditing) return { ...config, textSize: "text-base", skills: { renderAs: "text-level", containerClass: "space-y-3" } };
     if (!skillDisplay) return config;
 
     const renderAs = skillDisplay as SkillRenderMode;
@@ -33,5 +36,5 @@ export function useConfigWithOverrides(config: TemplateConfig): TemplateConfig {
       ...config,
       skills: { renderAs, containerClass },
     };
-  }, [config, skillDisplay]);
+  }, [config, skillDisplay, textEditing]);
 }

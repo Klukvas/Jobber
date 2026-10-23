@@ -39,6 +39,9 @@ export function JobInfoCard({
       <CardHeader>
         <div className="flex items-start justify-between gap-4">
           <Input
+            aria-label={t("jobs.title_field")}
+            aria-invalid={!fields.title.trim()}
+            aria-describedby={!fields.title.trim() ? "detail-title-error" : undefined}
             value={fields.title}
             onChange={(e) => onFieldChange("title", e.target.value)}
             className="text-2xl font-bold border-transparent hover:border-input focus:border-input bg-transparent h-auto py-1 px-2 -ml-2"
@@ -52,6 +55,9 @@ export function JobInfoCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {!fields.title.trim() && (
+          <p id="detail-title-error" role="alert" className="text-sm text-destructive">{t("jobs.titleRequired")}</p>
+        )}
         {/* These fields are dirty-tracked and committed with Save in the header,
             unlike the pipeline's resume selector, which writes immediately.
             Saying so is cheaper than making a customer guess. */}

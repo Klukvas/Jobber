@@ -1,3 +1,5 @@
+import { useAIAvailability, aiErrorKey } from "@/shared/hooks/useAIAvailability";
+import { AIAvailabilityNotice } from "@/shared/ui/AIAvailabilityNotice";
 import { useState } from "react";
 import { flushResumeDocument } from "../lib/resumeDocumentSync";
 import { useTranslation } from "react-i18next";
@@ -47,6 +49,7 @@ function getScoreBorderColor(score: number): string {
 
 export function ATSCheckerPanel() {
   const { t } = useTranslation();
+  const { unavailable, isChecking, markUnavailable } = useAIAvailability();
   const resume = useResumeBuilderStore((s) => s.resume);
   const atsCheck = useATSCheck();
   const [upgradeOpen, setUpgradeOpen] = useState(false);
@@ -65,7 +68,7 @@ export function ATSCheckerPanel() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const handleCheck = async () => {
-    if (!resume) return;
+    if (!resume || unavailable || isChecking || isSyncing || atsCheck.isPending) return;
     setIsSyncing(true);
     setSaveError(false);
     try {
@@ -74,6 +77,7 @@ export function ATSCheckerPanel() {
       if (!live || live.id !== resume.id) return;
       const revision = JSON.stringify(live);
       atsCheck.mutate(live.id, {
+        onError: markUnavailable,
         onSuccess: (data) => {
           if (
             JSON.stringify(useResumeBuilderStore.getState().resume) === revision
@@ -106,9 +110,10 @@ export function ATSCheckerPanel() {
         </h2>
       </div>
 
+      <AIAvailabilityNotice unavailable={unavailable} />
       <Button
         onClick={handleCheck}
-        disabled={isSyncing || atsCheck.isPending || !resume}
+        disabled={unavailable || isChecking || isSyncing || atsCheck.isPending || !resume}
         variant="outline"
         className="w-full"
       >
@@ -159,7 +164,7 @@ export function ATSCheckerPanel() {
           </div>
         ) : (
           <p role="alert" className="text-sm text-destructive">
-            {t("resumeBuilder.ats.error")}
+            {t(aiErrorKey(atsCheck.error))}
           </p>
         ))}
 

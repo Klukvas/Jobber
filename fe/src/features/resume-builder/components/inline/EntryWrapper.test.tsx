@@ -28,7 +28,7 @@ describe("EntryWrapper", () => {
         <div>Content</div>
       </EntryWrapper>,
     );
-    expect(screen.getByLabelText("Remove entry")).toBeInTheDocument();
+    expect(screen.getByLabelText("resumeBuilder.inline.removeEntry")).toBeInTheDocument();
   });
 
   it("calls onRemove with entry ID when remove button is clicked", async () => {
@@ -39,7 +39,7 @@ describe("EntryWrapper", () => {
       </EntryWrapper>,
     );
 
-    await user.click(screen.getByLabelText("Remove entry"));
+    await user.click(screen.getByLabelText("resumeBuilder.inline.removeEntry"));
     expect(defaultProps.onRemove).toHaveBeenCalledWith("entry-1");
   });
 
@@ -49,7 +49,7 @@ describe("EntryWrapper", () => {
         <div>Content</div>
       </EntryWrapper>,
     );
-    expect(screen.queryByLabelText("Remove entry")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("resumeBuilder.inline.removeEntry")).not.toBeInTheDocument();
   });
 
   it("renders as plain div when not editable", () => {

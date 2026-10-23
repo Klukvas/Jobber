@@ -42,7 +42,7 @@ describe("EditableDateRange", () => {
 
   it("shows 'Add dates' when no dates are set", () => {
     render(<EditableDateRange {...defaultProps} startDate="" endDate="" />);
-    expect(screen.getByText("Add dates")).toBeInTheDocument();
+    expect(screen.getByText("resumeBuilder.inline.addDates")).toBeInTheDocument();
   });
 
   it("opens popover on click", async () => {
@@ -51,8 +51,8 @@ describe("EditableDateRange", () => {
 
     await user.click(screen.getByText(/Jan 2020/));
 
-    expect(screen.getByText("Start Date")).toBeInTheDocument();
-    expect(screen.getByText("End Date")).toBeInTheDocument();
+    expect(screen.getByText("resumeBuilder.inline.startDate")).toBeInTheDocument();
+    expect(screen.getByText("resumeBuilder.inline.endDate")).toBeInTheDocument();
   });
 
   it("calls onStartDateChange when start date changes", async () => {

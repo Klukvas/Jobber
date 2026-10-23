@@ -250,13 +250,13 @@ describe("CoverLetterEditorPage", () => {
   it("renders Export PDF button", () => {
     render(<CoverLetterEditorPage />);
 
-    expect(screen.getByText("coverLetter.exportPDF")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "coverLetter.exportPDF" })).toBeInTheDocument();
   });
 
   it("renders Export DOCX button", () => {
     render(<CoverLetterEditorPage />);
 
-    expect(screen.getByText("coverLetter.exportDOCX")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "coverLetter.exportDOCX" })).toBeInTheDocument();
   });
 
   it("renders the cover letter title input", () => {
@@ -322,7 +322,7 @@ describe("CoverLetterEditorPage export", () => {
     );
     render(<CoverLetterEditorPage />);
 
-    await user.click(screen.getByText("coverLetter.exportPDF"));
+    await user.click(screen.getByRole("button", { name: "coverLetter.exportPDF" }));
 
     expect(mockFlush).toHaveBeenCalledTimes(1);
     expect(mockExportPDFMutate).not.toHaveBeenCalled();
@@ -337,7 +337,7 @@ describe("CoverLetterEditorPage export", () => {
     mockFlush.mockRejectedValue(new Error("offline"));
     render(<CoverLetterEditorPage />);
 
-    await user.click(screen.getByText("coverLetter.exportDOCX"));
+    await user.click(screen.getByRole("button", { name: "coverLetter.exportDOCX" }));
 
     await waitFor(() =>
       expect(showErrorNotification).toHaveBeenCalledWith(
@@ -395,4 +395,24 @@ describe("CoverLetterEditorPage document recovery", () => {
     expect(mockMarkDirty).not.toHaveBeenCalled();
     expect(mockSetSaveStatus).not.toHaveBeenCalled();
   });
+});
+
+
+it("keeps export formats visible and names all touched toolbar controls", () => {
+  render(<CoverLetterEditorPage />);
+  expect(screen.getByRole("button", { name: "coverLetter.exportPDF" })).toHaveTextContent("PDF");
+  expect(screen.getByRole("button", { name: "coverLetter.exportDOCX" })).toHaveTextContent("DOCX");
+  expect(screen.getByRole("button", { name: "coverLetter.design.template" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "coverLetter.design.color" })).toBeInTheDocument();
+});
+
+it("Color closes on Escape and restores focus to its named trigger", async () => {
+  const user = userEvent.setup();
+  render(<CoverLetterEditorPage />);
+  const color = screen.getByRole("button", { name: "coverLetter.design.color" });
+  await user.click(color);
+  expect(color).toHaveAttribute("aria-expanded", "true");
+  await user.keyboard("{Escape}");
+  expect(color).toHaveAttribute("aria-expanded", "false");
+  expect(color).toHaveFocus();
 });

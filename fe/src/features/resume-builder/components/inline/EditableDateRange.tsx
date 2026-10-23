@@ -1,5 +1,7 @@
+import { useTranslation } from "react-i18next";
 import {
   useState,
+  useId,
   useRef,
   useCallback,
   useEffect,
@@ -39,6 +41,9 @@ export function EditableDateRange({
   editable = true,
   currentLabel = "Present",
 }: EditableDateRangeProps) {
+  const { t } = useTranslation();
+  const inputId = useId();
+  const triggerRef = useRef<HTMLSpanElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -72,8 +77,17 @@ export function EditableDateRange({
   if (!editable && !displayText) return null;
 
   return (
-    <span className="relative inline-block" style={style}>
+    <span data-date-range className="relative inline-block" style={style}>
       <span
+        ref={triggerRef}
+        data-date-trigger
+        role={editable ? "button" : undefined}
+        tabIndex={editable ? 0 : undefined}
+        aria-expanded={editable ? isOpen : undefined}
+        aria-label={editable ? (displayText || t("resumeBuilder.inline.addDates")) : undefined}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(); }
+        }}
         onClick={toggle}
         className={cn(
           className,
@@ -82,21 +96,24 @@ export function EditableDateRange({
           !displayText && editable && "italic text-gray-400",
         )}
       >
-        {displayText || "Add dates"}
+        {displayText || t("resumeBuilder.inline.addDates")}
       </span>
 
       {isOpen && (
         <div
           ref={popoverRef}
+          data-date-popover
+          onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); setIsOpen(false); triggerRef.current?.focus(); } }}
           className="absolute right-0 top-full z-50 mt-1 w-56 rounded-md border bg-white p-3 shadow-lg"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="space-y-2.5">
             <div>
-              <label className="mb-0.5 block text-[10px] font-medium text-gray-600">
-                Start Date
+              <label htmlFor={`${inputId}-start`} className="mb-0.5 block text-[10px] font-medium text-gray-600">
+                {t("resumeBuilder.inline.startDate")}
               </label>
               <input
+                id={`${inputId}-start`}
                 type="date"
                 value={startDate}
                 onChange={(e) => onStartDateChange(e.target.value)}
@@ -105,10 +122,11 @@ export function EditableDateRange({
             </div>
             {!isCurrent && (
               <div>
-                <label className="mb-0.5 block text-[10px] font-medium text-gray-600">
-                  End Date
+                <label htmlFor={`${inputId}-end`} className="mb-0.5 block text-[10px] font-medium text-gray-600">
+                  {t("resumeBuilder.inline.endDate")}
                 </label>
                 <input
+                  id={`${inputId}-end`}
                   type="date"
                   value={endDate}
                   onChange={(e) => onEndDateChange(e.target.value)}
@@ -126,7 +144,7 @@ export function EditableDateRange({
                 }}
                 className="rounded"
               />
-              <span className="text-gray-700">Currently here</span>
+              <span className="text-gray-700">{t("resumeBuilder.inline.currentlyHere")}</span>
             </label>
           </div>
         </div>

@@ -1,0 +1,33 @@
+.mobile-resume-text {
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  padding-bottom: max(2rem, env(safe-area-inset-bottom));
+}
+.mobile-resume-text * { min-width: 0; max-width: 100%; }
+.mobile-resume-text .text-xs, .mobile-resume-text .text-sm { font-size: 1rem; }
+.mobile-resume-text [role="textbox"], .mobile-resume-text input, .mobile-resume-text textarea {
+  display: block;
+  min-height: 44px;
+  width: 100%;
+  font-size: 16px;
+  padding: 8px 4px;
+  scroll-margin-block: 80px;
+}
+.mobile-resume-text [data-text-contact] { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+.mobile-resume-text [data-resume-section] { margin-left: 0; padding-left: 0; padding-top: 52px; }
+.mobile-resume-text [data-section-controls] {
+  left: auto; right: 0; flex-direction: row; opacity: 1; pointer-events: auto;
+}
+.mobile-resume-text button { min-height: 44px; min-width: 44px; opacity: 1; pointer-events: auto; }
+.mobile-resume-text button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.mobile-resume-text [data-entry] { padding-right: 48px; margin-block: 16px; }
+.mobile-resume-text [data-entry] > .flex { flex-direction: column; align-items: stretch; gap: 8px; }
+.mobile-resume-text [data-entry-remove] { top: 0; right: 0; }
+.mobile-resume-text [data-date-range] { display: block; width: 100%; }
+.mobile-resume-text [data-date-popover] { position: relative; left: 0; right: auto; width: 100%; max-width: 100%; }
+.mobile-resume-text [data-date-popover] label { font-size: 14px; }
+.mobile-resume-text [data-date-popover] input[type="checkbox"] { display: inline-block; width: 24px; height: 24px; min-height: 24px; }
+.mobile-resume-text [data-select-trigger], .mobile-resume-text [data-date-trigger] {
+  display: flex; align-items: center; min-height: 44px; padding: 8px 4px;
+}

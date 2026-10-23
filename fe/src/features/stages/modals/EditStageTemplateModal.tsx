@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { stageTemplatesService } from "@/services/stageTemplatesService";
@@ -21,7 +21,6 @@ import { Select } from "@/shared/ui/Select";
 import { Loader2 } from "lucide-react";
 import { ApiError } from "@/services/api";
 import {
-  DEFAULT_STAGE_KIND,
   STAGE_KIND_OPTIONS,
   stageKindLabelKey,
   stageKindOf,
@@ -38,34 +37,32 @@ interface EditStageTemplateModalProps {
   template: StageTemplateDTO | null;
 }
 
-export function EditStageTemplateModal({
-  open,
-  onOpenChange,
-  template,
-}: EditStageTemplateModalProps) {
+function EditStageForm({ template, onOpenChange }: {
+  template: StageTemplateDTO;
+  onOpenChange: (open: boolean) => void;
+}) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [name, setName] = useState("");
-  const [order, setOrder] = useState("");
-  const [kind, setKind] = useState<StageKind>(DEFAULT_STAGE_KIND);
-  const [prevTemplateId, setPrevTemplateId] = useState<string | null>(null);
-
-  if (template && template.id !== prevTemplateId) {
-    setPrevTemplateId(template.id);
-    setName(template.name);
-    setOrder(String(template.order));
-    setKind(stageKindOf(template));
-  }
+  const active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => { active.current = false; };
+  }, []);
+  const [name, setName] = useState(template.name);
+  const [order, setOrder] = useState(String(template.order + 1));
+  const [kind, setKind] = useState<StageKind>(stageKindOf(template));
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateStageTemplateRequest) =>
-      stageTemplatesService.update(template!.id, data),
+      stageTemplatesService.update(template.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stage-templates"] });
+      if (!active.current) return;
       showSuccessNotification(t("stages.updateSuccess"));
       onOpenChange(false);
     },
     onError: (error: Error) => {
+      if (!active.current) return;
       if (
         error instanceof ApiError &&
         error.code === "STAGE_TEMPLATE_NAME_EXISTS"
@@ -79,10 +76,10 @@ export function EditStageTemplateModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name && order && template) {
+    if (name.trim() && Number(order) >= 1 && !updateMutation.isPending) {
       updateMutation.mutate({
-        name,
-        order: parseInt(order),
+        name: name.trim(),
+        order: Number(order) - 1,
         // Only an explicit reclassification travels: a rename or a reorder
         // must leave what the column *means* exactly as it was.
         ...(kind !== stageKindOf(template) ? { kind } : {}),
@@ -91,8 +88,7 @@ export function EditStageTemplateModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent onClose={() => onOpenChange(false)}>
+    <>
         <DialogHeader>
           <DialogTitle>{t("stages.edit")}</DialogTitle>
           <DialogDescription>{t("stages.editDescription")}</DialogDescription>
@@ -113,7 +109,7 @@ export function EditStageTemplateModal({
               <Input
                 id="edit-order"
                 type="number"
-                min="0"
+                min="1"
                 value={order}
                 onChange={(e) => setOrder(e.target.value)}
                 required
@@ -147,7 +143,7 @@ export function EditStageTemplateModal({
             </Button>
             <Button
               type="submit"
-              disabled={updateMutation.isPending || !name || !order}
+              disabled={updateMutation.isPending || !name.trim() || !order || Number(order) < 1}
             >
               {updateMutation.isPending ? (
                 <>
@@ -160,6 +156,16 @@ export function EditStageTemplateModal({
             </Button>
           </DialogFooter>
         </form>
+    </>
+  );
+}
+
+
+export function EditStageTemplateModal({ open, onOpenChange, template }: EditStageTemplateModalProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent onClose={() => onOpenChange(false)}>
+        {template && <EditStageForm key={template.id} template={template} onOpenChange={onOpenChange} />}
       </DialogContent>
     </Dialog>
   );

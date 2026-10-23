@@ -201,6 +201,11 @@ describe("CoverLetterAIPanel", () => {
     expect(mockGenerateMutate).toHaveBeenCalledWith({
       cover_letter_id: "cl-1",
       job_description: undefined,
-    });
+    }, { onError: expect.any(Function) });
   });
 });
+
+vi.mock("@/shared/hooks/useAIAvailability", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/shared/hooks/useAIAvailability")>(),
+  useAIAvailability: () => ({ unavailable: false, isChecking: false, markUnavailable: vi.fn() }),
+}));

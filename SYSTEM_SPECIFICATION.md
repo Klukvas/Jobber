@@ -4693,3 +4693,56 @@ the complete through-50 directory mounted read-only at /app/migrations; that mou
 is retained on a later frontend-only redeploy. Frontend-only deployment at 49
 keeps schema 49. Dirty, unreadable or unexpected schema keeps entry closed. No
 migration down, schema force or automatic database restore runs during recovery.
+
+## Forms and mobile editing corrections (October 23, 2026)
+
+- `GET /jobs` serializes an empty result as `items: []`, including an offset past
+  the end. List and Board tolerate legacy `null` collections; Board stops paging
+  on an empty page even when the reported total is stale.
+- Company edits send only changed fields. An omitted `location` or `notes`
+  remains unchanged; an explicit empty string clears it. External Uploaded
+  Resume edits likewise omit an unchanged `file_url` and send `""` to remove it.
+  A removed URL is returned as `null`, and no View Resume link is displayed.
+  Existing URL normalization, scheme protections and ownership checks remain.
+- A Job's empty resume selector explicitly clears **both** `resume_id` and
+  `resume_builder_id`. Selecting either kind clears the other. The displayed
+  selection follows the stored response; a failed selection preserves the
+  previous attachment. PATCH omission still leaves the corresponding field alone.
+- Only Job Title is required on the compact create form; other fields are
+  identified as optional. Create and edit trim titles and reject whitespace-only
+  input on the client and server, with localized field feedback. The already
+  applied branch retains its optional resume and date fields.
+- Stage editing starts from persisted values on every open. Cancel, Close,
+  Escape and backdrop dismissal discard the draft; a failed save retains it.
+  A pending save cannot close a newer editing session. Stage forms show positions
+  starting at **1**, translating to the unchanged zero-based stored `order`.
+  The stage's semantic kind remains independent of its name and position.
+- On phones below 768px, Builder offers **Edit text / Preview**. Text mode uses
+  the same inline fields, entries, section actions, persistence and document
+  store in a fluid single-column view with readable text and touch controls.
+  Escape, dates, undo and autosave retain their existing behavior. Preview fits
+  the selected document design to the available width. Switching modes does not
+  change saved template, typography, margins, skill display, visibility or order.
+- Cover Letter Template, Color, PDF and DOCX controls have localized accessible
+  names. PDF/DOCX labels remain visible on phones. Template uses the shared
+  dialog focus/keyboard lifecycle; Color closes with Escape and restores focus.
+- Authenticated `GET /features/ai` returns only `{ "available": boolean }`,
+  using the same configured capability that enables the existing AI handlers.
+  It grants no entitlement and does not promise that a later request succeeds.
+  Builder AI/ATS, Builder text/PDF import, Cover Letter AI and Job resume tailoring
+  use this shared runtime availability. Known unavailability is explained before
+  submission and disables the action. A failed probe remains unknown. Transient
+  request failures show safe localized retry feedback while retaining input;
+  import errors stay visible inline. No provider settings or details are exposed.
+
+- Async form results are scoped to the form instance that submitted them. Company,
+  Job, Uploaded Resume and Stage saves may refresh their originating collection
+  after dismissal, but cannot close/reset a new form, show a stale notification
+  or invoke old create/navigation callbacks. Text/PDF imports likewise ignore UI
+  effects after their route/form unmounts, while refreshing the Builder list for
+  a successfully created document.
+- Global AI availability changes only for explicit `AI_UNAVAILABLE` /
+  `AI_NOT_CONFIGURED` errors or a legacy non-JSON missing-route 404. Structured
+  document/Job 404s and permission/plan 403s remain request-specific errors and
+  do not disable AI for other documents. The API client records whether an error
+  body was unstructured; valid JSON without an error code is still structured.

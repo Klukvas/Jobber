@@ -1,3 +1,4 @@
+import { useCurrentFormSession } from "@/shared/hooks/useCurrentFormSession";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -76,6 +77,7 @@ function ModalContent({
 }: CreateJobModalProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const isCurrentSession = useCurrentFormSession();
   const isEditMode = !!job;
   const { canCreate } = useSubscription();
   const showLimitBanner = !isEditMode && !canCreate("jobs");
@@ -111,11 +113,13 @@ function ModalContent({
     mutationFn: jobsService.create,
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      if (!isCurrentSession()) return;
       showSuccessNotification(t("jobs.createSuccess"));
       onCreated?.(data);
       onOpenChange(false);
     },
     onError: (error: Error) => {
+      if (!isCurrentSession()) return;
       showErrorNotification(error.message || t("jobs.createError"));
     },
   });
@@ -125,17 +129,19 @@ function ModalContent({
       jobsService.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      if (!isCurrentSession()) return;
       showSuccessNotification(t("jobs.updateSuccess"));
       onOpenChange(false);
     },
     onError: (error: Error) => {
+      if (!isCurrentSession()) return;
       showErrorNotification(error.message || t("jobs.updateError"));
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title) return;
+    if (!title.trim() || isPending || showLimitBanner) return;
 
     if (isEditMode && job) {
       // Empty strings stay empty strings: the form holds every field, so a
@@ -143,7 +149,7 @@ function ModalContent({
       updateMutation.mutate({
         id: job.id,
         data: jobUpdatePayload({
-          title,
+          title: title.trim(),
           company_id: companyId,
           url,
           source,
@@ -154,7 +160,7 @@ function ModalContent({
     }
 
     const request: CreateJobRequest = {
-      title,
+      title: title.trim(),
       company_id: companyId || undefined,
       url: url || undefined,
       source: source || undefined,
@@ -204,7 +210,12 @@ function ModalContent({
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t("jobs.titlePlaceholder")}
               required
+              aria-invalid={title.length > 0 && !title.trim()}
+              aria-describedby={title.length > 0 && !title.trim() ? "job-title-error" : undefined}
             />
+            {title.length > 0 && !title.trim() && (
+              <p id="job-title-error" role="alert" className="text-sm text-destructive">{t("jobs.titleRequired")}</p>
+            )}
           </div>
           <CompanySelectWithQuickAdd
             companies={companiesData?.items || []}
@@ -212,7 +223,7 @@ function ModalContent({
             onChange={setCompanyId}
           />
           <div className="space-y-2">
-            <Label htmlFor="url">{t("jobs.url")}</Label>
+            <Label htmlFor="url">{t("jobs.url")} ({t("common.optional")})</Label>
             <Input
               id="url"
               type="url"
@@ -222,7 +233,7 @@ function ModalContent({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="source">{t("jobs.source")}</Label>
+            <Label htmlFor="source">{t("jobs.source")} ({t("common.optional")})</Label>
             <Input
               id="source"
               value={source}
@@ -231,7 +242,7 @@ function ModalContent({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="description">{t("jobs.description")}</Label>
+            <Label htmlFor="description">{t("jobs.description")} ({t("common.optional")})</Label>
             <Textarea
               id="description"
               value={description}
@@ -330,7 +341,7 @@ function ModalContent({
           </Button>
           <Button
             type="submit"
-            disabled={isPending || !title || showLimitBanner}
+            disabled={isPending || !title.trim() || showLimitBanner}
           >
             {isPending ? (
               <>

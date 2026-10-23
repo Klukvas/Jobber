@@ -164,8 +164,6 @@ describe("CreateCompanyModal — edit mode", () => {
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith("co-1", {
         name: "Acme Renamed",
-        location: "Berlin",
-        notes: "Great place",
       }),
     );
     await waitFor(() =>
@@ -270,4 +268,15 @@ describe("DeleteCompanyDialog", () => {
     // onOpenChange(false) should NOT be triggered by the error path
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
+});
+
+
+it("persists explicit clears and omits untouched company fields", async () => {
+  const user = userEvent.setup();
+  mockUpdate.mockResolvedValue(company);
+  renderWithClient(<CreateCompanyModal open company={company} onOpenChange={vi.fn()} />);
+  await user.clear(screen.getByLabelText(/companies.location/));
+  await user.clear(screen.getByLabelText(/companies.notes/));
+  await user.click(screen.getByRole("button", { name: "common.save" }));
+  await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith("co-1", { location: "", notes: "" }));
 });

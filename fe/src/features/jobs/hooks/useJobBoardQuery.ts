@@ -48,7 +48,7 @@ function flattenPages(pages: PaginatedResponse<JobDTO>[]): JobDTO[] {
   const seen = new Set<string>();
   const jobs: JobDTO[] = [];
   for (const page of pages) {
-    for (const job of page.items) {
+    for (const job of page.items ?? []) {
       if (seen.has(job.id)) continue;
       seen.add(job.id);
       jobs.push(job);
@@ -68,7 +68,7 @@ export function mapBoardJob(
     ...data,
     pages: data.pages.map((page) => ({
       ...page,
-      items: page.items.map((job) => (job.id === jobId ? update(job) : job)),
+      items: (page.items ?? []).map((job) => (job.id === jobId ? update(job) : job)),
     })),
   };
 }
@@ -79,7 +79,7 @@ export function findBoardJob(
   jobId: string,
 ): JobDTO | undefined {
   return data?.pages
-    .flatMap((page) => page.items)
+    .flatMap((page) => page.items ?? [])
     .find((job) => job.id === jobId);
 }
 
@@ -113,8 +113,8 @@ export function useJobBoardQuery({
     // run out regardless of what `total` claims — without that guard a stale
     // total would keep the "load more" button alive forever.
     getNextPageParam: (lastPage, allPages) => {
-      if (lastPage.items.length === 0) return undefined;
-      const loaded = allPages.reduce((count, page) => count + page.items.length, 0);
+      if (!lastPage.items?.length) return undefined;
+      const loaded = allPages.reduce((count, page) => count + (page.items?.length ?? 0), 0);
       return loaded < lastPage.pagination.total ? loaded : undefined;
     },
     staleTime: 30_000,

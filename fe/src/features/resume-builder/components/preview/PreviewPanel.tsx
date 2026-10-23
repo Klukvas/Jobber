@@ -79,9 +79,10 @@ function pagesEqual(a: readonly PageBreak[], b: readonly PageBreak[]): boolean {
 
 interface PreviewPanelProps {
   readonly editable?: boolean;
+  readonly fitToWidth?: boolean;
 }
 
-export function PreviewPanel({ editable = false }: PreviewPanelProps) {
+export function PreviewPanel({ editable = false, fitToWidth = false }: PreviewPanelProps) {
   const resume = useResumeBuilderStore((s) => s.resume);
   const containerRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
@@ -91,21 +92,21 @@ export function PreviewPanel({ editable = false }: PreviewPanelProps) {
   ]);
 
   const updateScale = useCallback(() => {
-    if (!editable || !containerRef.current) return;
+    if ((!editable && !fitToWidth) || !containerRef.current) return;
     const available = containerRef.current.clientWidth - 48; // 24px padding each side
     const newScale = Math.min(available / A4_WIDTH_PX, 1);
-    setScale(Math.max(newScale, 0.5));
-  }, [editable]);
+    setScale(Math.max(newScale, 0.1));
+  }, [editable, fitToWidth]);
 
   useEffect(() => {
-    if (!editable) return;
+    if (!editable && !fitToWidth) return;
     updateScale();
     const observer = new ResizeObserver(updateScale);
     if (containerRef.current) {
       observer.observe(containerRef.current);
     }
     return () => observer.disconnect();
-  }, [editable, updateScale]);
+  }, [editable, fitToWidth, updateScale]);
 
   // Measure content height and calculate smart page breaks
   useEffect(() => {
@@ -147,12 +148,10 @@ export function PreviewPanel({ editable = false }: PreviewPanelProps) {
 
   return (
     <div ref={containerRef} className="flex justify-center p-6">
+      <div className="relative shrink-0" style={{ width: A4_WIDTH_PX * scale, height: (pages.length * A4_HEIGHT_PX + Math.max(0, pages.length - 1) * 32) * scale }}>
       <div
-        className="origin-top"
-        style={{
-          transform: `scale(${scale})`,
-          transformOrigin: "top center",
-        }}
+        className="absolute left-0 top-0 origin-top-left"
+        style={{ width: A4_WIDTH_PX, transform: `scale(${scale})` }}
       >
         {/* Hidden measurer — identical styles, measures total content height */}
         <div
@@ -204,6 +203,7 @@ export function PreviewPanel({ editable = false }: PreviewPanelProps) {
             </div>
           ))}
         </div>
+      </div>
       </div>
     </div>
   );

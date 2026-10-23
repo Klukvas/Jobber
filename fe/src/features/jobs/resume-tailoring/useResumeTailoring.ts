@@ -1,3 +1,4 @@
+import { markAIUnavailable } from "@/shared/hooks/useAIAvailability";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/services/api";
@@ -106,6 +107,7 @@ export function useResumeTailoring(jobId: string) {
       setReview({ proposal });
     } catch (error) {
       if (mounted.current && token === requestId.current && !abort.signal.aborted) {
+        markAIUnavailable(queryClient, error);
         setErrorKey(tailoringErrorKey(error));
       }
     } finally {

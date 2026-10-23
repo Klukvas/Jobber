@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -60,7 +61,7 @@ describe("CreateStageTemplateModal — behavior", () => {
         initialOrder={5}
       />,
     );
-    expect(screen.getByLabelText(/stages\.order/)).toHaveValue(5);
+    expect(screen.getByLabelText(/stages\.order/)).toHaveValue(6);
   });
 
   it("keeps the submit button disabled until name and order are filled", async () => {
@@ -94,7 +95,7 @@ describe("CreateStageTemplateModal — behavior", () => {
     // React Query passes a mutation context as the 2nd arg to a bare
     // mutationFn reference — assert on the first (variables) arg only.
     await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
-    expect(mockCreate.mock.calls[0][0]).toEqual({ name: "Onsite", order: 4 });
+    expect(mockCreate.mock.calls[0][0]).toEqual({ name: "Onsite", order: 3 });
     await waitFor(() =>
       expect(mockShowSuccess).toHaveBeenCalledWith("stages.createSuccess"),
     );
@@ -157,7 +158,7 @@ describe("EditStageTemplateModal — behavior", () => {
       />,
     );
     expect(screen.getByLabelText(/stages\.name/)).toHaveValue("Phone Screen");
-    expect(screen.getByLabelText(/stages\.order/)).toHaveValue(2);
+    expect(screen.getByLabelText(/stages\.order/)).toHaveValue(3);
   });
 
   it("submits an update with the edited values", async () => {
@@ -251,7 +252,7 @@ describe("stage kind", () => {
     await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
     expect(mockCreate.mock.calls[0][0]).toEqual({
       name: "Follow-up",
-      order: 8,
+      order: 7,
     });
   });
 
@@ -283,7 +284,7 @@ describe("stage kind", () => {
     await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
     expect(mockCreate.mock.calls[0][0]).toEqual({
       name: "Onsite loop",
-      order: 4,
+      order: 3,
       kind: "interview",
     });
   });
@@ -335,7 +336,7 @@ describe("stage kind", () => {
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith("st-1", {
         name: "Phone Screen",
-        order: 5,
+        order: 4,
       }),
     );
   });
@@ -387,5 +388,48 @@ describe("stage kind", () => {
         kind: "interview",
       }),
     );
+  });
+});
+
+
+function EditingSession() {
+  const [open, setOpen] = useState(true);
+  return <><button onClick={() => setOpen(true)}>Reopen</button><EditStageTemplateModal open={open} onOpenChange={setOpen} template={template} /></>;
+}
+
+describe("stage editing sessions", () => {
+  it.each(["cancel", "close", "escape", "backdrop"])("discards a draft on %s and restores persisted values", async (method) => {
+    const user = userEvent.setup();
+    renderWithClient(<EditingSession />);
+    await user.clear(screen.getByLabelText(/stages.name/));
+    await user.type(screen.getByLabelText(/stages.name/), "Cancelled draft");
+    if (method === "escape") await user.keyboard("{Escape}");
+    else if (method === "backdrop") await user.click(screen.getByRole("dialog").parentElement!);
+    else await user.click(screen.getByRole("button", { name: method === "cancel" ? "common.cancel" : "common.close" }));
+    await user.click(screen.getByRole("button", { name: "Reopen" }));
+    expect(screen.getByLabelText(/stages.name/)).toHaveValue(template.name);
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+  it("retains the entered draft after a failed save", async () => {
+    const user = userEvent.setup();
+    mockUpdate.mockRejectedValue(new Error("retry"));
+    renderWithClient(<EditingSession />);
+    await user.clear(screen.getByLabelText(/stages.name/));
+    await user.type(screen.getByLabelText(/stages.name/), "Keep my draft");
+    await user.click(screen.getByRole("button", { name: "common.save" }));
+    await waitFor(() => expect(mockShowError).toHaveBeenCalled());
+    expect(screen.getByLabelText(/stages.name/)).toHaveValue("Keep my draft");
+  });
+  it("an older save cannot close a reopened session", async () => {
+    const user = userEvent.setup();
+    let resolve!: (value: StageTemplateDTO) => void;
+    mockUpdate.mockReturnValue(new Promise<StageTemplateDTO>((done) => { resolve = done; }));
+    renderWithClient(<EditingSession />);
+    await user.click(screen.getByRole("button", { name: "common.save" }));
+    await user.click(screen.getByRole("button", { name: "common.cancel" }));
+    await user.click(screen.getByRole("button", { name: "Reopen" }));
+    resolve(template);
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(mockShowSuccess).not.toHaveBeenCalled();
   });
 });

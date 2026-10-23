@@ -221,7 +221,14 @@ func (s *JobService) buildJobDTO(ctx context.Context, userID string, job *model.
 
 // List retrieves enriched jobs for a user with pagination, filtering, and sorting
 func (s *JobService) List(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.JobDTO, int, error) {
-	return s.repo.List(ctx, userID, opts)
+	items, total, err := s.repo.List(ctx, userID, opts)
+	if err != nil {
+		return nil, 0, err
+	}
+	if items == nil {
+		items = []*model.JobDTO{}
+	}
+	return items, total, nil
 }
 
 // Update applies a partial edit to a card.

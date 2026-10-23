@@ -1,8 +1,11 @@
+import { useCurrentFormSession } from "@/shared/hooks/useCurrentFormSession";
+import { useQueryClient } from "@tanstack/react-query";
+import { resumeQueryKeys } from "@/shared/lib/resumeQueryKeys";
+import { useAIAvailability, aiErrorKey } from "@/shared/hooks/useAIAvailability";
+import { AIAvailabilityNotice } from "@/shared/ui/AIAvailabilityNotice";
 import { useState, useCallback, useRef } from "react";
-import { ApiError } from "@/services/api";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useQueryClient } from "@tanstack/react-query";
 import { Upload, FileText, Loader2, X } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import {
@@ -22,13 +25,14 @@ interface ImportResumeModalProps {
   readonly onOpenChange: (open: boolean) => void;
 }
 
-export function ImportResumeModal({
-  open,
+function ImportResumeForm({
   onOpenChange,
-}: ImportResumeModalProps) {
+}: Omit<ImportResumeModalProps, "open">) {
   const { t } = useTranslation();
+  const { unavailable, isChecking, markUnavailable } = useAIAvailability();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const isCurrentSession = useCurrentFormSession();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [activeTab, setActiveTab] = useState<"text" | "pdf">("text");
@@ -36,12 +40,14 @@ export function ImportResumeModal({
   const [title, setTitle] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const resetForm = useCallback(() => {
     setText("");
     setTitle("");
     setSelectedFile(null);
     setIsImporting(false);
+    setImportError(null);
   }, []);
 
   const handleClose = useCallback(() => {
@@ -52,54 +58,60 @@ export function ImportResumeModal({
   }, [isImporting, resetForm, onOpenChange]);
 
   const handleImportText = useCallback(async () => {
-    if (!text.trim()) return;
+    if (!text.trim() || unavailable || isChecking || isImporting) return;
     setIsImporting(true);
+    setImportError(null);
     try {
       const result = await resumeBuilderService.importFromText({
         text: text.trim(),
         title: title.trim() || undefined,
       });
-      queryClient.invalidateQueries({ queryKey: ["subscription"] });
+      void queryClient.invalidateQueries({ queryKey: ["subscription"] });
+      void queryClient.invalidateQueries({ queryKey: resumeQueryKeys.builderList() });
+      if (!isCurrentSession()) return;
       showSuccessNotification(t("resumeBuilder.import.success"));
       onOpenChange(false);
       resetForm();
       navigate(`/app/resume-builder/${result.id}`);
     } catch (error) {
+      if (!isCurrentSession()) return;
+      markUnavailable(error);
+      setImportError(aiErrorKey(error));
       showErrorNotification(
-        error instanceof ApiError && error.status === 404
-          ? t("resumeBuilder.import.unavailable")
-          : (error instanceof Error && error.message) ||
-              t("resumeBuilder.import.error"),
+        t(aiErrorKey(error)),
       );
     } finally {
-      setIsImporting(false);
+      if (isCurrentSession()) setIsImporting(false);
     }
-  }, [text, title, navigate, queryClient, onOpenChange, resetForm, t]);
+  }, [text, title, navigate, onOpenChange, resetForm, t, unavailable, isChecking, isImporting, markUnavailable, queryClient, isCurrentSession]);
 
   const handleImportPDF = useCallback(async () => {
-    if (!selectedFile) return;
+    if (!selectedFile || unavailable || isChecking || isImporting) return;
     setIsImporting(true);
+    setImportError(null);
     try {
       const result = await resumeBuilderService.importFromPDF(
         selectedFile,
         title.trim() || undefined,
       );
-      queryClient.invalidateQueries({ queryKey: ["subscription"] });
+      void queryClient.invalidateQueries({ queryKey: ["subscription"] });
+      void queryClient.invalidateQueries({ queryKey: resumeQueryKeys.builderList() });
+      if (!isCurrentSession()) return;
       showSuccessNotification(t("resumeBuilder.import.success"));
       onOpenChange(false);
       resetForm();
       navigate(`/app/resume-builder/${result.id}`);
     } catch (error) {
+      if (!isCurrentSession()) return;
+      markUnavailable(error);
+      setImportError(aiErrorKey(error));
       showErrorNotification(
-        error instanceof ApiError && error.status === 404
-          ? t("resumeBuilder.import.unavailable")
-          : (error instanceof Error && error.message) ||
-              t("resumeBuilder.import.error"),
+        t(aiErrorKey(error)),
       );
     } finally {
-      setIsImporting(false);
+      if (isCurrentSession()) setIsImporting(false);
     }
-  }, [selectedFile, title, navigate, queryClient, onOpenChange, resetForm, t]);
+  }, [selectedFile, title, navigate, onOpenChange, resetForm, t, unavailable, isChecking, isImporting, markUnavailable, queryClient, isCurrentSession]);
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -120,11 +132,13 @@ export function ImportResumeModal({
   );
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("resumeBuilder.import.title")}</DialogTitle>
         </DialogHeader>
+
+        <AIAvailabilityNotice unavailable={unavailable} />
 
         {/* Tabs */}
         <div className="flex border-b">
@@ -243,6 +257,8 @@ export function ImportResumeModal({
           </div>
         )}
 
+        {importError && <p role="alert" className="text-sm text-destructive">{t(importError)}</p>}
+
         {/* Import button */}
         <div className="flex justify-end gap-2">
           <Button
@@ -255,7 +271,7 @@ export function ImportResumeModal({
           <Button
             onClick={activeTab === "text" ? handleImportText : handleImportPDF}
             disabled={
-              isImporting ||
+              unavailable || isChecking || isImporting ||
               (activeTab === "text" ? !text.trim() : !selectedFile)
             }
           >
@@ -272,4 +288,9 @@ export function ImportResumeModal({
       </DialogContent>
     </Dialog>
   );
+}
+
+
+export function ImportResumeModal({ open, onOpenChange }: ImportResumeModalProps) {
+  return open ? <ImportResumeForm onOpenChange={onOpenChange} /> : null;
 }

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { Plus, X, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
@@ -66,10 +67,11 @@ export function SectionHeader({
   style,
   variant = "professional",
 }: SectionHeaderProps) {
+  const { t } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
 
   return (
-    <div
+    <div data-resume-section
       className={cn(
         "group/section relative mb-4",
         editable && "-ml-10 pl-10",
@@ -81,7 +83,7 @@ export function SectionHeader({
     >
       {/* Left-side section controls (novoresume-style) */}
       {editable && (
-        <div
+        <div data-section-controls
           className={cn(
             "absolute left-0 top-0 flex flex-col items-center gap-0.5 rounded-md bg-white py-1 shadow-md border border-gray-200 transition-opacity",
             isHovered ? "opacity-100" : "opacity-0 pointer-events-none",
@@ -92,7 +94,7 @@ export function SectionHeader({
             <button
               onClick={onMoveUp}
               className="flex h-5 w-5 items-center justify-center text-gray-400 transition-colors hover:text-gray-700"
-              aria-label="Move section up"
+              aria-label={t("resumeBuilder.inline.moveUp")}
             >
               <ArrowUp className="h-3 w-3" />
             </button>
@@ -101,7 +103,7 @@ export function SectionHeader({
             <button
               onClick={onMoveDown}
               className="flex h-5 w-5 items-center justify-center text-gray-400 transition-colors hover:text-gray-700"
-              aria-label="Move section down"
+              aria-label={t("resumeBuilder.inline.moveDown")}
             >
               <ArrowDown className="h-3 w-3" />
             </button>
@@ -110,7 +112,7 @@ export function SectionHeader({
             <button
               onClick={onRemoveSection}
               className="flex h-5 w-5 items-center justify-center text-gray-400 transition-colors hover:text-red-500"
-              aria-label={`Remove ${title.toLowerCase()} section`}
+              aria-label={t("resumeBuilder.inline.removeSection", { section: title })}
             >
               <X className="h-3 w-3" />
             </button>
@@ -142,7 +144,7 @@ export function SectionHeader({
               "group-focus-within/section:opacity-100 group-focus-within/section:pointer-events-auto",
             )}
             style={{ color }}
-            aria-label={`Add ${title.toLowerCase()}`}
+            aria-label={t("resumeBuilder.inline.addEntry", { section: title })}
           >
             <Plus className="h-3.5 w-3.5" />
           </button>

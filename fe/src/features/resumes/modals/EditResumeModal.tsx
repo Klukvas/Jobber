@@ -1,3 +1,4 @@
+import { useCurrentFormSession } from "@/shared/hooks/useCurrentFormSession";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -34,6 +35,7 @@ function ModalContent({
 }: Omit<EditResumeModalProps, "open">) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const isCurrentSession = useCurrentFormSession();
   const [title, setTitle] = useState(resume.title);
   const [fileUrl, setFileUrl] = useState(resume.file_url || "");
   const [isActive, setIsActive] = useState(resume.is_active);
@@ -46,16 +48,19 @@ function ModalContent({
     }) => resumesService.update(resume.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["resumes"] });
+      if (!isCurrentSession()) return;
       showSuccessNotification(t("resumes.updateSuccess"));
       onOpenChange(false);
     },
     onError: (error: Error) => {
+      if (!isCurrentSession()) return;
       showErrorNotification(error?.message || t("resumes.updateError"));
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (updateMutation.isPending) return;
 
     const updateData: {
       title: string;
@@ -67,8 +72,8 @@ function ModalContent({
     };
 
     // Only include file_url for external resumes
-    if (resume.storage_type === "external") {
-      updateData.file_url = fileUrl || null;
+    if (resume.storage_type === "external" && fileUrl !== (resume.file_url ?? "")) {
+      updateData.file_url = fileUrl;
     }
 
     updateMutation.mutate(updateData);
@@ -117,7 +122,7 @@ function ModalContent({
           {/* File URL - Only editable for external resumes */}
           {resume.storage_type === "external" && (
             <div className="space-y-2">
-              <Label htmlFor="edit-fileUrl">{t("resumes.fileUrlLabel")}</Label>
+              <Label htmlFor="edit-fileUrl">{t("resumes.fileUrlEditLabel")} ({t("common.optional")})</Label>
               <Input
                 id="edit-fileUrl"
                 type="url"
@@ -176,7 +181,7 @@ export function EditResumeModal({
       <DialogContent onClose={() => onOpenChange(false)}>
         {/* Key prop resets the form state when resume changes */}
         <ModalContent
-          key={resume.id}
+          key={`${resume.id}-${open}`}
           resume={resume}
           onOpenChange={onOpenChange}
         />

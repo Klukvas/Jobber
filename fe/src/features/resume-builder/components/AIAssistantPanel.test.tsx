@@ -161,3 +161,8 @@ describe("AIAssistantPanel", () => {
     ).toBeInTheDocument();
   });
 });
+
+vi.mock("@/shared/hooks/useAIAvailability", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/shared/hooks/useAIAvailability")>(),
+  useAIAvailability: () => ({ unavailable: false, isChecking: false, markUnavailable: vi.fn() }),
+}));

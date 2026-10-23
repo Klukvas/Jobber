@@ -1,3 +1,4 @@
+import { useCurrentFormSession } from "@/shared/hooks/useCurrentFormSession";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -33,6 +34,7 @@ function ModalContent({
 }: Omit<CreateCompanyModalProps, "open">) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const isCurrentSession = useCurrentFormSession();
 
   const [name, setName] = useState(company?.name || "");
   const [location, setLocation] = useState(company?.location || "");
@@ -44,10 +46,12 @@ function ModalContent({
     mutationFn: companiesService.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["companies"] });
+      if (!isCurrentSession()) return;
       showSuccessNotification(t("companies.createSuccess"));
       onOpenChange(false);
     },
     onError: (error: Error) => {
+      if (!isCurrentSession()) return;
       showErrorNotification(error.message || t("companies.createError"));
     },
   });
@@ -57,24 +61,26 @@ function ModalContent({
       companiesService.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["companies"] });
+      if (!isCurrentSession()) return;
       showSuccessNotification(t("companies.updateSuccess"));
       onOpenChange(false);
     },
     onError: (error: Error) => {
+      if (!isCurrentSession()) return;
       showErrorNotification(error.message || t("companies.updateError"));
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name) {
+    if (name && !isPending) {
       if (isEditMode && company) {
         updateMutation.mutate({
           id: company.id,
           data: {
-            name,
-            location: location || undefined,
-            notes: notes || undefined,
+            ...(name !== company.name ? { name } : {}),
+            ...(location !== (company.location ?? "") ? { location } : {}),
+            ...(notes !== (company.notes ?? "") ? { notes } : {}),
           },
         });
       } else {

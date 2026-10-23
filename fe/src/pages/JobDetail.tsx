@@ -46,6 +46,11 @@ import {
 import type { MatchScoreResponse } from "@/shared/types/api";
 
 export default function JobDetail() {
+  const { id } = useParams<{ id: string }>();
+  return <JobDetailContent key={id} />;
+}
+
+function JobDetailContent() {
   usePageMeta({ titleKey: "jobs.details", noindex: true });
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
@@ -160,7 +165,7 @@ export default function JobDetail() {
   });
 
   const handleSave = () => {
-    if (!editableFields || !editableFields.title.trim()) return;
+    if (!editableFields || !editableFields.title.trim() || updateMutation.isPending) return;
     updateMutation.mutate(editableFields);
   };
 

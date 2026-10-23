@@ -1,3 +1,4 @@
+import { useMobileTextEditing } from "../mobileTextEditing";
 import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
 import {
   useExperienceInline,
@@ -24,6 +25,7 @@ import { useResumePreview } from "../ResumePreviewContext";
 export function useTemplateSetup() {
   // ---- Context override (for thumbnails) ----
   const previewResume = useResumePreview();
+  const textEditing = useMobileTextEditing();
 
   // ---- Store selectors (10 hooks) ----
   const storeResume = useResumeBuilderStore((s) => s.resume);
@@ -73,10 +75,10 @@ export function useTemplateSetup() {
 
   const mainSections = visibleSections.filter((s) => s.column !== "sidebar");
   const sidebarSections = visibleSections.filter((s) => s.column === "sidebar");
-  const isTwoColumn =
+  const isTwoColumn = !textEditing && (
     layoutMode === "double-left" ||
     layoutMode === "double-right" ||
-    layoutMode === "custom";
+    layoutMode === "custom");
 
   return {
     // Core data

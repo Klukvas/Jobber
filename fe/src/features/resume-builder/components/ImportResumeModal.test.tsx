@@ -1,18 +1,22 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as renderUI, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ImportResumeModal } from "./ImportResumeModal";
 import { ApiError } from "@/services/api";
 import { resumeBuilderService } from "@/services/resumeBuilderService";
 import { showErrorNotification } from "@/shared/lib/notifications";
 
+function render(ui: React.ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  vi.spyOn(client, "invalidateQueries");
+  return {
+    ...renderUI(<QueryClientProvider client={client}>{ui}</QueryClientProvider>),
+    queryClient: client,
+  };
+}
+
 const mockNavigate = vi.fn();
-const mockInvalidate = vi.fn();
-
-vi.mock("@tanstack/react-query", () => ({
-  useQueryClient: () => ({ invalidateQueries: mockInvalidate }),
-}));
-
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => key,
@@ -121,7 +125,7 @@ describe("ImportResumeModal", () => {
 
   it("refreshes the subscription limits after a successful import", async () => {
     const user = userEvent.setup();
-    render(<ImportResumeModal {...defaultProps} />);
+    const { queryClient } = render(<ImportResumeModal {...defaultProps} />);
 
     await user.type(
       screen.getByLabelText("resumeBuilder.import.resumeText"),
@@ -130,7 +134,7 @@ describe("ImportResumeModal", () => {
     await user.click(screen.getByText("resumeBuilder.import.importButton"));
 
     await waitFor(() =>
-      expect(mockInvalidate).toHaveBeenCalledWith({
+      expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
         queryKey: ["subscription"],
       }),
     );
@@ -138,7 +142,7 @@ describe("ImportResumeModal", () => {
   });
 });
 
-for (const error of [new Error(""), new ApiError("", "UNKNOWN_ERROR", 404)]) {
+for (const error of [new Error(""), new ApiError("", "UNKNOWN_ERROR", 404, { unstructuredResponse: true })]) {
   it(`preserves entered text and explains ${error instanceof ApiError ? "unavailable AI import" : "an empty transport message"}`, async () => {
     vi.mocked(resumeBuilderService.importFromText).mockRejectedValueOnce(error);
     const close = vi.fn();
@@ -153,8 +157,8 @@ for (const error of [new Error(""), new ApiError("", "UNKNOWN_ERROR", 404)]) {
     await waitFor(() =>
       expect(showErrorNotification).toHaveBeenCalledWith(
         error instanceof ApiError
-          ? "resumeBuilder.import.unavailable"
-          : "resumeBuilder.import.error",
+          ? "ai.unavailable"
+          : "ai.requestFailed",
       ),
     );
     expect(
@@ -163,3 +167,8 @@ for (const error of [new Error(""), new ApiError("", "UNKNOWN_ERROR", 404)]) {
     expect(close).not.toHaveBeenCalled();
   });
 }
+
+vi.mock("@/shared/hooks/useAIAvailability", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/shared/hooks/useAIAvailability")>(),
+  useAIAvailability: () => ({ unavailable: false, isChecking: false, markUnavailable: vi.fn() }),
+}));

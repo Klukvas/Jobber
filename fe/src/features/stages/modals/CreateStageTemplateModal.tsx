@@ -1,3 +1,4 @@
+import { useCurrentFormSession } from "@/shared/hooks/useCurrentFormSession";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -34,41 +35,31 @@ interface CreateStageTemplateModalProps {
   initialOrder?: number;
 }
 
-export function CreateStageTemplateModal({
-  open,
+function CreateStageForm({
   onOpenChange,
   initialOrder,
-}: CreateStageTemplateModalProps) {
+}: Omit<CreateStageTemplateModalProps, "open">) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const isCurrentSession = useCurrentFormSession();
   const [name, setName] = useState("");
   const [order, setOrder] = useState(
-    initialOrder !== undefined ? String(initialOrder) : "",
+    initialOrder !== undefined ? String(initialOrder + 1) : "",
   );
   // A stage the user invents means nothing to analytics until they say so.
   const [kind, setKind] = useState<StageKind>(DEFAULT_STAGE_KIND);
-  const [prevOpen, setPrevOpen] = useState(open);
-
-  // Sync the preselected order on each open (render-time state adjustment —
-  // the set-state-in-effect lint rule forbids the effect version)
-  if (open !== prevOpen) {
-    setPrevOpen(open);
-    if (open) {
-      setOrder(initialOrder !== undefined ? String(initialOrder) : "");
-      setKind(DEFAULT_STAGE_KIND);
-    }
-  }
-
   const createMutation = useMutation({
     mutationFn: stageTemplatesService.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stage-templates"] });
+      if (!isCurrentSession()) return;
       showSuccessNotification(t("stages.createSuccess"));
       onOpenChange(false);
       setName("");
       setOrder("");
     },
     onError: (error: Error) => {
+      if (!isCurrentSession()) return;
       if (
         error instanceof ApiError &&
         error.code === "STAGE_TEMPLATE_NAME_EXISTS"
@@ -82,10 +73,10 @@ export function CreateStageTemplateModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name && order) {
+    if (name.trim() && Number(order) >= 1 && !createMutation.isPending) {
       createMutation.mutate({
-        name,
-        order: parseInt(order),
+        name: name.trim(),
+        order: Number(order) - 1,
         // An omitted kind already means "other" on the server, so the default
         // selection travels as an omission rather than as redundant noise.
         ...(kind !== DEFAULT_STAGE_KIND ? { kind } : {}),
@@ -94,8 +85,7 @@ export function CreateStageTemplateModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent onClose={() => onOpenChange(false)}>
+    <>
         <DialogHeader>
           <DialogTitle>{t("stages.createTitle")}</DialogTitle>
           <DialogDescription>{t("stages.createDescription")}</DialogDescription>
@@ -117,7 +107,7 @@ export function CreateStageTemplateModal({
               <Input
                 id="order"
                 type="number"
-                min="0"
+                min="1"
                 value={order}
                 onChange={(e) => setOrder(e.target.value)}
                 placeholder={t("stages.orderPlaceholder")}
@@ -155,7 +145,7 @@ export function CreateStageTemplateModal({
             </Button>
             <Button
               type="submit"
-              disabled={createMutation.isPending || !name || !order}
+              disabled={createMutation.isPending || !name.trim() || !order || Number(order) < 1}
             >
               {createMutation.isPending ? (
                 <>
@@ -168,7 +158,15 @@ export function CreateStageTemplateModal({
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+    </>
   );
+}
+
+
+export function CreateStageTemplateModal({ open, onOpenChange, initialOrder }: CreateStageTemplateModalProps) {
+  return <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent onClose={() => onOpenChange(false)}>
+      <CreateStageForm onOpenChange={onOpenChange} initialOrder={initialOrder} />
+    </DialogContent>
+  </Dialog>;
 }

@@ -34,7 +34,7 @@ export function ProfessionalTemplate({
           style={{ color: textColor }}
           editable={editable}
         />
-        <div className="mt-1 flex flex-wrap justify-center gap-x-3 text-xs text-gray-600">
+        <div data-text-contact className="mt-1 flex flex-wrap justify-center gap-x-3 text-xs text-gray-600">
           {(contact?.email || editable) && (
             <EditableField
               value={contact?.email ?? ""}

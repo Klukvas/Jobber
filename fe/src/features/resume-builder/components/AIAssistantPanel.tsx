@@ -1,3 +1,5 @@
+import { useAIAvailability, aiErrorKey } from "@/shared/hooks/useAIAvailability";
+import { AIAvailabilityNotice } from "@/shared/ui/AIAvailabilityNotice";
 import { useState } from "react";
 import { flushResumeDocument } from "../lib/resumeDocumentSync";
 import { resolveResumeSectionIds } from "../hooks/useSectionPersistence";
@@ -24,6 +26,7 @@ const INSTRUCTION_KEYS: InstructionKey[] = [
 
 export function AIAssistantPanel() {
   const { t } = useTranslation();
+  const { unavailable, isChecking, markUnavailable } = useAIAvailability();
   const resume = useResumeBuilderStore((s) => s.resume);
   const updateSummary = useResumeBuilderStore((s) => s.updateSummary);
   const updateExperience = useResumeBuilderStore((s) => s.updateExperience);
@@ -71,7 +74,7 @@ export function AIAssistantPanel() {
   // Analysis reads the stored document. Capture its revision only after all
   // writes have landed, and never let a result cross a document/edit boundary.
   const prepareAnalysis = async () => {
-    if (!resume) return null;
+    if (!resume || unavailable || isChecking || isSyncing || suggestSummary.isPending || suggestBullets.isPending || improveText.isPending) return null;
     setIsSyncing(true);
     setSaveError(false);
     try {
@@ -95,6 +98,7 @@ export function AIAssistantPanel() {
     suggestSummary.mutate(
       { resume_id: origin.resume.id },
       {
+        onError: markUnavailable,
         onSuccess: (data) => {
           if (isCurrent(origin.revision))
             setSummaryResult({ ...data, revision: origin.revision });
@@ -136,6 +140,7 @@ export function AIAssistantPanel() {
         current_description: exp.description,
       },
       {
+        onError: markUnavailable,
         onSuccess: (data) => {
           if (isCurrent(origin.revision))
             setBulletResult({
@@ -169,6 +174,7 @@ export function AIAssistantPanel() {
     improveText.mutate(
       { text: source, instruction },
       {
+        onError: markUnavailable,
         onSuccess: (data) => {
           if (isCurrent(origin.revision))
             setTextResult({ ...data, source, revision: origin.revision });
@@ -184,6 +190,7 @@ export function AIAssistantPanel() {
         <h2 className="text-lg font-semibold">{t("resumeBuilder.ai.title")}</h2>
       </div>
 
+      <AIAvailabilityNotice unavailable={unavailable} />
       {aiLimitReached && <UpgradeBanner resource="ai" />}
       {saveError && (
         <p role="alert" className="text-sm text-destructive">
@@ -196,7 +203,7 @@ export function AIAssistantPanel() {
         <Button
           onClick={handleSuggestSummary}
           disabled={
-            isSyncing || suggestSummary.isPending || !resume || aiLimitReached
+            unavailable || isChecking || isSyncing || suggestSummary.isPending || !resume || aiLimitReached
           }
           variant="outline"
           className="w-full"
@@ -215,7 +222,7 @@ export function AIAssistantPanel() {
         </Button>
 
         {suggestSummary.isError && (
-          <p className="text-sm text-destructive">{t("common.error")}</p>
+          <p role="alert" className="text-sm text-destructive">{t(aiErrorKey(suggestSummary.error))}</p>
         )}
 
         {summary && (
@@ -260,7 +267,7 @@ export function AIAssistantPanel() {
           <Button
             onClick={handleSuggestBullets}
             disabled={
-              isSyncing ||
+              unavailable || isChecking || isSyncing ||
               suggestBullets.isPending ||
               !selectedExpId ||
               aiLimitReached
@@ -282,7 +289,7 @@ export function AIAssistantPanel() {
           </Button>
 
           {suggestBullets.isError && (
-            <p className="text-sm text-destructive">{t("common.error")}</p>
+            <p role="alert" className="text-sm text-destructive">{t(aiErrorKey(suggestBullets.error))}</p>
           )}
 
           {bullets && (
@@ -359,7 +366,7 @@ export function AIAssistantPanel() {
         <Button
           onClick={handleImproveText}
           disabled={
-            isSyncing ||
+            unavailable || isChecking || isSyncing ||
             improveText.isPending ||
             !textToImprove.trim() ||
             aiLimitReached
@@ -381,7 +388,7 @@ export function AIAssistantPanel() {
         </Button>
 
         {improveText.isError && (
-          <p className="text-sm text-destructive">{t("common.error")}</p>
+          <p role="alert" className="text-sm text-destructive">{t(aiErrorKey(improveText.error))}</p>
         )}
 
         {improved && (

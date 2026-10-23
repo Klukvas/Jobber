@@ -109,7 +109,7 @@ describe("CreateJobModal submit behavior", () => {
     );
 
     await user.type(screen.getByLabelText(/jobs.title_field/), "New Role");
-    await user.type(screen.getByLabelText("jobs.source"), "Referral");
+    await user.type(screen.getByLabelText(/jobs.source/), "Referral");
     await user.click(screen.getByRole("button", { name: "common.create" }));
 
     await waitFor(() =>
@@ -221,8 +221,8 @@ describe("CreateJobModal submit behavior", () => {
 
     render(<CreateJobModal open onOpenChange={vi.fn()} job={makeJob()} />);
 
-    await user.clear(screen.getByLabelText("jobs.url"));
-    await user.clear(screen.getByLabelText("jobs.source"));
+    await user.clear(screen.getByLabelText(/jobs.url/));
+    await user.clear(screen.getByLabelText(/jobs.source/));
     await user.click(screen.getByRole("button", { name: "common.save" }));
 
     await waitFor(() =>
@@ -270,4 +270,27 @@ describe("CreateJobModal submit behavior", () => {
       ),
     );
   });
+});
+
+
+beforeEach(() => { vi.clearAllMocks(); mockCanCreate.mockReturnValue(true); mockMutationState.isPending = false; });
+
+it("blocks whitespace-only title with a field message without sending a request", async () => {
+  const user = userEvent.setup();
+  render(<CreateJobModal open onOpenChange={vi.fn()} />);
+  await user.type(screen.getByLabelText(/jobs.title_field/), "   ");
+  expect(screen.getByRole("alert")).toHaveTextContent("jobs.titleRequired");
+  expect(screen.getByRole("button", { name: "common.create" })).toBeDisabled();
+  fireEvent.submit(screen.getByRole("button", { name: "common.create" }).closest("form")!);
+  expect(mockJobsService.create).not.toHaveBeenCalled();
+  expect(screen.getByLabelText(/jobs.title_field/)).toHaveValue("   ");
+});
+
+it("trims the title on the minimal create path", async () => {
+  mockJobsService.create.mockResolvedValue(makeJob());
+  const user = userEvent.setup();
+  render(<CreateJobModal open onOpenChange={vi.fn()} />);
+  await user.type(screen.getByLabelText(/jobs.title_field/), "  Synthetic title  ");
+  await user.click(screen.getByRole("button", { name: "common.create" }));
+  await waitFor(() => expect(mockJobsService.create.mock.calls[0][0].title).toBe("Synthetic title"));
 });
