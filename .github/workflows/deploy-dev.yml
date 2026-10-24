@@ -260,6 +260,23 @@ jobs:
           test "$ready" = true
           CONTACTS_TEST_DATABASE_URL='postgres://postgres@127.0.0.1:55492/contacts_test?sslmode=disable' go test -race -tags integration -v ./modules/contacts
 
+      - name: Verify PDF tailoring against isolated PostgreSQL 15
+        working-directory: ./be
+        run: |
+          set -euo pipefail
+          docker run -d --name jobber-tailoring-ci -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_USER=jobber -e POSTGRES_DB=jobber_builder_verify -p 127.0.0.1:55493:5432 postgres:15-alpine
+          trap 'docker stop -t 10 jobber-tailoring-ci >/dev/null' EXIT
+          ready=false
+          for ((attempt=0;attempt<60;attempt++)); do
+            if docker exec jobber-tailoring-ci pg_isready -h 127.0.0.1 -U jobber >/dev/null 2>&1; then ready=true; break; fi
+            sleep 1
+          done
+          test "$ready" = true
+          for migration in migrations/*.up.sql; do
+            docker exec -i jobber-tailoring-ci psql -X -q -v ON_ERROR_STOP=1 -U jobber -d jobber_builder_verify < "$migration"
+          done
+          TAILORING_TEST_DATABASE_URL='postgres://jobber@127.0.0.1:55493/jobber_builder_verify?sslmode=disable' go test -race -tags integration -run 'TestPDFWorkflow|TestWorkflowObject|TestTailoringPostgres' -count=1 -v ./modules/resumebuilder/service
+
   ############################################################################
   # Job 3: Lint & Build Frontend
   # Only runs if frontend code changed
@@ -624,9 +641,9 @@ jobs:
 ################################################################################
 #
 # The release helper restores immutable old images automatically on failure.
-# At clean schema49 it mounts the isolated through49 source; at clean50 it mounts
-# the full through50 source read-only at /app/migrations. The50 source is never
-# mounted at49 before a verified backup. Never down/force the DB.
+# At clean schema50 it mounts the isolated through50 source; at clean51 it mounts
+# the full through51 source read-only at /app/migrations. The51 source is never
+# mounted at50 before a verified backup. Never down/force the DB.
 # Dirty/unreadable/unexpected schemas keep entry closed for operator recovery.
 # Backups and isolated PG15 restore-check data are preserved, never auto-pruned.
 # Base Compose/Caddy/.env remain unchanged; only the image override is promoted.

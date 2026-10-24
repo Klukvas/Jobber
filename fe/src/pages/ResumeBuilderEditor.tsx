@@ -1,7 +1,9 @@
 import { MobileTextEditor } from "@/features/resume-builder/components/preview/MobileTextEditor";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { resumeTailoringService } from "@/services/resumeTailoringService";
+import { tailoringErrorKey } from "@/features/jobs/resume-tailoring/useResumeTailoring";
 import { ApiError } from "@/services/api";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Loader2, Palette, X } from "lucide-react";
@@ -35,6 +37,11 @@ export default function ResumeBuilderEditorPage() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const recognitionJob = searchParams.get("tailoringJob");
+  const recognitionId = searchParams.get("recognition");
+  const [isConfirmingRecognition, setIsConfirmingRecognition] = useState(false);
+  const [recognitionError, setRecognitionError] = useState<string | null>(null);
   const setResume = useResumeBuilderStore((s) => s.setResume);
   const setSaveStatus = useResumeBuilderStore((s) => s.setSaveStatus);
   const markDirty = useResumeBuilderStore((s) => s.markDirty);
@@ -52,6 +59,17 @@ export default function ResumeBuilderEditorPage() {
 
   usePageMeta({ titleKey: "resumeBuilder.editor", noindex: true });
   const { flush } = useAutoSave();
+
+  const confirmRecognition = async () => {
+    if (!id || !recognitionJob || !recognitionId || isConfirmingRecognition) return;
+    setIsConfirmingRecognition(true); setRecognitionError(null);
+    try {
+      await flush();
+      await resumeTailoringService.confirmRecognition(recognitionJob, recognitionId, id);
+      navigate(`/app/jobs/${recognitionJob}?tailoringSource=${encodeURIComponent(id)}`);
+    } catch (error) { setRecognitionError(tailoringErrorKey(error)); }
+    finally { setIsConfirmingRecognition(false); }
+  };
 
   const handleRetrySave = useCallback(() => {
     void flush().catch(() => {
@@ -190,6 +208,15 @@ export default function ResumeBuilderEditorPage() {
 
   return (
     <div className="flex h-[calc(100vh-8rem)] min-w-0 flex-col">
+      {recognitionJob && recognitionId && <div className="shrink-0 space-y-2 border-b bg-muted/30 p-3 text-sm">
+        <p className="font-medium">{t("jobs.tailoring.pdf.reviewTitle")}</p>
+        <p>{t("jobs.tailoring.pdf.reviewHint")}</p>
+        {recognitionError && <p role="alert" className="text-destructive">{t(`jobs.tailoring.errors.${recognitionError}`)}</p>}
+        <div className="flex flex-wrap gap-2">
+          <Button disabled={isConfirmingRecognition} onClick={() => void confirmRecognition()}>{isConfirmingRecognition && <Loader2 className="h-4 w-4 animate-spin" />}{t("jobs.tailoring.pdf.confirmRecognition")}</Button>
+          <Button variant="outline" disabled={isConfirmingRecognition} onClick={() => navigate(`/app/jobs/${recognitionJob}`)}>{t("jobs.tailoring.pdf.returnWithoutConfirm")}</Button>
+        </div>
+      </div>}
       {/* Toolbar */}
       <div className="flex min-w-0 flex-wrap items-center gap-2 border-b px-2 py-2 sm:px-4">
         <Tooltip content={t("resumeBuilder.backToList")} side="bottom">

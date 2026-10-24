@@ -34,6 +34,7 @@ vi.mock("react-i18next", () => ({
 vi.mock("react-router-dom", () => ({
   useParams: () => ({ id: "resume-1" }),
   useNavigate: () => vi.fn(),
+  useSearchParams: () => [new URLSearchParams(), vi.fn()],
 }));
 
 vi.mock("@tanstack/react-query", () => ({

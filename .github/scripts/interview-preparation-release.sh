@@ -11,7 +11,7 @@ LIVE="$PROJECT/docker-compose.deploy.yml"
 cd "$PROJECT"
 fail() { printf 'release_error=%s\n' "$1" >&2; return 1; }
 pg() { docker exec jobber-postgres sh -c 'export PGCONNECT_TIMEOUT=5 PGOPTIONS="-c statement_timeout=15000 -c lock_timeout=5000"; exec psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "$1"' sh "$1" 2>/dev/null; }
-schema() { local value; value=$(pg "SELECT version::text||':'||dirty::int FROM schema_migrations"); [[ $value =~ ^(49|50):0$ ]] || { fail schema_not_clean_49_or_50; return 1; }; printf '%s' "$value"; }
+schema() { local value; value=$(pg "SELECT version::text||':'||dirty::int FROM schema_migrations"); [[ $value =~ ^(50|51):0$ ]] || { fail schema_not_clean_50_or_51; return 1; }; printf '%s' "$value"; }
 compose() { docker compose --project-directory "$PROJECT" -f "$BASE" -f "$1" "${@:2}"; }
 image_digest() { docker image inspect --format '{{index .RepoDigests 0}}' "$(docker inspect --format '{{.Image}}' "$1")"; }
 is_stopped() { [[ $(docker inspect --format '{{.State.Running}}' "$1") == false ]]; }
@@ -52,6 +52,14 @@ validate50() {
  [[ $(pg "SELECT count(*) FROM pg_constraint WHERE conrelid='job_contacts'::regclass AND contype='f' AND convalidated AND confrelid='jobs'::regclass AND confdeltype='c'") == 1 ]] || { fail missing_contact_parent; return 1; }
  [[ $(pg "SELECT count(*) FROM pg_constraint WHERE conrelid='job_contacts'::regclass AND contype='c' AND convalidated") == 6 ]] || { fail missing_contact_bounds; return 1; }
 }
+validate51() {
+ validate50 || return 1
+ [[ $(pg "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='resume_tailoring_operations' AND column_name IN ('user_id','kind','request_key','job_id','fingerprint','status','object_id','payload','error_code','provider_started','ai_receipt_id','deadline_at','created_at','updated_at')") == 14 ]] || { fail missing_tailoring_columns; return 1; }
+ [[ $(pg "SELECT count(*) FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid WHERE i.indrelid='resume_tailoring_operations'::regclass AND i.indisvalid AND i.indisready AND c.relname IN ('resume_tailoring_operations_pkey','resume_tailoring_import_source')") == 2 ]] || { fail missing_tailoring_indexes; return 1; }
+ [[ $(pg "SELECT count(*) FROM pg_constraint WHERE conrelid='resume_tailoring_operations'::regclass AND contype='f' AND convalidated AND confrelid='users'::regclass AND confdeltype='c'") == 1 ]] || { fail missing_tailoring_owner; return 1; }
+ [[ $(pg "SELECT count(*) FROM pg_constraint WHERE conrelid='resume_tailoring_operations'::regclass AND contype='c' AND convalidated") == 2 ]] || { fail missing_tailoring_bounds; return 1; }
+ [[ $(pg "SELECT count(*) FROM pg_constraint WHERE conrelid='resume_tailoring_operations'::regclass AND contype='p' AND pg_get_constraintdef(oid)='PRIMARY KEY (user_id, kind, request_key)'") == 1 ]] || { fail missing_tailoring_identity; return 1; }
+}
 fingerprint() {
  pg "SET TIME ZONE 'UTC'; SELECT count(*)::text||':'||coalesce(md5(string_agg(md5(to_jsonb(t)::text),'' ORDER BY id)),'-') FROM $1 t"
 }
@@ -62,9 +70,9 @@ preflight() {
  command -v jq >/dev/null || return 1; command -v flock >/dev/null || return 1
  [[ $(pg "SELECT current_setting('server_version_num')::int/10000") == 15 ]] || { fail expected_postgres15; return 1; }
  local state; state=$(schema) || return 1
- validate49 || return 1
- if [[ $state == 50:0 ]]; then validate50 || return 1; else
-  [[ $(pg "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='job_contacts'") == 0 ]] || { fail partial_contact_schema; return 1; }
+ validate50 || return 1
+ if [[ $state == 51:0 ]]; then validate51 || return 1; else
+  [[ $(pg "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='resume_tailoring_operations'") == 0 ]] || { fail partial_tailoring_schema; return 1; }
  fi
  [[ $(docker inspect --format '{{.Config.StopSignal}}' jobber-frontend) == SIGQUIT ]] || { fail unexpected_frontend_stop_signal; return 1; }
  [[ $(df -Pk . | awk 'NR==2{print $4}') -ge 2097152 ]] || { fail insufficient_disk; return 1; }
@@ -78,20 +86,19 @@ valid_ref() { [[ $1 =~ ^docker\.io/[a-z0-9_-]+/jobber-(backend|frontend):[0-9a-f
 [[ -z $BACKEND ]] || valid_ref "$BACKEND" || exit 2
 [[ -z $FRONTEND ]] || valid_ref "$FRONTEND" || exit 2
 [[ -n $BACKEND || -n $FRONTEND ]] || { printf 'deploy=no_changes\n'; exit 0; }
-test -d "$RELEASE_DIR/migrations" && test -f "$RELEASE_DIR/migrations/000050_job_contacts.up.sql" && test -f "$RELEASE_DIR/migrations/000050_job_contacts.down.sql"
-# Separate compatible startup sources. At49, mounting the complete candidate would
-# silently run50 during recovery after a failed backup. Only source49 is allowed.
-SOURCE49="$RELEASE_DIR/migrations-through49"
-mkdir -p "$SOURCE49"
+test -d "$RELEASE_DIR/migrations" && test -f "$RELEASE_DIR/migrations/000051_resume_tailoring_operations.up.sql" && test -f "$RELEASE_DIR/migrations/000051_resume_tailoring_operations.down.sql"
+# Recovery before the verified backup must never advance a clean schema50.
+SOURCE50="$RELEASE_DIR/migrations-through50"
+mkdir -p "$SOURCE50"
 for migration in "$RELEASE_DIR"/migrations/*.sql; do
  name=${migration##*/}
  [[ $name =~ ^([0-9]{6})_.+\.(up|down)\.sql$ ]] || fail invalid_migration_filename
  version=$((10#${BASH_REMATCH[1]}))
- ((version <= 50)) || fail unexpected_future_migration
- if ((version <= 49)); then cp "$migration" "$SOURCE49/$name";fi
+ ((version <= 51)) || fail unexpected_future_migration
+ if ((version <= 50)); then cp "$migration" "$SOURCE50/$name";fi
 done
-chmod -R a+rX "$SOURCE49"
-[[ -f "$SOURCE49/000049_interview_preparation.up.sql" && ! -f "$SOURCE49/000050_job_contacts.up.sql" ]] || fail invalid_source49
+chmod -R a+rX "$SOURCE50"
+[[ -f "$SOURCE50/000050_job_contacts.up.sql" && ! -f "$SOURCE50/000051_resume_tailoring_operations.up.sql" ]] || fail invalid_source50
 exec 9>"$PROJECT/.interview-release.lock"
 flock -n 9 || fail concurrent_release
 preflight
@@ -140,11 +147,11 @@ YAML
 # a new backend uses its own complete migration source after verified backup.
 SOURCE_MOUNT=
 if [[ -z $BACKEND ]]; then
- if [[ $SOURCE_SCHEMA == 49:0 ]]; then SOURCE_MOUNT="$SOURCE49"; else SOURCE_MOUNT="$RELEASE_DIR/migrations";fi
+ if [[ $SOURCE_SCHEMA == 50:0 ]]; then SOURCE_MOUNT="$SOURCE50"; else SOURCE_MOUNT="$RELEASE_DIR/migrations";fi
 fi
 write_override "$RELEASE_DIR/new-images.yml" "$NEW_BACKEND" "$NEW_FRONTEND" "$SOURCE_MOUNT"
-write_override "$RELEASE_DIR/rollback-images.yml" "$OLD_BACKEND" "$OLD_FRONTEND" "$SOURCE49"
-cat >"$RELEASE_DIR/rollback-50.yml" <<YAML
+write_override "$RELEASE_DIR/rollback-images.yml" "$OLD_BACKEND" "$OLD_FRONTEND" "$SOURCE50"
+cat >"$RELEASE_DIR/rollback-51.yml" <<YAML
 services:
   backend:
     volumes:
@@ -161,11 +168,11 @@ rollback() {
   recovery_stop jobber-frontend 45 || { printf 'rollback=frontend_stop_failed entry=unconfirmed\n' >&2; exit 1; }
   recovery_stop jobber-backend 20 || { printf 'rollback=backend_stop_failed entry=unconfirmed\n' >&2; exit 1; }
   current=$(schema 2>/dev/null)
-  if [[ $current == 49:0 ]] && validate49 >/dev/null 2>&1; then
-   # source49 cannot advance the schema after an unsuccessful backup.
+  if [[ $current == 50:0 ]] && validate50 >/dev/null 2>&1; then
+   # source50 cannot advance the schema after an unsuccessful backup.
    compose "$RELEASE_DIR/rollback-images.yml" up -d --no-deps backend >/dev/null 2>&1 || { printf 'rollback=backend_start_failed entry=closed\n' >&2; exit 1; }
-  elif [[ $current == 50:0 ]] && validate50 >/dev/null 2>&1; then
-   docker compose --project-directory "$PROJECT" -f "$BASE" -f "$RELEASE_DIR/rollback-images.yml" -f "$RELEASE_DIR/rollback-50.yml" up -d --no-deps backend >/dev/null 2>&1 || { printf 'rollback=backend_start_failed entry=closed\n' >&2; exit 1; }
+  elif [[ $current == 51:0 ]] && validate51 >/dev/null 2>&1; then
+   docker compose --project-directory "$PROJECT" -f "$BASE" -f "$RELEASE_DIR/rollback-images.yml" -f "$RELEASE_DIR/rollback-51.yml" up -d --no-deps backend >/dev/null 2>&1 || { printf 'rollback=backend_start_failed entry=closed\n' >&2; exit 1; }
   else
    printf 'rollback=blocked schema=dirty_unreadable_or_unexpected entry=closed\n' >&2
    exit 1
@@ -173,7 +180,7 @@ rollback() {
   local ready=false
   for ((attempt=0;attempt<60;attempt++)); do if health; then ready=true;break;fi;sleep 2;done
   if [[ $ready == true ]]; then
-   if [[ $current == 50:0 ]]; then
+   if [[ $current == 51:0 ]]; then
     write_override "$LIVE" "$OLD_BACKEND" "$OLD_FRONTEND" "$RELEASE_DIR/migrations" || exit 1
    else cp "$RELEASE_DIR/rollback-images.yml" "$LIVE" || exit 1;fi
    compose "$LIVE" up -d --no-deps frontend >/dev/null 2>&1 || recovery_frontend_failure frontend_start_failed
@@ -224,18 +231,18 @@ compose "$RELEASE_DIR/new-images.yml" up -d --no-deps backend >/dev/null
 READY=false
 for ((attempt=0;attempt<60;attempt++)); do if health;then READY=true;break;fi;sleep 2;done
 [[ $READY == true ]] || fail new_backend_unhealthy
-EXPECTED_SCHEMA=50:0
+EXPECTED_SCHEMA=51:0
 [[ -n $BACKEND ]] || EXPECTED_SCHEMA=$SOURCE_SCHEMA
 [[ $(schema) == "$EXPECTED_SCHEMA" ]] || fail target_schema_not_expected_clean
-if [[ $EXPECTED_SCHEMA == 50:0 ]]; then validate50;else validate49;fi
+if [[ $EXPECTED_SCHEMA == 51:0 ]]; then validate51;else validate50;fi
 docker exec jobber-backend sh -c 'test "$FEATURE_PAYMENTS_ENABLED" = false && test "$FEATURE_BILLING_WEBHOOK_ENABLED" = false'
 [[ $(docker inspect --format '{{.Image}}' jobber-backend) == "$(docker image inspect --format '{{.Id}}' "$NEW_BACKEND")" ]] || fail wrong_running_backend
 ROUTES=(/api/v1/jobs /api/v1/jobs/00000000-0000-4000-8000-000000000000/interview-prep/operations/00000000-0000-4000-8000-000000000001)
 PUBLIC_ROUTE=/api/v1/jobs/00000000-0000-4000-8000-000000000000/interview-prep
-# Retained rollback binaries can run schema50 without implementing contacts.
+# Retained rollback binaries can run schema51 without implementing PDF tailoring.
 if [[ -n $BACKEND ]]; then
- ROUTES+=(/api/v1/jobs/00000000-0000-4000-8000-000000000000/contacts)
- PUBLIC_ROUTE=/api/v1/jobs/00000000-0000-4000-8000-000000000000/contacts
+ ROUTES+=(/api/v1/jobs/00000000-0000-4000-8000-000000000000/contacts /api/v1/jobs/00000000-0000-4000-8000-000000000000/resume-tailoring/source/00000000-0000-4000-8000-000000000001)
+ PUBLIC_ROUTE=/api/v1/jobs/00000000-0000-4000-8000-000000000000/resume-tailoring/source/00000000-0000-4000-8000-000000000001
 fi
 for route in "${ROUTES[@]}"; do
  [[ $(http_code "$route") == 401 ]] || fail protected_route_not_401

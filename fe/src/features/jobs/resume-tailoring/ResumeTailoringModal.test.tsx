@@ -10,8 +10,8 @@ import type { ResumeBuilderDTO } from "@/shared/types/resume-builder";
 import type { TailoringProposal } from "@/services/resumeTailoringService";
 import { ResumeTailoringModal } from "./ResumeTailoringModal";
 import { JobResumeTailoringCard } from "./JobResumeTailoringCard";
-const mocks = vi.hoisted(() => ({ generate: vi.fn(), apply: vi.fn(), prepare: vi.fn(), success: vi.fn() }));
-vi.mock("@/services/resumeTailoringService", () => ({ resumeTailoringService: { generate: mocks.generate, apply: mocks.apply } }));
+const mocks = vi.hoisted(() => ({ generate: vi.fn(), apply: vi.fn(), prepare: vi.fn(), success: vi.fn(), sourceReview: vi.fn(), importUploaded: vi.fn() }));
+vi.mock("@/services/resumeTailoringService", () => ({ resumeTailoringService: { generate: mocks.generate, apply: mocks.apply, sourceReview: mocks.sourceReview, importUploaded: mocks.importUploaded } }));
 vi.mock("@/features/resume-builder/lib/resumeDocumentSync", () => ({ ensureStoredResumeDocument: mocks.prepare }));
 vi.mock("@/shared/lib/notifications", () => ({ showSuccessNotification: mocks.success }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key, i18n: { language: "en" } }) }));
@@ -38,11 +38,12 @@ function setup(children = <Harness />) {
 }
 function deferred<T>() { let resolve: (value: T) => void = () => {}; const promise = new Promise<T>((done) => { resolve = done; }); return { promise, resolve }; }
 async function generate(user: ReturnType<typeof userEvent.setup>) {
+  await waitFor(() => expect(screen.getByRole("button", { name: "jobs.tailoring.generate" })).toBeEnabled());
   await user.click(screen.getByRole("button", { name: "jobs.tailoring.generate" }));
   await screen.findByText("jobs.tailoring.review");
 }
 describe("Job resume tailoring", () => {
-  beforeEach(() => { vi.clearAllMocks(); mocks.prepare.mockResolvedValue(undefined); mocks.generate.mockResolvedValue(proposal); mocks.apply.mockResolvedValue({ resume_builder: { id: "copy-1", title: "Copy" }, job_id: job.id }); });
+  beforeEach(() => { sessionStorage.clear(); vi.clearAllMocks(); mocks.sourceReview.mockResolvedValue({import_id:"",requires_review:false}); mocks.prepare.mockResolvedValue(undefined); mocks.generate.mockResolvedValue(proposal); mocks.apply.mockResolvedValue({ resume_builder: { id: "copy-1", title: "Copy" }, job_id: job.id }); });
   it("requires explicit keyboard selection and applies only the accepted change before opening the new editor", async () => {
     const { user, client } = setup();
     const invalidation = vi.spyOn(client, "invalidateQueries");
@@ -69,7 +70,8 @@ describe("Job resume tailoring", () => {
   it("cancels generation on close and ignores a late successful response", async () => {
     const pending = deferred<TailoringProposal>(); mocks.generate.mockReturnValue(pending.promise);
     const { user } = setup();
-    await user.click(screen.getByRole("button", { name: "jobs.tailoring.generate" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "jobs.tailoring.generate" })).toBeEnabled());
+  await user.click(screen.getByRole("button", { name: "jobs.tailoring.generate" }));
     await waitFor(() => expect(mocks.generate).toHaveBeenCalledOnce());
     const options = mocks.generate.mock.calls[0][3] as { signal: AbortSignal };
     await user.click(screen.getByRole("button", { name: "common.cancel" }));
@@ -81,7 +83,8 @@ describe("Job resume tailoring", () => {
   it("drops an old source response and starts a clean review for a new source", async () => {
     const pending = deferred<TailoringProposal>(); mocks.generate.mockReturnValueOnce(pending.promise);
     const { user } = setup();
-    await user.click(screen.getByRole("button", { name: "jobs.tailoring.generate" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "jobs.tailoring.generate" })).toBeEnabled());
+  await user.click(screen.getByRole("button", { name: "jobs.tailoring.generate" }));
     await waitFor(() => expect(mocks.generate).toHaveBeenCalledOnce());
     await user.selectOptions(screen.getByLabelText("jobs.tailoring.source"), otherSource.id);
     await act(async () => pending.resolve(proposal));
@@ -91,7 +94,8 @@ describe("Job resume tailoring", () => {
   it("does not request AI when the modal closes while source saving is pending", async () => {
     const pending = deferred<void>(); mocks.prepare.mockReturnValueOnce(pending.promise);
     const { user } = setup();
-    await user.click(screen.getByRole("button", { name: "jobs.tailoring.generate" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "jobs.tailoring.generate" })).toBeEnabled());
+  await user.click(screen.getByRole("button", { name: "jobs.tailoring.generate" }));
     await user.click(screen.getByRole("button", { name: "common.cancel" }));
     await act(async () => pending.resolve());
     expect(mocks.generate).not.toHaveBeenCalled();
@@ -104,19 +108,20 @@ describe("Job resume tailoring", () => {
     }
     const { user } = setup(<RevisionHarness />);
     await user.click(screen.getByRole("button", { name: "jobs.tailoring.title" }));
-    await user.click(screen.getByRole("button", { name: "jobs.tailoring.generate" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "jobs.tailoring.generate" })).toBeEnabled());
+  await user.click(screen.getByRole("button", { name: "jobs.tailoring.generate" }));
     await waitFor(() => expect(mocks.generate).toHaveBeenCalledOnce());
     await user.click(screen.getByRole("button", { name: "Change saved Job" }));
     await act(async () => pending.resolve(proposal));
     expect(screen.queryByText("jobs.tailoring.review")).not.toBeInTheDocument();
   });
-  it("requires regeneration when a proposal has expired", async () => {
+  it("recovers a previously saved copy even when the proposal has expired", async () => {
     mocks.generate.mockResolvedValueOnce({ ...proposal, expires_at: "2000-01-01T00:00:00Z" });
     const { user } = setup(); await generate(user);
     await user.click(screen.getByRole("checkbox", { name: "jobs.tailoring.summary" }));
     await user.click(screen.getByRole("button", { name: "jobs.tailoring.saveCopy" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("jobs.tailoring.errors.stale");
-    expect(mocks.apply).not.toHaveBeenCalled();
+    await waitFor(() => expect(mocks.apply).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/app/resume-builder/copy-1"));
   });
   it("keeps selections after quota errors and prevents duplicate saves", async () => {
     mocks.apply.mockRejectedValueOnce(new ApiError("internal provider detail", "PLAN_LIMIT_REACHED", 403));
@@ -195,6 +200,75 @@ describe("Job resume tailoring", () => {
     expect(screen.getByText(`jobs.tailoring.${message}`)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "jobs.tailoring.title" })).toBeDisabled();
   });
+  it("requires recognition review before enabling generation and keeps the Job in the editor link", async () => {
+    mocks.sourceReview.mockResolvedValue({import_id:"import-1",requires_review:true});
+    setup();
+    expect(await screen.findByRole("link", {name:"jobs.tailoring.pdf.reviewTitle"})).toHaveAttribute("href",`/app/resume-builder/${source.id}?tailoringJob=${job.id}&recognition=import-1`);
+    expect(screen.getByRole("button",{name:"jobs.tailoring.generate"})).toBeDisabled();
+    expect(mocks.generate).not.toHaveBeenCalled();
+  });
+  it("retains the generation request identity across a lost response and reopening", async () => {
+    mocks.generate.mockRejectedValueOnce(new ApiError("","NETWORK_ERROR",0));
+    const first=setup();
+    await waitFor(()=>expect(screen.getByRole("button",{name:"jobs.tailoring.generate"})).toBeEnabled());
+    await first.user.click(screen.getByRole("button",{name:"jobs.tailoring.generate"}));
+    await screen.findByRole("alert");
+    const key=mocks.generate.mock.calls[0][3].requestKey;
+    first.unmount();
+    const second=setup();await generate(second.user);
+    expect(mocks.generate.mock.calls[1][3].requestKey).toBe(key);
+  });
+  it("offers an explicit fresh AI attempt after a definitive provider failure", async () => {
+    mocks.generate.mockRejectedValueOnce(new ApiError("","AI_TIMEOUT",504));
+    const {user}=setup();
+    await waitFor(()=>expect(screen.getByRole("button",{name:"jobs.tailoring.generate"})).toBeEnabled());
+    await user.click(screen.getByRole("button",{name:"jobs.tailoring.generate"}));
+    await user.click(await screen.findByRole("button",{name:"jobs.tailoring.newAttempt"}));
+    await screen.findByText("jobs.tailoring.review");
+    expect(mocks.generate.mock.calls[1][3].requestKey).not.toBe(mocks.generate.mock.calls[0][3].requestKey);
+  });
+  it("shows PDF disclosure and never navigates after cancelling an in-flight import", async () => {
+    const pending=deferred<{resume_builder:{id:string};import_id:string;job_id:string}>();mocks.importUploaded.mockReturnValue(pending.promise);
+    function PDFHarness(){const [open,setOpen]=useState(true);return <>{open&&<ResumeTailoringModal job={job} builderResumes={[source]} uploadedResumes={[{id:"pdf-1",title:"Original PDF"} as import("@/shared/types/api").ResumeDTO]} isLoading={false} isError={false} onClose={()=>setOpen(false)} />}<Location/></>;}
+    const {user}=setup(<PDFHarness/>);
+    await user.selectOptions(screen.getByLabelText("jobs.tailoring.source"),"pdf:pdf-1");
+    expect(screen.getByText("jobs.tailoring.pdf.disclosure")).toBeInTheDocument();expect(screen.getByText("jobs.tailoring.pdf.usage")).toBeInTheDocument();
+    await user.click(screen.getByRole("button",{name:"jobs.tailoring.pdf.importReview"}));
+    await waitFor(()=>expect(mocks.importUploaded).toHaveBeenCalledOnce());
+    await user.click(screen.getByRole("button",{name:"common.cancel"}));
+    await act(async()=>pending.resolve({resume_builder:{id:"recognized"},import_id:"import-1",job_id:job.id}));
+    expect(screen.getByTestId("location")).toHaveTextContent("/");expect(screen.queryByRole("dialog")).not.toBeInTheDocument();expect(mocks.apply).not.toHaveBeenCalled();
+  });
+  it("keeps the returned corrected source while the resume list is loading", async () => {
+    function SlowReturn(){const [loaded,setLoaded]=useState(false);return <><button onClick={()=>setLoaded(true)}>Load resumes</button><ResumeTailoringModal job={job} builderResumes={loaded?[source,otherSource]:[]} isLoading={!loaded} isError={false} onClose={()=>{}} /></>;}
+    const client=new QueryClient({defaultOptions:{queries:{retry:false}}});const user=userEvent.setup();
+    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[`/?tailoringSource=${otherSource.id}`]}><SlowReturn/></MemoryRouter></QueryClientProvider>);
+    await user.click(screen.getByRole("button",{name:"Load resumes"}));expect(screen.getByLabelText("jobs.tailoring.source")).toHaveValue(otherSource.id);
+  });
+
+  it("recovers the same PDF import request after a network loss and reopening", async () => {
+    const pdf={id:"pdf-1",title:"Original"} as import("@/shared/types/api").ResumeDTO;
+    const view=()=> <><ResumeTailoringModal job={job} builderResumes={[source]} uploadedResumes={[pdf]} isLoading={false} isError={false} onClose={()=>{}}/><Location/></>;
+    mocks.importUploaded.mockRejectedValueOnce(new ApiError("","NETWORK_ERROR",0));
+    const first=setup(view());await first.user.selectOptions(screen.getByLabelText("jobs.tailoring.source"),"pdf:pdf-1");await first.user.click(screen.getByRole("button",{name:"jobs.tailoring.pdf.importReview"}));await screen.findByRole("alert");const key=mocks.importUploaded.mock.calls[0][2];first.unmount();
+    mocks.importUploaded.mockResolvedValue({resume_builder:{id:"recovered-copy"},import_id:"import",job_id:job.id});
+    const second=setup(view());await second.user.selectOptions(screen.getByLabelText("jobs.tailoring.source"),"pdf:pdf-1");await second.user.click(screen.getByRole("button",{name:"jobs.tailoring.pdf.importReview"}));await waitFor(()=>expect(mocks.importUploaded).toHaveBeenCalledTimes(2));expect(mocks.importUploaded.mock.calls[1][2]).toBe(key);
+    await waitFor(()=>expect(screen.getByTestId("location")).toHaveTextContent("/app/resume-builder/recovered-copy"));
+  });
+  it("offers manual resume text after an unreadable PDF and uses a distinct request", async () => {
+    mocks.importUploaded.mockRejectedValueOnce(new ApiError("","PDF_UNREADABLE",422));
+    const {user}=setup(<><ResumeTailoringModal job={job} builderResumes={[]} uploadedResumes={[{id:"pdf-1",title:"Scanned PDF"} as import("@/shared/types/api").ResumeDTO]} isLoading={false} isError={false} onClose={()=>{}}/><Location/></>);
+    await user.selectOptions(screen.getByLabelText("jobs.tailoring.source"),"pdf:pdf-1");await user.click(screen.getByRole("button",{name:"jobs.tailoring.pdf.importReview"}));expect(await screen.findByRole("alert")).toHaveTextContent("jobs.tailoring.errors.pdfUnreadable");
+    const button=screen.getByRole("button",{name:"jobs.tailoring.pdf.importReview"});expect(button).toBeDisabled();await user.type(screen.getByLabelText("resumeBuilder.import.resumeText"),"My verified resume text");
+    mocks.importUploaded.mockResolvedValue({resume_builder:{id:"manual-copy"},import_id:"manual",job_id:job.id});await user.click(button);await waitFor(()=>expect(mocks.importUploaded).toHaveBeenCalledTimes(2));expect(mocks.importUploaded.mock.calls[1][3]).toBe("My verified resume text");expect(mocks.importUploaded.mock.calls[1][2]).not.toBe(mocks.importUploaded.mock.calls[0][2]);
+  });
+  it("rotates the PDF request only on explicit new attempt after a terminal failure", async () => {
+    mocks.importUploaded.mockRejectedValueOnce(new ApiError("","AI_TIMEOUT",504));
+    const {user}=setup(<ResumeTailoringModal job={job} builderResumes={[]} uploadedResumes={[{id:"pdf-1",title:"PDF"} as import("@/shared/types/api").ResumeDTO]} isLoading={false} isError={false} onClose={()=>{}}/>);
+    await user.selectOptions(screen.getByLabelText("jobs.tailoring.source"),"pdf:pdf-1");await user.click(screen.getByRole("button",{name:"jobs.tailoring.pdf.importReview"}));
+    mocks.importUploaded.mockResolvedValue({resume_builder:{id:"fresh-copy"},import_id:"fresh",job_id:job.id});await user.click(await screen.findByRole("button",{name:"jobs.tailoring.newAttempt"}));await waitFor(()=>expect(mocks.importUploaded).toHaveBeenCalledTimes(2));expect(mocks.importUploaded.mock.calls[1][2]).not.toBe(mocks.importUploaded.mock.calls[0][2]);
+  });
+
 });
 
 vi.mock("@/shared/hooks/useAIAvailability", async (importOriginal) => ({

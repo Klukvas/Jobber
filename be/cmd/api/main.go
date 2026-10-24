@@ -495,6 +495,7 @@ func main() {
 	var matchScoreHdl *matchScoreHandler.MatchScoreHandler
 	var resumeAIHdl *rbHandler.AIHandler
 	var tailoringAI rbService.TailoringAIClient
+	var tailoringImport *rbService.ImportService
 	var interviewAI interviewprep.Client
 	var resumeImportHdl *rbHandler.ImportHandler
 	var coverLetterAIHdl *cvHandler.AIHandler
@@ -516,6 +517,7 @@ func main() {
 		resumeAIHdl = rbHandler.NewAIHandler(resumeAISvc)
 
 		resumeImportSvc := rbService.NewImportService(resumeBuilderRepository, aiClient, subscriptionSvc)
+		tailoringImport = resumeImportSvc
 		resumeImportHdl = rbHandler.NewImportHandler(resumeImportSvc)
 
 		coverLetterAISvc := cvService.NewAIService(coverLetterRepository, resumeBuilderRepository, aiClient, subscriptionSvc)
@@ -531,9 +533,11 @@ func main() {
 	interviewHdl := interviewprep.NewHandler(interviewSvc)
 	stopInterviewWorkers := interviewSvc.Start(ctx)
 	defer stopInterviewWorkers()
-	tailoringStore := rbService.NewRedisTailoringProposalStore(redisClient.Client)
+	tailoringStore := rbRepo.NewPostgresTailoringProposalStore(resumeBuilderRepository)
 	tailoringSvc := rbService.NewTailoringService(resumeBuilderRepository, resumeBuilderRepository, tailoringAI, tailoringStore, subscriptionSvc)
-	tailoringHdl := rbHandler.NewTailoringHandler(tailoringSvc)
+	pdfTailoringSvc := rbService.NewPDFTailoringService(tailoringSvc, tailoringImport, resumeRepository, rbService.DownloadUploadedResume(s3Client))
+	tailoringHdl := rbHandler.NewTailoringHandler(pdfTailoringSvc)
+	pdfTailoringHdl := rbHandler.NewPDFTailoringHandler(pdfTailoringSvc)
 
 	// Rate limiting for auth endpoints (10 requests per minute per IP)
 	authRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
@@ -677,6 +681,7 @@ func main() {
 		}
 		interviewHdl.RegisterRoutes(v1, authMiddleware, resumeAIRateLimiter)
 		tailoringHdl.RegisterRoutes(v1, authMiddleware, resumeAIRateLimiter)
+		pdfTailoringHdl.RegisterRoutes(v1, authMiddleware, resumeAIRateLimiter)
 		if resumeAIHdl != nil {
 			resumeAIHdl.RegisterRoutes(v1, authMiddleware, resumeAIRateLimiter)
 		}

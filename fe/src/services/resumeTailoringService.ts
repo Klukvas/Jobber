@@ -65,16 +65,32 @@ function validated<T>(schema: z.ZodType<T>, input: unknown): T {
   return result.data;
 }
 
+const importedSchema = z.object({ resume_builder: z.object({ id: z.string().uuid(), title: z.string() }), import_id: z.string().uuid(), job_id: z.string().uuid() });
+
 export const resumeTailoringService = {
+  async sourceReview(jobId: string, sourceId: string) {
+    const response = await apiClient.get<unknown>(`jobs/${jobId}/resume-tailoring/source/${sourceId}`);
+    return validated(z.object({ import_id: z.string(), requires_review: z.boolean() }), response);
+  },
+  async importUploaded(jobId: string, resumeId: string, requestKey: string, text?: string) {
+    const response = await apiClient.post<unknown>(`jobs/${jobId}/resume-tailoring/import`, { resume_id: resumeId, request_key: requestKey, ...(text ? { text } : {}) });
+    const result = validated(importedSchema, response);
+    if (result.job_id !== jobId) throw new ApiError("", CLIENT_ERROR_CODES.invalidResponse, 0);
+    return result;
+  },
+  async confirmRecognition(jobId: string, importId: string, sourceId: string): Promise<void> {
+    const response = await apiClient.post<unknown>(`jobs/${jobId}/resume-tailoring/recognition`, { import_id: importId, resume_builder_id: sourceId });
+    validated(z.object({ confirmed: z.literal(true) }), response);
+  },
   async generate(
     jobId: string,
     resumeId: string,
     locale: TailoringLocale,
-    options?: RequestOptions,
+    options?: RequestOptions & { readonly requestKey?: string },
   ): Promise<TailoringProposal> {
     const response = await apiClient.post<unknown>(
       `jobs/${jobId}/resume-tailoring`,
-      { resume_builder_id: resumeId, locale },
+      { resume_builder_id: resumeId, locale, ...(options?.requestKey ? { request_key: options.requestKey } : {}) },
       options,
     );
     const proposal = validated(proposalSchema, response);

@@ -4,7 +4,12 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, Loader2, Sparkles } from "lucide-react";
-import type { JobDTO } from "@/shared/types/api";
+import { workflowValue } from "./workflowSession";
+import { useQuery } from "@tanstack/react-query";
+import { resumeTailoringService } from "@/services/resumeTailoringService";
+import { UploadedPDFTailoring } from "./UploadedPDFTailoring";
+import { useSearchParams } from "react-router-dom";
+import type { ResumeDTO, JobDTO } from "@/shared/types/api";
 import type { ResumeBuilderDTO } from "@/shared/types/resume-builder";
 import { Button } from "@/shared/ui/Button";
 import { Checkbox } from "@/shared/ui/Checkbox";
@@ -18,22 +23,28 @@ import { TailoringChangeCard } from "./TailoringChangeCard";
 
 type Props = {
   job: JobDTO;
+  uploadedResumes?: readonly ResumeDTO[];
   builderResumes: readonly ResumeBuilderDTO[];
   isLoading: boolean;
   isError: boolean;
   onClose: () => void;
 };
 
-export function ResumeTailoringModal({ job, builderResumes, isLoading, isError, onClose }: Props) {
+export function ResumeTailoringModal({ job, builderResumes, uploadedResumes = [], isLoading, isError, onClose }: Props) {
   const { t, i18n } = useTranslation();
   const { unavailable, isChecking } = useAIAvailability();
   const navigate = useNavigate();
-  const initialSource = job.resume?.type === "builder" && builderResumes.some((resume) => resume.id === job.resume?.id) ? job.resume.id : builderResumes[0]?.id ?? "";
+  const [searchParams] = useSearchParams();
+  const returnSource = searchParams.get("tailoringSource");
+  const initialSource = returnSource ? returnSource : job.resume?.type === "uploaded" && uploadedResumes.some((resume) => resume.id === job.resume?.id) ? `pdf:${job.resume.id}` : job.resume?.type === "builder" && builderResumes.some((resume) => resume.id === job.resume?.id) ? job.resume.id : builderResumes[0]?.id ?? "";
   const [sourceId, setSourceId] = useState(initialSource);
-  const [title, setTitle] = useState(() => t("jobs.tailoring.defaultTitle", { title: job.title }).slice(0, 255));
+  const [titleDraft, setTitle] = useState<string | null>(null);
   const tailoring = useResumeTailoring(job.id);
   const source = builderResumes.find((resume) => resume.id === sourceId);
+  const recognition = useQuery({ queryKey: ["tailoring-recognition", job.id, sourceId], queryFn: () => resumeTailoringService.sourceReview(job.id, sourceId), enabled: !!source, retry: false, staleTime: 0 });
+  const needsReview = recognition.data?.requires_review ?? false;
   const review = tailoring.review;
+  const title = titleDraft ?? storedCopyTitle(review?.proposal.proposal_id) ?? t("jobs.tailoring.defaultTitle", { title: job.title }).slice(0, 255);
   const sourceChanged = !!review && source?.id !== review.proposal.source_resume.id;
   const mustRegenerate = tailoring.mustRegenerate || sourceChanged;
   const changes = review?.proposal.changes ?? [];
@@ -41,7 +52,7 @@ export function ResumeTailoringModal({ job, builderResumes, isLoading, isError, 
   const canSave = !!review && !mustRegenerate && tailoring.acceptedIds.length > 0 && !!title.trim() && title.trim().length <= 255;
   const close = () => { if (!tailoring.isSaving) onClose(); };
   const locale = i18n.language.startsWith("ru") ? "ru" : i18n.language.startsWith("uk") ? "uk" : "en";
-  const generate = () => { if (source && !unavailable && !isChecking) void tailoring.generate(source.id, locale); };
+  const generate = () => { if (source && !needsReview && !recognition.isLoading && !recognition.isError && !unavailable && !isChecking) void tailoring.generate(source.id, locale); };
   const save = async () => {
     if (!source || !canSave) return;
     const result = await tailoring.apply(title, source.id);
@@ -62,7 +73,7 @@ export function ResumeTailoringModal({ job, builderResumes, isLoading, isError, 
           <AIAvailabilityNotice unavailable={unavailable} />
           {isLoading ? <p role="status" className="text-sm text-muted-foreground">{t("common.loading")}</p>
             : isError ? <p role="alert" className="text-sm text-destructive">{t("jobs.tailoring.errors.resumesFailed")}</p>
-              : builderResumes.length === 0 ? (
+              : builderResumes.length === 0 && uploadedResumes.length === 0 ? (
                 <div className="space-y-3 rounded-lg border border-dashed p-4 text-sm">
                   <p>{t("jobs.tailoring.empty")}</p>
                   <Link className="inline-flex min-h-11 items-center gap-2 text-foreground underline underline-offset-4" to="/app/resumes">{t("jobs.tailoring.createResume")}<ArrowRight className="h-4 w-4" /></Link>
@@ -72,10 +83,14 @@ export function ResumeTailoringModal({ job, builderResumes, isLoading, isError, 
                   <Label htmlFor="tailoring-source">{t("jobs.tailoring.source")}</Label>
                   <Select id="tailoring-source" value={sourceId} disabled={tailoring.isSaving} onChange={(event) => { tailoring.reset(); setSourceId(event.target.value); }}>
                     <option value="">{t("jobs.tailoring.chooseSource")}</option>
+                    {uploadedResumes.map((resume) => <option key={`pdf:${resume.id}`} value={`pdf:${resume.id}`}>{t("jobs.tailoring.pdf.sourceLabel", { title: resume.title })}</option>)}
                     {builderResumes.map((resume) => <option key={resume.id} value={resume.id}>{resume.title}</option>)}
                   </Select>
                 </div>
               )}
+          {needsReview && source && <div className="space-y-2 rounded-lg border p-4 text-sm"><p>{t("jobs.tailoring.pdf.reviewHint")}</p><Link className="inline-flex min-h-11 items-center underline" to={`/app/resume-builder/${source.id}?tailoringJob=${encodeURIComponent(job.id)}&recognition=${encodeURIComponent(recognition.data?.import_id ?? "")}`}>{t("jobs.tailoring.pdf.reviewTitle")}</Link></div>}
+          {recognition.isError && source && <p role="alert" className="text-sm text-destructive">{t("jobs.tailoring.errors.requestFailed")}</p>}
+          {sourceId.startsWith("pdf:") && <UploadedPDFTailoring key={sourceId} jobId={job.id} resumeId={sourceId.slice(4)} disabled={unavailable || isChecking || tailoring.isSaving} />}
           {tailoring.isGenerating && <p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" />{t("jobs.tailoring.generating")}</p>}
           {(tailoring.errorKey || sourceChanged) && (
             <div role="alert" className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
@@ -113,13 +128,21 @@ export function ResumeTailoringModal({ job, builderResumes, isLoading, isError, 
               {tailoring.isSaving && <Loader2 className="h-4 w-4 animate-spin" />}{t("jobs.tailoring.saveCopy")}
             </Button>
           ) : (
-            <Button onClick={generate} disabled={unavailable || isChecking || !source || isLoading || isError || tailoring.isGenerating || tailoring.isSaving}>
+            <Button onClick={generate} disabled={needsReview || recognition.isLoading || recognition.isError || unavailable || isChecking || !source || isLoading || isError || tailoring.isGenerating || tailoring.isSaving}>
               {tailoring.isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {t(review ? "jobs.tailoring.regenerate" : "jobs.tailoring.generate")}
+              {t(tailoring.terminalFailure ? "jobs.tailoring.newAttempt" : review ? "jobs.tailoring.regenerate" : "jobs.tailoring.generate")}
             </Button>
           )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
+}
+
+function storedCopyTitle(proposalId: string | undefined): string | null {
+  if (!proposalId) return null;
+  const metadata = workflowValue(`selection:${proposalId}`);
+  if (!metadata) return null;
+  try { const saved: unknown = JSON.parse(metadata); return typeof saved === "object" && saved !== null && "title" in saved && typeof saved.title === "string" ? saved.title : null; }
+  catch { return null; }
 }

@@ -1,3 +1,4 @@
+import { workflowRequestKey, saveWorkflowValue, workflowValue } from "./workflowSession";
 import { markAIUnavailable } from "@/shared/hooks/useAIAvailability";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -23,6 +24,11 @@ export function tailoringErrorKey(error: unknown): string {
   if (error.code === "AI_UNAVAILABLE") return "unavailable";
   if (error.code === "AI_TIMEOUT" || error.code === "TIMEOUT_ERROR") return "timeout";
   if (error.code === "AI_INVALID_RESPONSE" || error.code === "INVALID_RESPONSE") return "invalidResponse";
+  if (error.code === "RECOGNITION_REQUIRED") return "recognitionRequired";
+  if (error.code === "OPERATION_PENDING") return "operationPending";
+  if (error.code === "OPERATION_INTERRUPTED") return "operationInterrupted";
+  if (error.code === "OPERATION_RESULT_DELETED") return "operationDeleted";
+  if (error.code === "REQUEST_KEY_CONFLICT") return "requestConflict";
   if (error.code === "NOT_FOUND") return "notFound";
   return "requestFailed";
 }
@@ -33,6 +39,7 @@ export function useResumeTailoring(jobId: string) {
   const [acceptedIds, setAcceptedIds] = useState<readonly string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorKey, setErrorKey] = useState<string | null>(null);
+  const [terminalFailure, setTerminalFailure] = useState(false);
   const [mustRegenerate, setMustRegenerate] = useState(false);
   const requestId = useRef(0);
   const controller = useRef<AbortController | null>(null);
@@ -44,8 +51,9 @@ export function useResumeTailoring(jobId: string) {
       resumeId: string;
       locale: TailoringLocale;
       signal: AbortSignal;
+      requestKey: string;
     }) => resumeTailoringService.generate(
-      jobId, request.resumeId, request.locale, { signal: request.signal },
+      jobId, request.resumeId, request.locale, { signal: request.signal, requestKey: request.requestKey },
     ),
   });
   const applyMutation = useMutation({
@@ -76,6 +84,7 @@ export function useResumeTailoring(jobId: string) {
     setAcceptedIds([]);
     setErrorKey(null);
     setMustRegenerate(false);
+    setTerminalFailure(false);
   };
 
   const generate = async (resumeId: string, locale: TailoringLocale) => {
@@ -85,11 +94,13 @@ export function useResumeTailoring(jobId: string) {
     controller.current?.abort();
     const abort = new AbortController();
     controller.current = abort;
+    const requestKey = workflowRequestKey(`generate:${jobId}:${resumeId}:${locale}`, !!review || terminalFailure);
     setIsGenerating(true);
     setReview(null);
     setAcceptedIds([]);
     setErrorKey(null);
     setMustRegenerate(false);
+    setTerminalFailure(false);
     try {
       try {
         await ensureStoredResumeDocument(resumeId);
@@ -101,14 +112,19 @@ export function useResumeTailoring(jobId: string) {
       }
       if (!mounted.current || token !== requestId.current) return;
       const proposal = await generateMutation.mutateAsync({
-        resumeId, locale, signal: abort.signal,
+        resumeId, locale, signal: abort.signal, requestKey,
       });
       if (!mounted.current || token !== requestId.current) return;
       setReview({ proposal });
+      const metadata = workflowValue(`selection:${proposal.proposal_id}`);
+      if (metadata) {
+        try { const saved: unknown = JSON.parse(metadata); if (typeof saved === "object" && saved !== null && "ids" in saved && Array.isArray(saved.ids)) { const valid = new Set(proposal.changes.map((change) => change.id)); setAcceptedIds(saved.ids.filter((id): id is string => typeof id === "string" && valid.has(id))); } } catch { /* Invalid local metadata cannot change server data. */ }
+      }
     } catch (error) {
       if (mounted.current && token === requestId.current && !abort.signal.aborted) {
         markAIUnavailable(queryClient, error);
         setErrorKey(tailoringErrorKey(error));
+        setTerminalFailure(error instanceof ApiError && ["AI_TIMEOUT", "AI_INVALID_RESPONSE", "AI_REQUEST_FAILED", "OPERATION_INTERRUPTED"].includes(error.code));
       }
     } finally {
       void queryClient.invalidateQueries({ queryKey: ["subscription"] });
@@ -125,13 +141,14 @@ export function useResumeTailoring(jobId: string) {
       !title.trim() || title.trim().length > 255 || mustRegenerate
     ) return null;
     if (
-      sourceId !== review.proposal.source_resume.id ||
-      Date.parse(review.proposal.expires_at) <= Date.now()
+      sourceId !== review.proposal.source_resume.id
     ) {
       setErrorKey("stale");
       setMustRegenerate(true);
       return null;
     }
+    saveWorkflowValue(`apply:${jobId}`, review.proposal.proposal_id);
+    saveWorkflowValue(`selection:${review.proposal.proposal_id}`, JSON.stringify({ids: acceptedIds, title: title.trim()}));
     applying.current = true;
     setErrorKey(null);
     try {
@@ -169,6 +186,7 @@ export function useResumeTailoring(jobId: string) {
     isSaving: applyMutation.isPending,
     errorKey,
     mustRegenerate,
+    terminalFailure,
     reset,
     generate,
     apply,

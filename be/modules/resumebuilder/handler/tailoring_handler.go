@@ -36,6 +36,7 @@ func (h *TailoringHandler) Generate(c *gin.Context) {
 	}
 	var req struct {
 		ResumeBuilderID string `json:"resume_builder_id" binding:"required,uuid"`
+		RequestKey      string `json:"request_key" binding:"omitempty,uuid"`
 		Locale          string `json:"locale" binding:"omitempty,oneof=en ru uk"`
 	}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 4096)
@@ -46,7 +47,15 @@ func (h *TailoringHandler) Generate(c *gin.Context) {
 	if req.Locale == "" {
 		req.Locale = "en"
 	}
-	result, err := h.service.Generate(c.Request.Context(), userID, c.Param("id"), req.ResumeBuilderID, req.Locale)
+	var result *model.TailoringProposalDTO
+	var err error
+	if durable, ok := h.service.(interface {
+		GenerateIdempotent(context.Context, string, string, string, string, string) (*model.TailoringProposalDTO, error)
+	}); ok && req.RequestKey != "" {
+		result, err = durable.GenerateIdempotent(c.Request.Context(), userID, c.Param("id"), req.ResumeBuilderID, req.Locale, req.RequestKey)
+	} else {
+		result, err = h.service.Generate(c.Request.Context(), userID, c.Param("id"), req.ResumeBuilderID, req.Locale)
+	}
 	if err != nil {
 		tailoringError(c, err)
 		return
@@ -97,6 +106,18 @@ func tailoringUser(c *gin.Context) (string, bool) {
 func tailoringError(c *gin.Context, err error) {
 	status, code, message := http.StatusInternalServerError, "INTERNAL_ERROR", "Unable to adapt resume"
 	switch {
+	case errors.Is(err, model.ErrRecognitionRequired):
+		status, code, message = http.StatusConflict, "RECOGNITION_REQUIRED", "Review and confirm the editable copy before adapting it"
+	case errors.Is(err, model.ErrPDFUnreadable):
+		status, code, message = http.StatusUnprocessableEntity, "PDF_UNREADABLE", "Could not read this PDF. Scanned PDFs are not supported. Paste your resume text instead"
+	case errors.Is(err, model.ErrOperationConflict):
+		status, code, message = http.StatusConflict, "REQUEST_KEY_CONFLICT", "This request key was used with different input"
+	case errors.Is(err, model.ErrOperationPending):
+		status, code, message = http.StatusConflict, "OPERATION_PENDING", "This request is still running. Retry with the same request key"
+	case errors.Is(err, model.ErrOperationInterrupted):
+		status, code, message = http.StatusConflict, "OPERATION_INTERRUPTED", "The previous request was interrupted. It will not run again with this key"
+	case errors.Is(err, model.ErrOperationDeleted):
+		status, code, message = http.StatusGone, "OPERATION_RESULT_DELETED", "The result was deleted. This request cannot recreate it"
 	case errors.Is(err, model.ErrTailoringValidation):
 		status, code, message = http.StatusBadRequest, "VALIDATION_ERROR", "Select valid changes and provide a title and a saved Job description"
 	case errors.Is(err, model.ErrTailoringNotFound), errors.Is(err, model.ErrResumeBuilderNotFound), errors.Is(err, model.ErrNotOwner):

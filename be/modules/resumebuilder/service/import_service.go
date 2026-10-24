@@ -105,128 +105,11 @@ func (s *ImportService) createFromParsed(ctx context.Context, userID string, par
 	var resumeID string
 
 	txErr := runResumeCreation(ctx, s.repo, s.limitChecker, userID, func(txRepo ports.ResumeBuilderRepository) error {
-		rb := newDefaultResumeBuilder(userID, title, DefaultTemplateID)
-
-		if err := txRepo.Create(ctx, rb); err != nil {
-			return fmt.Errorf("failed to create resume: %w", err)
+		var err error
+		resumeID, err = writeParsedResume(ctx, txRepo, userID, parsed, title, "")
+		if err != nil {
+			return err
 		}
-		resumeID = rb.ID
-
-		// Seed default section order
-		orders := make([]*model.SectionOrder, len(defaultSectionOrder))
-		for i, ds := range defaultSectionOrder {
-			orders[i] = &model.SectionOrder{
-				ResumeBuilderID: rb.ID,
-				SectionKey:      ds.Key,
-				SortOrder:       ds.Order,
-				IsVisible:       true,
-			}
-		}
-		if err := txRepo.UpsertSectionOrder(ctx, rb.ID, orders); err != nil {
-			return fmt.Errorf("failed to seed section order: %w", err)
-		}
-
-		// Upsert contact
-		contact := &model.Contact{
-			ResumeBuilderID: rb.ID,
-			FullName:        parsed.FullName,
-			Email:           parsed.Email,
-			Phone:           parsed.Phone,
-			Location:        parsed.Location,
-			Website:         parsed.Website,
-			LinkedIn:        parsed.LinkedIn,
-			GitHub:          parsed.GitHub,
-		}
-		if err := txRepo.UpsertContact(ctx, contact); err != nil {
-			return fmt.Errorf("failed to create contact: %w", err)
-		}
-
-		// Upsert summary
-		if parsed.Summary != "" {
-			summary := &model.Summary{
-				ResumeBuilderID: rb.ID,
-				Content:         parsed.Summary,
-			}
-			if err := txRepo.UpsertSummary(ctx, summary); err != nil {
-				return fmt.Errorf("failed to create summary: %w", err)
-			}
-		}
-
-		// Add experiences
-		for i, exp := range parsed.Experiences {
-			e := &model.Experience{
-				ResumeBuilderID: rb.ID,
-				Company:         exp.Company,
-				Position:        exp.Position,
-				Location:        exp.Location,
-				StartDate:       exp.StartDate,
-				EndDate:         exp.EndDate,
-				IsCurrent:       exp.IsCurrent,
-				Description:     exp.Description,
-				SortOrder:       i,
-			}
-			if err := txRepo.CreateExperience(ctx, e); err != nil {
-				return fmt.Errorf("failed to add experience: %w", err)
-			}
-		}
-
-		// Add educations
-		for i, edu := range parsed.Educations {
-			e := &model.Education{
-				ResumeBuilderID: rb.ID,
-				Institution:     edu.Institution,
-				Degree:          edu.Degree,
-				FieldOfStudy:    edu.FieldOfStudy,
-				StartDate:       edu.StartDate,
-				EndDate:         edu.EndDate,
-				GPA:             edu.GPA,
-				SortOrder:       i,
-			}
-			if err := txRepo.CreateEducation(ctx, e); err != nil {
-				return fmt.Errorf("failed to add education: %w", err)
-			}
-		}
-
-		// Add skills
-		for i, skill := range parsed.Skills {
-			sk := &model.Skill{
-				ResumeBuilderID: rb.ID,
-				Name:            skill.Name,
-				Level:           skill.Level,
-				SortOrder:       i,
-			}
-			if err := txRepo.CreateSkill(ctx, sk); err != nil {
-				return fmt.Errorf("failed to add skill: %w", err)
-			}
-		}
-
-		// Add languages
-		for i, lang := range parsed.Languages {
-			l := &model.Language{
-				ResumeBuilderID: rb.ID,
-				Name:            lang.Name,
-				Proficiency:     lang.Proficiency,
-				SortOrder:       i,
-			}
-			if err := txRepo.CreateLanguage(ctx, l); err != nil {
-				return fmt.Errorf("failed to add language: %w", err)
-			}
-		}
-
-		// Add certifications
-		for i, cert := range parsed.Certifications {
-			c := &model.Certification{
-				ResumeBuilderID: rb.ID,
-				Name:            cert.Name,
-				Issuer:          cert.Issuer,
-				IssueDate:       cert.IssueDate,
-				SortOrder:       i,
-			}
-			if err := txRepo.CreateCertification(ctx, c); err != nil {
-				return fmt.Errorf("failed to add certification: %w", err)
-			}
-		}
-
 		return nil
 	})
 
@@ -236,4 +119,142 @@ func (s *ImportService) createFromParsed(ctx context.Context, userID string, par
 
 	// Return full resume (outside transaction — read from committed data)
 	return s.repo.GetFullResume(ctx, userID, resumeID)
+}
+
+func writeParsedResume(ctx context.Context, txRepo ports.ResumeBuilderRepository, userID string, parsed *ai.ParsedResume, title, id string) (string, error) {
+	rb := newDefaultResumeBuilder(userID, title, DefaultTemplateID)
+
+	var createErr error
+	if id != "" {
+		rb.ID = id
+		creator, ok := txRepo.(interface {
+			CreateWithID(context.Context, *model.ResumeBuilder) error
+		})
+		if !ok {
+			return "", model.ErrProposalStoreUnavailable
+		}
+		createErr = creator.CreateWithID(ctx, rb)
+	} else {
+		createErr = txRepo.Create(ctx, rb)
+	}
+	if err := createErr; err != nil {
+		return "", fmt.Errorf("failed to create resume: %w", err)
+	}
+
+	// Seed default section order
+	orders := make([]*model.SectionOrder, len(defaultSectionOrder))
+	for i, ds := range defaultSectionOrder {
+		orders[i] = &model.SectionOrder{
+			ResumeBuilderID: rb.ID,
+			SectionKey:      ds.Key,
+			SortOrder:       ds.Order,
+			IsVisible:       true,
+		}
+	}
+	if err := txRepo.UpsertSectionOrder(ctx, rb.ID, orders); err != nil {
+		return "", fmt.Errorf("failed to seed section order: %w", err)
+	}
+
+	// Upsert contact
+	contact := &model.Contact{
+		ResumeBuilderID: rb.ID,
+		FullName:        parsed.FullName,
+		Email:           parsed.Email,
+		Phone:           parsed.Phone,
+		Location:        parsed.Location,
+		Website:         parsed.Website,
+		LinkedIn:        parsed.LinkedIn,
+		GitHub:          parsed.GitHub,
+	}
+	if err := txRepo.UpsertContact(ctx, contact); err != nil {
+		return "", fmt.Errorf("failed to create contact: %w", err)
+	}
+
+	// Upsert summary
+	if parsed.Summary != "" {
+		summary := &model.Summary{
+			ResumeBuilderID: rb.ID,
+			Content:         parsed.Summary,
+		}
+		if err := txRepo.UpsertSummary(ctx, summary); err != nil {
+			return "", fmt.Errorf("failed to create summary: %w", err)
+		}
+	}
+
+	// Add experiences
+	for i, exp := range parsed.Experiences {
+		e := &model.Experience{
+			ResumeBuilderID: rb.ID,
+			Company:         exp.Company,
+			Position:        exp.Position,
+			Location:        exp.Location,
+			StartDate:       exp.StartDate,
+			EndDate:         exp.EndDate,
+			IsCurrent:       exp.IsCurrent,
+			Description:     exp.Description,
+			SortOrder:       i,
+		}
+		if err := txRepo.CreateExperience(ctx, e); err != nil {
+			return "", fmt.Errorf("failed to add experience: %w", err)
+		}
+	}
+
+	// Add educations
+	for i, edu := range parsed.Educations {
+		e := &model.Education{
+			ResumeBuilderID: rb.ID,
+			Institution:     edu.Institution,
+			Degree:          edu.Degree,
+			FieldOfStudy:    edu.FieldOfStudy,
+			StartDate:       edu.StartDate,
+			EndDate:         edu.EndDate,
+			GPA:             edu.GPA,
+			SortOrder:       i,
+		}
+		if err := txRepo.CreateEducation(ctx, e); err != nil {
+			return "", fmt.Errorf("failed to add education: %w", err)
+		}
+	}
+
+	// Add skills
+	for i, skill := range parsed.Skills {
+		sk := &model.Skill{
+			ResumeBuilderID: rb.ID,
+			Name:            skill.Name,
+			Level:           skill.Level,
+			SortOrder:       i,
+		}
+		if err := txRepo.CreateSkill(ctx, sk); err != nil {
+			return "", fmt.Errorf("failed to add skill: %w", err)
+		}
+	}
+
+	// Add languages
+	for i, lang := range parsed.Languages {
+		l := &model.Language{
+			ResumeBuilderID: rb.ID,
+			Name:            lang.Name,
+			Proficiency:     lang.Proficiency,
+			SortOrder:       i,
+		}
+		if err := txRepo.CreateLanguage(ctx, l); err != nil {
+			return "", fmt.Errorf("failed to add language: %w", err)
+		}
+	}
+
+	// Add certifications
+	for i, cert := range parsed.Certifications {
+		c := &model.Certification{
+			ResumeBuilderID: rb.ID,
+			Name:            cert.Name,
+			Issuer:          cert.Issuer,
+			IssueDate:       cert.IssueDate,
+			SortOrder:       i,
+		}
+		if err := txRepo.CreateCertification(ctx, c); err != nil {
+			return "", fmt.Errorf("failed to add certification: %w", err)
+		}
+	}
+
+	return rb.ID, nil
 }

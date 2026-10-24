@@ -284,6 +284,7 @@ function JobDetailContent() {
       />
 
       <JobResumeTailoringCard
+        uploadedResumes={uploadedResumes}
         key={job.id}
         job={job}
         builderResumes={builderResumesList}

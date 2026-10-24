@@ -431,10 +431,10 @@
     "tailoring": {
       "title": "Adapt resume",
       "intro": "Review suggestions for this Job, then save selected changes in a separate Builder Resume.",
-      "description": "Use an existing Builder Resume as the source. Suggestions use this Job’s saved description and your existing experience and skills.",
-      "source": "Source Builder Resume",
-      "chooseSource": "Choose a Builder Resume",
-      "empty": "Create a Builder Resume first. Uploaded Resumes cannot be adapted here.",
+      "description": "Choose a Builder Resume or an uploaded PDF. Suggestions use this Job’s saved description and your confirmed experience and skills.",
+      "source": "Source resume",
+      "chooseSource": "Choose a resume",
+      "empty": "Add a Builder Resume or upload a PDF on the Resumes page first.",
       "createResume": "Go to Resumes",
       "missingDescription": "Add a Job description above and save the Job to generate suggestions.",
       "saveJobFirst": "Save or discard the Job’s changes before adapting a resume.",
@@ -470,8 +470,27 @@
         "timeout": "The request took too long. Try again; if saving completed, the same copy will be returned.",
         "invalidResponse": "The suggestions could not be verified. Generate again or try later.",
         "notFound": "The source, Job, or suggestions are no longer available. Close this window and refresh the Job.",
-        "requestFailed": "Could not complete this request. Your selected changes are kept. Try again."
-      }
+        "requestFailed": "Could not complete this request. Your selected changes are kept. Try again.",
+        "pdfUnreadable": "This PDF could not be read. Scanned or image-only PDFs are not supported. Paste your resume text instead.",
+        "recognitionRequired": "Review and confirm the imported copy before adapting it.",
+        "operationPending": "This request is still running. Retry shortly to recover the same result.",
+        "operationInterrupted": "The request was interrupted and will not run again with this key. Your saved data is kept.",
+        "operationDeleted": "This request was completed, but its result was deleted. It cannot recreate the document.",
+        "requestConflict": "This request was already used with different input. Start a new attempt."
+      },
+      "pdf": {
+        "sourceLabel": "PDF — {{title}}",
+        "disclosure": "Import creates an editable copy in a Jobber template. The original PDF layout is not preserved. Review and correct the recognized data before AI adaptation.",
+        "usage": "The intermediate copy uses a document slot. Import recognition and AI adaptation each use your existing AI allowance; document slots and AI usage are separate. Saving the adapted copy needs another document slot.",
+        "cancelHint": "Cancel keeps your original and any imported copy. Nothing is deleted automatically.",
+        "manual": "Paste resume text instead",
+        "importReview": "Import and review recognition",
+        "reviewTitle": "Review recognized resume data",
+        "reviewHint": "Check every section, correct missing or incorrect facts, and remove anything not in your resume. Confirm the corrected data before adapting it to this Job.",
+        "confirmRecognition": "Confirm data and return to Job",
+        "returnWithoutConfirm": "Return without confirming"
+      },
+      "newAttempt": "Start a new AI attempt"
     },
     "interview": {
       "title": "Interview preparation",

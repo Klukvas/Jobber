@@ -35,6 +35,10 @@ func NewTailoringService(resumes ports.ResumeBuilderRepository, repo ports.Tailo
 }
 
 func (s *TailoringService) Generate(ctx context.Context, userID, jobID, resumeID, locale string) (*model.TailoringProposalDTO, error) {
+	return s.generate(ctx, userID, jobID, resumeID, locale, uuid.NewString(), true)
+}
+
+func (s *TailoringService) generate(ctx context.Context, userID, jobID, resumeID, locale, proposalID string, charge bool) (*model.TailoringProposalDTO, error) {
 	job, err := s.repo.GetTailoringJob(ctx, userID, jobID)
 	if err != nil {
 		return nil, err
@@ -46,17 +50,12 @@ func (s *TailoringService) Generate(ctx context.Context, userID, jobID, resumeID
 	if err != nil {
 		return nil, fmt.Errorf("load tailoring source: %w", err)
 	}
-	if s.client == nil {
-		return nil, model.ErrAIUnavailable
-	}
-	if s.store == nil {
-		return nil, model.ErrProposalStoreUnavailable
-	}
+	return s.generateSnapshot(ctx, userID, jobID, resumeID, locale, proposalID, charge, job, source)
+}
+
+func tailoringFacts(job *model.TailoringJob, source *model.FullResumeDTO) ([]byte, error) {
 	if strings.TrimSpace(job.Description) == "" {
 		return nil, model.ErrTailoringValidation
-	}
-	if err := s.limits.CheckLimit(ctx, userID, "ai"); err != nil {
-		return nil, err
 	}
 	visible := visibleTailoringSource(source)
 	facts, err := json.Marshal(struct {
@@ -70,13 +69,34 @@ func (s *TailoringService) Generate(ctx context.Context, userID, jobID, resumeID
 	if len(facts) > 60000 || len(source.Experiences) > 50 || len(source.Skills) > 200 {
 		return nil, model.ErrTailoringValidation
 	}
+	return facts, nil
+}
+
+func (s *TailoringService) generateSnapshot(ctx context.Context, userID, jobID, resumeID, locale, proposalID string, charge bool, job *model.TailoringJob, source *model.FullResumeDTO) (*model.TailoringProposalDTO, error) {
+	if s.client == nil {
+		return nil, model.ErrAIUnavailable
+	}
+	if s.store == nil {
+		return nil, model.ErrProposalStoreUnavailable
+	}
+	facts, err := tailoringFacts(job, source)
+	if err != nil {
+		return nil, err
+	}
+	if charge {
+		if err := s.limits.CheckLimit(ctx, userID, "ai"); err != nil {
+			return nil, err
+		}
+	}
 	ctxAI, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
 	suggestions, err := s.client.TailorResume(ctxAI, job.Title+"\n"+job.Company+"\n"+job.Description, string(facts), locale)
 	if err != nil {
 		if errors.Is(err, ai.ErrInvalidTailoringResponse) {
-			if usageErr := s.limits.RecordAIUsage(ctx, userID); usageErr != nil {
-				slog.Warn("failed to record tailoring AI usage", "error", usageErr)
+			if charge {
+				if usageErr := s.limits.RecordAIUsage(ctx, userID); usageErr != nil {
+					slog.Warn("failed to record tailoring AI usage", "error", usageErr)
+				}
 			}
 			return nil, model.ErrAIInvalidResponse
 		}
@@ -87,15 +107,17 @@ func (s *TailoringService) Generate(ctx context.Context, userID, jobID, resumeID
 		return nil, model.ErrAIRequestFailed
 	}
 	// A completed provider call counts even if its output is rejected or Redis fails.
-	if err := s.limits.RecordAIUsage(ctx, userID); err != nil {
-		slog.Warn("failed to record tailoring AI usage", "user_id", userID, "error", err)
+	if charge {
+		if err := s.limits.RecordAIUsage(ctx, userID); err != nil {
+			slog.Warn("failed to record tailoring AI usage", "user_id", userID, "error", err)
+		}
 	}
 	changes, err := validateTailoringSuggestions(source, suggestions)
 	if err != nil {
 		return nil, err
 	}
 	proposal := &model.TailoringProposal{
-		TailoringProposalDTO: model.TailoringProposalDTO{ProposalID: uuid.NewString(), ExpiresAt: time.Now().UTC().Add(30 * time.Minute),
+		TailoringProposalDTO: model.TailoringProposalDTO{ProposalID: proposalID, ExpiresAt: time.Now().UTC().Add(30 * time.Minute),
 			SourceResume: model.TailoringResource{ID: resumeID, Title: source.Title}, Job: model.TailoringResource{ID: jobID, Title: job.Title}, Changes: changes},
 		UserID: userID, Source: source, SourceHash: hashTailoring(source), JobSnapshot: job,
 	}
@@ -116,9 +138,55 @@ func (s *TailoringService) Apply(ctx context.Context, userID, jobID, proposalID 
 	var result *model.ApplyTailoringResult
 	replayed := false
 	err := s.repo.RunTailoringTransaction(ctx, userID, func(tx ports.TailoringTransaction) error {
-		proposal, err := s.store.Get(ctx, userID, proposalID)
-		if err != nil {
-			return err
+		requestFingerprint := hashApplyRequest(req)
+		workflow, durable := tx.(ports.WorkflowTransaction)
+		_, durableStore := s.store.(interface{ Durable() bool })
+		durable = durable && durableStore
+		if durable {
+			receipt, err := workflow.GetOperation(ctx, userID, "apply", proposalID)
+			if err != nil {
+				return err
+			}
+			if receipt != nil {
+				if receipt.JobID != jobID {
+					return model.ErrTailoringNotFound
+				}
+				if receipt.Fingerprint != requestFingerprint {
+					return model.ErrOperationConflict
+				}
+				existing, err := tx.GetByID(ctx, userID, receipt.ObjectID)
+				if errors.Is(err, model.ErrResumeBuilderNotFound) {
+					return model.ErrOperationDeleted
+				}
+				if err != nil {
+					return err
+				}
+				result = &model.ApplyTailoringResult{ResumeBuilder: existing.ToDTO(), JobID: jobID}
+				replayed = true
+				return nil
+			}
+		}
+		var proposal *model.TailoringProposal
+		var err error
+		if durable {
+			operation, loadErr := workflow.GetOperation(ctx, userID, "generate", proposalID)
+			if loadErr != nil {
+				return loadErr
+			}
+			if operation == nil || operation.Status != "succeeded" {
+				return model.ErrProposalExpired
+			}
+			if err := json.Unmarshal(operation.Result, &proposal); err != nil {
+				return model.ErrProposalStoreUnavailable
+			}
+			if !time.Now().Before(proposal.ExpiresAt) {
+				return model.ErrProposalExpired
+			}
+		} else {
+			proposal, err = s.store.Get(ctx, userID, proposalID)
+			if err != nil {
+				return err
+			}
 		}
 		if proposal.Job.ID != jobID || proposal.UserID != userID {
 			return model.ErrTailoringNotFound
@@ -162,8 +230,10 @@ func (s *TailoringService) Apply(ctx context.Context, userID, jobID, proposalID 
 		// Persist before committing the copy: a lost response or Redis acknowledgement
 		// cannot create a second copy. A rolled-back attempt may choose again.
 		proposal.AcceptedFingerprint = fingerprint
-		if err := s.store.Save(ctx, proposal); err != nil {
-			return err
+		if !durable {
+			if err := s.store.Save(ctx, proposal); err != nil {
+				return err
+			}
 		}
 		full, err := applyTailoringChanges(source, selected)
 		if err != nil {
@@ -180,6 +250,13 @@ func (s *TailoringService) Apply(ctx context.Context, userID, jobID, proposalID 
 			return err
 		}
 		result = &model.ApplyTailoringResult{ResumeBuilder: resume.ToDTO(), JobID: jobID}
+		if durable {
+			payload, err := json.Marshal(result)
+			if err != nil {
+				return err
+			}
+			return workflow.PutOperation(ctx, &model.WorkflowOperation{UserID: userID, Kind: "apply", Key: proposalID, JobID: jobID, Fingerprint: requestFingerprint, Status: "succeeded", ObjectID: proposalID, Result: payload, CreatedAt: time.Now().UTC()})
+		}
 		return nil
 	})
 	return result, replayed, err
@@ -277,4 +354,13 @@ func applyTailoringChanges(source *model.FullResumeDTO, changes []model.Tailorin
 		}
 	}
 	return &full, nil
+}
+
+func hashApplyRequest(req *model.ApplyTailoringRequest) string {
+	ids := append([]string(nil), req.AcceptedChangeIDs...)
+	sort.Strings(ids)
+	return hashTailoring(struct {
+		Title string
+		IDs   []string
+	}{strings.TrimSpace(req.Title), ids})
 }
