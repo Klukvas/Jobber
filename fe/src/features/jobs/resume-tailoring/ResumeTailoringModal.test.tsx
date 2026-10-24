@@ -218,8 +218,8 @@ describe("Job resume tailoring", () => {
     const second=setup();await generate(second.user);
     expect(mocks.generate.mock.calls[1][3].requestKey).toBe(key);
   });
-  it("offers an explicit fresh AI attempt after a definitive provider failure", async () => {
-    mocks.generate.mockRejectedValueOnce(new ApiError("","AI_TIMEOUT",504));
+  it.each([{ code: "AI_TIMEOUT", status: 422 }, { code: "AI_INVALID_RESPONSE", status: 422 }, { code: "AI_REQUEST_FAILED", status: 422 }])("offers an explicit fresh AI attempt after $code", async ({ code, status }) => {
+    mocks.generate.mockRejectedValueOnce(new ApiError("",code,status));
     const {user}=setup();
     await waitFor(()=>expect(screen.getByRole("button",{name:"jobs.tailoring.generate"})).toBeEnabled());
     await user.click(screen.getByRole("button",{name:"jobs.tailoring.generate"}));

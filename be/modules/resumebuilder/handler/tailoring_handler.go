@@ -137,11 +137,11 @@ func tailoringError(c *gin.Context, err error) {
 	case errors.Is(err, model.ErrProposalStoreUnavailable):
 		status, code, message = http.StatusServiceUnavailable, "PROPOSAL_STORE_UNAVAILABLE", "Resume tailoring is temporarily unavailable"
 	case errors.Is(err, model.ErrAIInvalidResponse):
-		status, code, message = http.StatusBadGateway, "AI_INVALID_RESPONSE", "AI returned unsupported changes. Please try again"
+		status, code, message = http.StatusUnprocessableEntity, "AI_INVALID_RESPONSE", "AI returned unsupported changes. Please try again"
 	case errors.Is(err, model.ErrAIRequestFailed):
-		status, code, message = http.StatusBadGateway, "AI_REQUEST_FAILED", "AI could not generate suggestions. Please try again"
+		status, code, message = http.StatusUnprocessableEntity, "AI_REQUEST_FAILED", "AI could not generate suggestions. Please try again"
 	case errors.Is(err, model.ErrAITimeout):
-		status, code, message = http.StatusGatewayTimeout, "AI_TIMEOUT", "AI took too long. Please try again"
+		status, code, message = http.StatusUnprocessableEntity, "AI_TIMEOUT", "AI took too long. Please try again"
 	}
 	httpPlatform.RespondWithError(c, status, code, message)
 }

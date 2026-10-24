@@ -45,18 +45,20 @@ func TestTailoringHandlerGenerate(t *testing.T) {
 	job, source := uuid.NewString(), uuid.NewString()
 	for _, test := range []struct {
 		name, path, body string
+		err              error
 		auth             bool
 		status           int
 		calls            int
 	}{
 		{name: "direct proposal JSON", path: job, body: `{"resume_builder_id":"` + source + `","locale":"en"}`, auth: true, status: 200, calls: 1},
+		{name: "rejected AI output remains structured", path: job, body: `{"resume_builder_id":"` + source + `","locale":"en"}`, auth: true, err: model.ErrAIInvalidResponse, status: 422, calls: 1},
 		{name: "authentication", path: job, body: `{}`, status: 401},
 		{name: "invalid job UUID", path: "invalid", body: `{}`, auth: true, status: 400},
 		{name: "invalid source UUID", path: job, body: `{"resume_builder_id":"invalid"}`, auth: true, status: 400},
 		{name: "invalid locale", path: job, body: `{"resume_builder_id":"` + source + `","locale":"xx"}`, auth: true, status: 400},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			s := &tailoringHandlerTestService{}
+			s := &tailoringHandlerTestService{err: test.err}
 			router := tailoringTestRouter(s, test.auth)
 			response := httptest.NewRecorder()
 			request := httptest.NewRequest(http.MethodPost, "/api/v1/jobs/"+test.path+"/resume-tailoring", strings.NewReader(test.body))
@@ -91,9 +93,9 @@ func TestTailoringHandlerApplyAndErrors(t *testing.T) {
 		{name: "expired", err: model.ErrProposalExpired, status: 410, code: "PROPOSAL_EXPIRED"},
 		{name: "no AI key", err: model.ErrAIUnavailable, status: 503, code: "AI_UNAVAILABLE"},
 		{name: "store down", err: model.ErrProposalStoreUnavailable, status: 503, code: "PROPOSAL_STORE_UNAVAILABLE"},
-		{name: "invalid model", err: model.ErrAIInvalidResponse, status: 502, code: "AI_INVALID_RESPONSE"},
-		{name: "provider failed", err: model.ErrAIRequestFailed, status: 502, code: "AI_REQUEST_FAILED"},
-		{name: "timeout", err: model.ErrAITimeout, status: 504, code: "AI_TIMEOUT"},
+		{name: "invalid model retains semantic error through edge", err: model.ErrAIInvalidResponse, status: 422, code: "AI_INVALID_RESPONSE"},
+		{name: "provider failed", err: model.ErrAIRequestFailed, status: 422, code: "AI_REQUEST_FAILED"},
+		{name: "timeout", err: model.ErrAITimeout, status: 422, code: "AI_TIMEOUT"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			s := &tailoringHandlerTestService{err: test.err, replayed: test.replayed}
