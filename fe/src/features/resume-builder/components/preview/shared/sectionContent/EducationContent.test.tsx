@@ -130,7 +130,7 @@ describe("EducationContent", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("does not render GPA in minimal variant", () => {
+    it("renders saved GPA in minimal variant", () => {
       const setup = makeSetup([sampleEdu]);
       render(
         <EducationContent
@@ -139,7 +139,7 @@ describe("EducationContent", () => {
           editable={false}
         />,
       );
-      expect(screen.queryByText("GPA:")).not.toBeInTheDocument();
+      expect(screen.getByText("GPA:")).toBeInTheDocument();
     });
 
     it("renders institution with dot separator", () => {

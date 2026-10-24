@@ -80,6 +80,20 @@ export function SkillsContent({
                   inputClassName="text-white placeholder:text-white/60"
                   editable={editable}
                 />
+                {config.skills.showLevel && (skill.level || editable) && (
+                  <>
+                    {" ("}
+                    <EditableSelect
+                      value={skill.level}
+                      onChange={(v) => updateSkill(skill.id, { level: v })}
+                      options={SKILL_LEVEL_OPTIONS}
+                      placeholder="Level"
+                      className="text-xs text-white"
+                      editable={editable}
+                    />
+                    {")"}
+                  </>
+                )}
               </span>
             </EntryWrapper>
           ))}

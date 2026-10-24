@@ -150,21 +150,21 @@ export function EducationContent({
                   editable={editable}
                 />
               </div>
-              {(edu.gpa || editable) && (
-                <div
-                  className={`flex items-center gap-1 ${config.textSize} text-gray-600`}
-                >
-                  <span>GPA:</span>
-                  <EditableField
-                    value={edu.gpa}
-                    onChange={(v) => updateEducation(edu.id, { gpa: v })}
-                    placeholder="3.8"
-                    inputClassName={inputClass}
-                    editable={editable}
-                  />
-                </div>
-              )}
             </>
+          )}
+          {(edu.gpa || editable) && (
+            <div
+              className={`flex items-center gap-1 ${config.textSize} text-gray-600`}
+            >
+              <span>GPA:</span>
+              <EditableField
+                value={edu.gpa}
+                onChange={(v) => updateEducation(edu.id, { gpa: v })}
+                placeholder="3.8"
+                inputClassName={inputClass}
+                editable={editable}
+              />
+            </div>
           )}
         </EntryWrapper>
       ))}

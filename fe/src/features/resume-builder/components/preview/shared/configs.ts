@@ -67,7 +67,7 @@ export const minimalConfig: TemplateConfig = {
   textSize: "text-xs",
   leadingClass: "leading-relaxed",
   skills: {
-    renderAs: "text-only",
+    renderAs: "text-level",
     containerClass: "flex flex-wrap gap-x-2 gap-y-1",
   },
   languages: {
@@ -116,6 +116,7 @@ export const creativeConfig: TemplateConfig = {
   leadingClass: "leading-relaxed",
   skills: {
     renderAs: "pill",
+    showLevel: true,
     containerClass: "flex flex-wrap gap-1.5",
   },
   languages: {
@@ -165,6 +166,7 @@ export const elegantConfig: TemplateConfig = {
   leadingClass: "leading-relaxed",
   skills: {
     renderAs: "pill",
+    showLevel: true,
     containerClass: "flex flex-wrap gap-1.5",
   },
   languages: {
@@ -202,6 +204,7 @@ export const iconicConfig: TemplateConfig = {
   leadingClass: "leading-relaxed",
   skills: {
     renderAs: "pill",
+    showLevel: true,
     containerClass: "flex flex-wrap gap-1.5",
   },
   languages: {
@@ -227,6 +230,7 @@ export const boldConfig: TemplateConfig = {
   leadingClass: "leading-relaxed",
   skills: {
     renderAs: "pill",
+    showLevel: true,
     containerClass: "flex flex-wrap gap-1.5",
   },
   languages: {
@@ -276,6 +280,7 @@ export const timelineConfig: TemplateConfig = {
   leadingClass: "leading-relaxed",
   skills: {
     renderAs: "pill",
+    showLevel: true,
     containerClass: "flex flex-wrap gap-1.5",
   },
   languages: {
@@ -301,6 +306,7 @@ export const vividConfig: TemplateConfig = {
   leadingClass: "leading-relaxed",
   skills: {
     renderAs: "pill",
+    showLevel: true,
     containerClass: "flex flex-wrap gap-1.5",
   },
   languages: {

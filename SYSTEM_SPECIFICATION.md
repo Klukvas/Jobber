@@ -4750,3 +4750,17 @@ migration down, schema force or automatic database restore runs during recovery.
   document/Job 404s and permission/plan 403s remain request-specific errors and
   do not disable AI for other documents. The API client records whether an error
   body was unstructured; valid JSON without an error code is still structured.
+
+## Resume template field visibility corrections (October 24, 2026)
+
+- Modern and Minimal render a saved certification issue date. Minimal also
+  renders experience location and education GPA; empty optional fields remain
+  hidden in Preview and editable in the document. Dates use the existing
+  document date representation, and Modern sidebar metadata inherits its color.
+- Minimal renders language proficiency using the same readable labels as other
+  templates, including Full Professional, and supports editing the proficiency.
+- Template Default displays saved skill levels in every template: Minimal uses
+  text with level, and Creative, Elegant, Iconic, Bold, Timeline and Vivid keep
+  their pill badges with a level added. Explicit Text Only and Pill Badge
+  choices retain their name-only behavior. Changing template or display format
+  does not alter saved field values.

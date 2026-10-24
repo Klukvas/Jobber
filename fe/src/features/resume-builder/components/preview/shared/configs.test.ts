@@ -68,9 +68,9 @@ describe("individual configs", () => {
     expect(modernConfig.renderContactInSwitch).toBe(true);
   });
 
-  it("minimal uses 'Summary' and text-only skills", () => {
+  it("minimal uses 'Summary' and text-level skills", () => {
     expect(minimalConfig.summaryTitle).toBe("Summary");
-    expect(minimalConfig.skills.renderAs).toBe("text-only");
+    expect(minimalConfig.skills.renderAs).toBe("text-level");
   });
 
   it("executive uses 'Executive Summary'", () => {

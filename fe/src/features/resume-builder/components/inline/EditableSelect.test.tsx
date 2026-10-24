@@ -26,6 +26,19 @@ describe("EditableSelect", () => {
     expect(screen.getByText("Intermediate")).toBeInTheDocument();
   });
 
+  it("maps a legacy uppercase value to its readable label without changing it", () => {
+    render(<EditableSelect {...defaultProps} value="INTERMEDIATE" editable={false} />);
+    expect(screen.getByText("Intermediate")).toBeInTheDocument();
+    expect(defaultProps.onChange).not.toHaveBeenCalled();
+  });
+
+  it("preserves unknown imported values as escaped display text", () => {
+    const { container } = render(<EditableSelect {...defaultProps} value="<b>Legacy level</b>" editable={false} />);
+    expect(screen.getByText("<b>Legacy level</b>")).toBeInTheDocument();
+    expect(container.querySelector("b")).toBeNull();
+    expect(defaultProps.onChange).not.toHaveBeenCalled();
+  });
+
   it("renders placeholder when no value is selected", () => {
     render(<EditableSelect {...defaultProps} value="" />);
     expect(screen.getByText("Select level")).toBeInTheDocument();
@@ -39,6 +52,12 @@ describe("EditableSelect", () => {
 
     expect(screen.getByText("Beginner")).toBeInTheDocument();
     expect(screen.getByText("Advanced")).toBeInTheDocument();
+  });
+
+  it("keeps dropdown options readable inside a white-text skill badge", async () => {
+    render(<span className="text-white"><EditableSelect {...defaultProps} className="text-white" /></span>);
+    await userEvent.setup().click(screen.getByText("Intermediate"));
+    expect(screen.getByRole("button", { name: "Beginner" }).parentElement).toHaveClass("text-gray-700");
   });
 
   it("calls onChange when an option is selected", async () => {

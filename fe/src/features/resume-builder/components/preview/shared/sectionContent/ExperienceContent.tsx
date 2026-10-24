@@ -76,6 +76,17 @@ export function ExperienceContent({
                   editable={editable}
                 />
               </div>
+              {(exp.location || editable) && (
+                <EditableField
+                  value={exp.location}
+                  onChange={(v) => updateExperience(exp.id, { location: v })}
+                  placeholder="Location"
+                  as="p"
+                  className="text-xs text-gray-500"
+                  inputClassName={inputClass}
+                  editable={editable}
+                />
+              )}
               {(exp.description || editable) && (
                 <EditableTextarea
                   value={exp.description}

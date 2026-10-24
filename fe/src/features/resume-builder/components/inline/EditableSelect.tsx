@@ -28,7 +28,7 @@ export function EditableSelect({
   const [isOpen, setIsOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  const selectedLabel = options.find((o) => o.value === value)?.label ?? "";
+  const selectedLabel = options.find((o) => o.value.toLowerCase() === value.toLowerCase())?.label ?? value;
 
   const toggle = useCallback(() => {
     if (!editable) return;
@@ -81,7 +81,7 @@ export function EditableSelect({
         <div
           ref={popoverRef}
           onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); setIsOpen(false); } }}
-          className="absolute left-0 top-full z-50 mt-1 min-w-[120px] rounded-md border bg-white py-1 shadow-lg"
+          className="absolute left-0 top-full z-50 mt-1 min-w-[120px] rounded-md border bg-white py-1 text-gray-700 shadow-lg"
         >
           {options.map((option) => (
             <button

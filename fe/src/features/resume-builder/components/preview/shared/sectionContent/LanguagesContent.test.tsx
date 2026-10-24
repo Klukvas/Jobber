@@ -88,7 +88,7 @@ describe("LanguagesContent", () => {
           editable={true}
         />,
       );
-      expect(screen.getByText(/\(native\)/)).toBeInTheDocument();
+      expect(screen.getByTestId("select")).toBeInTheDocument();
     });
 
     it("joins languages with dot separator in view mode", () => {
@@ -101,7 +101,7 @@ describe("LanguagesContent", () => {
         />,
       );
       expect(
-        screen.getByText("English (native) · Spanish (professional_working)"),
+        screen.getByText("English (Native) · Spanish (Professional Working)"),
       ).toBeInTheDocument();
     });
 

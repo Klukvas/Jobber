@@ -106,20 +106,18 @@ export function CertificationsContent({
                   </>
                 )}
               </div>
-              {(cert.issue_date || editable) && (
-                <EditableField
-                  value={cert.issue_date}
-                  onChange={(v) =>
-                    updateCertification(cert.id, { issue_date: v })
-                  }
-                  placeholder="Issue date"
-                  type="date"
-                  as="p"
-                  className={`${config.textSize} text-gray-500`}
-                  editable={editable}
-                />
-              )}
             </>
+          )}
+          {(cert.issue_date || editable) && (
+            <EditableField
+              value={cert.issue_date}
+              onChange={(v) => updateCertification(cert.id, { issue_date: v })}
+              placeholder="Issue date"
+              type="date"
+              as="p"
+              className={`${config.textSize} ${isModern ? "opacity-70" : "text-gray-500"}`}
+              editable={editable}
+            />
           )}
         </EntryWrapper>
       ))}

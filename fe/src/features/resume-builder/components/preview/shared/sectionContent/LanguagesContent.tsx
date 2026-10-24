@@ -33,7 +33,20 @@ export function LanguagesContent({
                   inputClassName={inputClass}
                   editable={editable}
                 />
-                {l.proficiency && ` (${l.proficiency})`}
+                {(l.proficiency || editable) && (
+                  <>
+                    {" ("}
+                    <EditableSelect
+                      value={l.proficiency}
+                      onChange={(v) => updateLanguage(l.id, { proficiency: v })}
+                      options={PROFICIENCY_OPTIONS}
+                      placeholder="Proficiency"
+                      className="text-xs"
+                      editable={editable}
+                    />
+                    {")"}
+                  </>
+                )}
                 {" \u00B7 "}
               </span>
             </EntryWrapper>
@@ -44,10 +57,12 @@ export function LanguagesContent({
     return resume.languages.length > 0 ? (
       <p className="text-xs text-gray-600">
         {resume.languages
-          .map(
-            (l) =>
-              `${l.name}${l.proficiency ? ` (${l.proficiency})` : ""}`,
-          )
+          .map((language) => {
+            const proficiency = PROFICIENCY_OPTIONS.find(
+              (option) => option.value.toLowerCase() === language.proficiency.toLowerCase(),
+            )?.label ?? language.proficiency;
+            return `${language.name}${proficiency ? ` (${proficiency})` : ""}`;
+          })
           .join(" \u00B7 ")}
       </p>
     ) : null;

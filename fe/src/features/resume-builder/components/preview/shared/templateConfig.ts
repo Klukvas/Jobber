@@ -4,10 +4,10 @@ import type { ComponentType } from "react";
  * How skills are rendered across templates.
  *
  * - "text-level":  name + (level) in flex-wrap  (professional, executive, minimal)
- * - "pill":        colored badge, white text, no level  (creative, elegant, iconic)
+ * - "pill":        colored badge, optionally with level  (creative, elegant, iconic)
  * - "grid-level":  3-column grid with name + (level)  (compact)
  * - "vertical":    stacked name + level below  (modern)
- * - "text-only":   name-only dots join, no level  (minimal read-only variant)
+ * - "text-only":   name-only dots join, no level  (explicit customization)
  */
 export type SkillRenderMode =
   | "text-level"
@@ -64,6 +64,8 @@ export interface TemplateConfig {
   /** Skills rendering configuration. */
   readonly skills: {
     readonly renderAs: SkillRenderMode;
+    /** Include the saved level in default pill badges; explicit name-only overrides omit it. */
+    readonly showLevel?: boolean;
     readonly containerClass: string;
   };
 
