@@ -4757,6 +4757,7 @@ migration down, schema force or automatic database restore runs during recovery.
   renders experience location and education GPA; empty optional fields remain
   hidden in Preview and editable in the document. Dates use the existing
   document date representation, and Modern sidebar metadata inherits its color.
+  Its active date input uses dark text on the pale editing background.
 - Minimal renders language proficiency using the same readable labels as other
   templates, including Full Professional, and supports editing the proficiency.
 - Template Default displays saved skill levels in every template: Minimal uses

@@ -116,6 +116,7 @@ export function CertificationsContent({
               type="date"
               as="p"
               className={`${config.textSize} ${isModern ? "opacity-70" : "text-gray-500"}`}
+              inputClassName={isModern ? `${config.textSize} text-gray-700` : undefined}
               editable={editable}
             />
           )}

@@ -62,6 +62,28 @@ describe("saved fields in actual templates", () => {
     expect(date).not.toHaveClass("text-gray-500");
   });
 
+  it("keeps Modern sidebar date inputs readable and Escape restores the saved value", () => {
+    const Template = TEMPLATE_MAP["00000000-0000-0000-0000-000000000002"];
+    useResumeBuilderStore.setState({ resume: {
+      ...filledResumeFixture, layout_mode: "double-left",
+      section_order: [{ section_key: "certifications", sort_order: 0, is_visible: true, column: "sidebar" }],
+    } });
+    render(<Template editable />);
+    const displayedDate = screen.getByRole("textbox", { name: "Issue date" });
+    expect(displayedDate).toHaveClass("opacity-70");
+    expect(displayedDate).not.toHaveClass("text-gray-700");
+    fireEvent.mouseDown(displayedDate);
+    const input = screen.getByLabelText("Issue date");
+    expect(input.tagName).toBe("INPUT");
+    expect(input).toHaveClass("text-gray-700");
+    fireEvent.change(input, { target: { value: "2025-07-08" } });
+    expect(useResumeBuilderStore.getState().resume?.certifications[0].issue_date).toBe("2025-07-08");
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(useResumeBuilderStore.getState().resume?.certifications[0].issue_date).toBe("2024-05-06");
+    expect(screen.getByText("2024-05-06")).toHaveClass("opacity-70");
+    expect(screen.getByText("2024-05-06")).not.toHaveClass("text-gray-700");
+  });
+
   it("maps uppercase Minimal language proficiency in Preview", () => {
     const Template = TEMPLATE_MAP["00000000-0000-0000-0000-000000000003"];
     useResumeBuilderStore.setState({ resume: {
