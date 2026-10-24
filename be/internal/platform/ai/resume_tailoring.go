@@ -67,7 +67,10 @@ Write reasons in ` + localeToLanguage(locale) + `.` + antiInjectionClause
 	if response == nil || response.StopReason != "end_turn" || len(response.Content) == 0 {
 		return nil, fmt.Errorf("incomplete resume tailoring response: %w", ErrInvalidTailoringResponse)
 	}
-	text := extractTextFromResponse(response.Content)
+	text, err := tailoringResponseText(response.Content)
+	if err != nil {
+		return nil, err
+	}
 	if !strings.HasPrefix(strings.TrimSpace(text), "{") || len(text) > 200000 {
 		return nil, fmt.Errorf("resume tailoring response too large: %w", ErrInvalidTailoringResponse)
 	}
@@ -81,4 +84,49 @@ Write reasons in ` + localeToLanguage(locale) + `.` + antiInjectionClause
 		return nil, fmt.Errorf("trailing resume tailoring response: %w", ErrInvalidTailoringResponse)
 	}
 	return &result, nil
+}
+
+// A single fenced JSON document may have an inert explanatory paragraph after
+// its closing fence. Keep this framing local to tailoring; its JSON decoder and
+// source-evidence validator still decide which edits are acceptable.
+func tailoringResponseText(content []anthropic.ContentBlockUnion) (string, error) {
+	var raw strings.Builder
+	for _, block := range content {
+		if block.Type == "text" {
+			raw.WriteString(block.Text)
+		}
+	}
+	text := strings.TrimSpace(raw.String())
+	if len(text) > 200000 {
+		return "", ErrInvalidTailoringResponse
+	}
+	if !strings.HasPrefix(text, "```") {
+		return extractTextFromResponse(content), nil
+	}
+	lines := strings.Split(text, "\n")
+	opening := strings.TrimSpace(lines[0])
+	if opening != "```json" && opening != "```" {
+		return "", ErrInvalidTailoringResponse
+	}
+	for index := 1; index < len(lines); index++ {
+		if strings.TrimSpace(lines[index]) != "```" {
+			continue
+		}
+		suffix := strings.TrimSpace(strings.Join(lines[index+1:], "\n"))
+		// Additional code blocks, objects, arrays, or JSON scalar payloads make
+		// the envelope ambiguous; never silently choose between model outputs.
+		if strings.Contains(suffix, "```") || strings.Contains(suffix, "~~~") || strings.ContainsAny(suffix, "{[") {
+			return "", ErrInvalidTailoringResponse
+		}
+		if suffix != "" && json.NewDecoder(strings.NewReader(suffix)).Decode(new(any)) == nil {
+			return "", ErrInvalidTailoringResponse
+		}
+		for _, line := range strings.Split(suffix, "\n") {
+			if json.Unmarshal([]byte(strings.TrimSpace(line)), new(any)) == nil {
+				return "", ErrInvalidTailoringResponse
+			}
+		}
+		return strings.TrimSpace(strings.Join(lines[1:index], "\n")), nil
+	}
+	return "", ErrInvalidTailoringResponse
 }
