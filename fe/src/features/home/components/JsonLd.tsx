@@ -3,14 +3,14 @@ import { useEffect } from "react";
 import { serializeJsonLd } from "@/shared/lib/jsonLd";
 
 const SCRIPT_ID = "jobber-jsonld";
-const SITE_URL = "https://jobber-app.com";
+const SITE_URL = "https://cursopus.com";
 
 function buildJsonLd() {
   return serializeJsonLd([
     {
       "@context": "https://schema.org",
       "@type": "WebApplication",
-      name: "Jobber",
+      name: "Cursopus",
       url: SITE_URL,
       description:
         "AI-powered job application tracker: organize your job search on a Kanban board, build ATS-friendly resumes, and generate tailored cover letters.",
@@ -34,7 +34,7 @@ function buildJsonLd() {
     {
       "@context": "https://schema.org",
       "@type": "WebSite",
-      name: "Jobber",
+      name: "Cursopus",
       url: SITE_URL,
       potentialAction: {
         "@type": "SearchAction",
@@ -48,7 +48,7 @@ function buildJsonLd() {
     {
       "@context": "https://schema.org",
       "@type": "Organization",
-      name: "Jobber",
+      name: "Cursopus",
       url: SITE_URL,
       logo: `${SITE_URL}/favicon.png`,
       // Populate with verified official profile URLs only (Twitter/X, LinkedIn, GitHub).

@@ -1,4 +1,4 @@
-# Jobber Frontend
+# Cursopus Frontend
 
 Job Application Tracking Platform - Frontend Application
 

@@ -171,7 +171,7 @@ func (h *SharingHandler) PreviewHTML(c *gin.Context) {
 	overview := share.Snapshot.Overview
 	title := fmt.Sprintf("My job search stats — %d applications, %.0f%% response rate", overview.TotalApplications, overview.ResponseRate)
 	description := fmt.Sprintf(
-		"%d total applications, %d still in progress, %.0f%% response rate. Tracked with Jobber.",
+		"%d total applications, %d still in progress, %.0f%% response rate. Tracked with Cursopus.",
 		overview.TotalApplications, overview.ActiveApplications, overview.ResponseRate,
 	)
 	shareURL := fmt.Sprintf("%s/s/%s", h.publicBaseURL, url.PathEscape(token))
@@ -249,7 +249,7 @@ const previewHTMLTemplate = `<!DOCTYPE html>
 <title>%s</title>
 <meta name="robots" content="noindex">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="Jobber">
+<meta property="og:site_name" content="Cursopus">
 <meta property="og:title" content="%s">
 <meta property="og:description" content="%s">
 <meta property="og:url" content="%s">

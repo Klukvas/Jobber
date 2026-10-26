@@ -65,4 +65,4 @@ The interview doesn't end when you close the laptop:
 
 ---
 
-*Track your interview stages and follow-ups with [Jobber](https://jobber-app) — never miss a deadline in your job search.*
+*Track your interview stages and follow-ups with [Cursopus](https://cursopus.com) — never miss a deadline in your job search.*

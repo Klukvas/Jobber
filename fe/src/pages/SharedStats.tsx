@@ -36,7 +36,7 @@ export default function SharedStats() {
       <header className="border-b">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
           <Link to="/" className="text-xl font-bold text-primary">
-            Jobber
+            Cursopus
           </Link>
           <Button size="sm" onClick={() => navigate("/register")}>
             {t("sharing.public.ctaButton")}

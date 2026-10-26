@@ -1,4 +1,4 @@
-// shared/api.js — Shared API utilities for Jobber extension
+// shared/api.js — Shared API utilities for Cursopus extension
 const JobberAPI = (() => {
   const API_BASE = "https://jobber-app.com";
   const ALLOWED_ORIGINS = ["https://jobber-app.com", "http://localhost:8080"];

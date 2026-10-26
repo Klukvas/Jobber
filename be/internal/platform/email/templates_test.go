@@ -223,13 +223,13 @@ func TestCodeBlockHTML(t *testing.T) {
 // the forgot-password screen and retype six digits from another window.
 func TestResetPasswordURL(t *testing.T) {
 	t.Run("builds the deep link the reset page expects", func(t *testing.T) {
-		got := resetPasswordURL("https://jobber-app.com", "alex@example.com", "654321")
+		got := resetPasswordURL("https://cursopus.com", "alex@example.com", "654321")
 
 		parsed, err := url.Parse(got)
 		if err != nil {
 			t.Fatalf("not a URL: %v", err)
 		}
-		if parsed.Scheme != "https" || parsed.Host != "jobber-app.com" {
+		if parsed.Scheme != "https" || parsed.Host != "cursopus.com" {
 			t.Errorf("wrong origin: %s", got)
 		}
 		if parsed.Path != "/reset-password" {
@@ -249,7 +249,7 @@ func TestResetPasswordURL(t *testing.T) {
 	})
 
 	t.Run("percent-encodes the address rather than pasting it in", func(t *testing.T) {
-		got := resetPasswordURL("https://jobber-app.com", "a+b@example.com", "654321")
+		got := resetPasswordURL("https://cursopus.com", "a+b@example.com", "654321")
 
 		parsed, err := url.Parse(got)
 		if err != nil {
@@ -279,10 +279,10 @@ func TestResetPasswordURL(t *testing.T) {
 	})
 
 	t.Run("refuses to build a link with a missing half", func(t *testing.T) {
-		if got := resetPasswordURL("https://jobber-app.com", "", "654321"); got != "" {
+		if got := resetPasswordURL("https://cursopus.com", "", "654321"); got != "" {
 			t.Errorf("no address, still a link: %q", got)
 		}
-		if got := resetPasswordURL("https://jobber-app.com", "a@b.test", ""); got != "" {
+		if got := resetPasswordURL("https://cursopus.com", "a@b.test", ""); got != "" {
 			t.Errorf("no code, still a link: %q", got)
 		}
 	})
@@ -290,7 +290,7 @@ func TestResetPasswordURL(t *testing.T) {
 	// A stray query or fragment on the configured origin must not survive into
 	// a link whose whole meaning is its query string.
 	t.Run("replaces anything the base URL already carried", func(t *testing.T) {
-		got := resetPasswordURL("https://jobber-app.com/?utm=x#frag", "a@b.test", "654321")
+		got := resetPasswordURL("https://cursopus.com/?utm=x#frag", "a@b.test", "654321")
 
 		parsed, err := url.Parse(got)
 		if err != nil {
@@ -303,7 +303,7 @@ func TestResetPasswordURL(t *testing.T) {
 }
 
 func TestPasswordResetEmail_DeepLink(t *testing.T) {
-	link := resetPasswordURL("https://jobber-app.com", "alex@example.com", "654321")
+	link := resetPasswordURL("https://cursopus.com", "alex@example.com", "654321")
 
 	for _, locale := range []string{"en", "ru", "ua", "uk"} {
 		content := passwordResetEmail("654321", locale, link)
@@ -311,7 +311,7 @@ func TestPasswordResetEmail_DeepLink(t *testing.T) {
 		// `&` inside an HTML attribute has to be written as an entity, or the
 		// mail client's parser truncates the query at the second parameter and
 		// the link arrives without the code.
-		if !strings.Contains(content.HTML, `href="https://jobber-app.com/reset-password?code=654321&amp;email=alex%40example.com"`) {
+		if !strings.Contains(content.HTML, `href="https://cursopus.com/reset-password?code=654321&amp;email=alex%40example.com"`) {
 			t.Errorf("%s: reset link missing or unescaped", locale)
 		}
 		// The code stays visible either way: a mail client that strips links,

@@ -360,7 +360,7 @@ func getEnv(key, defaultValue string) string {
 // defaultPublicBaseURL is the app's canonical public origin, used to build
 // shareable/OG links that social crawlers fetch from the internet. It is only a
 // fallback: PUBLIC_BASE_URL (or a concrete ALLOWED_ORIGINS entry) wins.
-const defaultPublicBaseURL = "https://jobber-app.com"
+const defaultPublicBaseURL = "https://cursopus.com"
 
 // resolvePublicBaseURL picks the public origin for share/OG links. FRONTEND_URL
 // is the *internal* Docker host (http://frontend) and must never be used here.

@@ -47,7 +47,7 @@ export function WelcomeWizard({
   const exitPanelRef = useRef<HTMLDivElement>(null);
   // The tour is one dialog showing eight different things. Naming it after
   // whichever heading is drawn keeps the spoken name and the visible one the
-  // same — it used to say "Welcome to Jobber" on every step, including the
+  // same — it used to say "Welcome to Cursopus" on every step, including the
   // question about leaving.
   const stepHeadingId = useId();
   const exitHeadingId = useId();

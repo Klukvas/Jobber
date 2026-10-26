@@ -361,7 +361,7 @@ async function parseWithData(pageData) {
     if (err.message === "PARSE_LIMIT_REACHED") {
       showError(
         idleError,
-        "Monthly AI parse limit reached. Upgrade your plan at jobber-app.com.",
+        "Monthly AI parse limit reached. Upgrade your plan at cursopus.com.",
       );
     } else {
       showError(idleError, err.message);
@@ -369,7 +369,7 @@ async function parseWithData(pageData) {
   }
 }
 
-// The page can be any origin, but we only hold host access for jobber-app.com by
+// The page can be any origin, but we only hold host access for jobber-app.com (the API host) by
 // default — so extraction rode the gesture-scoped `activeTab` grant and broke on
 // the second parse (after "Save Another"). Request persistent host access to the
 // current tab's origin first, inside the click gesture, so re-parsing works.
@@ -468,14 +468,14 @@ saveForm.addEventListener("submit", async (e) => {
     if (err.message === "JOBS_LIMIT_REACHED") {
       showError(
         saveError,
-        "Jobs limit reached for your plan. Upgrade at jobber-app.com.",
+        "Jobs limit reached for your plan. Upgrade at cursopus.com.",
       );
     } else {
       showError(saveError, err.message);
     }
   } finally {
     btnSave.disabled = false;
-    btnSave.textContent = "Save to Jobber";
+    btnSave.textContent = "Save to Cursopus";
   }
 });
 
@@ -531,7 +531,7 @@ async function loadSpMatchResumes() {
 
     if (resumes.length === 0) {
       hint.textContent =
-        "Upload a PDF resume in Jobber to use Match Score. Resume Builder resumes require PDF export.";
+        "Upload a PDF resume in Cursopus to use Match Score. Resume Builder resumes require PDF export.";
     } else {
       hint.textContent = "";
     }
@@ -750,7 +750,7 @@ async function showAutofillSetup() {
         "Upload a resume or create one in the Resume Builder to use Autofill.";
     } else if (!uploadedEnabled && uploaded.length > 0) {
       hint =
-        "Autofill from uploaded resumes is available on paid plans \u2014 upgrade at jobber-app.com, or create a resume in the Resume Builder.";
+        "Autofill from uploaded resumes is available on paid plans \u2014 upgrade at cursopus.com, or create a resume in the Resume Builder.";
     }
     autofillHint.textContent = hint;
     btnSetAutofill.disabled = isEmpty;
@@ -817,9 +817,9 @@ btnSetAutofill.addEventListener("click", async () => {
     }
     const friendly = {
       PAID_FEATURE:
-        "Autofill from uploaded resumes is available on paid plans \u2014 upgrade at jobber-app.com.",
+        "Autofill from uploaded resumes is available on paid plans \u2014 upgrade at cursopus.com.",
       PLAN_LIMIT_REACHED:
-        "AI usage limit reached. Upgrade your plan at jobber-app.com.",
+        "AI usage limit reached. Upgrade your plan at cursopus.com.",
       RESUME_UNREADABLE:
         "Couldn't read this PDF. Try the Resume Builder instead.",
       RATE_LIMITED: "Too many attempts — wait a minute and try again.",

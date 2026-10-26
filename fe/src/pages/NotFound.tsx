@@ -6,7 +6,7 @@ import { Button } from "@/shared/ui/Button";
 
 export default function NotFound() {
   const { t } = useTranslation();
-  usePageMeta({ title: `404 — Jobber`, noindex: true });
+  usePageMeta({ title: `404 — Cursopus`, noindex: true });
 
   return (
     <div className="mx-auto flex min-h-[80vh] max-w-3xl flex-col px-4 py-12 text-foreground">
@@ -20,7 +20,7 @@ export default function NotFound() {
         </Link>
         <Link to="/" className="flex items-center gap-2">
           <Briefcase className="h-5 w-5 text-primary" />
-          <span className="font-bold">Jobber</span>
+          <span className="font-bold">Cursopus</span>
         </Link>
       </nav>
 

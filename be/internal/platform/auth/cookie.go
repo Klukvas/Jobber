@@ -17,7 +17,7 @@ const (
 // CookieConfig holds settings for auth cookies.
 type CookieConfig struct {
 	Secure   bool   // true in production (HTTPS only)
-	Domain   string // e.g. "jobber-app.com" or "" for same-host
+	Domain   string // e.g. "cursopus.com" or "" for same-host
 	SameSite http.SameSite
 }
 

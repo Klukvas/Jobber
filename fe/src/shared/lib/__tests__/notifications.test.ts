@@ -329,7 +329,7 @@ describe("toUserFacingMessage", () => {
     ["whitespace only", "   "],
     ["a fetch failure", "Failed to fetch"],
     ["a status line with a URL", "Request failed with status code 404 Not Found: POST http://localhost:8080/api/v1/support"],
-    ["a bare backend URL", "https://api.jobber-app.com/api/v1/jobs"],
+    ["a bare backend URL", "https://api.cursopus.com/api/v1/jobs"],
     ["a localhost origin", "connect ECONNREFUSED localhost:8080"],
     ["a stack frame", "TypeError at handleSubmit (Jobs.tsx:12)"],
   ])("replaces %s with a generic line", (_label, message) => {

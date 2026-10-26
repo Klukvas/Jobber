@@ -14,7 +14,7 @@ Looking for a job can feel overwhelming, especially when you're juggling multipl
 
 ## 1. Create a Central Tracking System
 
-Stop relying on memory or scattered sticky notes. Use a dedicated tool (like Jobber!) to track every application in one place. For each application, record:
+Stop relying on memory or scattered sticky notes. Use a dedicated tool (like Cursopus!) to track every application in one place. For each application, record:
 
 - **Company name and position**
 - **Date applied**
@@ -55,4 +55,4 @@ The job search is a marathon, not a sprint. Block dedicated time each day for ap
 
 ---
 
-*Start organizing your job search today with [Jobber](https://jobber-app) — track applications, manage companies, and get insights into your progress.*
+*Start organizing your job search today with [Cursopus](https://cursopus.com) — track applications, manage companies, and get insights into your progress.*

@@ -60,12 +60,14 @@ func main() {
 		CORSRules: []types.CORSRule{
 			{
 				AllowedOrigins: []string{
-					"http://localhost:5173",  // Vite dev server
+					"http://localhost:5173", // Vite dev server
 					"http://localhost:3000",
-				"http://localhost:3005",
-					"http://localhost:8080",  // Backend (for testing)
-					"https://jobber-app.com",
-				"https://www.jobber-app.com",
+					"http://localhost:3005",
+					"http://localhost:8080", // Backend (for testing)
+					"https://cursopus.com",
+					"https://www.cursopus.com",
+					"https://jobber-app.com", // legacy domain, keep during the rename transition
+					"https://www.jobber-app.com",
 				},
 				AllowedMethods: []string{
 					"GET",

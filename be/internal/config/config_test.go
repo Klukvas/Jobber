@@ -492,12 +492,12 @@ func TestFirstOrigin(t *testing.T) {
 	cases := []struct {
 		name, in, want string
 	}{
-		{"single", "https://jobber-app.com", "https://jobber-app.com"},
-		{"trailing slash trimmed", "https://jobber-app.com/", "https://jobber-app.com"},
-		{"comma list picks first", "https://jobber-app.com, https://www.jobber-app.com", "https://jobber-app.com"},
+		{"single", "https://cursopus.com", "https://cursopus.com"},
+		{"trailing slash trimmed", "https://cursopus.com/", "https://cursopus.com"},
+		{"comma list picks first", "https://cursopus.com, https://www.cursopus.com", "https://cursopus.com"},
 		{"wildcard skipped", "*", ""},
 		{"blank", "", ""},
-		{"wildcard then real", "*, https://jobber-app.com", "https://jobber-app.com"},
+		{"wildcard then real", "*, https://cursopus.com", "https://cursopus.com"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -509,13 +509,13 @@ func TestFirstOrigin(t *testing.T) {
 func TestResolvePublicBaseURL(t *testing.T) {
 	t.Run("explicit PUBLIC_BASE_URL wins", func(t *testing.T) {
 		t.Setenv("PUBLIC_BASE_URL", "https://custom.example/")
-		t.Setenv("ALLOWED_ORIGINS", "https://jobber-app.com")
+		t.Setenv("ALLOWED_ORIGINS", "https://cursopus.com")
 		assert.Equal(t, "https://custom.example", resolvePublicBaseURL())
 	})
 	t.Run("derives from concrete ALLOWED_ORIGINS", func(t *testing.T) {
 		t.Setenv("PUBLIC_BASE_URL", "")
-		t.Setenv("ALLOWED_ORIGINS", "https://jobber-app.com, https://www.jobber-app.com")
-		assert.Equal(t, "https://jobber-app.com", resolvePublicBaseURL())
+		t.Setenv("ALLOWED_ORIGINS", "https://cursopus.com, https://www.cursopus.com")
+		assert.Equal(t, "https://cursopus.com", resolvePublicBaseURL())
 	})
 	t.Run("falls back to canonical when origins are wildcard", func(t *testing.T) {
 		t.Setenv("PUBLIC_BASE_URL", "")
@@ -532,12 +532,12 @@ func TestResolvePublicBaseURL(t *testing.T) {
 func TestLoad_PublicBaseURLGuard(t *testing.T) {
 	t.Run("accepts an absolute https origin", func(t *testing.T) {
 		setMinimalEnv(t)
-		t.Setenv("PUBLIC_BASE_URL", "https://jobber-app.com")
+		t.Setenv("PUBLIC_BASE_URL", "https://cursopus.com")
 
 		cfg, err := Load()
 
 		require.NoError(t, err)
-		assert.Equal(t, "https://jobber-app.com", cfg.Server.PublicBaseURL)
+		assert.Equal(t, "https://cursopus.com", cfg.Server.PublicBaseURL)
 	})
 
 	t.Run("accepts a local http origin for development", func(t *testing.T) {
@@ -551,7 +551,7 @@ func TestLoad_PublicBaseURLGuard(t *testing.T) {
 
 	t.Run("refuses anything a browser could not open", func(t *testing.T) {
 		for _, bad := range []string{
-			"jobber-app.com",
+			"cursopus.com",
 			"/relative",
 			"ftp://files.example.test",
 			"https://",

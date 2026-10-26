@@ -1,4 +1,4 @@
-// Content script: adds "Save to Jobber" buttons on job board listing pages
+// Content script: adds "Save to Cursopus" buttons on job board listing pages
 (() => {
   if (window.__jobberJobboardsInit) return;
   window.__jobberJobboardsInit = true;
@@ -159,7 +159,7 @@
       const btn = document.createElement("button");
       btn.className = `jobber-save-btn${isSaved ? " jobber-saved" : ""}`;
       btn.textContent = isSaved ? "\u2713 Saved" : "\uD83D\uDCBC Save";
-      btn.title = isSaved ? "Already saved to Jobber" : "Save to Jobber";
+      btn.title = isSaved ? "Already saved to Cursopus" : "Save to Cursopus";
 
       if (!isSaved) {
         btn.addEventListener("click", async (e) => {
@@ -180,7 +180,7 @@
           if (result?.ok) {
             btn.className = "jobber-save-btn jobber-saved";
             btn.textContent = "\u2713 Saved";
-            btn.title = "Saved to Jobber";
+            btn.title = "Saved to Cursopus";
             if (url) importedUrls = [...importedUrls, url];
           } else {
             btn.disabled = false;
@@ -189,7 +189,7 @@
             showToast(result?.error || "Failed to save");
             setTimeout(() => {
               btn.textContent = "\uD83D\uDCBC Save";
-              btn.title = "Save to Jobber";
+              btn.title = "Save to Cursopus";
             }, 3000);
           }
         });

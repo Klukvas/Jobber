@@ -7,4 +7,4 @@ Disallow: /forgot-password
 Disallow: /reset-password
 Disallow: /verify-email
 
-Sitemap: https://jobber-app.com/sitemap.xml
+Sitemap: https://cursopus.com/sitemap.xml

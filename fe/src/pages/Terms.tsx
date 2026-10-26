@@ -5,7 +5,7 @@ import { usePageMeta } from "@/shared/lib/usePageMeta";
 
 export default function Terms() {
   const { t } = useTranslation();
-  usePageMeta({ title: "Terms of Service — Jobber" });
+  usePageMeta({ title: "Terms of Service — Cursopus" });
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 text-foreground">
@@ -19,7 +19,7 @@ export default function Terms() {
         </Link>
         <Link to="/" className="flex items-center gap-2">
           <Briefcase className="h-5 w-5 text-primary" />
-          <span className="font-bold">Jobber</span>
+          <span className="font-bold">Cursopus</span>
         </Link>
       </nav>
       <h1 className="mb-8 text-3xl font-bold">Terms of Service</h1>
@@ -30,8 +30,8 @@ export default function Terms() {
       <section className="mb-8">
         <h2 className="mb-3 text-xl font-semibold">1. Acceptance of Terms</h2>
         <p>
-          By accessing or using Jobber (&quot;Service&quot;), available at
-          jobber-app.com and as a Chrome browser extension, you agree to be
+          By accessing or using Cursopus (&quot;Service&quot;), available at
+          cursopus.com and as a Chrome browser extension, you agree to be
           bound by these Terms of Service. If you do not agree, please do not
           use the Service.
         </p>
@@ -42,7 +42,7 @@ export default function Terms() {
           2. Description of Service
         </h2>
         <p>
-          Jobber is a job application tracking platform that helps users
+          Cursopus is a job application tracking platform that helps users
           organize their job search. The Service includes a web application and
           a Chrome browser extension for importing job postings. We offer both
           free and paid subscription plans.
@@ -143,7 +143,7 @@ export default function Terms() {
         <h2 className="mb-3 text-xl font-semibold">6. Intellectual Property</h2>
         <p>
           The Service, including its design, code, and branding, is owned by
-          Jobber. You retain ownership of any data you upload. By using the
+          Cursopus. You retain ownership of any data you upload. By using the
           Service, you grant us a limited license to process your data solely to
           provide the Service to you.
         </p>
@@ -185,7 +185,7 @@ export default function Terms() {
           without warranties of any kind, either express or implied.
         </p>
         <p>
-          To the maximum extent permitted by law, Jobber shall not be liable for
+          To the maximum extent permitted by law, Cursopus shall not be liable for
           any indirect, incidental, special, consequential, or punitive damages,
           including loss of data, profits, or business opportunities arising
           from your use of the Service.

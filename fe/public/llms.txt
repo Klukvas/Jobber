@@ -1,7 +1,7 @@
-# Jobber
+# Cursopus
 > AI-powered job application tracker
 
-Jobber helps job seekers organize their job search with a Kanban-style board,
+Cursopus helps job seekers organize their job search with a Kanban-style board,
 company management, an AI resume builder, an AI cover letter generator,
 application stages, and analytics.
 
@@ -14,8 +14,8 @@ application stages, and analytics.
 - Multi-language support (English, Russian, Ukrainian)
 
 ## Links
-- Homepage: https://jobber-app.com/
-- Application tracker: https://jobber-app.com/features/applications
-- Resume builder: https://jobber-app.com/features/resume-builder
-- Cover letters: https://jobber-app.com/features/cover-letters
-- Blog: https://jobber-app.com/blog
+- Homepage: https://cursopus.com/
+- Application tracker: https://cursopus.com/features/applications
+- Resume builder: https://cursopus.com/features/resume-builder
+- Cover letters: https://cursopus.com/features/cover-letters
+- Blog: https://cursopus.com/blog

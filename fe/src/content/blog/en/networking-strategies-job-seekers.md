@@ -71,4 +71,4 @@ Keep track of every conversation, introduction, and follow-up. A disorganized ap
 
 ---
 
-*Organize your job search and track every connection with [Jobber](https://jobber-app) — your personal job search command center.*
+*Organize your job search and track every connection with [Cursopus](https://cursopus.com) — your personal job search command center.*

@@ -46,7 +46,7 @@ One-size-fits-all resumes don't work. For each application:
 - Adjust your summary to match the role
 - Remove irrelevant skills or experience
 
-Using a tool like Jobber, you can track which resume version you used for each application and compare their effectiveness.
+Using a tool like Cursopus, you can track which resume version you used for each application and compare their effectiveness.
 
 ## 5. Proofread Relentlessly
 
@@ -59,4 +59,4 @@ Typos and grammatical errors signal carelessness. Before submitting:
 
 ---
 
-*Track which resumes perform best with [Jobber](https://jobber-app) — see response rates and interview conversions for each resume version.*
+*Track which resumes perform best with [Cursopus](https://cursopus.com) — see response rates and interview conversions for each resume version.*

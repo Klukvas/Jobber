@@ -1,4 +1,4 @@
-// content/autofill.js — Autofill job application forms with Jobber profile data
+// content/autofill.js — Autofill job application forms with Cursopus profile data
 (() => {
   if (window.__jobberAutofillInit) return;
   window.__jobberAutofillInit = true;
@@ -262,7 +262,7 @@
     const btn = document.createElement("button");
     btn.id = "jobber-autofill-btn";
     btn.textContent = "\uD83D\uDCBC Autofill";
-    btn.title = "Autofill with Jobber profile";
+    btn.title = "Autofill with Cursopus profile";
 
     btn.addEventListener("click", async () => {
       if (!profile) {
@@ -272,7 +272,7 @@
 
       if (!profile?.contact) {
         btn.textContent = "\u26A0\uFE0F No profile";
-        btn.title = "Open Jobber side panel → Autofill tab to set up";
+        btn.title = "Open Cursopus side panel → Autofill tab to set up";
         setTimeout(() => resetButton(btn), 3000);
         return;
       }
@@ -294,7 +294,7 @@
 
   function resetButton(btn) {
     btn.textContent = "\uD83D\uDCBC Autofill";
-    btn.title = "Autofill with Jobber profile";
+    btn.title = "Autofill with Cursopus profile";
     btn.classList.remove("jobber-autofill-success");
   }
 

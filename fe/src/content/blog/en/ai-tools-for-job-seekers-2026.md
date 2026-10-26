@@ -62,7 +62,7 @@ Tracking is less glamorous than generation, but it matters more long-term. AI-as
 - Flag duplicate applications
 - Analyze your pipeline to surface where you're losing candidates
 
-Tools like Jobber integrate AI parsing directly - you paste a job URL or description, and the details are filled in automatically.
+Tools like Cursopus integrate AI parsing directly - you paste a job URL or description, and the details are filled in automatically.
 
 ## 5. A Note on Ethics and Authenticity
 
@@ -76,4 +76,4 @@ The job seekers getting the best results in 2026 aren't the ones using AI the mo
 
 ---
 
-*Use AI-powered tools to build your resume, generate cover letters, and track applications all in one place at [Jobber](https://jobber-app.com).*
+*Use AI-powered tools to build your resume, generate cover letters, and track applications all in one place at [Cursopus](https://cursopus.com).*

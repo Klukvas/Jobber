@@ -58,10 +58,10 @@ const TILE = /* html */ `<!doctype html><html><head><meta charset="utf-8"/><styl
 </style></head><body>
   <div class="grid"></div><div class="glow"></div><div class="glow2"></div>
   <div class="wrap">
-    <div class="brand"><img src="data:image/png;base64,${ICON}"/><span>Jobber</span></div>
+    <div class="brand"><img src="data:image/png;base64,${ICON}"/><span>Cursopus</span></div>
     <h1>Save any job.<br/><em>One click.</em></h1>
     <div class="feat">AI parsing · Resume match score · Autofill</div>
-    <div class="pill"><b>＋</b> Save to Jobber · Free</div>
+    <div class="pill"><b>＋</b> Save to Cursopus · Free</div>
   </div>
 </body></html>`;
 
@@ -92,19 +92,19 @@ const MARQUEE = /* html */ `<!doctype html><html><head><meta charset="utf-8"/><s
     background:#a3e635; color:#1a1a2e; font-weight:800; font-size:20px; padding:13px 20px; border-radius:12px; }
 </style></head><body>
   <div class="grid"></div><div class="glow"></div><div class="glow2"></div>
-  <div class="brand"><img src="data:image/png;base64,${ICON}"/><span>Jobber</span></div>
+  <div class="brand"><img src="data:image/png;base64,${ICON}"/><span>Cursopus</span></div>
   <div class="hero">
     <div class="copy">
       <h1>Save any job.<br/><em>One click.</em></h1>
       <div class="feat">AI parsing · Resume match score · Application autofill</div>
-      <div class="pill"><b>＋</b> Save to Jobber · Free</div>
+      <div class="pill"><b>＋</b> Save to Cursopus · Free</div>
     </div>
     <div class="visual">
       <div class="card">
         <div class="src">LinkedIn</div>
         <div class="title">Senior Frontend Engineer</div>
         <div class="meta">Stripe · Remote · $180k</div>
-        <div class="saved">✓ Saved to Jobber</div>
+        <div class="saved">✓ Saved to Cursopus</div>
       </div>
     </div>
   </div>

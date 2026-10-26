@@ -3,7 +3,7 @@ import { serializeJsonLd } from "@/shared/lib/jsonLd";
 import type { BlogPost } from "../lib/blogLoader";
 
 const SCRIPT_ID = "blog-index-jsonld";
-const SITE_URL = "https://jobber-app.com";
+const SITE_URL = "https://cursopus.com";
 
 interface BlogIndexJsonLdProps {
   readonly posts: readonly BlogPost[];
@@ -17,13 +17,13 @@ export function BlogIndexJsonLd({ posts }: BlogIndexJsonLdProps) {
     const collection = {
       "@context": "https://schema.org",
       "@type": "CollectionPage",
-      name: "Jobber Blog",
+      name: "Cursopus Blog",
       description:
         "Job search tips, career advice, and engineering insights for tracking your applications.",
       url: `${SITE_URL}/blog`,
       isPartOf: {
         "@type": "WebSite",
-        name: "Jobber",
+        name: "Cursopus",
         url: SITE_URL,
       },
       mainEntity: {

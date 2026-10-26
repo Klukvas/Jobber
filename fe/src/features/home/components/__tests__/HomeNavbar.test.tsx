@@ -50,7 +50,7 @@ describe("HomeNavbar", () => {
 
   it("renders brand name", () => {
     render(<HomeNavbar {...defaultProps} />);
-    expect(screen.getByText("Jobber")).toBeInTheDocument();
+    expect(screen.getByText("Cursopus")).toBeInTheDocument();
   });
 
   it("renders nav links", () => {
@@ -279,7 +279,7 @@ describe("HomeNavbar nav link targets", () => {
   // 28px of glyph and text, and the first control on the page.
   it("gives the brand link a 44px height", () => {
     render(<HomeNavbar {...defaultProps} />);
-    const brand = screen.getByText("Jobber").closest("a");
+    const brand = screen.getByText("Cursopus").closest("a");
 
     expect(brand?.className).toMatch(/min-h-11/);
   });

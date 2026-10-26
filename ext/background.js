@@ -1,6 +1,6 @@
 // Background service worker
-const API_BASE = "https://jobber-app.com";
-const ALLOWED_ORIGINS = ["https://jobber-app.com", "http://localhost:8080"];
+const API_BASE = "https://cursopus.com";
+const ALLOWED_ORIGINS = ["https://cursopus.com", "http://localhost:8080"];
 const REFRESH_ALARM = "jobber-token-refresh";
 const REFRESH_INTERVAL_MINUTES = 10;
 
@@ -27,13 +27,13 @@ chrome.runtime.onInstalled.addListener(async () => {
 
   chrome.contextMenus.create({
     id: "save-to-jobber",
-    title: "Save to Jobber",
+    title: "Save to Cursopus",
     contexts: ["page", "link"],
   });
 
   chrome.contextMenus.create({
     id: "autofill-with-jobber",
-    title: "Autofill with Jobber",
+    title: "Autofill with Cursopus",
     contexts: ["page"],
   });
 
@@ -70,7 +70,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       // a page script can't silently trigger autofill of the user's PII.
       await chrome.tabs.sendMessage(tab.id, { action: "jobber-autofill" });
     } catch (err) {
-      console.warn("[Jobber] Autofill injection failed:", err.message);
+      console.warn("[Cursopus] Autofill injection failed:", err.message);
     }
     return;
   }
@@ -91,7 +91,7 @@ async function openSidePanelWithPageData(tab) {
   try {
     await chrome.sidePanel.open({ windowId: tab.windowId });
   } catch (err) {
-    console.error("[Jobber] Cannot open side panel:", err.message);
+    console.error("[Cursopus] Cannot open side panel:", err.message);
     return;
   }
 
@@ -107,7 +107,7 @@ async function openSidePanelWithPageData(tab) {
     });
     pageData = result.result;
   } catch (err) {
-    console.warn("[Jobber] Cannot extract page text:", err.message);
+    console.warn("[Cursopus] Cannot extract page text:", err.message);
   }
 
   // Store data — side panel picks it up via storage listener
@@ -224,7 +224,7 @@ async function handleQuickSave({ title, company, url, source }) {
   ]);
 
   if (!accessToken) {
-    return { error: "Not logged in. Open Jobber extension to sign in." };
+    return { error: "Not logged in. Open Cursopus extension to sign in." };
   }
 
   const apiBase = getSafeApiBase(storedBase);
@@ -239,7 +239,7 @@ async function handleQuickSave({ title, company, url, source }) {
       });
       if (compRes.status === 401) {
         return {
-          error: "Session expired. Open the Jobber extension to sign in again.",
+          error: "Session expired. Open the Cursopus extension to sign in again.",
         };
       }
       if (compRes.ok) {
@@ -264,12 +264,12 @@ async function handleQuickSave({ title, company, url, source }) {
 
     if (jobRes.status === 401) {
       return {
-        error: "Session expired. Open the Jobber extension to sign in again.",
+        error: "Session expired. Open the Cursopus extension to sign in again.",
       };
     }
     if (jobRes.status === 403) {
       return {
-        error: "Jobs limit reached. Upgrade your plan at jobber-app.com.",
+        error: "Jobs limit reached. Upgrade your plan at cursopus.com.",
       };
     }
     if (!jobRes.ok) {

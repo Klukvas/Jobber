@@ -12,7 +12,7 @@ import {
 import { useProfile } from "./useProfile";
 
 /**
- * Shows the account Jobber has on file, read from the server rather than from
+ * Shows the account Cursopus has on file, read from the server rather than from
  * the copy the browser cached at sign-in.
  *
  * Nothing here writes. The email is a login credential and changing it needs a

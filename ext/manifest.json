@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Jobber - Smart Job Saver",
-  "version": "1.1.4",
-  "description": "Save jobs from any site to Jobber in one click — AI parsing, resume-to-job match score, and one-tap application autofill.",
+  "name": "Cursopus - Smart Job Saver",
+  "version": "1.1.5",
+  "description": "Save jobs from any site to Cursopus in one click — AI parsing, resume-to-job match score, and one-tap application autofill.",
   "minimum_chrome_version": "114",
   "permissions": [
     "activeTab",
@@ -44,7 +44,7 @@
         "default": "Alt+Shift+S",
         "mac": "Alt+Shift+S"
       },
-      "description": "Save current page as a job to Jobber"
+      "description": "Save current page as a job to Cursopus"
     }
   },
   "content_scripts": [

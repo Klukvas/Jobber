@@ -1,4 +1,4 @@
-# Jobber - System Specification
+# Cursopus - System Specification
 
 > **Read Appendix I first for anything pipeline-related.** Sections 1–10 are the
 > historical record and still describe the phase-based board, the `status` enum
@@ -9,7 +9,7 @@
 
 ## Document Purpose
 
-This document describes the complete architecture, features, and business logic of the Jobber system—a job application tracking platform. It serves as the canonical reference for understanding how the system works without reading code.
+This document describes the complete architecture, features, and business logic of the Cursopus system—a job application tracking platform. It serves as the canonical reference for understanding how the system works without reading code.
 
 **Audience:** Engineers, product managers, architects, and stakeholders
 
@@ -34,7 +34,7 @@ Job seekers apply to multiple positions across different companies and struggle 
 
 ### Solution
 
-Jobber is a **job application tracking platform** that provides centralized management of:
+Cursopus is a **job application tracking platform** that provides centralized management of:
 - Job postings from multiple companies
 - Multiple resume versions
 - Applications linking jobs and resumes
@@ -1885,7 +1885,7 @@ Note: `rejected_applications` was added to the analytics overview (API + UI card
 2. User sees a preview of exactly what will be published
 3. User confirms → backend freezes current aggregates into a snapshot and returns a share link `/s/{token}`
 4. User copies the link and posts it anywhere
-5. Anyone opening the link sees the frozen stats (no auth required) with a "Track your job search with Jobber" CTA
+5. Anyone opening the link sees the frozen stats (no auth required) with a "Track your job search with Cursopus" CTA
 6. User can list and revoke share links; a revoked link stops working immediately
 
 #### Business Rules
@@ -4492,7 +4492,7 @@ Content-Type: application/json
 
 **End of System Specification**
 
-This document represents the complete canonical reference for the Jobber system as of August 3, 2026 (merged Job + Application architecture). All features, business logic, and architectural decisions are documented here for current and future team members.
+This document represents the complete canonical reference for the Cursopus system as of August 3, 2026 (merged Job + Application architecture). All features, business logic, and architectural decisions are documented here for current and future team members.
 
 ## Job-specific interview preparation (October 22, 2026)
 

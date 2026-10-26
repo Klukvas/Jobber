@@ -47,7 +47,7 @@ body{margin:0;padding:0;width:100%%!important;height:100%%!important}
 <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0">
 <tr>
 <td style="font-size:22px;font-weight:700;color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;letter-spacing:-0.5px">
-Jobber
+Cursopus
 </td>
 </tr>
 </table>
@@ -72,7 +72,7 @@ Jobber
 <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0">
 <tr>
 <td style="font-size:13px;color:#9ca3af;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;line-height:20px;text-align:center">
-&copy; 2026 Jobber. All rights reserved.<br/>
+&copy; 2026 Cursopus. All rights reserved.<br/>
 This is an automated message. Please do not reply directly to this email.
 </td>
 </tr>
@@ -111,34 +111,34 @@ func verificationEmail(code, locale string) emailContent {
 	switch locale {
 	case "ru":
 		return emailContent{
-			Subject: "Подтверждение email — Jobber",
+			Subject: "Подтверждение email — Cursopus",
 			HTML: baseLayout("Подтверждение email", fmt.Sprintf(
 				`<h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#1e293b">Подтвердите ваш email</h1>
 <p style="margin:0 0 8px;font-size:16px;color:#475569;line-height:26px">Введите этот код в приложении, чтобы подтвердить ваш email:</p>
 %s
-<p style="margin:0;font-size:14px;color:#94a3b8;line-height:22px">Код действителен 10 минут. Если вы не регистрировались на Jobber, проигнорируйте это письмо.</p>`,
+<p style="margin:0;font-size:14px;color:#94a3b8;line-height:22px">Код действителен 10 минут. Если вы не регистрировались на Cursopus, проигнорируйте это письмо.</p>`,
 				codeBlockHTML(code),
 			)),
 		}
 	case "ua", "uk":
 		return emailContent{
-			Subject: "Підтвердження email — Jobber",
+			Subject: "Підтвердження email — Cursopus",
 			HTML: baseLayout("Підтвердження email", fmt.Sprintf(
 				`<h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#1e293b">Підтвердіть ваш email</h1>
 <p style="margin:0 0 8px;font-size:16px;color:#475569;line-height:26px">Введіть цей код у додатку, щоб підтвердити ваш email:</p>
 %s
-<p style="margin:0;font-size:14px;color:#94a3b8;line-height:22px">Код дійсний 10 хвилин. Якщо ви не реєструвалися на Jobber, проігноруйте цей лист.</p>`,
+<p style="margin:0;font-size:14px;color:#94a3b8;line-height:22px">Код дійсний 10 хвилин. Якщо ви не реєструвалися на Cursopus, проігноруйте цей лист.</p>`,
 				codeBlockHTML(code),
 			)),
 		}
 	default:
 		return emailContent{
-			Subject: "Verify your email — Jobber",
+			Subject: "Verify your email — Cursopus",
 			HTML: baseLayout("Verify your email", fmt.Sprintf(
 				`<h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#1e293b">Verify your email</h1>
 <p style="margin:0 0 8px;font-size:16px;color:#475569;line-height:26px">Enter this code in the app to verify your email address:</p>
 %s
-<p style="margin:0;font-size:14px;color:#94a3b8;line-height:22px">This code expires in 10 minutes. If you didn't sign up for Jobber, please ignore this email.</p>`,
+<p style="margin:0;font-size:14px;color:#94a3b8;line-height:22px">This code expires in 10 minutes. If you didn't sign up for Cursopus, please ignore this email.</p>`,
 				codeBlockHTML(code),
 			)),
 		}
@@ -210,7 +210,7 @@ func passwordResetEmail(code, locale, resetLink string) emailContent {
 	switch locale {
 	case "ru":
 		return emailContent{
-			Subject: "Сброс пароля — Jobber",
+			Subject: "Сброс пароля — Cursopus",
 			HTML: baseLayout("Сброс пароля", fmt.Sprintf(
 				`<h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#1e293b">Сброс пароля</h1>
 <p style="margin:0 0 8px;font-size:16px;color:#475569;line-height:26px">Нажмите кнопку, чтобы задать новый пароль, или введите этот код в приложении:</p>
@@ -223,7 +223,7 @@ func passwordResetEmail(code, locale, resetLink string) emailContent {
 		}
 	case "ua", "uk":
 		return emailContent{
-			Subject: "Скидання пароля — Jobber",
+			Subject: "Скидання пароля — Cursopus",
 			HTML: baseLayout("Скидання пароля", fmt.Sprintf(
 				`<h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#1e293b">Скидання пароля</h1>
 <p style="margin:0 0 8px;font-size:16px;color:#475569;line-height:26px">Натисніть кнопку, щоб задати новий пароль, або введіть цей код у додатку:</p>
@@ -236,7 +236,7 @@ func passwordResetEmail(code, locale, resetLink string) emailContent {
 		}
 	default:
 		return emailContent{
-			Subject: "Reset your password — Jobber",
+			Subject: "Reset your password — Cursopus",
 			HTML: baseLayout("Reset your password", fmt.Sprintf(
 				`<h1 style="margin:0 0 16px;font-size:24px;font-weight:700;color:#1e293b">Reset your password</h1>
 <p style="margin:0 0 8px;font-size:16px;color:#475569;line-height:26px">Use the button to set a new password, or enter this code in the app:</p>

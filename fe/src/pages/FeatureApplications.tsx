@@ -73,9 +73,9 @@ export default function FeatureApplications() {
               <div className="absolute inset-x-0 -bottom-8 h-40 bg-gradient-to-t from-background to-transparent" />
               <BrowserMockup
                 dark
-                url="jobber-app.com/app/applications"
+                url="cursopus.com/app/applications"
                 src="/screenshots/01_applications_list.png"
-                alt="Jobber applications list"
+                alt="Cursopus applications list"
               />
             </div>
           </div>
@@ -112,7 +112,7 @@ export default function FeatureApplications() {
           <div className="mx-auto max-w-6xl px-4">
             <div className="grid items-center gap-16 lg:grid-cols-2">
               <BrowserMockup
-                url="jobber-app.com/app/applications"
+                url="cursopus.com/app/applications"
                 src="/screenshots/01_applications_list.png"
                 alt="Applications list view"
               />
@@ -167,7 +167,7 @@ export default function FeatureApplications() {
                 </ul>
               </div>
               <BrowserMockup
-                url="jobber-app.com/app/analytics"
+                url="cursopus.com/app/analytics"
                 src="/screenshots/09_analytics_top.png"
                 alt="Analytics dashboard"
               />

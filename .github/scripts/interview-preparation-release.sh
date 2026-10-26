@@ -21,7 +21,7 @@ public_code() { curl --connect-timeout 3 --max-time 5 --silent --show-error -o /
 public_ready() {
  local status
  for ((probe=0;probe<15;probe++)); do
-  status=$(public_code https://jobber-app.com/) || status=000
+  status=$(public_code https://cursopus.com/) || status=000
   [[ $status == 200 ]] && return 0
   sleep 1
  done
@@ -254,7 +254,7 @@ compose "$LIVE" up -d --no-deps frontend >/dev/null
 [[ $(docker inspect --format '{{.State.Running}}' jobber-frontend) == true ]] || fail frontend_not_running
 [[ $(docker inspect --format '{{.Image}}' jobber-frontend) == "$(docker image inspect --format '{{.Id}}' "$NEW_FRONTEND")" ]] || fail wrong_running_frontend
 public_ready || fail public_frontend_not_200
-[[ $(public_code "https://jobber-app.com$PUBLIC_ROUTE") == 401 ]] || fail public_api_not_401
+[[ $(public_code "https://cursopus.com$PUBLIC_ROUTE") == 401 ]] || fail public_api_not_401
 [[ $(sha256sum "$BASE" | cut -d' ' -f1) == "$BASE_HASH" && $(sha256sum Caddyfile | cut -d' ' -f1) == "$CADDY_HASH" ]] || fail static_config_changed
 COMMITTED=true
 trap - ERR

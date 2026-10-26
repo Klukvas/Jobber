@@ -74,8 +74,8 @@ AI can dramatically speed up cover letter writing - but only if used correctly.
 - Use it to generate a first draft, then personalize heavily
 - Ask it to check your tone and tighten sentences
 
-Tools like Jobber's Cover Letter builder let you generate a tailored letter from your resume and a job description, then edit it to sound like you - without starting from scratch every time.
+Tools like Cursopus's Cover Letter builder let you generate a tailored letter from your resume and a job description, then edit it to sound like you - without starting from scratch every time.
 
 ---
 
-*Create and manage your cover letters alongside your job applications with [Jobber](https://jobber-app.com) - keep track of which letter you used for each role.*
+*Create and manage your cover letters alongside your job applications with [Cursopus](https://cursopus.com) - keep track of which letter you used for each role.*

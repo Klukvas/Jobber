@@ -70,4 +70,4 @@ Set a quarterly reminder to review your portfolio. Treat it like a product that 
 
 ---
 
-*Track which portfolio version performs best with [Jobber](https://jobber-app) — compare response rates across different applications.*
+*Track which portfolio version performs best with [Cursopus](https://cursopus.com) — compare response rates across different applications.*

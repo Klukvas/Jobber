@@ -3,7 +3,7 @@ import { serializeJsonLd } from "@/shared/lib/jsonLd";
 import { postLanguageTag, type BlogPost } from "../lib/blogLoader";
 
 const SCRIPT_ID = "blog-post-jsonld";
-const SITE_URL = "https://jobber-app.com";
+const SITE_URL = "https://cursopus.com";
 
 interface BlogPostJsonLdProps {
   readonly post: BlogPost;
@@ -43,12 +43,12 @@ export function BlogPostJsonLd({ post }: BlogPostJsonLdProps) {
       keywords: post.tags.join(", "),
       author: {
         "@type": "Organization",
-        name: "Jobber",
+        name: "Cursopus",
         url: SITE_URL,
       },
       publisher: {
         "@type": "Organization",
-        name: "Jobber",
+        name: "Cursopus",
         url: SITE_URL,
         logo: {
           "@type": "ImageObject",

@@ -89,7 +89,7 @@ vi.mock("@/features/onboarding/useOnboarding", () => ({
 describe("Sidebar", () => {
   it("renders brand name", () => {
     render(<Sidebar />);
-    expect(screen.getByText("Jobber")).toBeInTheDocument();
+    expect(screen.getByText("Cursopus")).toBeInTheDocument();
   });
 
   it("renders all navigation items when expanded", () => {
@@ -223,7 +223,7 @@ describe("Sidebar while it is closed on a phone", () => {
   // 32px of logo, and the control that leaves the app.
   it("gives the brand link a 44px height on phones", () => {
     render(<Sidebar />);
-    const brand = screen.getByAltText("Jobber").closest("a");
+    const brand = screen.getByAltText("Cursopus").closest("a");
 
     expect(brand?.className).toContain("min-h-11");
     expect(brand?.className).toContain("md:min-h-0");
