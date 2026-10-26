@@ -70,7 +70,7 @@ func LoggerMiddleware(log *logger.Logger) gin.HandlerFunc {
 }
 
 // CORSMiddleware handles CORS with configurable allowed origins.
-// allowedOrigins is a comma-separated list of origins (e.g. "https://jobber-app.com,https://www.jobber-app.com").
+// allowedOrigins is a comma-separated list of origins (e.g. "https://cursopus.com,https://www.cursopus.com").
 // Pass "*" to allow all origins (development only).
 func CORSMiddleware(allowedOrigins string) gin.HandlerFunc {
 	origins := parseOrigins(allowedOrigins)

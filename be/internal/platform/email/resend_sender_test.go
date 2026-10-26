@@ -19,7 +19,7 @@ type resendEmailRequest struct {
 }
 
 func newTestResendSender(serverURL string) *ResendSender {
-	sender := NewResendSender("test-api-key", "Jobber <noreply@example.com>", "https://jobber-app.com")
+	sender := NewResendSender("test-api-key", "Cursopus <noreply@example.com>", "https://cursopus.com")
 	parsed, _ := url.Parse(serverURL + "/")
 	sender.client.BaseURL = parsed
 	return sender
@@ -44,8 +44,8 @@ func TestResendSender_SendVerificationEmail_Success(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if received.From != "Jobber <noreply@example.com>" {
-		t.Errorf("From = %q, want %q", received.From, "Jobber <noreply@example.com>")
+	if received.From != "Cursopus <noreply@example.com>" {
+		t.Errorf("From = %q, want %q", received.From, "Cursopus <noreply@example.com>")
 	}
 	if len(received.To) != 1 || received.To[0] != "user@test.com" {
 		t.Errorf("To = %v, want [user@test.com]", received.To)
@@ -172,8 +172,8 @@ func TestResendSender_UsesCorrectLocaleForTemplates(t *testing.T) {
 			sender := newTestResendSender(server.URL)
 			sender.SendVerificationEmail(context.Background(), "a@b.com", "tok", tt.locale)
 
-			if received.Subject != tt.wantSubstr+" — Jobber" {
-				t.Errorf("Subject = %q, want %q", received.Subject, tt.wantSubstr+" — Jobber")
+			if received.Subject != tt.wantSubstr+" — Cursopus" {
+				t.Errorf("Subject = %q, want %q", received.Subject, tt.wantSubstr+" — Cursopus")
 			}
 		})
 	}

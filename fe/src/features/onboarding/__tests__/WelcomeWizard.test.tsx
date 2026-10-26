@@ -232,7 +232,7 @@ describe("WelcomeWizard — leaving the tour", () => {
 
 /**
  * The tour is one dialog showing eight different things, and it announced
- * "Welcome to Jobber" for every one of them — including the question about
+ * "Welcome to Cursopus" for every one of them — including the question about
  * leaving. The name now follows whichever heading is drawn.
  */
 describe("WelcomeWizard — accessible name", () => {

@@ -5,7 +5,7 @@ import { usePageMeta } from "@/shared/lib/usePageMeta";
 
 export default function Privacy() {
   const { t } = useTranslation();
-  usePageMeta({ title: "Privacy Policy — Jobber" });
+  usePageMeta({ title: "Privacy Policy — Cursopus" });
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 text-foreground">
@@ -19,7 +19,7 @@ export default function Privacy() {
         </Link>
         <Link to="/" className="flex items-center gap-2">
           <Briefcase className="h-5 w-5 text-primary" />
-          <span className="font-bold">Jobber</span>
+          <span className="font-bold">Cursopus</span>
         </Link>
       </nav>
       <h1 className="mb-8 text-3xl font-bold">Privacy Policy</h1>
@@ -30,8 +30,8 @@ export default function Privacy() {
       <section className="mb-8">
         <h2 className="mb-3 text-xl font-semibold">1. Overview</h2>
         <p>
-          Jobber (&quot;we&quot;, &quot;our&quot;, &quot;us&quot;) is a job
-          application tracking service available at jobber-app.com and as a
+          Cursopus (&quot;we&quot;, &quot;our&quot;, &quot;us&quot;) is a job
+          application tracking service available at cursopus.com and as a
           Chrome browser extension. This policy describes how we collect, use,
           and protect your data.
         </p>

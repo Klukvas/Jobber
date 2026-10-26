@@ -28,7 +28,7 @@ export default function BlogPost() {
   usePageMeta(
     post
       ? {
-          title: `${post.title} — Jobber`,
+          title: `${post.title} — Cursopus`,
           description: post.description,
           ogType: "article" as const,
         }

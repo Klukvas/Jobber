@@ -134,7 +134,7 @@ const TEMPLATE = /* html */ `<!doctype html>
   <div class="grid"></div>
   <div class="glow"></div>
   <div class="content">
-    <div class="wordmark">Jobber</div>
+    <div class="wordmark">Cursopus</div>
     <h1>Your job search,<br /><span class="accent">finally organized</span></h1>
     <div class="subtitle">AI-powered job application tracker with a Kanban board, resume builder and cover letter generator</div>
   </div>

@@ -1,4 +1,4 @@
-# Jobber - Job Application Tracking Backend
+# Cursopus - Job Application Tracking Backend
 
 A modular monolith backend for tracking job applications, built with Go.
 

@@ -157,9 +157,9 @@ describe("usePageMeta", () => {
   it("sets og:url and canonical based on current route", () => {
     renderHook(() => usePageMeta({ title: "Test" }), { wrapper });
     const ogUrl = document.querySelector('meta[property="og:url"]');
-    expect(ogUrl?.getAttribute("content")).toBe("https://jobber-app.com/test");
+    expect(ogUrl?.getAttribute("content")).toBe("https://cursopus.com/test");
 
     const canonical = document.querySelector('link[rel="canonical"]');
-    expect(canonical?.getAttribute("href")).toBe("https://jobber-app.com/test");
+    expect(canonical?.getAttribute("href")).toBe("https://cursopus.com/test");
   });
 });

@@ -15,7 +15,7 @@ self.addEventListener('push', (event) => {
   console.log('[Service Worker] Push received');
 
   let notification = {
-    title: 'Jobber Notification',
+    title: 'Cursopus Notification',
     body: 'You have a new update',
     icon: '/vite.svg',
     badge: '/vite.svg',

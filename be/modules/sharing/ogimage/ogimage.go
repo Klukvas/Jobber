@@ -68,7 +68,7 @@ func Render(s model.StatsSnapshot) ([]byte, error) {
 
 	dc.SetFontFace(face(fontRegular, 24))
 	dc.SetHexColor(colorFooter)
-	dc.DrawStringAnchored("Tracked with Jobber", pad, height-38, 0, 0.5)
+	dc.DrawStringAnchored("Tracked with Cursopus", pad, height-38, 0, 0.5)
 
 	var buf bytes.Buffer
 	if err := dc.EncodePNG(&buf); err != nil {
@@ -80,11 +80,11 @@ func Render(s model.StatsSnapshot) ([]byte, error) {
 func drawHeader(dc *gg.Context) {
 	dc.SetFontFace(face(fontBold, 40))
 	dc.SetHexColor(colorAccent)
-	dc.DrawStringAnchored("Jobber", pad, 78, 0, 0.5)
+	dc.DrawStringAnchored("Cursopus", pad, 78, 0, 0.5)
 
 	dc.SetFontFace(face(fontRegular, 24))
 	dc.SetHexColor(colorMuted)
-	dc.DrawStringAnchored("jobber-app.com", width-pad, 78, 1, 0.5)
+	dc.DrawStringAnchored("cursopus.com", width-pad, 78, 1, 0.5)
 
 	dc.SetFontFace(face(fontBold, 46))
 	dc.SetHexColor(colorText)

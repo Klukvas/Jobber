@@ -1,4 +1,4 @@
-# Jobber - Job Application Tracking Platform
+# Cursopus - Job Application Tracking Platform
 
 A comprehensive platform for tracking job applications, managing interview stages, and organizing your job search.
 
@@ -7,7 +7,7 @@ A comprehensive platform for tracking job applications, managing interview stage
 ## 📁 Project Structure
 
 ```
-/Jobber/
+/Cursopus/
 ├── be/                      # Backend (Go modular monolith)
 │   ├── cmd/                 # Entry points (api, seed)
 │   ├── internal/            # Shared infrastructure (config, auth, db, redis, ai, s3)
@@ -447,7 +447,7 @@ Three main approaches exist in the industry:
 - Pros: Fast, no API costs, works offline
 - Cons: UI changes on job boards constantly break parsers; LinkedIn especially problematic
 
-**2. JSON-LD schema.org/JobPosting (Industry Standard) — Jobber uses this**
+**2. JSON-LD schema.org/JobPosting (Industry Standard) — Cursopus uses this**
 - Most job boards embed `<script type="application/ld+json">` with structured data for Google Jobs
 - LinkedIn, Indeed, Glassdoor all use this format
 - Pros: Reliable, standardized, doesn't depend on DOM
@@ -460,7 +460,7 @@ Three main approaches exist in the industry:
 - Pros: Works on any site, no per-site parsers, doesn't break on UI changes
 - Cons: Requires LLM API (but ~$0.001/parse with Claude Haiku)
 
-**Recommended Strategy for Jobber (layered):**
+**Recommended Strategy for Cursopus (layered):**
 
 | Layer | When | Coverage | Cost |
 |-------|------|----------|------|

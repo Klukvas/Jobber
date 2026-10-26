@@ -101,7 +101,7 @@ describe("HowItWorksSection", () => {
 describe("FooterSection", () => {
   it("renders brand name", () => {
     render(<FooterSection />);
-    expect(screen.getByText("Jobber")).toBeInTheDocument();
+    expect(screen.getByText("Cursopus")).toBeInTheDocument();
   });
 
   it("renders footer links", () => {

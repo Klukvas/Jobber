@@ -72,11 +72,11 @@ This data lets you make real decisions: double down on what's working, fix what'
 You don't need an expensive tool to start. Options range from simple to powerful:
 
 **Simple**: Google Sheets or Notion with a custom template
-**Dedicated**: Jobber, Huntr, Teal - purpose-built for job search tracking
+**Dedicated**: Cursopus, Huntr, Teal - purpose-built for job search tracking
 **Integrated**: Tools that combine tracking with resume management and analytics
 
 The best tool is the one you'll actually use consistently. Start simple and upgrade when your search grows.
 
 ---
 
-*Track all your applications, stages, and analytics in one place with [Jobber](https://jobber-app.com) - built specifically for organized job seekers.*
+*Track all your applications, stages, and analytics in one place with [Cursopus](https://cursopus.com) - built specifically for organized job seekers.*

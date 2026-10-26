@@ -176,11 +176,11 @@ export function Sidebar() {
                 MOBILE_ROW,
               )}
             >
-              <img src={logoSrc} alt="Jobber" className="h-8 w-8 rounded-lg" />
+              <img src={logoSrc} alt="Cursopus" className="h-8 w-8 rounded-lg" />
               {/* The FluxLab attribution deliberately lives only in the app
                   footer: here it would have to sit inside this brand <Link>,
                   and an anchor cannot contain another anchor. */}
-              {isExpanded && <span className="text-xl font-bold">Jobber</span>}
+              {isExpanded && <span className="text-xl font-bold">Cursopus</span>}
             </Link>
             <button
               onClick={toggleExpanded}

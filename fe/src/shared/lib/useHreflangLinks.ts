@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-const SITE_URL = "https://jobber-app.com";
+const SITE_URL = "https://cursopus.com";
 const DATA_ATTR = "data-hreflang-managed";
 
 export interface HreflangLink {

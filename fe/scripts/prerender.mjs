@@ -125,7 +125,7 @@ async function main() {
   const page = await browser.newPage({
     viewport: { width: 1280, height: 720 },
     userAgent:
-      "Mozilla/5.0 (compatible; JobberPrerender/1.0; +https://jobber-app.com)",
+      "Mozilla/5.0 (compatible; JobberPrerender/1.0; +https://cursopus.com)",
   });
 
   // Pre-seed cookie consent so the banner is not baked into every prerendered

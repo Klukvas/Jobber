@@ -1,4 +1,4 @@
-// Jobber API server entrypoint
+// Cursopus API server entrypoint
 package main
 
 import (
@@ -110,7 +110,7 @@ import (
 	"google.golang.org/api/calendar/v3"
 )
 
-// @title Jobber API
+// @title Cursopus API
 // @version 1.0
 // @description Job Application Tracking Platform API - A modular monolith backend for managing job applications, companies, resumes, and application stages.
 // @termsOfService http://swagger.io/terms/
@@ -176,7 +176,7 @@ func main() {
 		logger.Info("Sentry disabled via FEATURE_SENTRY_ENABLED=false")
 	}
 
-	logger.Info("Starting Jobber API server",
+	logger.Info("Starting Cursopus API server",
 		zap.String("env", cfg.Server.Env),
 		zap.String("port", cfg.Server.Port),
 	)

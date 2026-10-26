@@ -1,4 +1,4 @@
-jobber-app.com {
+(security_headers) {
 	header {
 		# HSTS — force HTTPS for 1 year, include subdomains
 		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
@@ -24,13 +24,37 @@ jobber-app.com {
 		# Remove server header
 		-Server
 	}
+}
 
+cursopus.com {
+	import security_headers
 	reverse_proxy frontend:80
 }
 
 # www -> apex redirect. Caddy obtains a cert for www so Cloudflare (Full strict)
 # does not return 525. Requires the Cloudflare DNS record for www to be proxied
 # and pointing at this origin.
+www.cursopus.com {
+	redir https://cursopus.com{uri} permanent
+}
+
+# Legacy domain (Jobber -> Cursopus rename). Pages 301 to the new domain; /api/*
+# keeps working because already-installed extension versions have this host
+# hard-coded as their API base, and Creem may still deliver webhooks here.
+# Remove the /api/* handler only once no traffic reaches it (see
+# docs/plans/rebrand-cursopus.md, phase 4).
+jobber-app.com {
+	import security_headers
+
+	handle /api/* {
+		reverse_proxy frontend:80
+	}
+
+	handle {
+		redir https://cursopus.com{uri} permanent
+	}
+}
+
 www.jobber-app.com {
-	redir https://jobber-app.com{uri} permanent
+	redir https://cursopus.com{uri} permanent
 }

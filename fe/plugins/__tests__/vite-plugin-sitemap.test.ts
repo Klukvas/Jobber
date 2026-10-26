@@ -78,7 +78,7 @@ describe("writeSitemap", () => {
 
     const xml = fs.readFileSync(path.join(outDir, "sitemap.xml"), "utf-8");
     expect(xml).toContain(
-      "<loc>https://jobber-app.com/blog/how-to-apply</loc>",
+      "<loc>https://cursopus.com/blog/how-to-apply</loc>",
     );
   });
 
@@ -102,7 +102,7 @@ describe("writeSitemap", () => {
 
     const xml = readSitemap();
     expect(xml).toContain(
-      '<xhtml:link rel="alternate" hreflang="uk" href="https://jobber-app.com/blog/yak-podavaty"/>',
+      '<xhtml:link rel="alternate" hreflang="uk" href="https://cursopus.com/blog/yak-podavaty"/>',
     );
     expect(xml).not.toContain('hreflang="ua"');
   });
@@ -134,7 +134,7 @@ describe("writeSitemap", () => {
     writeSitemap(root, outDir);
 
     expect(readSitemap()).toContain(
-      '<xhtml:link rel="alternate" hreflang="x-default" href="https://jobber-app.com/blog/how-to-apply"/>',
+      '<xhtml:link rel="alternate" hreflang="x-default" href="https://cursopus.com/blog/how-to-apply"/>',
     );
   });
 
@@ -201,7 +201,7 @@ describe("writeSitemap", () => {
     writeSitemap(root, outDir);
 
     const block = urlBlocks(readSitemap()).find((b) =>
-      b.includes("<loc>https://jobber-app.com/blog</loc>"),
+      b.includes("<loc>https://cursopus.com/blog</loc>"),
     );
     expect(block).toContain("<lastmod>2026-04-02</lastmod>");
   });

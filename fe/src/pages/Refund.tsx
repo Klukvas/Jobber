@@ -5,7 +5,7 @@ import { usePageMeta } from "@/shared/lib/usePageMeta";
 
 export default function Refund() {
   const { t } = useTranslation();
-  usePageMeta({ title: "Refund Policy — Jobber" });
+  usePageMeta({ title: "Refund Policy — Cursopus" });
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 text-foreground">
@@ -19,7 +19,7 @@ export default function Refund() {
         </Link>
         <Link to="/" className="flex items-center gap-2">
           <Briefcase className="h-5 w-5 text-primary" />
-          <span className="font-bold">Jobber</span>
+          <span className="font-bold">Cursopus</span>
         </Link>
       </nav>
       <h1 className="mb-8 text-3xl font-bold">Refund Policy</h1>
@@ -30,7 +30,7 @@ export default function Refund() {
       <section className="mb-8">
         <h2 className="mb-3 text-xl font-semibold">1. Overview</h2>
         <p>
-          All payments for Jobber Pro subscriptions are processed by{" "}
+          All payments for Cursopus Pro subscriptions are processed by{" "}
           <a
             href="https://www.creem.io"
             target="_blank"
@@ -49,7 +49,7 @@ export default function Refund() {
           2. 14-Day Money-Back Guarantee
         </h2>
         <p>
-          If you are not satisfied with Jobber Pro, you may request a full
+          If you are not satisfied with Cursopus Pro, you may request a full
           refund within <strong>14 days</strong> of your initial purchase. No
           questions asked.
         </p>

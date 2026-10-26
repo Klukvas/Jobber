@@ -26,7 +26,7 @@ export function FooterSection() {
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
           <div className="flex items-center gap-2 text-[15px] font-bold tracking-[-0.03em] text-slate-400">
             <span className="h-2 w-2 rounded-full bg-lime-400 shadow-[0_0_8px_rgba(163,230,53,0.6)]" />
-            Jobber
+            Cursopus
           </div>
           <span className="font-mono text-xs text-slate-600">
             &copy; {new Date().getFullYear()} {t("home.footer.copyright")}

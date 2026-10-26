@@ -208,7 +208,7 @@ export function HomeNavbar({
             className={`h-6 w-6 ${onDark ? "text-white" : "text-primary"}`}
           />
           <span className={`text-xl font-bold ${onDark ? "text-white" : ""}`}>
-            Jobber
+            Cursopus
           </span>
         </Link>
 

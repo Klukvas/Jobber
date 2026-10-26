@@ -69,7 +69,7 @@ if (leaked) {
 
 // ── Zip ──────────────────────────────────────────────────
 const version = manifest.version;
-const zipName = `jobber-extension-v${version}.zip`;
+const zipName = `cursopus-extension-v${version}.zip`;
 const zipPath = path.join(REPO, zipName);
 fs.rmSync(zipPath, { force: true });
 execSync(`cd ${BUILD} && zip -rq ${zipPath} . -x '*.DS_Store'`);

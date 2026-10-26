@@ -43,7 +43,7 @@ func (s *SupportService) Submit(ctx context.Context, userID, subject, message, p
 	}
 
 	text := fmt.Sprintf(
-		"<b>📩 Support Request — Jobber</b>\n\n"+
+		"<b>📩 Support Request — Cursopus</b>\n\n"+
 			"<b>From:</b> %s (%s)\n"+
 			"%s"+
 			"<b>Subject:</b> %s\n\n"+

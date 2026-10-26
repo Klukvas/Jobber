@@ -233,7 +233,7 @@ export function writeSitemap(root: string, outDir: string): boolean {
     return false;
   }
 
-  const siteUrl = process.env.VITE_SITE_URL ?? "https://jobber-app.com";
+  const siteUrl = process.env.VITE_SITE_URL ?? "https://cursopus.com";
   const buildDate = new Date().toISOString().slice(0, 10);
   const entries = buildEntries(siteUrl, collectBlogEntries(blogDir), buildDate);
   const xml = buildSitemapXml(entries);

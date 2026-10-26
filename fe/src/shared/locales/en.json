@@ -424,7 +424,7 @@
     "fieldsNeedSaveHint": "Changes here are applied when you press Save.",
     "resumeSavesInstantly": "Saved as soon as you choose.",
     "resumeSaving": "Saving…",
-    "reminderNoDeliveryHint": "Reminders are dates tracked here in Jobber — we don't send emails or push notifications.",
+    "reminderNoDeliveryHint": "Reminders are dates tracked here in Cursopus — we don't send emails or push notifications.",
     "noActiveJobs": "No active jobs",
     "noActiveJobsHint": "All of your jobs are archived. Open the Archived filter to see them, or create a new job.",
     "viewArchived": "View archived jobs",
@@ -480,7 +480,7 @@
       },
       "pdf": {
         "sourceLabel": "PDF — {{title}}",
-        "disclosure": "Import creates an editable copy in a Jobber template. The original PDF layout is not preserved. Review and correct the recognized data before AI adaptation.",
+        "disclosure": "Import creates an editable copy in a Cursopus template. The original PDF layout is not preserved. Review and correct the recognized data before AI adaptation.",
         "usage": "The intermediate copy uses a document slot. Import recognition and AI adaptation each use your existing AI allowance; document slots and AI usage are separate. Saving the adapted copy needs another document slot.",
         "cancelHint": "Cancel keeps your original and any imported copy. Nothing is deleted automatically.",
         "manual": "Paste resume text instead",
@@ -746,7 +746,7 @@
     },
     "profile": {
       "title": "Profile",
-      "description": "The name Jobber uses for you across the app",
+      "description": "The name Cursopus uses for you across the app",
       "name": "Display name",
       "nameHint": "Shown in the sidebar. Only you can see it.",
       "email": "Email",
@@ -755,30 +755,30 @@
     }
   },
   "seo": {
-    "defaultTitle": "Jobber — Job Application Tracker",
-    "defaultDescription": "Track your job applications, manage companies, and analyze your job search progress with Jobber.",
+    "defaultTitle": "Cursopus — Job Application Tracker",
+    "defaultDescription": "Track your job applications, manage companies, and analyze your job search progress with Cursopus.",
     "home": {
-      "title": "Jobber — AI Job Application Tracker & Job Search Organizer",
+      "title": "Cursopus — AI Job Application Tracker & Job Search Organizer",
       "description": "Track job applications on a Kanban board, build ATS-friendly resumes, and generate AI cover letters. Free job application tracker with analytics."
     },
     "jobs": {
-      "title": "Jobs — Jobber",
+      "title": "Jobs — Cursopus",
       "description": "Browse and manage your job postings in one place."
     },
     "applications": {
-      "title": "Applications — Jobber",
+      "title": "Applications — Cursopus",
       "description": "Track all your job applications and their progress through stages."
     },
     "companies": {
-      "title": "Companies — Jobber",
+      "title": "Companies — Cursopus",
       "description": "Manage the companies you are applying to."
     },
     "analytics": {
-      "title": "Analytics — Jobber",
+      "title": "Analytics — Cursopus",
       "description": "Get insights into your job search with detailed analytics."
     },
     "blog": {
-      "title": "Job Search Blog: Resume & Interview Tips — Jobber",
+      "title": "Job Search Blog: Resume & Interview Tips — Cursopus",
       "description": "Practical job search advice: resume tips, cover letter examples, interview prep, and strategies to organize your job applications."
     }
   },
@@ -916,7 +916,7 @@
       },
       "calendar": {
         "title": "Google Calendar",
-        "description": "Schedule interviews directly from the app. Syncs to your calendar without leaving Jobber."
+        "description": "Schedule interviews directly from the app. Syncs to your calendar without leaving Cursopus."
       },
       "applications": {
         "title": "Application Tracker",
@@ -971,7 +971,7 @@
     "ai": {
       "label": "Powered by Claude AI",
       "title": "Resume tailored to every job. In seconds.",
-      "description": "Jobber uses Claude Haiku to score your resume against any job posting — identifying missing keywords, skill gaps, and match percentage across five categories. Stop guessing, start iterating.",
+      "description": "Cursopus uses Claude Haiku to score your resume against any job posting — identifying missing keywords, skill gaps, and match percentage across five categories. Stop guessing, start iterating.",
       "cta": "Try AI Match",
       "scoreTitle": "Match Score",
       "company": "PlanetScale",
@@ -1023,27 +1023,27 @@
     "faq": {
       "label": "FAQ",
       "title": "Frequently asked questions",
-      "subtitle": "Everything you need to know about tracking your job search with Jobber.",
+      "subtitle": "Everything you need to know about tracking your job search with Cursopus.",
       "items": {
         "free": {
-          "q": "Is Jobber free?",
+          "q": "Is Cursopus free?",
           "a": "Yes. The free plan tracks up to 25 active applications with 1 resume, 1 resume builder and 1 AI request per month — that single request covers match scoring, resume help and resume imports, and no credit card is required. Pro ($7/mo) raises the limit to 100 applications, 10 resumes and 10 builders, and makes AI match scoring and job parsing unlimited; cover letters stay capped at 10 in total. Enterprise ($19/mo) removes the limits entirely."
         },
         "what": {
-          "q": "What is Jobber and who is it for?",
-          "a": "Jobber is a job application tracker built for engineers and tech professionals. You organize roles on a Kanban board, store tailored resumes and cover letters, and analyze your interview pipeline — all in one place."
+          "q": "What is Cursopus and who is it for?",
+          "a": "Cursopus is a job application tracker built for engineers and tech professionals. You organize roles on a Kanban board, store tailored resumes and cover letters, and analyze your interview pipeline — all in one place."
         },
         "vsCompetitors": {
-          "q": "How is Jobber different from Huntr, Teal, or JobHero?",
-          "a": "Jobber is 3–4× cheaper than Huntr ($40/mo), Teal ($29/mo), and JobHero ($36/mo), with no feature gating on core tracking. It is built for engineers: stage-based pipeline, AI resume match scoring, and clean analytics without bloat."
+          "q": "How is Cursopus different from Huntr, Teal, or JobHero?",
+          "a": "Cursopus is 3–4× cheaper than Huntr ($40/mo), Teal ($29/mo), and JobHero ($36/mo), with no feature gating on core tracking. It is built for engineers: stage-based pipeline, AI resume match scoring, and clean analytics without bloat."
         },
         "aiMatch": {
           "q": "How does AI resume matching work?",
-          "a": "Paste a job posting and Jobber uses Claude AI to score your resume against it across technical skills, experience, keywords, culture fit, and seniority. You see the match percentage and the exact missing keywords to add before applying."
+          "a": "Paste a job posting and Cursopus uses Claude AI to score your resume against it across technical skills, experience, keywords, culture fit, and seniority. You see the match percentage and the exact missing keywords to add before applying."
         },
         "import": {
           "q": "Can I import jobs from LinkedIn or Indeed?",
-          "a": "Yes. Paste a LinkedIn, Indeed, Glassdoor, or DOU URL and Jobber parses the role automatically using JSON-LD structured data with a Claude AI fallback for sites that don't expose it."
+          "a": "Yes. Paste a LinkedIn, Indeed, Glassdoor, or DOU URL and Cursopus parses the role automatically using JSON-LD structured data with a Claude AI fallback for sites that don't expose it."
         },
         "privacy": {
           "q": "Is my job search data private?",
@@ -1051,17 +1051,17 @@
         },
         "install": {
           "q": "Do I need to install anything?",
-          "a": "No. Jobber runs in your browser. Optional: install the Chrome extension to save jobs from LinkedIn, Indeed, and other boards with one click."
+          "a": "No. Cursopus runs in your browser. Optional: install the Chrome extension to save jobs from LinkedIn, Indeed, and other boards with one click."
         }
       }
     },
     "cta": {
       "title": "Ready to stop losing track of your dream job?",
-      "subtitle": "Join 3,000+ developers who track their job search with Jobber.",
+      "subtitle": "Join 3,000+ developers who track their job search with Cursopus.",
       "button": "Create free account"
     },
     "footer": {
-      "copyright": "Jobber. Built with ♥ for engineers.",
+      "copyright": "Cursopus. Built with ♥ for engineers.",
       "tagline": "Your job search, organized.",
       "terms": "Terms",
       "privacy": "Privacy",
@@ -1077,7 +1077,7 @@
   },
   "onboarding": {
     "welcome": {
-      "title": "Welcome to Jobber!",
+      "title": "Welcome to Cursopus!",
       "subtitle": "Let's get you set up in just a few steps"
     },
     "steps": {
@@ -1103,7 +1103,7 @@
       },
       "extension": {
         "title": "Chrome Extension",
-        "description": "Install the Jobber Chrome extension to save job postings from any website with one click. AI-powered parsing fills in all the details automatically."
+        "description": "Install the Cursopus Chrome extension to save job postings from any website with one click. AI-powered parsing fills in all the details automatically."
       },
       "done": {
         "title": "You're All Set!",
@@ -1213,7 +1213,7 @@
       "notFoundTitle": "Link not found",
       "notFoundDescription": "This share link does not exist or was revoked by its owner.",
       "loadError": "Failed to load shared stats",
-      "ctaTitle": "Track your own job search with Jobber",
+      "ctaTitle": "Track your own job search with Cursopus",
       "ctaDescription": "Applications tracker, funnel analytics, resume builder and AI cover letters — free to start.",
       "ctaButton": "Get started free"
     }
@@ -1727,7 +1727,7 @@
   "featurePages": {
     "applications": {
       "meta": {
-        "title": "Job Application Tracker with Kanban Board — Jobber",
+        "title": "Job Application Tracker with Kanban Board — Cursopus",
         "description": "Track every job application with a Kanban board, custom stages, and analytics. Never lose track of your job search again."
       },
       "hero": {
@@ -1759,26 +1759,26 @@
       },
       "cta": {
         "title": "Ready to organize your job search?",
-        "subtitle": "Join thousands of job seekers who use Jobber to stay focused and land offers faster.",
+        "subtitle": "Join thousands of job seekers who use Cursopus to stay focused and land offers faster.",
         "button": "Get started for free"
       },
       "faq": {
         "title": "Frequently asked questions",
-        "q1": "Is Jobber's job application tracker free?",
+        "q1": "Is Cursopus's job application tracker free?",
         "a1": "Yes. The free plan tracks up to 25 active applications with the full Kanban board, custom stages, comments, and reminders. Pro ($7/mo) raises the limit to 100 applications and unlocks unlimited AI features, Enterprise ($19/mo) removes limits entirely.",
         "q2": "Why is a Kanban board better than a spreadsheet for tracking job applications?",
         "a2": "A spreadsheet shows rows — a board shows status. You drag a card from Applied to Interview in one motion, instantly see where every application stands, and never lose a follow-up. Analytics like response rate are computed automatically instead of living in formulas you maintain by hand.",
         "q3": "Can I save jobs from LinkedIn, Djinni or DOU automatically?",
-        "a3": "Yes. The Jobber Chrome extension saves a job from almost any job board in one click — it parses the title, company, and description for you, so a new card lands on your board in seconds.",
+        "a3": "Yes. The Cursopus Chrome extension saves a job from almost any job board in one click — it parses the title, company, and description for you, so a new card lands on your board in seconds.",
         "q4": "Can I customize the pipeline stages?",
         "a4": "Yes. Create your own stage templates — for example Screening, Tech Interview, Offer — and the board adapts. Every move is kept on the application's timeline, so you always see the full history.",
-        "q5": "What analytics does Jobber show about my job search?",
+        "q5": "What analytics does Cursopus show about my job search?",
         "a5": "Response rate, weekly application volume, a stage-by-stage funnel, and per-source breakdowns — so you can see which job boards actually convert into interviews and double down on what works."
       }
     },
     "resumeBuilder": {
       "meta": {
-        "title": "AI Resume Builder — ATS-Friendly Templates — Jobber",
+        "title": "AI Resume Builder — ATS-Friendly Templates — Cursopus",
         "description": "Build ATS-optimized resumes with AI-powered bullet suggestions, multiple templates, and one-click PDF export."
       },
       "hero": {
@@ -1824,12 +1824,12 @@
         "q4": "How many resumes can I create?",
         "a4": "The free plan includes one builder resume. Pro gives you 10 so you can tailor a version per role, and Enterprise removes the limit. You can duplicate any resume and adjust it for a specific application in minutes.",
         "q5": "Can I import my existing resume?",
-        "a5": "Yes. Upload a PDF or paste plain text, and Jobber converts it into a fully editable resume — sections, dates, and bullet points included — so you never start from a blank page."
+        "a5": "Yes. Upload a PDF or paste plain text, and Cursopus converts it into a fully editable resume — sections, dates, and bullet points included — so you never start from a blank page."
       }
     },
     "coverLetters": {
       "meta": {
-        "title": "AI Cover Letter Generator — Jobber",
+        "title": "AI Cover Letter Generator — Cursopus",
         "description": "Write cover letters that get you interviews. AI-powered generation tailored to each job description in seconds."
       },
       "hero": {
@@ -1854,7 +1854,7 @@
       "feature2": {
         "label": "Export & apply",
         "title": "Ready to send in one click",
-        "desc": "Edit the generated letter to add your personal touch, then export as PDF or DOCX. Attach directly to your application in Jobber.",
+        "desc": "Edit the generated letter to add your personal touch, then export as PDF or DOCX. Attach directly to your application in Cursopus.",
         "point1": "Inline editor — click any sentence to edit",
         "point2": "Export as PDF or DOCX, formatted and ready to attach",
         "point3": "Link cover letters directly to applications in your tracker"

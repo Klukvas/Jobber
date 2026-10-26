@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 
-const SITE_URL = "https://jobber-app.com";
+const SITE_URL = "https://cursopus.com";
 const INDEX_ROBOTS = "index, follow, max-image-preview:large";
 
 interface PageMetaOptions {
