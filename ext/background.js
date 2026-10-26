@@ -1,6 +1,6 @@
 // Background service worker
-const API_BASE = "https://cursopus.com";
-const ALLOWED_ORIGINS = ["https://cursopus.com", "http://localhost:8080"];
+const API_BASE = "https://jobber-app.com";
+const ALLOWED_ORIGINS = ["https://jobber-app.com", "http://localhost:8080"];
 const REFRESH_ALARM = "jobber-token-refresh";
 const REFRESH_INTERVAL_MINUTES = 10;
 
