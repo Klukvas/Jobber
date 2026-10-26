@@ -65,13 +65,24 @@ const TEMPLATE = /* html */ `<!doctype html>
     padding: 0 88px;
   }
 
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 40px;
+  }
+
+  .brand svg {
+    width: 56px;
+    height: 56px;
+  }
+
   .wordmark {
     font-family: 'Syne', sans-serif;
     font-weight: 800;
     font-size: 44px;
     letter-spacing: -0.02em;
     color: #a3e635;
-    margin-bottom: 40px;
   }
 
   h1 {
@@ -134,7 +145,15 @@ const TEMPLATE = /* html */ `<!doctype html>
   <div class="grid"></div>
   <div class="glow"></div>
   <div class="content">
-    <div class="wordmark">Cursopus</div>
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#BEF264"/><stop offset="1" stop-color="#84CC16"/></linearGradient></defs>
+        <rect width="32" height="32" rx="9" fill="url(#g)"/>
+        <path d="M21.6 10.4A8.2 8.2 0 1 0 21.6 21.6" fill="none" stroke="#0B0D12" stroke-width="3.3" stroke-linecap="round"/>
+        <circle cx="23.2" cy="16" r="2.5" fill="#0B0D12"/>
+      </svg>
+      <div class="wordmark">Cursopus</div>
+    </div>
     <h1>Your job search,<br /><span class="accent">finally organized</span></h1>
     <div class="subtitle">AI-powered job application tracker with a Kanban board, resume builder and cover letter generator</div>
   </div>

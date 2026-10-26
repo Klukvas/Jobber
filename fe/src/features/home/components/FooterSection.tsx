@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { resetConsent } from "@/shared/lib/consent";
+import { LogoMark } from "@/shared/ui/Logo";
 import { PoweredByFluxLab } from "@/shared/ui/PoweredByFluxLab";
 import { TAP_TARGET_INLINE } from "@/shared/ui/tapTarget";
 
@@ -25,7 +26,7 @@ export function FooterSection() {
       <div className="mx-auto flex max-w-[1080px] flex-col items-center gap-4 sm:flex-row sm:justify-between">
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
           <div className="flex items-center gap-2 text-[15px] font-bold tracking-[-0.03em] text-slate-400">
-            <span className="h-2 w-2 rounded-full bg-lime-400 shadow-[0_0_8px_rgba(163,230,53,0.6)]" />
+            <LogoMark className="h-5 w-5" />
             Cursopus
           </div>
           <span className="font-mono text-xs text-slate-600">

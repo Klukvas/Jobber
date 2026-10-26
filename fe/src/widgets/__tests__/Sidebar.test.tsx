@@ -223,7 +223,7 @@ describe("Sidebar while it is closed on a phone", () => {
   // 32px of logo, and the control that leaves the app.
   it("gives the brand link a 44px height on phones", () => {
     render(<Sidebar />);
-    const brand = screen.getByAltText("Cursopus").closest("a");
+    const brand = screen.getByRole("img", { name: "Cursopus" }).closest("a");
 
     expect(brand?.className).toContain("min-h-11");
     expect(brand?.className).toContain("md:min-h-0");
