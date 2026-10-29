@@ -32,9 +32,9 @@ func ensureFreeCredits(ctx context.Context, tx pgx.Tx, user string) error {
 const activeGrant = `SELECT g.id::text,g.kind,g.credits,g.period_end,
  COALESCE((SELECT sum(o.credits) FROM ai_credit_operations o WHERE o.grant_id=g.id AND o.state<>'released'),0)::integer
  FROM credit_grants g WHERE g.user_id=$1 AND g.revoked_at IS NULL AND
- (g.kind='free_once' OR (g.kind='pro' AND g.period_start<=now() AND g.period_end>now()
+ (g.kind='free_once' OR (g.kind='manual_pro' AND g.period_start<=now() AND g.period_end>now() AND EXISTS(SELECT 1 FROM manual_access_grants m WHERE m.grant_id=g.id)) OR (g.kind='pro' AND g.period_start<=now() AND g.period_end>now()
  AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.user_id=g.user_id AND s.external_subscription_id=g.subscription_id AND s.status='active')))
- ORDER BY (g.kind='pro') DESC,g.period_start DESC NULLS LAST LIMIT 1`
+ ORDER BY (g.kind='pro') DESC,(g.kind='manual_pro') DESC,g.period_start DESC NULLS LAST LIMIT 1`
 
 func (r *SubscriptionRepository) CreditBalance(ctx context.Context, user string) (model.CreditBalance, error) {
 	tx, err := r.pool.Begin(ctx)
@@ -195,8 +195,15 @@ func (r *SubscriptionRepository) DispatchCreditAttempt(ctx context.Context, id s
 	if blocked {
 		return model.ErrAIBudgetReached
 	}
+	var owner string
+	if err := tx.QueryRow(ctx, `SELECT o.user_id::text FROM ai_credit_operations o JOIN ai_credit_attempts a ON a.operation_id=o.id WHERE a.id=$1`, id).Scan(&owner); err != nil {
+		return err
+	}
+	if err := lockAIQuota(ctx, tx, owner); err != nil {
+		return err
+	}
 	var operation string
-	err = tx.QueryRow(ctx, `UPDATE ai_credit_attempts SET state='dispatched',dispatched_at=now() WHERE id=$1 AND state='reserved' AND EXISTS(SELECT 1 FROM ai_credit_operations o JOIN credit_grants g ON g.id=o.grant_id WHERE o.id=ai_credit_attempts.operation_id AND g.revoked_at IS NULL AND (g.kind='free_once' OR (g.period_start<=now() AND g.period_end>now() AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.user_id=g.user_id AND s.external_subscription_id=g.subscription_id AND s.status='active')))) RETURNING operation_id::text`, id).Scan(&operation)
+	err = tx.QueryRow(ctx, `UPDATE ai_credit_attempts SET state='dispatched',dispatched_at=now() WHERE id=$1 AND state='reserved' AND EXISTS(SELECT 1 FROM ai_credit_operations o JOIN credit_grants g ON g.id=o.grant_id WHERE o.id=ai_credit_attempts.operation_id AND g.revoked_at IS NULL AND (g.kind='free_once' OR (g.kind='manual_pro' AND g.period_start<=now() AND g.period_end>now() AND EXISTS(SELECT 1 FROM manual_access_grants m WHERE m.grant_id=g.id)) OR (g.kind='pro' AND g.period_start<=now() AND g.period_end>now() AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.user_id=g.user_id AND s.external_subscription_id=g.subscription_id AND s.status='active')))) RETURNING operation_id::text`, id).Scan(&operation)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return model.ErrAIOperationConflict
 	}
@@ -267,6 +274,13 @@ func (r *SubscriptionRepository) ReleaseCreditAttempt(ctx context.Context, id st
 		return err
 	}
 	var reserved int64
+	var owner string
+	if err := tx.QueryRow(ctx, `SELECT o.user_id::text FROM ai_credit_operations o JOIN ai_credit_attempts a ON a.operation_id=o.id WHERE a.id=$1`, id).Scan(&owner); err != nil {
+		return err
+	}
+	if err := lockAIQuota(ctx, tx, owner); err != nil {
+		return err
+	}
 	var operation string
 	err = tx.QueryRow(ctx, `UPDATE ai_credit_attempts SET state='released' WHERE id=$1 AND state='reserved' RETURNING reserved_nanodollars,operation_id::text`, id).Scan(&reserved, &operation)
 	if errors.Is(err, pgx.ErrNoRows) {

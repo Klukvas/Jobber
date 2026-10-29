@@ -109,7 +109,7 @@ func (r *SubscriptionRepository) HoldCreditPayment(ctx context.Context, eventID,
 // validated payment grant. SQL failures must not turn into paid access.
 func (r *SubscriptionRepository) HasConfirmedPaidPeriod(ctx context.Context, user string) (bool, error) {
 	var paid bool
-	err := r.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM credit_grants g JOIN subscriptions s ON s.user_id=g.user_id AND s.external_subscription_id=g.subscription_id WHERE g.user_id=$1 AND g.kind='pro' AND g.revoked_at IS NULL AND g.period_start<=now() AND g.period_end>now() AND s.status='active')`, user).Scan(&paid)
+	err := r.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM credit_grants g JOIN subscriptions s ON s.user_id=g.user_id AND s.external_subscription_id=g.subscription_id WHERE g.user_id=$1 AND g.kind='pro' AND g.revoked_at IS NULL AND g.period_start<=now() AND g.period_end>now() AND s.status='active') OR EXISTS(SELECT 1 FROM credit_grants g JOIN manual_access_grants m ON m.grant_id=g.id WHERE g.user_id=$1 AND g.kind='manual_pro' AND g.revoked_at IS NULL AND g.period_start<=now() AND g.period_end>now())`, user).Scan(&paid)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
