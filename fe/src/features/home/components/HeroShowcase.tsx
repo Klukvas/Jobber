@@ -317,7 +317,7 @@ export function HeroShowcase() {
             <span className="h-2.5 w-2.5 rounded-full bg-white/[0.08]" />
           </div>
           <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600">
-            jobber — board
+            cursopus — board
           </span>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

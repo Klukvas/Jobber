@@ -85,8 +85,8 @@ describe("AppLayout footer tap targets", () => {
 
   it("shows the reachable support address even without the support form", () => {
     renderLayout();
-    expect(screen.getByRole("link", { name: "support@jobber-app.com" })).toHaveAttribute(
-      "href", "mailto:support@jobber-app.com",
+    expect(screen.getByRole("link", { name: "support@cursopus.com" })).toHaveAttribute(
+      "href", "mailto:support@cursopus.com",
     );
   });
 
