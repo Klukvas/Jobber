@@ -4746,13 +4746,20 @@ Migration `000049_interview_preparation` is additive, after current main's
 history/operation/receipt tables and durable temporary AI reservations. It does
 not change existing tariffs, source data or historical usage records. Deploy code
 only with these tables available. The established GitHub deployment workflow uses
-`.github/scripts/interview-preparation-release.sh`: immutable image digests are
+`.github/scripts/release.sh` (until October 2026 `interview-preparation-release.sh`): immutable image digests are
 prepared before a bounded frontend SIGQUIT drain and backend shutdown. The entry
 point stays closed through backup checksum and isolated PostgreSQL 15 restore,
 backend migration, exact clean-schema and authorization checks; frontend starts
 last. Public frontend activation and recovery require bounded exact HTTP 200
 readiness; redirects fail validation. Payments remain disabled without rewriting
 server environment files.
+
+Since the AI-credits release the helper accepts any clean live schema from 52 up to the
+release's newest migration. It writes one rollback override per clean schema in that range,
+mounting migrations only through that schema, so the previous backend never advances the
+schema it finds; a dirty or out-of-range schema keeps the entry point closed. After a
+committed release it runs `scripts/release/server-cleanup.sh`, keeping the replaced images as
+the rollback target. The history below describes the original 48→49 rollout.
 
 Rollback depends on the observed clean schema. At 48, restart the previous image
 with its original migration source. At 49, the old 22561cb image additionally

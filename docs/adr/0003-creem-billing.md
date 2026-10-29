@@ -366,9 +366,10 @@ navigation, not a script, frame, request or form post.
   whose row still carries a non-Creem `external_subscription_id` cannot complete
   a first real purchase: the link guard refuses the event and Creem stops
   retrying after 24 hours.
-- [ ] **Remove the production pin.** `.github/workflows/deploy-dev.yml` pins
-  `FEATURE_PAYMENTS_ENABLED=false` and `FEATURE_BILLING_WEBHOOK_ENABLED=false` in
-  the `docker-compose.deploy.yml` override it generates — not in the server's
+- [ ] **Remove the production pin.** `.github/scripts/release.sh` (run by
+  `.github/workflows/deploy-dev.yml`) pins `FEATURE_PAYMENTS_ENABLED=false` and
+  `FEATURE_BILLING_WEBHOOK_ENABLED=false` in every `docker-compose.deploy.yml`
+  override it writes, and refuses to release over a live override that enables them — not in the server's
   `.env`, which CI never writes — and builds the frontend with
   `VITE_FEATURE_PAYMENTS=false`, whatever the secrets say, so production ships
   with payments off. Going live means reading those three from their secrets
