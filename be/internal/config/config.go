@@ -30,6 +30,7 @@ type TelegramConfig struct {
 
 // Config holds all configuration for the application
 type Config struct {
+	AdminEmails                 string
 	AIProviderBudgetNanodollars int64
 	Server                      ServerConfig
 	Database                    DatabaseConfig
@@ -176,6 +177,7 @@ func Load() (*Config, error) {
 	paymentsEnabled := getEnvAsBool("FEATURE_PAYMENTS_ENABLED", false)
 
 	cfg := &Config{
+		AdminEmails: getEnv("ADMIN_EMAILS", ""),
 		Server: ServerConfig{
 			Port:           getEnv("SERVER_PORT", "8080"),
 			Env:            getEnv("SERVER_ENV", "development"),

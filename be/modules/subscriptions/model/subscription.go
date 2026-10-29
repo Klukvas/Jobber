@@ -67,6 +67,8 @@ type Subscription struct {
 
 // SubscriptionDTO is the JSON response for a subscription.
 type SubscriptionDTO struct {
+	ManualOnly       bool           `json:"manual_only,omitempty"`
+	ManualAccess     *ManualAccess  `json:"manual_access,omitempty"`
 	Credits          *CreditBalance `json:"credits,omitempty"`
 	CreditCosts      map[string]int `json:"credit_costs,omitempty"`
 	Plan             string         `json:"plan"`

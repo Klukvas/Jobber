@@ -415,13 +415,15 @@ export interface CreditBalance {
   granted: number;
   used: number;
   remaining: number;
-  kind: "free_once" | "pro";
+  kind: "free_once" | "pro" | "manual_pro";
   period_end?: string;
   spend_limit_nanodollars: number;
   spend_allocated_nanodollars: number;
 }
 
 export interface SubscriptionDTO {
+  manual_only?: boolean;
+  manual_access?: { id: string; period_start: string; period_end: string };
   credits?: CreditBalance;
   credit_costs?: Record<string, number>;
   plan: SubscriptionPlan;

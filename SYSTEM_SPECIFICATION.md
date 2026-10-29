@@ -4900,3 +4900,55 @@ migration down, schema force or automatic database restore runs during recovery.
   their pill badges with a level added. Explicit Text Only and Pill Badge
   choices retain their name-only behavior. Changing template or display format
   does not alter saved field values.
+
+
+## Administrator registration dashboard and test accounts (October 29, 2026)
+
+The existing `/app/admin` page shows three server-calculated cards: total accounts,
+registrations in the last seven calendar days, and registrations in the last thirty
+calendar days. Its daily chart defaults to thirty days and can switch to seven;
+the card windows retain their fixed meaning. All dates use `Europe/Kyiv`, including
+today plus the previous six or twenty-nine dates. Today is partial, and rows later
+than the single server `as_of` instant are excluded from every aggregate. Empty
+days are returned explicitly with count zero. PostgreSQL `users.created_at` is a
+UTC timestamp without time zone: query bounds are UTC-naive timestamps and daily
+buckets explicitly interpret stored values as UTC before converting to Kyiv.
+Neither database session timezone nor DateStyle changes the result.
+
+`GET /api/v1/admin/stats?days=7|30&include_test=false|true` returns
+`total_users`, `registrations_7_days`, `registrations_30_days`,
+`daily_registrations: [{date: "YYYY-MM-DD", count}]`, `days`, `include_test`,
+`timezone`, and `as_of`. Defaults are thirty days and exclusion of test accounts.
+One SQL statement reads a consistent aggregate snapshot, returns at most thirty
+daily groups, and exposes no individual account data. The statistics checkbox
+only changes metrics: the paginated/searchable user list always includes all
+accounts, and search does not filter the statistics.
+
+Migration `000054_test_accounts` adds `users.is_test boolean NOT NULL DEFAULT
+false`; existing accounts keep their identity and stay included in statistics.
+The down migration removes only this metadata column, preserving user and access
+records. `is_test` is exposed only in administrator list/detail DTOs. It is not a
+self-service profile field. The dedicated endpoint
+`PATCH /api/v1/admin/users/:id/test-account` accepts exactly `{is_test: boolean}`
+and returns `{saved: true, is_test: boolean}`. Omitted/null/non-boolean and unknown
+fields are rejected; repeating a desired value is idempotent. Marking/unmarking
+changes only the flag, with no sign-in, verification, plan, billing, credit,
+entitlement or manual-access effects.
+
+Both new routes use the existing current-database-identity administrator guard:
+authenticated, verified email in the configured administrator allowlist. Responses
+are non-cacheable. The write also requires JSON and the existing trusted-origin
+cookie/CSRF check; user IDs and all SQL inputs remain validated/parameterized.
+
+The frontend retains the existing theme and provides pending, failure/retry,
+empty, saved and refreshing feedback. An always-visible refresh action reloads the
+current metric filter/range, is guarded during reads or test-flag writes, and the
+snapshot label includes its date and time in Kyiv. A test-account action captures
+the desired flag at click time, including when offline execution is delayed. Test accounts have a visible badge and a
+reversible action in their details. Chart values have keyboard/native title labels
+and an expandable exact-value table. Admin metrics cache keys include actor,
+session and capability/statistics revisions; permission loss or account changes
+cancel and remove protected statistics along with list/detail data. A test-flag
+write fences every earlier metric response, pauses metric reads until all current
+writes settle, and reloads all filter/range variants. Late success/denial from a
+previous account cannot repopulate or revoke the current account's cache.

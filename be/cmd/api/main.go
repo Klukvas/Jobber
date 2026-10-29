@@ -26,6 +26,7 @@ import (
 	sentryPlatform "github.com/andreypavlenko/jobber/internal/platform/sentry"
 	"github.com/andreypavlenko/jobber/internal/platform/storage"
 	"github.com/andreypavlenko/jobber/internal/platform/telegram"
+	"github.com/andreypavlenko/jobber/modules/admin"
 	"github.com/andreypavlenko/jobber/modules/contacts"
 	"github.com/andreypavlenko/jobber/modules/interviewprep"
 
@@ -641,6 +642,8 @@ func main() {
 		// /auth/* endpoints, and this endpoint must trigger that refresh.
 		v1.GET("/session", authMiddleware, sessionHandler)
 		v1.GET("/features/ai", authMiddleware, httpPlatform.AIAvailabilityHandler(resumeAIHdl != nil))
+
+		admin.NewHandler(admin.NewRepository(pgClient.Pool), userRepository, cfg.AdminEmails, cfg.Server.AllowedOrigins+","+cfg.Server.PublicBaseURL).RegisterRoutes(v1, authMiddleware)
 
 		// Register module routes
 		authHdl.RegisterRoutes(v1, authHandler.AuthRouteConfig{

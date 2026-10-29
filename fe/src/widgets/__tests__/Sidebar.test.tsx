@@ -247,3 +247,5 @@ describe("Sidebar — the panel the header controls", () => {
     },
   );
 });
+
+vi.mock("@/shared/hooks/useAdminAccess", () => ({ useAdminAccess: () => ({ data: undefined, isError: false }) }));

@@ -91,7 +91,20 @@ func (s *SubscriptionService) GetSubscription(ctx context.Context, userID string
 		return nil, fmt.Errorf("failed to get usage: %w", err)
 	}
 
-	dto := sub.ToDTO(usage, s.effectivePlanOf(sub))
+	manual, err := s.manualAccess(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	plan := s.effectivePlanOf(sub)
+	if manual != nil && plan == PlanFree {
+		plan = PlanPro
+	}
+	dto := sub.ToDTO(usage, plan)
+	if manual != nil {
+		dto.Plan = plan
+	}
+	dto.ManualAccess = manual
+	dto.ManualOnly = manual != nil && s.effectivePlanOf(sub) == PlanFree
 	if ledger, ok := s.repo.(interface {
 		CreditBalance(context.Context, string) (model.CreditBalance, error)
 	}); ok {
@@ -104,7 +117,7 @@ func (s *SubscriptionService) GetSubscription(ctx context.Context, userID string
 		dto.Usage.AIRequests = balance.Used
 		dto.Limits.MaxAIRequests = balance.Granted
 	}
-	if s.scheduledCancelLapsed(sub) {
+	if s.scheduledCancelLapsed(sub) && manual == nil {
 		// The cancellation date passed and the webhook that should have ended the
 		// subscription never arrived. Show what enforcement already applies, as the
 		// cancellation itself would have: free, cancelled, no period.
@@ -166,14 +179,25 @@ func (s *SubscriptionService) planForProductID(productID string) (string, error)
 // effectivePlan resolves the plan whose limits actually apply right now for a
 // user. A missing subscription row is treated as the free plan.
 func (s *SubscriptionService) effectivePlan(ctx context.Context, userID string) (string, error) {
+	manual, err := s.manualAccess(ctx, userID)
+	if err != nil {
+		return "", err
+	}
 	sub, err := s.repo.GetByUserID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, model.ErrSubscriptionNotFound) {
+			if manual != nil {
+				return PlanPro, nil
+			}
 			return PlanFree, nil
 		}
 		return "", fmt.Errorf("failed to get subscription: %w", err)
 	}
-	return s.effectivePlanOf(sub), nil
+	plan := s.effectivePlanOf(sub)
+	if manual != nil && plan == PlanFree {
+		return PlanPro, nil
+	}
+	return plan, nil
 }
 
 // effectivePlanOf is the plan whose limits apply to a stored subscription.
@@ -417,4 +441,13 @@ func (s *SubscriptionService) CreditLedgerEnabled() bool {
 		CreditBalance(context.Context, string) (model.CreditBalance, error)
 	})
 	return ok
+}
+
+func (s *SubscriptionService) manualAccess(ctx context.Context, user string) (*model.ManualAccess, error) {
+	if repo, ok := s.repo.(interface {
+		ManualAccess(context.Context, string) (*model.ManualAccess, error)
+	}); ok {
+		return repo.ManualAccess(ctx, user)
+	}
+	return nil, nil
 }
