@@ -1,3 +1,4 @@
+import { isAIActionCancelled } from "@/shared/lib/aiCredits";
 import { workflowRequestKey, saveWorkflowValue, workflowValue } from "./workflowSession";
 import { markAIUnavailable } from "@/shared/hooks/useAIAvailability";
 import { useEffect, useRef, useState } from "react";
@@ -18,6 +19,7 @@ const STALE_CODES = new Set([
 
 export function tailoringErrorKey(error: unknown): string {
   if (!(error instanceof ApiError)) return "requestFailed";
+  if (["CREDIT_UNAVAILABLE", "AI_BUDGET_REACHED", "AI_OPERATION_CONFLICT"].includes(error.code)) return error.code;
   if (STALE_CODES.has(error.code)) return "stale";
   if (error.code === "PLAN_LIMIT_REACHED") return "limitReached";
   if (error.status === 429) return "rateLimited";
@@ -121,6 +123,7 @@ export function useResumeTailoring(jobId: string) {
         try { const saved: unknown = JSON.parse(metadata); if (typeof saved === "object" && saved !== null && "ids" in saved && Array.isArray(saved.ids)) { const valid = new Set(proposal.changes.map((change) => change.id)); setAcceptedIds(saved.ids.filter((id): id is string => typeof id === "string" && valid.has(id))); } } catch { /* Invalid local metadata cannot change server data. */ }
       }
     } catch (error) {
+      if (isAIActionCancelled(error)) return;
       if (mounted.current && token === requestId.current && !abort.signal.aborted) {
         markAIUnavailable(queryClient, error);
         setErrorKey(tailoringErrorKey(error));
@@ -167,6 +170,7 @@ export function useResumeTailoring(jobId: string) {
       ]);
       return mounted.current ? result : null;
     } catch (error) {
+      if (isAIActionCancelled(error)) return;
       if (mounted.current) {
         setErrorKey(tailoringErrorKey(error));
         if (error instanceof ApiError && STALE_CODES.has(error.code)) {

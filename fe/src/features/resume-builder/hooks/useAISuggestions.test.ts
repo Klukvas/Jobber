@@ -64,6 +64,7 @@ describe("useAISuggestions", () => {
           company: "Acme",
           current_description: "Did things",
         },
+        { consentSignal: expect.any(AbortSignal) },
       );
       expect(result.current.suggestBullets.data).toEqual(mockResponse);
     });
@@ -144,6 +145,7 @@ describe("useAISuggestions", () => {
       expect(apiClient.post).toHaveBeenCalledWith(
         "resume-builder/ai/suggest-summary",
         { resume_id: "r-1" },
+        { consentSignal: expect.any(AbortSignal) },
       );
       expect(result.current.suggestSummary.data).toEqual(mockResponse);
     });
@@ -188,6 +190,7 @@ describe("useAISuggestions", () => {
       expect(apiClient.post).toHaveBeenCalledWith(
         "resume-builder/ai/improve-text",
         { text: "Original text", instruction: "Make it professional" },
+        { consentSignal: expect.any(AbortSignal) },
       );
       expect(result.current.improveText.data).toEqual(mockResponse);
     });

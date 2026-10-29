@@ -71,6 +71,7 @@ describe("useATSCheck", () => {
     expect(apiClient.post).toHaveBeenCalledWith(
       "resume-builder/resume-123/ats-check",
       { locale: "en" },
+      { consentSignal: expect.any(AbortSignal) },
     );
     expect(result.current.data).toEqual(mockResult);
   });

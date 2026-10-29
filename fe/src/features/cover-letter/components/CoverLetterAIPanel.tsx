@@ -1,3 +1,4 @@
+import { isAIActionCancelled } from "@/shared/lib/aiCredits";
 import { useAIAvailability, aiErrorKey } from "@/shared/hooks/useAIAvailability";
 import { AIAvailabilityNotice } from "@/shared/ui/AIAvailabilityNotice";
 import { useRef, useState } from "react";
@@ -157,7 +158,7 @@ export function CoverLetterAIPanel() {
           )}
         </Button>
 
-        {generate.isError && (
+        {generate.isError && !isAIActionCancelled(generate.error) && (
           <p role="alert" className="text-sm text-destructive">
             {t(aiErrorKey(generate.error))}
           </p>

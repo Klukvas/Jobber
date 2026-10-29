@@ -59,6 +59,14 @@ function isTopmost(claim: EscapeClaim): boolean {
   });
 }
 
+/** Shared with the Tab trap so a form beneath a confirmation cannot steal focus. */
+export function isTopmostOverlay(element: HTMLElement): boolean {
+  return claims.every((claim) => {
+    const other = claim.containerRef.current;
+    return !other?.isConnected || other === element || followsInDocument(element, other);
+  });
+}
+
 /**
  * Closes the topmost overlay on Escape, and only the topmost.
  *

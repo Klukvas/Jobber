@@ -1,3 +1,6 @@
+import { getQueryClient } from "@/shared/lib/queryClient";
+import { confirmAIAction } from "@/shared/lib/aiCredits";
+import i18n from "i18next";
 import ky, {
   type KyInstance,
   type NormalizedOptions,
@@ -46,6 +49,8 @@ interface RequestContext {
  */
 export interface RequestOptions {
   readonly signal?: AbortSignal;
+  /** Origin lifetime for consent only; it never aborts an already dispatched request. */
+  readonly consentSignal?: AbortSignal;
 }
 
 /**
@@ -236,6 +241,12 @@ class ApiClient {
         // Non-JSON body (gateway/HTML error page): nothing quotable.
         unstructuredResponse = true;
       }
+      const creditErrors: Record<string, string> = {
+        CREDIT_UNAVAILABLE: "credits.exhausted",
+        AI_BUDGET_REACHED: "credits.budgetReached",
+        AI_OPERATION_CONFLICT: "credits.operationConflict",
+      };
+      if (creditErrors[code]) message = i18n.t(creditErrors[code]);
       throw new ApiError(message, code, status, { cause: error, unstructuredResponse });
     }
 
@@ -298,12 +309,17 @@ class ApiClient {
     data?: unknown,
     options?: RequestOptions,
   ): Promise<T> {
+    const operationKey = await confirmAIAction(url, consentSignal(options));
     try {
       return await this.client
-        .post(url, { json: data, ...requestOptions(REQUEST_TIMEOUT_MS, options) })
+        .post(url, { json: data, ...requestOptions(REQUEST_TIMEOUT_MS, options),
+          ...(operationKey ? { headers: { "Idempotency-Key": operationKey }, retry: 0 } : {}),
+        })
         .json<T>();
     } catch (error) {
       return this.handleError(error, `POST ${operationPath(url)}`);
+    } finally {
+      if (operationKey) void getQueryClient().invalidateQueries({ queryKey: ["subscription"] });
     }
   }
 
@@ -373,14 +389,24 @@ class ApiClient {
     options?: RequestOptions,
   ): Promise<T> {
     const timeoutMs = timeout ?? LONG_REQUEST_TIMEOUT_MS;
+    const operationKey = await confirmAIAction(url, consentSignal(options));
     try {
       return await this.client
-        .post(url, { body: formData, ...requestOptions(timeoutMs, options) })
+        .post(url, { body: formData, ...requestOptions(timeoutMs, options),
+          ...(operationKey ? { headers: { "Idempotency-Key": operationKey }, retry: 0 } : {}),
+        })
         .json<T>();
     } catch (error) {
       return this.handleError(error, `POST ${operationPath(url)}`);
+    } finally {
+      if (operationKey) void getQueryClient().invalidateQueries({ queryKey: ["subscription"] });
     }
   }
+}
+
+function consentSignal(options?: RequestOptions): AbortSignal | undefined {
+  if (options?.signal && options.consentSignal) return AbortSignal.any([options.signal, options.consentSignal]);
+  return options?.consentSignal ?? options?.signal;
 }
 
 /**

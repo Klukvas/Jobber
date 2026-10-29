@@ -1,3 +1,4 @@
+import { useAIConsentSignal } from "@/shared/hooks/useAIConsentSignal";
 import { useMutation } from "@tanstack/react-query";
 import { apiClient } from "@/services/api";
 
@@ -29,11 +30,13 @@ interface SuggestSummaryResponse {
 }
 
 export function useAISuggestions() {
+  const getConsentSignal = useAIConsentSignal();
   const suggestBullets = useMutation({
     mutationFn: async (data: SuggestBulletsRequest) =>
       apiClient.post<BulletSuggestions>(
         "resume-builder/ai/suggest-bullets",
         data,
+        { consentSignal: getConsentSignal() },
       ),
   });
 
@@ -42,6 +45,7 @@ export function useAISuggestions() {
       apiClient.post<SuggestSummaryResponse>(
         "resume-builder/ai/suggest-summary",
         data,
+        { consentSignal: getConsentSignal() },
       ),
   });
 
@@ -50,6 +54,7 @@ export function useAISuggestions() {
       apiClient.post<ImproveTextResponse>(
         "resume-builder/ai/improve-text",
         data,
+        { consentSignal: getConsentSignal() },
       ),
   });
 

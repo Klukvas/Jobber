@@ -28,6 +28,12 @@ vi.mock("@/shared/lib/usePageMeta", () => ({
 }));
 
 describe("Privacy", () => {
+  it("discloses AI content sharing without promising automated account deletion", () => {
+    const { container } = render(<Privacy />);
+    expect(container.textContent).toContain("cover letters and interview practice content");
+    expect(container.textContent).not.toContain("delete your account and all associated data at any time from");
+    expect(screen.getByRole("link", { name: "Creem's Privacy Policy" })).toHaveAttribute("href", "https://www.creem.io/privacy");
+  });
   it("renders without crash and shows heading", () => {
     render(<Privacy />);
     expect(screen.getByText("Privacy Policy")).toBeInTheDocument();
@@ -40,6 +46,15 @@ describe("Privacy", () => {
 });
 
 describe("Terms", () => {
+  it("states finite paid limits, renewal and cancellation terms", () => {
+    const { container } = render(<Terms />);
+    expect(container.textContent).toContain("$24 USD per month");
+    expect(container.textContent).toContain("500 AI credits per confirmed paid billing period");
+    expect(container.textContent).toContain("automatically renew");
+    expect(container.textContent).toContain("Manage Subscription");
+    expect(container.textContent).not.toContain("unlimited access");
+    expect(screen.getByRole("link", { name: "Buyer Terms of Service" })).toHaveAttribute("href", "https://www.creem.io/buyer-terms");
+  });
   it("renders without crash and shows heading", () => {
     render(<Terms />);
     expect(
@@ -54,6 +69,14 @@ describe("Terms", () => {
 });
 
 describe("Refund", () => {
+  it("preserves the initial purchase refund promise without requiring a reason", () => {
+    const { container } = render(<Refund />);
+    expect(container.textContent).toContain("14 days");
+    expect(container.textContent).toContain("initial purchase. No questions asked.");
+    expect(container.textContent).toContain("No reason is required");
+    expect(container.textContent).not.toContain("the reason for the refund");
+    expect(container.textContent).toContain("mandatory consumer rights");
+  });
   it("renders without crash and shows heading", () => {
     render(<Refund />);
     expect(screen.getByText("Refund Policy")).toBeInTheDocument();

@@ -60,6 +60,22 @@ func NewAutofillProfileService(
 	}
 }
 
+var ErrAutofillProfileNotReady = errors.New("autofill profile needs extraction")
+
+func (s *AutofillProfileService) GetCachedProfile(ctx context.Context, userID, resumeID string) (*model.AutofillProfileDTO, error) {
+	if _, err := s.resumeRepo.GetByID(ctx, userID, resumeID); err != nil {
+		return nil, err
+	}
+	cached, err := s.profileRepo.Get(ctx, userID, resumeID)
+	if err != nil {
+		return nil, fmt.Errorf("read autofill cache: %w", err)
+	}
+	if cached == nil {
+		return nil, ErrAutofillProfileNotReady
+	}
+	return mapParsedResume(cached), nil
+}
+
 // GetProfile returns the Autofill Profile of an Uploaded Resume, extracting
 // and caching it on first request.
 func (s *AutofillProfileService) GetProfile(ctx context.Context, userID, resumeID string) (*model.AutofillProfileDTO, error) {
@@ -85,9 +101,6 @@ func (s *AutofillProfileService) GetProfile(ctx context.Context, userID, resumeI
 	}
 
 	if s.planChecker != nil {
-		if err := s.planChecker.RequirePaidPlan(ctx, userID); err != nil {
-			return nil, err
-		}
 		if err := s.planChecker.CheckLimit(ctx, userID, "ai"); err != nil {
 			return nil, err
 		}

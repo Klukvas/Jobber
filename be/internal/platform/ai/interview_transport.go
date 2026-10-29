@@ -48,3 +48,7 @@ func interviewHTTP(ctx context.Context, dispatched func() error) (context.Contex
 	readError := func() error { mu.Lock(); defer mu.Unlock(); return callbackErr }
 	return callCtx, cleanup, client, readError
 }
+
+func noReplayHTTPClient() *http.Client {
+	return &http.Client{Transport: interviewTransport{base: http.DefaultTransport}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+}

@@ -58,7 +58,7 @@ describe("FeaturesSection", () => {
       screen.getByText("home.features.analyticsCard.title"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("home.features.calendar.title"),
+      screen.getByText("home.features.coverLetters.title"),
     ).toBeInTheDocument();
   });
 
@@ -266,11 +266,13 @@ describe("SocialProofBar", () => {
     expect(screen.getByText(/home.socialProof.label/)).toBeInTheDocument();
   });
 
-  it("renders company names twice for the seamless marquee loop", () => {
+  it("renders product capabilities without implying company endorsements", () => {
     render(<SocialProofBar />);
-    for (const name of ["Google", "Meta", "Stripe", "Vercel", "Notion"]) {
-      expect(screen.getAllByText(name)).toHaveLength(2);
+    for (const name of ["applications", "resumeBuilder", "coverLetters", "stages", "analytics"]) {
+      expect(screen.getAllByText(`home.features.${name}.title`)).toHaveLength(2);
     }
+    expect(screen.queryByText("Google")).not.toBeInTheDocument();
+    expect(screen.queryByText("Meta")).not.toBeInTheDocument();
   });
 });
 
@@ -353,5 +355,10 @@ describe("JsonLd", () => {
     const script = document.getElementById("jobber-jsonld");
     expect(script).toBeTruthy();
     expect(script?.getAttribute("type")).toBe("application/ld+json");
+    const schema = JSON.parse(script?.textContent ?? "[]");
+    expect(schema[0].offers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "Free", price: "0" }),
+      expect.objectContaining({ name: "Pro", price: "24", priceCurrency: "USD" }),
+    ]));
   });
 });

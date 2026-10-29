@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/stretchr/testify/assert"
@@ -459,85 +460,72 @@ func TestParseResumeText(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGenerateCoverLetter(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
-		client := newTestClient(func(_ context.Context, _ anthropic.MessageNewParams) (*anthropic.Message, error) {
-			// Note: GenerateCoverLetter prepends "{" to the response text
-			return mockResponse(`"greeting":"Dear Hiring Manager,","paragraphs":["P1","P2","P3"],"closing":"Sincerely,"}`), nil
-		})
-
-		result, err := client.GenerateCoverLetter(context.Background(), "Acme", "Jane", "HR Manager", "Job desc", "Resume context")
-		require.NoError(t, err)
-		assert.Equal(t, "Dear Hiring Manager,", result.Greeting)
-		assert.Len(t, result.Paragraphs, 3)
-		assert.Equal(t, "Sincerely,", result.Closing)
-	})
-
-	t.Run("truncates paragraphs beyond 3", func(t *testing.T) {
-		client := newTestClient(func(_ context.Context, _ anthropic.MessageNewParams) (*anthropic.Message, error) {
-			return mockResponse(`"greeting":"Hi","paragraphs":["A","B","C","D","E"],"closing":"Bye"}`), nil
-		})
-
-		result, err := client.GenerateCoverLetter(context.Background(), "", "", "", "", "")
-		require.NoError(t, err)
-		assert.Len(t, result.Paragraphs, 3)
-	})
-
-	t.Run("empty paragraphs returns error", func(t *testing.T) {
-		client := newTestClient(func(_ context.Context, _ anthropic.MessageNewParams) (*anthropic.Message, error) {
-			return mockResponse(`"greeting":"Hi","paragraphs":[],"closing":"Bye"}`), nil
-		})
-
-		_, err := client.GenerateCoverLetter(context.Background(), "", "", "", "", "")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "empty paragraphs")
-	})
-
-	t.Run("API error", func(t *testing.T) {
-		client := newTestClient(func(_ context.Context, _ anthropic.MessageNewParams) (*anthropic.Message, error) {
-			return nil, errors.New("fail")
-		})
-
-		_, err := client.GenerateCoverLetter(context.Background(), "company", "", "", "", "")
-		assert.Error(t, err)
-	})
-
-	t.Run("empty response", func(t *testing.T) {
-		client := newTestClient(func(_ context.Context, _ anthropic.MessageNewParams) (*anthropic.Message, error) {
-			return mockEmptyResponse(), nil
-		})
-
-		_, err := client.GenerateCoverLetter(context.Background(), "", "", "", "", "")
-		assert.Error(t, err)
-	})
-
-	t.Run("with minimal input uses generic message", func(t *testing.T) {
-		client := newTestClient(func(_ context.Context, params anthropic.MessageNewParams) (*anthropic.Message, error) {
-			return mockResponse(`"greeting":"Dear Hiring Manager,","paragraphs":["P1"],"closing":"Best,"}`), nil
-		})
-
-		result, err := client.GenerateCoverLetter(context.Background(), "", "", "", "", "")
-		require.NoError(t, err)
-		assert.Equal(t, "Dear Hiring Manager,", result.Greeting)
-	})
-
-	t.Run("truncates long greeting and closing", func(t *testing.T) {
-		longGreeting := strings.Repeat("G", 300)
-		longClosing := strings.Repeat("C", 300)
-		client := newTestClient(func(_ context.Context, _ anthropic.MessageNewParams) (*anthropic.Message, error) {
-			data, _ := json.Marshal(CoverLetterContent{
-				Greeting:   longGreeting,
-				Paragraphs: []string{"P1"},
-				Closing:    longClosing,
+	for _, tt := range []struct {
+		name, verdict string
+		wantError     bool
+	}{
+		{name: "supported entire letter", verdict: "supported"},
+		{name: "unsupported candidate claim", verdict: `{"supported":false,"unsupported_claims":["mentoring absent"]}`, wantError: true},
+		{name: "missing verdict", verdict: `{}`, wantError: true},
+		{name: "contradictory verdict", verdict: `{"supported":true,"unsupported_claims":["wrong metric"]}`, wantError: true},
+		{name: "unknown verdict field", verdict: `{"supported":true,"unsupported_claims":[],"ignore":true}`, wantError: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := 0
+			client := newTestClient(func(ctx context.Context, params anthropic.MessageNewParams) (*anthropic.Message, error) {
+				calls++
+				assert.Equal(t, anthropic.Model("claude-sonnet-5-5"), params.Model)
+				deadline, ok := ctx.Deadline()
+				require.True(t, ok)
+				assert.LessOrEqual(t, time.Until(deadline), 25*time.Second)
+				d := letterFixtureDraft("I built Python APIs.", "f0", "I built Python APIs.")
+				text := letterFixtureJSON(d)
+				if calls == 2 {
+					text = tt.verdict
+					if tt.verdict == "supported" {
+						text = letterFixtureJSON(letterFixtureVerdict(d))
+					}
+					assert.NotContains(t, params.Messages[0].Content[0].OfText.Text, "secret-job-only-qualification")
+					assert.Contains(t, params.Messages[0].Content[0].OfText.Text, "I built Python APIs.")
+				}
+				response := mockResponse(text)
+				response.StopReason = anthropic.StopReasonEndTurn
+				return response, nil
 			})
-			// Remove leading "{" since GenerateCoverLetter prepends one
-			jsonStr := string(data)
-			return mockResponse(jsonStr[1:]), nil
+			result, err := client.GenerateCoverLetter(t.Context(), "Acme", "", "", "secret-job-only-qualification", letterFixtureSource("I built Python APIs."))
+			if tt.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Len(t, result.Paragraphs, 3)
+			}
+			assert.Equal(t, 2, calls)
 		})
-
-		result, err := client.GenerateCoverLetter(context.Background(), "", "", "", "", "")
+	}
+	t.Run("generic interest only without resume", func(t *testing.T) {
+		calls := 0
+		client := newTestClient(func(context.Context, anthropic.MessageNewParams) (*anthropic.Message, error) {
+			calls++
+			d := letterFixtureDraft("I would welcome a discussion.", "", "")
+			d.Paragraphs[0] = d.Paragraphs[0][:1]
+			d.Paragraphs[2] = d.Paragraphs[2][:1]
+			body := letterFixtureJSON(d)
+			if calls == 2 {
+				body = letterFixtureJSON(letterFixtureVerdict(d))
+			}
+			r := mockResponse(body)
+			r.StopReason = anthropic.StopReasonEndTurn
+			return r, nil
+		})
+		_, err := client.GenerateCoverLetter(t.Context(), "", "", "", "", "")
 		require.NoError(t, err)
-		assert.Len(t, []rune(result.Greeting), 200)
-		assert.Len(t, []rune(result.Closing), 200)
+	})
+	t.Run("provider error", func(t *testing.T) {
+		client := newTestClient(func(context.Context, anthropic.MessageNewParams) (*anthropic.Message, error) {
+			return nil, context.Canceled
+		})
+		_, err := client.GenerateCoverLetter(t.Context(), "", "", "", "", "")
+		require.ErrorIs(t, err, context.Canceled)
 	})
 }
 

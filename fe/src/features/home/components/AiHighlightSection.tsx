@@ -58,6 +58,7 @@ export function AiHighlightSection({
               ref={scoreCardRef}
               className="rounded-xl border border-white/[0.07] bg-muted p-6"
             >
+              <p className="mb-3 font-mono text-[11px] text-slate-500">{t("home.ai.example")}</p>
               {/* Header */}
               <div className="mb-5 flex items-center justify-between">
                 <span className="text-sm font-bold text-slate-100">

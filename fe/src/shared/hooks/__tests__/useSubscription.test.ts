@@ -85,7 +85,7 @@ describe("useSubscription", () => {
     expect(result.current.isPro).toBe(true);
     expect(result.current.isFree).toBe(false);
     expect(result.current.isEnterprise).toBe(false);
-    expect(result.current.nextPlan).toBe("enterprise");
+    expect(result.current.nextPlan).toBeNull();
   });
 
   it("returns correct flags for enterprise plan", async () => {
@@ -307,10 +307,10 @@ describe("useSubscription", () => {
     expect(result.current.limits).toEqual({
       max_jobs: 25,
       max_resumes: 1,
-      max_ai_requests: 1,
-      max_job_parses: 5,
-      max_resume_builders: 1,
-      max_cover_letters: 0,
+      max_ai_requests: 30,
+      max_job_parses: 0,
+      max_resume_builders: 2,
+      max_cover_letters: 1,
     });
   });
 

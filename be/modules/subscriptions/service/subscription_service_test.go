@@ -165,7 +165,7 @@ const (
 	testUserID              = "550e8400-e29b-41d4-a716-446655440000"
 	testProProductID        = "prod_pro"
 	testEnterpriseProductID = "prod_enterprise"
-	testSuccessURL          = "https://jobber.test/settings?subscription=success"
+	testSuccessURL          = "https://jobber.test/app/settings?subscription=success"
 	testWebhookSecret       = "test-webhook-secret"
 )
 
@@ -393,16 +393,16 @@ func TestCheckLimit(t *testing.T) {
 			wantErr: model.ErrLimitReached,
 		},
 		{
-			name:     "returns ErrLimitReached for resume_builders at zero-max plan",
+			name:     "returns ErrLimitReached for resume_builders at limit (free plan)",
 			resource: "resume_builders",
 			setupRepo: func(repo *MockSubscriptionRepository) {
-				// Create a plan that has 0 max for resume builders
+				// The free plan permits two Builder Resumes.
 				// Free plan has MaxResumeBuilders = 1, so at limit with 1
 				repo.GetByUserIDFunc = func(_ context.Context, _ string) (*model.Subscription, error) {
 					return &model.Subscription{Plan: "free", Status: "free"}, nil
 				}
 				repo.CountUserResumeBuildersFunc = func(_ context.Context, _ string) (int, error) {
-					return 1, nil
+					return 2, nil
 				}
 			},
 			wantErr: model.ErrLimitReached,

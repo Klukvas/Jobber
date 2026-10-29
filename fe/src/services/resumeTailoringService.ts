@@ -72,8 +72,8 @@ export const resumeTailoringService = {
     const response = await apiClient.get<unknown>(`jobs/${jobId}/resume-tailoring/source/${sourceId}`);
     return validated(z.object({ import_id: z.string(), requires_review: z.boolean() }), response);
   },
-  async importUploaded(jobId: string, resumeId: string, requestKey: string, text?: string) {
-    const response = await apiClient.post<unknown>(`jobs/${jobId}/resume-tailoring/import`, { resume_id: resumeId, request_key: requestKey, ...(text ? { text } : {}) });
+  async importUploaded(jobId: string, resumeId: string, requestKey: string, text?: string, options?: RequestOptions) {
+    const response = await apiClient.post<unknown>(`jobs/${jobId}/resume-tailoring/import`, { resume_id: resumeId, request_key: requestKey, ...(text ? { text } : {}) }, ...(options ? [options] as const : []));
     const result = validated(importedSchema, response);
     if (result.job_id !== jobId) throw new ApiError("", CLIENT_ERROR_CODES.invalidResponse, 0);
     return result;

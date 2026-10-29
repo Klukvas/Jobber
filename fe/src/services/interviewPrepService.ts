@@ -201,6 +201,7 @@ export const interviewPrepService = {
     resume: string,
     locale: PrepLocale,
     key: string,
+    options?: RequestOptions,
   ): Promise<PrepOperation> {
     return parse(
       operation,
@@ -208,7 +209,7 @@ export const interviewPrepService = {
         resume_builder_id: resume,
         locale,
         key,
-      }),
+      }, ...(options ? [options] as const : [])),
     );
   },
   async operation(
@@ -309,12 +310,14 @@ export const interviewPrepService = {
     sessionId: string,
     answerId: string,
     key: string,
+    options?: RequestOptions,
   ): Promise<PrepOperation> {
     return parse(
       operation,
       await apiClient.post<unknown>(
         `${path(job)}/sessions/${sessionId}/answers/${answerId}/feedback`,
         { key },
+        ...(options ? [options] as const : []),
       ),
     );
   },
@@ -322,12 +325,14 @@ export const interviewPrepService = {
     job: string,
     sessionId: string,
     key: string,
+    options?: RequestOptions,
   ): Promise<PrepOperation> {
     return parse(
       operation,
       await apiClient.post<unknown>(
         `${path(job)}/sessions/${sessionId}/summary`,
         { key },
+        ...(options ? [options] as const : []),
       ),
     );
   },

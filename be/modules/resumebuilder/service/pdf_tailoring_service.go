@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"log/slog"
 	"strings"
 	"time"
@@ -67,6 +68,12 @@ func operationState(op *model.WorkflowOperation, fingerprint string) error {
 
 func operationError(code string) error {
 	switch code {
+	case "AI_BUDGET_REACHED":
+		return subModel.ErrAIBudgetReached
+	case "CREDIT_UNAVAILABLE":
+		return subModel.ErrCreditUnavailable
+	case "AI_OPERATION_CONFLICT":
+		return subModel.ErrAIOperationConflict
 	case "AI_TIMEOUT":
 		return model.ErrAITimeout
 	case "AI_INVALID_RESPONSE":
@@ -77,6 +84,12 @@ func operationError(code string) error {
 }
 func operationCode(err error) string {
 	switch {
+	case errors.Is(err, subModel.ErrAIBudgetReached):
+		return "AI_BUDGET_REACHED"
+	case errors.Is(err, subModel.ErrCreditUnavailable):
+		return "CREDIT_UNAVAILABLE"
+	case errors.Is(err, subModel.ErrAIOperationConflict):
+		return "AI_OPERATION_CONFLICT"
 	case errors.Is(err, model.ErrAITimeout):
 		return "AI_TIMEOUT"
 	case errors.Is(err, model.ErrAIInvalidResponse):
@@ -192,7 +205,7 @@ func (s *PDFTailoringService) Import(ctx context.Context, user, job string, inpu
 		if errors.Is(err, context.DeadlineExceeded) {
 			err = model.ErrAITimeout
 		} else {
-			err = model.ErrAIRequestFailed
+			err = errors.Join(model.ErrAIRequestFailed, err)
 		}
 		s.fail(work, op, err)
 		return nil, err

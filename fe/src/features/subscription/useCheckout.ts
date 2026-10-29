@@ -61,7 +61,7 @@ export function useCheckout() {
 
   const openCheckout = useCallback(
     async (plan: SubscriptionPlan = "pro") => {
-      if (!config?.plans?.includes(plan) || isStartingRef.current) {
+      if (plan !== "pro" || !config?.plans?.includes(plan) || isStartingRef.current) {
         return;
       }
 

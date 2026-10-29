@@ -30,20 +30,21 @@ type TelegramConfig struct {
 
 // Config holds all configuration for the application
 type Config struct {
-	Server         ServerConfig
-	Database       DatabaseConfig
-	Redis          RedisConfig
-	JWT            JWTConfig
-	Log            LogConfig
-	S3             S3Config
-	GoogleCalendar GoogleCalendarConfig
-	Anthropic      AnthropicConfig
-	Creem          CreemConfig
-	Sentry         SentryConfig
-	Resend         ResendConfig
-	Telegram       TelegramConfig
-	Features       FeaturesConfig
-	Plans          map[string]PlanLimitsYAML
+	AIProviderBudgetNanodollars int64
+	Server                      ServerConfig
+	Database                    DatabaseConfig
+	Redis                       RedisConfig
+	JWT                         JWTConfig
+	Log                         LogConfig
+	S3                          S3Config
+	GoogleCalendar              GoogleCalendarConfig
+	Anthropic                   AnthropicConfig
+	Creem                       CreemConfig
+	Sentry                      SentryConfig
+	Resend                      ResendConfig
+	Telegram                    TelegramConfig
+	Features                    FeaturesConfig
+	Plans                       map[string]PlanLimitsYAML
 }
 
 // FeaturesConfig holds feature flags that can be toggled per environment.
@@ -256,6 +257,7 @@ func Load() (*Config, error) {
 
 	// Load plan limits from YAML (optional — falls back to hardcoded defaults)
 	plansPath := getEnv("PLANS_CONFIG_PATH", "config/plans.yaml")
+	cfg.AIProviderBudgetNanodollars = loadAIBudgetConfig(plansPath)
 	cfg.Plans = loadPlansConfig(plansPath)
 
 	// Validate required fields
@@ -439,4 +441,20 @@ func splitList(raw string) []string {
 		}
 	}
 	return items
+}
+
+func loadAIBudgetConfig(path string) int64 {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	var policy struct {
+		Budget struct {
+			Global int64 `yaml:"global_lifetime_nanodollars"`
+		} `yaml:"ai_budget"`
+	}
+	if err := yaml.Unmarshal(data, &policy); err != nil || policy.Budget.Global < 0 || policy.Budget.Global > 1_000_000_000_000_000 {
+		return 0
+	}
+	return policy.Budget.Global
 }

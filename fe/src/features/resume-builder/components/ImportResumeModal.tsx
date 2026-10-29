@@ -1,3 +1,5 @@
+import { useAIConsentSignal } from "@/shared/hooks/useAIConsentSignal";
+import { isAIActionCancelled } from "@/shared/lib/aiCredits";
 import { useCurrentFormSession } from "@/shared/hooks/useCurrentFormSession";
 import { useQueryClient } from "@tanstack/react-query";
 import { resumeQueryKeys } from "@/shared/lib/resumeQueryKeys";
@@ -33,6 +35,7 @@ function ImportResumeForm({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isCurrentSession = useCurrentFormSession();
+  const getConsentSignal = useAIConsentSignal();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [activeTab, setActiveTab] = useState<"text" | "pdf">("text");
@@ -65,7 +68,7 @@ function ImportResumeForm({
       const result = await resumeBuilderService.importFromText({
         text: text.trim(),
         title: title.trim() || undefined,
-      });
+      }, { consentSignal: getConsentSignal() });
       void queryClient.invalidateQueries({ queryKey: ["subscription"] });
       void queryClient.invalidateQueries({ queryKey: resumeQueryKeys.builderList() });
       if (!isCurrentSession()) return;
@@ -74,6 +77,7 @@ function ImportResumeForm({
       resetForm();
       navigate(`/app/resume-builder/${result.id}`);
     } catch (error) {
+      if (isAIActionCancelled(error)) return;
       if (!isCurrentSession()) return;
       markUnavailable(error);
       setImportError(aiErrorKey(error));
@@ -83,7 +87,7 @@ function ImportResumeForm({
     } finally {
       if (isCurrentSession()) setIsImporting(false);
     }
-  }, [text, title, navigate, onOpenChange, resetForm, t, unavailable, isChecking, isImporting, markUnavailable, queryClient, isCurrentSession]);
+  }, [text, title, navigate, onOpenChange, resetForm, t, unavailable, isChecking, isImporting, markUnavailable, queryClient, isCurrentSession, getConsentSignal]);
 
   const handleImportPDF = useCallback(async () => {
     if (!selectedFile || unavailable || isChecking || isImporting) return;
@@ -93,6 +97,7 @@ function ImportResumeForm({
       const result = await resumeBuilderService.importFromPDF(
         selectedFile,
         title.trim() || undefined,
+        { consentSignal: getConsentSignal() },
       );
       void queryClient.invalidateQueries({ queryKey: ["subscription"] });
       void queryClient.invalidateQueries({ queryKey: resumeQueryKeys.builderList() });
@@ -102,6 +107,7 @@ function ImportResumeForm({
       resetForm();
       navigate(`/app/resume-builder/${result.id}`);
     } catch (error) {
+      if (isAIActionCancelled(error)) return;
       if (!isCurrentSession()) return;
       markUnavailable(error);
       setImportError(aiErrorKey(error));
@@ -111,7 +117,7 @@ function ImportResumeForm({
     } finally {
       if (isCurrentSession()) setIsImporting(false);
     }
-  }, [selectedFile, title, navigate, onOpenChange, resetForm, t, unavailable, isChecking, isImporting, markUnavailable, queryClient, isCurrentSession]);
+  }, [selectedFile, title, navigate, onOpenChange, resetForm, t, unavailable, isChecking, isImporting, markUnavailable, queryClient, isCurrentSession, getConsentSignal]);
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {

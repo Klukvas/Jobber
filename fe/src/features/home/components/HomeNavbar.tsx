@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  Briefcase,
   Sun,
   Moon,
   Menu,
@@ -13,6 +12,7 @@ import {
   Mail,
 } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
+import { LogoMark } from "@/shared/ui/Logo";
 import { LanguageSwitcher } from "@/shared/ui/LanguageSwitcher";
 import { useThemeStore } from "@/stores/themeStore";
 import { TOP_INSET_VAR, scrollToSection } from "@/shared/lib/scrollToSection";
@@ -204,9 +204,7 @@ export function HomeNavbar({
         {/* 28px of glyph and text on a phone. The same 44px floor as the
             links, absorbed the same way so the navbar keeps its height. */}
         <Link to="/" className={`${TOUCH_INLINE_TARGET} gap-2`}>
-          <Briefcase
-            className={`h-6 w-6 ${onDark ? "text-white" : "text-primary"}`}
-          />
+          <LogoMark className="h-7 w-7" />
           <span className={`text-xl font-bold ${onDark ? "text-white" : ""}`}>
             Cursopus
           </span>

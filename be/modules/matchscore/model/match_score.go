@@ -27,6 +27,7 @@ type MatchScoreResponse struct {
 
 // Errors
 var (
+	ErrCacheMiss           = errors.New("match score is not cached")
 	ErrAINotConfigured     = errors.New("AI matching is not configured")
 	ErrJobDescriptionEmpty = errors.New("job description is empty")
 	ErrResumeFileEmpty     = errors.New("resume has no file")

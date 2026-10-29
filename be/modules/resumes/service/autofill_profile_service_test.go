@@ -155,14 +155,15 @@ func TestAutofillProfileService_GetProfile(t *testing.T) {
 		assert.False(t, plan.paidChecked, "not-found must not leak plan state")
 	})
 
-	t.Run("free plan is rejected before any download or parse", func(t *testing.T) {
+	t.Run("free plan proceeds to file validation without a paid gate", func(t *testing.T) {
 		parser := &mockParser{}
 		plan := &mockPlanChecker{RequirePaidPlanErr: subModel.ErrPaidFeature}
 		svc := NewAutofillProfileService(resumeRepoReturning(s3Resume("k")), &MockAutofillProfileRepository{}, nil, parser, plan)
 
 		_, err := svc.GetProfile(ctx, testUserID, testResumeID)
 
-		assert.ErrorIs(t, err, subModel.ErrPaidFeature)
+		assert.ErrorIs(t, err, model.ErrResumeFileMissing)
+		assert.False(t, plan.paidChecked)
 		assert.False(t, parser.called)
 	})
 

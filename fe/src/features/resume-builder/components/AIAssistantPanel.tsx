@@ -1,3 +1,4 @@
+import { isAIActionCancelled } from "@/shared/lib/aiCredits";
 import { useAIAvailability, aiErrorKey } from "@/shared/hooks/useAIAvailability";
 import { AIAvailabilityNotice } from "@/shared/ui/AIAvailabilityNotice";
 import { useState } from "react";
@@ -221,7 +222,7 @@ export function AIAssistantPanel() {
           )}
         </Button>
 
-        {suggestSummary.isError && (
+        {suggestSummary.isError && !isAIActionCancelled(suggestSummary.error) && (
           <p role="alert" className="text-sm text-destructive">{t(aiErrorKey(suggestSummary.error))}</p>
         )}
 
@@ -288,7 +289,7 @@ export function AIAssistantPanel() {
             )}
           </Button>
 
-          {suggestBullets.isError && (
+          {suggestBullets.isError && !isAIActionCancelled(suggestBullets.error) && (
             <p role="alert" className="text-sm text-destructive">{t(aiErrorKey(suggestBullets.error))}</p>
           )}
 
@@ -387,7 +388,7 @@ export function AIAssistantPanel() {
           )}
         </Button>
 
-        {improveText.isError && (
+        {improveText.isError && !isAIActionCancelled(improveText.error) && (
           <p role="alert" className="text-sm text-destructive">{t(aiErrorKey(improveText.error))}</p>
         )}
 

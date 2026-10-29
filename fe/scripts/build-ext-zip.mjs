@@ -21,7 +21,6 @@ const INCLUDE = [
   "manifest.json",
   "background.js",
   "content",
-  "popup",
   "sidepanel",
   "shared",
   "icons",

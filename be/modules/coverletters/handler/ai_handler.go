@@ -59,6 +59,9 @@ func (h *AIHandler) Generate(c *gin.Context) {
 
 	result, err := h.aiService.Generate(c.Request.Context(), userID, req.CoverLetterID, req.JobDescription)
 	if err != nil {
+		if httpPlatform.RespondAIError(c, err) {
+			return
+		}
 		h.logger.Error("cover letter AI generation failed",
 			zap.String("cover_letter_id", req.CoverLetterID),
 			zap.Error(err),

@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"github.com/andreypavlenko/jobber/internal/platform/ai"
+	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"log/slog"
 	"sync"
 	"time"
@@ -87,6 +89,20 @@ func (s *SubscriptionService) consumeScopedAI(ctx context.Context, owner, usageT
 // FinishAIRequest releases reservations for rejected inputs, ownership failures,
 // and unsuccessful legacy calls. Interview operations own their separate receipt.
 func (s *SubscriptionService) FinishAIRequest(ctx context.Context) {
+	if ledger, ok := s.repo.(interface {
+		FinishCreditOperation(context.Context, string, string, ...model.CreditOperation) error
+	}); ok {
+		op, durable, found := ai.CurrentCreditOperation(ctx)
+		if !found || durable {
+			return
+		}
+		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+		defer cancel()
+		if err := ledger.FinishCreditOperation(cleanup, op.UserID, op.Key, op); err != nil {
+			slog.Error("finish ai credit operation failed", "outcome", "save_failed")
+		}
+		return
+	}
 	scope, ok := ctx.Value(reservationScopeKey{}).(*reservationScope)
 	if !ok {
 		return

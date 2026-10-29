@@ -1,3 +1,4 @@
+vi.mock("@/shared/lib/aiCredits", () => ({ confirmAIAction: vi.fn(async () => undefined) }));
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const clearAuth = vi.fn();

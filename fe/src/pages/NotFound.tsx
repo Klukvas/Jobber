@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Briefcase, FileQuestion } from "lucide-react";
+import { ArrowLeft, FileQuestion } from "lucide-react";
+import { LogoMark } from "@/shared/ui/Logo";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { Button } from "@/shared/ui/Button";
 
@@ -19,7 +20,7 @@ export default function NotFound() {
           {t("common.backToHome")}
         </Link>
         <Link to="/" className="flex items-center gap-2">
-          <Briefcase className="h-5 w-5 text-primary" />
+          <LogoMark className="h-6 w-6" />
           <span className="font-bold">Cursopus</span>
         </Link>
       </nav>

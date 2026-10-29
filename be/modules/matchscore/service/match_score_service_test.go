@@ -1096,3 +1096,51 @@ func TestIsPrivateIP_PublicIPs(t *testing.T) {
 func (m *MockResumeRepository) CountApplications(ctx context.Context, userID, resumeID string) (int, error) {
 	return 0, nil
 }
+
+func TestGetCachedMatch_NoPaidDependencies(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		hit        bool
+		cacheError error
+		wantError  error
+	}{
+		{name: "hit", hit: true},
+		{name: "miss", wantError: model.ErrCacheMiss},
+		{name: "read error", cacheError: errors.New("cache offline")},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var order []string
+			cached := &model.MatchScoreResponse{OverallScore: 88, Summary: "saved"}
+			jobs := &MockJobRepository{GetByIDFunc: func(context.Context, string, string) (*jobModel.Job, error) {
+				order = append(order, "job")
+				return &jobModel.Job{}, nil
+			}}
+			resumes := &MockResumeRepository{GetByIDFunc: func(context.Context, string, string) (*resumeModel.Resume, error) {
+				order = append(order, "resume")
+				return &resumeModel.Resume{}, nil
+			}}
+			cache := &MockMatchScoreCacheRepo{GetFunc: func(context.Context, string, string, string) (*model.MatchScoreResponse, error) {
+				order = append(order, "cache")
+				if tt.hit {
+					return cached, nil
+				}
+				return nil, tt.cacheError
+			}}
+			limits := &MockLimitChecker{CheckLimitFunc: func(context.Context, string, string) error { t.Fatal("cache-only must not check credits"); return nil }, RecordAIUsageFunc: func(context.Context, string) error { t.Fatal("cache-only must not record usage"); return nil }}
+			svc := NewMatchScoreService(nil, nil, jobs, resumes, limits, cache)
+			result, err := svc.GetCachedMatch(context.Background(), "owner", &model.MatchScoreRequest{JobID: "job", ResumeID: "resume"})
+			assert.Equal(t, []string{"job", "resume", "cache"}, order)
+			if tt.hit {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.True(t, result.FromCache)
+				assert.False(t, cached.FromCache)
+			} else if tt.wantError != nil {
+				require.ErrorIs(t, err, tt.wantError)
+			} else {
+				require.ErrorIs(t, err, tt.cacheError)
+				assert.NotErrorIs(t, err, model.ErrCacheMiss)
+			}
+		})
+	}
+}

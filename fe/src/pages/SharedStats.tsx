@@ -6,6 +6,7 @@ import { ApiError } from "@/services/api";
 import { OverviewCards } from "@/features/analytics/components/OverviewCards";
 import { FunnelVisualization } from "@/features/analytics/components/FunnelVisualization";
 import { Button } from "@/shared/ui/Button";
+import { LogoMark } from "@/shared/ui/Logo";
 import { Card, CardContent } from "@/shared/ui/Card";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { ErrorState } from "@/shared/ui/ErrorState";
@@ -35,7 +36,8 @@ export default function SharedStats() {
     <div className="min-h-screen bg-background">
       <header className="border-b">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-          <Link to="/" className="text-xl font-bold text-primary">
+          <Link to="/" className="flex items-center gap-2 text-xl font-bold">
+            <LogoMark className="h-7 w-7" />
             Cursopus
           </Link>
           <Button size="sm" onClick={() => navigate("/register")}>

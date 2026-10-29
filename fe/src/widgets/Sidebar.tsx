@@ -5,7 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useSidebarStore } from "@/stores/sidebarStore";
 import { useAuthStore } from "@/stores/authStore";
 import { endSession } from "@/shared/lib/session";
-import { useThemeStore } from "@/stores/themeStore";
+import { LogoMark } from "@/shared/ui/Logo";
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock";
 import { useDialogFocus } from "@/shared/hooks/useDialogFocus";
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
@@ -103,8 +103,6 @@ export function Sidebar() {
   const user = useAuthStore((state) => state.user);
   const { plan } = useSubscription();
   const badge = getPlanBadge(plan, t);
-  const theme = useThemeStore((s) => s.theme);
-  const logoSrc = theme === "dark" ? "/favicon.svg" : "/favicon-light.svg";
 
   useBodyScrollLock(isModal);
   useDialogFocus(panelRef, { open: isModal });
@@ -176,7 +174,7 @@ export function Sidebar() {
                 MOBILE_ROW,
               )}
             >
-              <img src={logoSrc} alt="Cursopus" className="h-8 w-8 rounded-lg" />
+              <LogoMark className="h-8 w-8" label="Cursopus" />
               {/* The FluxLab attribution deliberately lives only in the app
                   footer: here it would have to sit inside this brand <Link>,
                   and an anchor cannot contain another anchor. */}
