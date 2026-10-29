@@ -83,6 +83,13 @@ describe("AppLayout footer tap targets", () => {
     expect(link).toHaveAttribute("href", "https://flux-lab.dev/en");
   });
 
+  it("shows the reachable support address even without the support form", () => {
+    renderLayout();
+    expect(screen.getByRole("link", { name: "support@jobber-app.com" })).toHaveAttribute(
+      "href", "mailto:support@jobber-app.com",
+    );
+  });
+
   // Every one of these still has to go where it went before.
   it.each([
     ["home.nav.faq", "/#faq"],

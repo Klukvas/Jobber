@@ -1,3 +1,4 @@
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "@/shared/lib/supportContact";
 import { useCallback, useEffect, useState } from "react";
 import { Outlet, Navigate, useSearchParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -189,6 +190,9 @@ export function AppLayout() {
             <Link to="/privacy" className={FOOTER_LINK}>
               {t("home.footer.privacy")}
             </Link>
+            <a href={SUPPORT_MAILTO} className={FOOTER_LINK}>
+              {SUPPORT_EMAIL}
+            </a>
             <Link to="/refund" className={FOOTER_LINK}>
               {t("home.footer.refund")}
             </Link>

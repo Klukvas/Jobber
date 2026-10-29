@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
 import { LogoMark } from "@/shared/ui/Logo";
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "@/shared/lib/supportContact";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 
 export default function Privacy() {
@@ -25,13 +26,13 @@ export default function Privacy() {
       </nav>
       <h1 className="mb-8 text-3xl font-bold">Privacy Policy</h1>
       <p className="mb-4 text-sm text-muted-foreground">
-        Last updated: September 3, 2026
+        Last updated: October 25, 2026
       </p>
 
       <section className="mb-8">
         <h2 className="mb-3 text-xl font-semibold">1. Overview</h2>
         <p>
-          Cursopus (&quot;we&quot;, &quot;our&quot;, &quot;us&quot;) is a job
+          Cursopus (&quot;we&quot;, &quot;our&quot;, &quot;us&quot;) is a personal job
           application tracking service available at cursopus.com and as a
           Chrome browser extension. This policy describes how we collect, use,
           and protect your data.
@@ -52,12 +53,20 @@ export default function Privacy() {
           <li>
             <strong>Page content (extension only):</strong> when you click
             &quot;Import This Job&quot;, the text content of the current web
-            page is sent to our server for AI-powered parsing. We do not store
-            the raw page text after parsing is complete.
+            page is sent to our server for AI-powered parsing. Relevant page text is also sent to Anthropic for AI parsing when that path is used.
           </li>
           <li>
-            <strong>Authentication tokens:</strong> JWT tokens are stored
-            locally in your browser to keep you signed in.
+            <strong>Resume and AI content:</strong> uploaded resume files and links, builder resume
+            sections, cover letters, job descriptions, interview practice answers and AI results
+            and operation records created when you use these features.
+          </li>
+          <li>
+            <strong>Authentication and preferences:</strong> authentication cookies and locally
+            stored extension tokens, language and theme preferences, and cookie consent choices.
+          </li>
+          <li>
+            <strong>Billing and support:</strong> subscription and payment identifiers, billing
+            status, and messages you send to support.
           </li>
         </ul>
       </section>
@@ -67,10 +76,12 @@ export default function Privacy() {
         <ul className="ml-6 list-disc space-y-2">
           <li>To provide and maintain the job tracking service.</li>
           <li>
-            To parse job postings using AI (Anthropic Claude) when you use the
-            browser extension.
+            To run the AI features you request: job and resume parsing, resume tailoring and suggestions,
+            cover letter generation, resume matching and interview preparation. Relevant resume,
+            job, letter or interview content is sent to Anthropic for those operations.
           </li>
           <li>To authenticate you and secure your account.</li>
+          <li>To manage subscriptions and credit usage, respond to support requests and diagnose errors.</li>
         </ul>
       </section>
 
@@ -82,9 +93,9 @@ export default function Privacy() {
         </p>
         <ul className="ml-6 list-disc space-y-2">
           <li>
-            <strong>Anthropic</strong> — page text you import and resume content
-            you extract are sent to Anthropic&apos;s API solely for AI parsing,
-            subject to{" "}
+            <strong>Anthropic</strong> — relevant page text, resume content, job details, cover letters and interview practice content
+            are sent to Anthropic&apos;s API to perform the AI features you request.
+            Processing and retention by Anthropic are subject to{" "}
             <a
               href="https://www.anthropic.com/privacy"
               target="_blank"
@@ -100,7 +111,7 @@ export default function Privacy() {
             Creem, our Merchant of Record. When you subscribe, Creem collects
             and processes your billing information under{" "}
             <a
-              href="https://www.creem.io/privacy-policy"
+              href="https://www.creem.io/privacy"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary underline"
@@ -110,16 +121,21 @@ export default function Privacy() {
             . We never see or store your full payment card details.
           </li>
           <li>
-            <strong>Google Analytics and PostHog</strong> — optional usage
-            analytics, enabled only if you accept analytics cookies (see Cookies
-            below).
+            <strong>Google Analytics and PostHog</strong> — when configured, optional usage
+            analytics load only if you accept analytics cookies. These may include page URLs,
+            interactions and account identifiers (see Cookies below).
           </li>
           <li>
-            <strong>Sentry</strong> — error monitoring. When something breaks,
+            <strong>Sentry</strong> — when configured, error monitoring. When something breaks,
             an error report is sent to Sentry so we can fix it; reports may
             include your account ID and email address and, for errors in the web
             app, a screen recording of the failing session with text content
             masked.
+          </li>
+          <li>
+            <strong>Infrastructure and connected services</strong> — hosting, database,
+            file storage and email providers process data needed to operate Cursopus.
+            Providers may process data outside your country.
           </li>
         </ul>
       </section>
@@ -127,9 +143,14 @@ export default function Privacy() {
       <section className="mb-8">
         <h2 className="mb-3 text-xl font-semibold">5. Data Storage</h2>
         <p>
-          Your data is stored on secure servers in the EU (Hetzner, Germany).
-          Passwords are hashed using bcrypt. All connections use HTTPS
-          encryption.
+          Account and saved product data are stored in our database; uploaded files use object
+          storage. Passwords are hashed with bcrypt and the public service uses HTTPS.
+          Saved documents and AI results remain associated with your account until removed.
+          Cancelling Pro does not delete your documents. For account deletion and retention
+          questions, contact us below. Some billing, security and operational records may need
+          to be retained for legal obligations or service security; provider retention is governed
+          by the applicable provider terms. We do not promise immediate deletion from every
+          provider or backup.
         </p>
       </section>
 
@@ -146,7 +167,7 @@ export default function Privacy() {
           </li>
           <li>
             <strong>Analytics cookies (optional)</strong> — set only after you
-            accept them in the cookie banner: Google Analytics and PostHog help
+            accept them in the cookie banner: when configured, Google Analytics and PostHog help
             us understand how the product is used so we can improve it. If you
             choose &quot;Essential only&quot;, no analytics cookies are set.
           </li>
@@ -183,14 +204,14 @@ export default function Privacy() {
       <section className="mb-8">
         <h2 className="mb-3 text-xl font-semibold">8. Your Rights</h2>
         <p>
-          You can delete your account and all associated data at any time from
-          the Settings page. To request data export or have questions, contact
-          us at{" "}
+          You can edit or remove saved items using the product controls available for those items.
+          To request account deletion, data access, correction or export, or ask about
+          applicable privacy rights, contact us at{" "}
           <a
-            href="mailto:apavlenko.dev@gmail.com"
+            href={SUPPORT_MAILTO}
             className="text-primary underline"
           >
-            apavlenko.dev@gmail.com
+            {SUPPORT_EMAIL}
           </a>
           .
         </p>

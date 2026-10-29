@@ -1,27 +1,14 @@
 import { useTranslation } from "react-i18next";
 
-const COMPANIES = [
-  "Google",
-  "Meta",
-  "Stripe",
-  "Vercel",
-  "GitLab",
-  "Figma",
-  "Notion",
-] as const;
+const FEATURES = ["applications", "resumeBuilder", "coverLetters", "stages", "analytics"] as const;
 
-function LogoRow({ ariaHidden = false }: { ariaHidden?: boolean }) {
+function FeatureRow({ ariaHidden = false }: { ariaHidden?: boolean }) {
+  const { t } = useTranslation();
   return (
-    <div
-      aria-hidden={ariaHidden || undefined}
-      className="flex shrink-0 items-center gap-x-12 pr-12"
-    >
-      {COMPANIES.map((name) => (
-        <span
-          key={name}
-          className="text-sm font-bold tracking-tight text-slate-600"
-        >
-          {name}
+    <div aria-hidden={ariaHidden || undefined} className="flex shrink-0 items-center gap-x-12 pr-12">
+      {FEATURES.map((feature) => (
+        <span key={feature} className="text-sm font-bold tracking-tight text-slate-600">
+          {t(`home.features.${feature}.title`)}
         </span>
       ))}
     </div>
@@ -40,8 +27,8 @@ export function SocialProofBar() {
         <div className="w-full min-w-0 flex-1 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)]">
           {/* The row is rendered twice; the loop translates by exactly one copy */}
           <div className="landing-marquee flex w-max">
-            <LogoRow />
-            <LogoRow ariaHidden />
+            <FeatureRow />
+            <FeatureRow ariaHidden />
           </div>
         </div>
       </div>

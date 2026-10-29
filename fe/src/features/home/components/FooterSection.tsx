@@ -1,3 +1,4 @@
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "@/shared/lib/supportContact";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { resetConsent } from "@/shared/lib/consent";
@@ -44,6 +45,9 @@ export function FooterSection() {
           <Link to="/terms" className={FOOTER_LINK}>
             {t("home.footer.terms")}
           </Link>
+          <a href={SUPPORT_MAILTO} className={FOOTER_LINK}>
+            {SUPPORT_EMAIL}
+          </a>
           <Link to="/refund" className={FOOTER_LINK}>
             {t("home.footer.refund")}
           </Link>
