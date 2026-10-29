@@ -170,3 +170,12 @@ test('recovered pending registration rejects another document, session or revisi
   assert.equal((await foreign.sendMessage({action:'authBeginProfile',request:{...pending.request,revision:pending.request.revision+1}})).error,'AI_CANCELLED');
   await api.storeAutofillProfile({contact:{full_name:'Original owner'}},pending);assert.equal(engine.local.autofillProfile.contact.full_name,'Original owner');
 });
+test('update drops an autofill profile saved before session binding and keeps a bound one',async()=>{
+  const legacy=extensionFixture({stored:{accessToken:'synthetic',refreshToken:'synthetic',autofillProfile:{contact:{full_name:'Legacy Applicant'}}}});
+  await Promise.all(legacy.workerChrome.runtime.onInstalled.emit({reason:'update',previousVersion:'1.1.5'}));
+  assert.equal(legacy.local.autofillProfile,undefined);assert.equal(legacy.local.accessToken,'synthetic');assert.equal(legacy.local.refreshToken,'synthetic');
+  const request={owner:'browser-profile',revision:1,sessionId:'session-a',apiBase:'https://cursopus.com'};
+  const bound=extensionFixture({stored:{accessToken:'synthetic',refreshToken:'synthetic',authSessionId:'session-a',autofillProfile:{contact:{full_name:'Bound Applicant'}},autofillSessionId:'session-a',autofillProfileRequest:request}});
+  await Promise.all(bound.workerChrome.runtime.onInstalled.emit({reason:'update',previousVersion:'1.1.6'}));
+  assert.equal(bound.local.autofillProfile.contact.full_name,'Bound Applicant');
+});

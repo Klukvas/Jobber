@@ -239,6 +239,16 @@ const JobberAuth = (() => {
       }
     });
   }
+  // Profiles saved before 1.1.6 have no owning session, so getAutofillProfile never serves
+  // them, and 1.1.5 kept them across a failed refresh, so they may belong to another account.
+  function dropLegacyAutofillProfile() {
+    return serialize(async () => {
+      const data = await chrome.storage.local.get(["autofillProfile", "autofillSessionId", "autofillProfileRequest"]);
+      if (data.autofillProfile && (!data.autofillSessionId || !data.autofillProfileRequest)) {
+        await chrome.storage.local.remove("autofillProfile");
+      }
+    });
+  }
   function getAutofillProfile() {
     return serialize(async () => {
       const data = await chrome.storage.local.get(["accessToken", "authSessionId", "apiBase", "autofillProfile", "autofillSessionId", "autofillProfileRequest"]);
@@ -318,5 +328,5 @@ const JobberAuth = (() => {
       default: throw new Error("Unknown auth action");
     }
   }
-  return { snapshot, assertSession, refresh, authedFetch, getAutofillProfile, finishQuickSave, publishPending, handle, safeBase };
+  return { snapshot, assertSession, refresh, authedFetch, getAutofillProfile, dropLegacyAutofillProfile, finishQuickSave, publishPending, handle, safeBase };
 })();

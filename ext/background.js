@@ -34,6 +34,13 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 });
 
+chrome.runtime.onInstalled.addListener(({ reason }) => {
+  if (reason !== "update") return undefined;
+  return JobberAuth.dropLegacyAutofillProfile().catch((err) => {
+    console.warn("[Cursopus] Legacy autofill cleanup failed:", err.message);
+  });
+});
+
 // ── Context Menu ───────────────────────────────────────
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
