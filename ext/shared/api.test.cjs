@@ -3,10 +3,11 @@ const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
+const {extensionFixture}=require('../test-fixture.cjs');
 const source = fs.readFileSync(`${__dirname}/api.js`, 'utf8');
 function fixture({accept=true,remaining=30,cached=false,language='en',refresh=false,matchResponse}={}) {
   const calls=[],notices=[];
-  const context={crypto,navigator:{language},confirm:notice=>{notices.push(notice);return accept;},chrome:{storage:{local:{get:async()=>({accessToken:'synthetic',refreshToken:'synthetic'}),set:async()=>{},remove:async()=>{}}}},fetch:async(url,options={})=>{
+  const context={crypto,navigator:{language},confirm:notice=>{notices.push(notice);return accept;},fetch:async(url,options={})=>{
     calls.push({url,options});
     if(url.endsWith('/subscription'))return Response.json({credits:{remaining},credit_costs:{job_parse:2,match:5,autofill_import:7}});
     if(url.endsWith('/auth/refresh'))return Response.json({access_token:'synthetic-new',refresh_token:'synthetic-new'});
@@ -15,7 +16,8 @@ function fixture({accept=true,remaining=30,cached=false,language='en',refresh=fa
     if(refresh&&calls.filter(c=>c.options.method==='POST'&&!c.url.includes('/auth/')).length===1)return Response.json({},{status:401});
     return Response.json({ok:true});
   }};
-  return {api:vm.runInNewContext(`${source}\nJobberAPI`,context),calls,notices};
+  const engine=extensionFixture({fetch:context.fetch});context.chrome=engine.chromeFor();
+  return {engine,context,api:vm.runInNewContext(`${source}\nJobberAPI`,context),calls,notices};
 }
 test('all AI starts quote cost and carry an operation key',async()=>{
   for(const [action,cost] of [['parseJob',2],['getMatchScore',5],['getUploadedAutofillProfile',7]]) {

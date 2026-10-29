@@ -89,9 +89,57 @@ function cancelSpMatchRequest() {
   spMatchIdle.classList.remove("hidden");
 }
 
-window.addEventListener("pagehide", cancelSpMatchRequest);
+let parseRequest = null;
+let profileRequest = null;
+let saveRequest = null;
+function cancelProfileSelection() {
+  profileRequest?.profileContext?.cancel();
+  profileRequest?.abort();
+  profileRequest = null;
+  btnSetAutofill.disabled = false;
+  btnSetAutofill.textContent = "Set as Autofill Profile";
+}
+function cancelPageRequests() {
+  cancelSpMatchRequest();
+  parseRequest?.abort();
+  parseRequest = null;
+  if (!saveLoading.classList.contains("hidden")) showSaveState("idle");
+  cancelProfileSelection();
+  if (saveRequest) {
+    saveRequest.abort();
+    saveRequest = null;
+    btnSave.disabled = false;
+    btnSave.textContent = "Save to Cursopus";
+  }
+}
+function clearPassword() {
+  loginPassword.value = "";
+  loginPassword.type = "password";
+}
+function resetPrivateView() {
+  cancelPageRequests();
+  clearPassword();
+  lastSavedJob = null;
+  saveForm.reset();
+  profileNameEl.textContent = "";
+  profileInfoEl.textContent = "";
+  autofillResumeSelect.innerHTML = "";
+  btnSetAutofill.disabled = false;
+  btnSetAutofill.textContent = "Set as Autofill Profile";
+  autofillActive.classList.add("hidden");
+  jobsList.textContent = "";
+  usageBar.textContent = "";
+  showSaveState("idle");
+  viewMain.classList.add("hidden");
+  viewLogin.classList.remove("hidden");
+}
+window.addEventListener("pagehide", cancelPageRequests);
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && changes.accessToken && !changes.accessToken.newValue) cancelSpMatchRequest();
+  if (area !== "local") return;
+  if (changes.authSessionId || (changes.accessToken && !changes.accessToken.newValue)) resetPrivateView();
+  if (changes.authSessionId || changes.accessToken) {
+    JobberAPI.init().then((loggedIn) => { if (loggedIn) { showMainView(); void checkPendingParse(); } }).catch(() => {});
+  }
 });
 // Full URL of the active tab, cached so the parse click can request host access
 // for it synchronously (permissions.request must run inside a user gesture).
@@ -125,8 +173,8 @@ function showSaveState(state) {
 }
 
 function handleSessionExpired() {
-  cancelSpMatchRequest();
-  JobberAPI.logout();
+  resetPrivateView();
+  void JobberAPI.logout({ onlyIfCurrent: true });
   viewMain.classList.add("hidden");
   viewLogin.classList.remove("hidden");
   showError(loginError, "Session expired. Please sign in again.");
@@ -142,14 +190,11 @@ document.getElementById("btn-toggle-password").addEventListener("click", () => {
 // ── Init ───────────────────────────────────────────────
 
 async function init() {
+  listenForPendingParse();
   const isLoggedIn = await JobberAPI.init();
   if (isLoggedIn) {
     showMainView();
-    const consumed = await checkPendingParse();
-    if (!consumed) {
-      // Panel opened before background stored data — listen for it
-      listenForPendingParse();
-    }
+    await checkPendingParse();
   } else {
     viewLogin.classList.remove("hidden");
     viewMain.classList.add("hidden");
@@ -200,40 +245,44 @@ async function updateCurrentUrl() {
 // The panel outlives tab switches and in-tab navigations, so the cached URL has
 // to track them — it was previously refreshed only when the panel (re)opened.
 chrome.tabs.onActivated.addListener(() => {
-  cancelSpMatchRequest();
+  cancelPageRequests();
   updateCurrentUrl();
 });
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (tab.active && (changeInfo.url || changeInfo.status === "complete")) {
-    cancelSpMatchRequest();
+    cancelPageRequests();
     updateCurrentUrl();
   }
 });
 
 // ── Pending Parse (from context menu / shortcut) ───────
 
+let pendingCheck = false;
+let pendingRecheck = false;
 async function checkPendingParse() {
-  const { pendingParse } = await chrome.storage.session.get("pendingParse");
-  if (!pendingParse || Date.now() - pendingParse.timestamp > 10000) {
-    return false;
+  if (!JobberAPI.isLoggedIn()) return false;
+  if (pendingCheck) { pendingRecheck = true; return false; }
+  pendingCheck = true;
+  let pending;
+  const session = JobberAPI.sessionId();
+  try { pending = await JobberAPI.takePendingParse(); }
+  finally {
+    pendingCheck = false;
+    if (pendingRecheck) { pendingRecheck = false; void checkPendingParse(); }
   }
-
-  await chrome.storage.session.remove("pendingParse");
-
-  if (pendingParse.pageData?.text) {
-    await parseWithData(pendingParse.pageData);
-  } else {
-    await parseCurrentPage();
-  }
+  if (!pending || !JobberAPI.isLoggedIn() || JobberAPI.sessionId() !== session) return false;
+  if (pending.pageData?.text) await parseWithData(pending.pageData);
+  else await parseCurrentPage();
   return true;
 }
 
 // ── Usage ──────────────────────────────────────────────
 
 async function loadUsage() {
+  const session = JobberAPI.sessionId();
   try {
     const sub = await JobberAPI.getSubscription();
-    if (!sub) return;
+    if (!sub || !JobberAPI.isLoggedIn() || session !== JobberAPI.sessionId()) return;
 
     const limits = sub.limits || {};
     const usage = sub.usage || {};
@@ -264,7 +313,7 @@ tabButtons.forEach((btn) => {
     btn.classList.add("active");
 
     const name = btn.dataset.tab;
-    if (name !== "save") cancelSpMatchRequest();
+    cancelPageRequests();
     tabSave.classList.toggle("hidden", name !== "save");
     tabJobs.classList.toggle("hidden", name !== "jobs");
     tabAutofill.classList.toggle("hidden", name !== "autofill");
@@ -284,7 +333,9 @@ loginForm.addEventListener("submit", async (e) => {
 
   try {
     await JobberAPI.login(loginEmail.value, loginPassword.value);
+    clearPassword();
     showMainView();
+    await checkPendingParse();
   } catch (err) {
     showError(loginError, err.message);
   } finally {
@@ -294,7 +345,7 @@ loginForm.addEventListener("submit", async (e) => {
 });
 
 btnLogout.addEventListener("click", async () => {
-  cancelSpMatchRequest();
+  resetPrivateView();
   await JobberAPI.logout();
   viewMain.classList.add("hidden");
   viewLogin.classList.remove("hidden");
@@ -302,7 +353,15 @@ btnLogout.addEventListener("click", async () => {
 
 // ── Parse ──────────────────────────────────────────────
 
+function beginParse() {
+  parseRequest?.abort();
+  const request = new AbortController();
+  parseRequest = request;
+  return request;
+}
+function isCurrentParse(request) { return parseRequest === request && !request.signal.aborted; }
 async function parseCurrentPage() {
+  const request = beginParse();
   hideError(idleError);
   showSaveState("loading");
 
@@ -311,6 +370,7 @@ async function parseCurrentPage() {
       active: true,
       currentWindow: true,
     });
+    if (!isCurrentParse(request)) return;
     if (!tab?.id) throw new Error("No active tab found");
 
     const pageData = await chrome.runtime.sendMessage({
@@ -318,9 +378,11 @@ async function parseCurrentPage() {
       tabId: tab.id,
     });
 
+    if (!isCurrentParse(request)) return;
     if (pageData?.error) throw new Error(pageData.error);
-    await parseWithData(pageData);
+    await parseWithData(pageData, request);
   } catch (err) {
+    if (!isCurrentParse(request)) return;
     if (err.message === "SESSION_EXPIRED") {
       handleSessionExpired();
       return;
@@ -330,7 +392,7 @@ async function parseCurrentPage() {
   }
 }
 
-async function parseWithData(pageData) {
+async function parseWithData(pageData, request = beginParse()) {
   showSaveState("loading");
 
   try {
@@ -338,7 +400,8 @@ async function parseWithData(pageData) {
       throw new Error("Not enough text on this page to parse");
     }
 
-    const parsed = await JobberAPI.parseJob(pageData.text, pageData.url);
+    const parsed = await JobberAPI.parseJob(pageData.text, pageData.url, { consentSignal: request.signal });
+    if (!isCurrentParse(request)) return;
 
     previewTitle.value = parsed.title || "";
     previewCompany.value = parsed.company_name || "";
@@ -350,10 +413,12 @@ async function parseWithData(pageData) {
     hideError(saveError);
 
     const isDuplicate = await JobberAPI.isUrlImported(previewUrl.value);
+    if (!isCurrentParse(request)) return;
     duplicateWarning.classList.toggle("hidden", !isDuplicate);
 
     showSaveState("preview");
   } catch (err) {
+    if (!isCurrentParse(request)) return;
     if (err.message === "SESSION_EXPIRED") {
       handleSessionExpired();
       return;
@@ -368,7 +433,7 @@ async function parseWithData(pageData) {
       if (err.message !== "AI_CANCELLED") showError(idleError, err.message);
     }
   } finally {
-    void loadUsage();
+    if (isCurrentParse(request)) void loadUsage();
   }
 }
 
@@ -421,50 +486,56 @@ function requestHostAccess() {
 
 saveForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  cancelSpMatchRequest();
+  cancelPageRequests();
+  const request = new AbortController();
+  saveRequest = request;
+  const originSessionId = JobberAPI.sessionId();
+  const isCurrent = () => saveRequest === request && !request.signal.aborted && JobberAPI.isLoggedIn() && JobberAPI.sessionId() === originSessionId;
   hideError(saveError);
   btnSave.disabled = true;
   btnSave.textContent = "Saving\u2026";
 
+  // Fold salary + location into the description. The job model no longer has a
+  // separate notes field — comments are the place for free-form annotations.
+  const salary = previewSalary.value.trim();
+  const loc = previewLocation.value.trim();
+  const meta = [];
+  if (salary) meta.push(`Salary: ${salary}`);
+  if (loc) meta.push(`Location: ${loc}`);
+  const body = previewDescription.value.trim();
+  const description =
+    [meta.join("\n"), body].filter(Boolean).join("\n\n") || undefined;
+
+  const submitted = { title: previewTitle.value.trim(), companyName: previewCompany.value.trim(),
+    source: previewSource.value.trim(), url: previewUrl.value.trim(), description };
   try {
+    const session = await JobberAPI.sessionSnapshot();
+    if (!isCurrent() || session.authSessionId !== originSessionId) return;
+    const context = { session, consentSignal: request.signal };
     let companyId;
-    const companyName = previewCompany.value.trim();
-    if (companyName) {
-      const company = await JobberAPI.createCompany(companyName);
+    if (submitted.companyName) {
+      const company = await JobberAPI.createCompany(submitted.companyName, context);
+      if (!isCurrent()) return;
       if (company) companyId = company.id;
     }
 
-    // Fold salary + location into the description. The job model no longer has a
-    // separate notes field — comments are the place for free-form annotations.
-    const salary = previewSalary.value.trim();
-    const loc = previewLocation.value.trim();
-    const meta = [];
-    if (salary) meta.push(`Salary: ${salary}`);
-    if (loc) meta.push(`Location: ${loc}`);
-    const body = previewDescription.value.trim();
-    const description =
-      [meta.join("\n"), body].filter(Boolean).join("\n\n") || undefined;
-
-    const job = await JobberAPI.createJob({
-      title: previewTitle.value.trim(),
-      companyId,
-      source: previewSource.value.trim(),
-      url: previewUrl.value.trim(),
-      description,
-    });
-
-    lastSavedJob = job;
-    await JobberAPI.trackImportedUrl(job.url);
-
-    const count = await JobberAPI.incrementSavedCount();
+    if (!isCurrent()) return;
+    const job = await JobberAPI.createJob({ ...submitted, companyId }, context);
+    if (!isCurrent()) return;
+    await JobberAPI.trackImportedUrl(job.url, context);
+    if (!isCurrent()) return;
+    const count = await JobberAPI.incrementSavedCount(context);
+    if (!isCurrent()) return;
     chrome.runtime.sendMessage({ action: "updateBadge", count });
 
+    lastSavedJob = job;
     successJobTitle.textContent = job.title;
     resetSpMatchScore();
     loadSpMatchResumes();
     loadUsage();
     showSaveState("success");
   } catch (err) {
+    if (!isCurrent()) return;
     if (err.message === "SESSION_EXPIRED") {
       handleSessionExpired();
       return;
@@ -474,16 +545,20 @@ saveForm.addEventListener("submit", async (e) => {
         saveError,
         "Jobs limit reached for your plan. Upgrade at cursopus.com.",
       );
-    } else {
+    } else if (err.message !== "AI_CANCELLED") {
       showError(saveError, err.message);
     }
   } finally {
-    btnSave.disabled = false;
-    btnSave.textContent = "Save to Cursopus";
+    if (isCurrent()) {
+      saveRequest = null;
+      btnSave.disabled = false;
+      btnSave.textContent = "Save to Cursopus";
+    }
   }
 });
 
 btnBack.addEventListener("click", () => {
+  cancelPageRequests();
   showSaveState("idle");
   updateCurrentUrl();
 });
@@ -497,6 +572,7 @@ btnOpenInJobber.addEventListener("click", () => {
 });
 
 btnSaveAnother.addEventListener("click", () => {
+  cancelPageRequests();
   showSaveState("idle");
   updateCurrentUrl();
   loadUsage();
@@ -519,9 +595,11 @@ function resetSpMatchScore() {
 }
 
 async function loadSpMatchResumes() {
+  const session = JobberAPI.sessionId();
   const hint = document.getElementById("sp-match-hint");
   try {
     const data = await JobberAPI.listResumes(50);
+    if (!JobberAPI.isLoggedIn() || session !== JobberAPI.sessionId()) return;
     const resumes = unwrapList(data);
 
     resetSpMatchScore();
@@ -542,6 +620,7 @@ async function loadSpMatchResumes() {
       hint.textContent = "";
     }
   } catch (err) {
+    if (!JobberAPI.isLoggedIn() || session !== JobberAPI.sessionId()) return;
     if (err.message === "SESSION_EXPIRED") handleSessionExpired();
   }
 }
@@ -649,7 +728,11 @@ spBtnCheckMatch.addEventListener("click", async () => {
 
 // ── My Jobs ────────────────────────────────────────────
 
+let jobsRequest = 0;
 async function loadJobs() {
+  const request = ++jobsRequest;
+  const session = JobberAPI.sessionId();
+  const isCurrent = () => request === jobsRequest && JobberAPI.isLoggedIn() && session === JobberAPI.sessionId();
   jobsList.innerHTML = "";
   jobsEmpty.classList.add("hidden");
   hideError(jobsError);
@@ -657,6 +740,7 @@ async function loadJobs() {
 
   try {
     const data = await JobberAPI.listJobs(20);
+    if (!isCurrent()) return;
     const jobs = unwrapList(data);
 
     jobsLoading.classList.add("hidden");
@@ -697,162 +781,15 @@ async function loadJobs() {
       jobsList.appendChild(el);
     });
   } catch (err) {
+    if (!isCurrent()) return;
     jobsLoading.classList.add("hidden");
     if (err.message === "SESSION_EXPIRED") {
       handleSessionExpired();
       return;
     }
-    showError(jobsError, err.message);
+    if (err.message !== "AI_CANCELLED") showError(jobsError, err.message);
   }
 }
-
-// ── Autofill ───────────────────────────────────────────
-
-async function loadAutofillTab() {
-  // Refresh plan state on every visit — an upgrade made in the web app must
-  // unlock the uploaded group without reopening the panel (a stale free
-  // snapshot renders the options disabled, which the server can't overrule).
-  await loadUsage();
-
-  const { autofillProfile: cached } =
-    await chrome.storage.local.get("autofillProfile");
-
-  // A profile is usable with a name OR an email — same threshold the backend
-  // applies to extractions, so an email-only extracted profile stays active.
-  if (cached?.contact?.full_name || cached?.contact?.email) {
-    showActiveProfile(cached);
-    return;
-  }
-
-  await showAutofillSetup();
-}
-
-function appendResumeGroup(label, prefix, resumes, enabled) {
-  if (resumes.length === 0) return;
-  const group = document.createElement("optgroup");
-  group.label = label;
-  resumes.forEach((r) => {
-    const option = document.createElement("option");
-    option.value = prefix + r.id;
-    option.textContent = r.title || "Untitled Resume";
-    option.disabled = !enabled;
-    group.appendChild(option);
-  });
-  autofillResumeSelect.appendChild(group);
-}
-
-async function showAutofillSetup() {
-  autofillSetup.classList.remove("hidden");
-  autofillActive.classList.add("hidden");
-  hideError(autofillError);
-
-  try {
-    const [builderData, uploadedData] = await Promise.all([
-      JobberAPI.listResumeBuilders(),
-      JobberAPI.listResumes(50),
-    ]);
-    const builders = unwrapList(builderData);
-    const uploaded = unwrapList(uploadedData);
-    const uploadedEnabled = true;
-
-    autofillResumeSelect.innerHTML =
-      '<option value="">Select a resume\u2026</option>';
-    appendResumeGroup("Builder Resumes", "rb:", builders, true);
-    appendResumeGroup("Uploaded Resumes", "up:", uploaded, uploadedEnabled);
-
-    const isEmpty = builders.length === 0 && uploaded.length === 0;
-    let hint = "";
-    if (isEmpty) {
-      hint =
-        "Upload a resume or create one in the Resume Builder to use Autofill.";
-    }
-    autofillHint.textContent = hint;
-    btnSetAutofill.disabled = isEmpty;
-    btnOpenBuilder.classList.toggle("hidden", !isEmpty);
-  } catch (err) {
-    if (err.message === "SESSION_EXPIRED") {
-      handleSessionExpired();
-      return;
-    }
-    showError(autofillError, err.message);
-  }
-}
-
-function showActiveProfile(data) {
-  autofillSetup.classList.add("hidden");
-  autofillActive.classList.remove("hidden");
-
-  // Extracted profiles can't be edited anywhere (accepted for v1) — bridge to
-  // the editable path: the Resume Builder PDF import.
-  autofillBridgeHint.textContent =
-    data.source === "uploaded"
-      ? "Wrong details? Import this PDF in the Resume Builder to edit."
-      : "";
-
-  const c = data.contact || {};
-  profileNameEl.textContent = c.full_name || "No name";
-
-  const details = [c.email, c.phone, c.location]
-    .filter(Boolean)
-    .join(" \u2022 ");
-  profileInfoEl.textContent = details || "No contact info";
-}
-
-btnSetAutofill.addEventListener("click", async () => {
-  const value = autofillResumeSelect.value;
-  if (!value) {
-    showError(autofillError, "Please select a resume");
-    return;
-  }
-
-  hideError(autofillError);
-  btnSetAutofill.disabled = true;
-  const isUploaded = value.startsWith("up:");
-  const resumeId = value.slice(3);
-  // First extraction of an uploaded resume is an AI call (~5-15s); repeat
-  // selections are instant server-side cache hits.
-  btnSetAutofill.textContent = isUploaded
-    ? "Parsing your resume\u2026"
-    : "Loading\u2026";
-
-  try {
-    const profile = isUploaded
-      ? {
-          ...(await JobberAPI.getUploadedAutofillProfile(resumeId)),
-          source: "uploaded",
-        }
-      : await JobberAPI.getFullResume(resumeId);
-    await chrome.storage.local.set({ autofillProfile: profile });
-    showActiveProfile(profile);
-  } catch (err) {
-    if (err.message === "SESSION_EXPIRED") {
-      handleSessionExpired();
-      return;
-    }
-    const friendly = {
-      PLAN_LIMIT_REACHED:
-        "AI usage limit reached. Upgrade your plan at cursopus.com.",
-      RESUME_UNREADABLE:
-        "Couldn't read this PDF. Try the Resume Builder instead.",
-      RATE_LIMITED: "Too many attempts — wait a minute and try again.",
-    };
-    if (err.message !== "AI_CANCELLED") showError(autofillError, friendly[err.message] || err.message);
-  } finally {
-    void loadUsage();
-    btnSetAutofill.disabled = false;
-    btnSetAutofill.textContent = "Set as Autofill Profile";
-  }
-});
-
-btnChangeProfile.addEventListener("click", () => showAutofillSetup());
-
-btnOpenBuilder.addEventListener("click", () => {
-  // /app/resume-builder is just a redirect to /app/resumes — link straight to
-  // the resumes page, where "Create Resume" starts a builder resume.
-  chrome.tabs.create({
-    url: `${JobberAPI.getWebAppBase()}/app/resumes`,
-  });
-});
 
 // ── Start ──────────────────────────────────────────────
 

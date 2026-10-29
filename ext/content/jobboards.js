@@ -141,9 +141,6 @@
     }
 
     cards.forEach((card) => {
-      if (card.dataset.jobberProcessed) return;
-      card.dataset.jobberProcessed = "true";
-
       const linkEl = querySelector(card, config.linkSelector);
       const titleEl = querySelector(card, config.titleSelector);
       const companyEl = querySelector(card, config.companySelector);
@@ -152,7 +149,15 @@
       const title = getTextContent(titleEl);
       const company = getTextContent(companyEl);
 
-      if (!title) return;
+      const signature = JSON.stringify([url, title, company]);
+      const previous = card.querySelector(".jobber-save-btn");
+      if (previous && card.dataset.jobberProcessed === signature) return;
+      if (previous) previous.remove();
+      if (!title || !url) {
+        delete card.dataset.jobberProcessed;
+        return;
+      }
+      card.dataset.jobberProcessed = signature;
 
       const isSaved = url && importedUrls.includes(url);
 
@@ -163,6 +168,7 @@
 
       if (!isSaved) {
         btn.addEventListener("click", async (e) => {
+          if (!e.isTrusted) return;
           e.preventDefault();
           e.stopPropagation();
 
@@ -177,6 +183,7 @@
             source: config.name,
           });
 
+          if (card.dataset.jobberProcessed !== signature || !btn.isConnected) return;
           if (result?.ok) {
             btn.className = "jobber-save-btn jobber-saved";
             btn.textContent = "\u2713 Saved";
@@ -236,7 +243,7 @@
 
     // Re-scan when DOM changes (infinite scroll, dynamic loading)
     const observer = new MutationObserver(scheduleProcess);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["href"] });
 
     // Re-check imported URLs when storage changes
     chrome.storage.onChanged.addListener((changes, area) => {

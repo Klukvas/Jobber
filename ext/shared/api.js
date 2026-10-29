@@ -1,7 +1,6 @@
 // shared/api.js — Shared API utilities for Cursopus extension
 const JobberAPI = (() => {
   const API_BASE = "https://jobber-app.com";
-  const ALLOWED_ORIGINS = ["https://jobber-app.com", "http://localhost:8080"];
   const MAX_TRACKED_URLS = 500;
 
   let _accessToken = null;
@@ -9,23 +8,28 @@ const JobberAPI = (() => {
 
   // ── Initialization ─────────────────────────────────
 
-  function isAllowedOrigin(url) {
-    return ALLOWED_ORIGINS.some(
-      (origin) => url === origin || url.startsWith(origin),
-    );
+  let _session = null;
+  async function authMessage(action, data = {}) {
+    const result = await chrome.runtime.sendMessage({ action, ...data });
+    if (result?.error) throw new Error(result.error);
+    if (!result?.data && action !== "authLogout" && action !== "authStoreProfile" && action !== "authTakePending") throw new Error("Authentication unavailable");
+    return result?.data;
   }
-
-  async function init() {
-    const stored = await chrome.storage.local.get([
-      "accessToken",
-      "refreshToken",
-      "apiBase",
-    ]);
-    if (stored.apiBase && isAllowedOrigin(stored.apiBase)) {
-      _apiBase = stored.apiBase;
-    }
-    if (stored.accessToken) _accessToken = stored.accessToken;
-    return !!_accessToken;
+  function adopt(session) {
+    _session = session;
+    _accessToken = session?.accessToken || null;
+    _apiBase = session?.apiBase || API_BASE;
+    return session;
+  }
+  async function sessionSnapshot() { return adopt(await authMessage("authSnapshot")); }
+  async function init() { await sessionSnapshot(); return !!_accessToken; }
+  function sessionId() { return _session?.authSessionId; }
+  async function assertSession(session, consentSignal) {
+    checkConsentSignal(consentSignal);
+    const current = await sessionSnapshot();
+    if (!session?.accessToken || !current.accessToken || current.authSessionId !== session.authSessionId || current.apiBase !== session.apiBase) throw new Error("AI_CANCELLED");
+    checkConsentSignal(consentSignal);
+    return current;
   }
 
   function getWebAppBase() {
@@ -44,99 +48,53 @@ const JobberAPI = (() => {
   // ── Auth ────────────────────────────────────────────
 
   async function login(email, password) {
-    const response = await fetch(`${_apiBase}/api/v1/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => null);
-      throw new Error(err?.error_message || "Invalid credentials");
-    }
-
-    const data = await response.json();
-    _accessToken = data.tokens.access_token;
-
-    await chrome.storage.local.set({
-      accessToken: data.tokens.access_token,
-      refreshToken: data.tokens.refresh_token,
-    });
+    adopt(await authMessage("authLogin", { email, password }));
   }
-
-  async function logout() {
-    await chrome.storage.local.remove([
-      "accessToken",
-      "refreshToken",
-      "autofillProfile",
-    ]);
+  async function logout({ onlyIfCurrent = false } = {}) {
+    const session = onlyIfCurrent ? _session : null;
     _accessToken = null;
+    _session = null;
+    await authMessage("authLogout", { session });
+  }
+  async function refreshAccessToken(session = _session) {
+    adopt(await authMessage("authRefresh", { session }));
+    return true;
+  }
+  let profileOwner = null;
+  let profileRevision = 0;
+  function beginAutofillRequest() {
+    profileOwner ||= crypto.randomUUID();
+    const request = { owner: profileOwner, revision: ++profileRevision, sessionId: sessionId(), apiBase: _apiBase };
+    return {
+      request,
+      ready: authMessage("authBeginProfile", { request }),
+      cancel: () => { void authMessage("authCancelProfile", { request }).catch(() => {}); },
+    };
+  }
+  async function storeAutofillProfile(profile, context) {
+    await authMessage("authStoreProfile", { profile, request: context.request });
+  }
+  async function getAutofillProfile() {
+    return (await chrome.runtime.sendMessage({ action: "getAutofillProfile" }))?.profile || null;
   }
 
-  let _refreshPromise = null;
-
-  async function refreshAccessToken() {
-    if (_refreshPromise) return _refreshPromise;
-    _refreshPromise = _doRefresh().finally(() => {
-      _refreshPromise = null;
-    });
-    return _refreshPromise;
-  }
-
-  async function _doRefresh() {
-    const { refreshToken } = await chrome.storage.local.get("refreshToken");
-    if (!refreshToken) return false;
-
-    try {
-      const res = await fetch(`${_apiBase}/api/v1/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      });
-      if (!res.ok) {
-        _accessToken = null;
-        // Drop the dead tokens from storage too, or other contexts (the
-        // background alarm, a reopened popup/panel) would keep reviving the
-        // stale access token and loop on 401.
-        await chrome.storage.local.remove(["accessToken", "refreshToken"]);
-        return false;
-      }
-
-      const data = await res.json();
-      _accessToken = data.access_token;
-      await chrome.storage.local.set({
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-      });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  // ── API Fetch ───────────────────────────────────────
-
-  async function apiFetch(path, options = {}) {
-    const headers = { "Content-Type": "application/json", ...options.headers };
-    if (_accessToken) {
-      headers["Authorization"] = `Bearer ${_accessToken}`;
-    }
-
-    const response = await fetch(`${_apiBase}${path}`, {
+  // Requests remain bound to their originating account, including 401 replay.
+  async function apiFetch(path, options = {}, original, consentSignal) {
+    const session = original ? await assertSession(original, consentSignal) : await sessionSnapshot();
+    if (!session.accessToken) throw new Error("SESSION_EXPIRED");
+    const send = (token) => fetch(`${session.apiBase}${path}`, {
       ...options,
-      headers,
+      headers: { "Content-Type": "application/json", ...options.headers, Authorization: `Bearer ${token}` },
     });
-
+    checkConsentSignal(consentSignal);
+    let response = await send(session.accessToken);
+    await assertSession(session);
     if (response.status === 401) {
-      const refreshed = await refreshAccessToken();
-      if (refreshed) {
-        return fetch(`${_apiBase}${path}`, {
-          ...options,
-          headers: { ...headers, Authorization: `Bearer ${_accessToken}` },
-        });
-      }
+      await refreshAccessToken(session);
+      const fresh = await assertSession(session);
+      response = await send(fresh.accessToken);
+      await assertSession(session);
     }
-
     return response;
   }
 
@@ -154,8 +112,14 @@ const JobberAPI = (() => {
     return urls.includes(url);
   }
 
-  async function trackImportedUrl(url) {
+  async function trackImportedUrl(url, { session, consentSignal } = {}) {
     if (!url) return;
+    if (session) {
+      await assertSession(session, consentSignal);
+      checkConsentSignal(consentSignal);
+      await authMessage("authTrackImportedUrl", { url, session });
+      return;
+    }
     const urls = await getImportedUrls();
     if (urls.includes(url)) return;
     const updated = [...urls, url].slice(-MAX_TRACKED_URLS);
@@ -197,17 +161,18 @@ const JobberAPI = (() => {
     if (signal?.aborted) throw new Error("AI_CANCELLED");
   }
 
-  async function confirmCredits(operation, consentSignal) {
+  async function confirmCredits(operation, consentSignal, session) {
     checkConsentSignal(consentSignal);
+    await assertSession(session, consentSignal);
     const copy = creditCopy();
-    const subscription = await getSubscription();
-    checkConsentSignal(consentSignal);
+    const subscription = await getSubscription(session);
+    await assertSession(session, consentSignal);
     const cost = subscription?.credit_costs?.[operation];
     const remaining = subscription?.credits?.remaining;
     if (!Number.isSafeInteger(cost) || cost <= 0 || !Number.isSafeInteger(remaining)) throw new Error(copy.unavailable);
     if (remaining < cost) throw new Error(copy.CREDIT_UNAVAILABLE);
     if (typeof globalThis.confirm !== "function" || !globalThis.confirm(`${copy.cost(cost, remaining)}\n\n${copy.policy}`)) throw new Error("AI_CANCELLED");
-    checkConsentSignal(consentSignal);
+    await assertSession(session, consentSignal);
     return crypto.randomUUID();
   }
   async function checkCreditError(response) {
@@ -219,13 +184,15 @@ const JobberAPI = (() => {
 
   // ── Job Operations ──────────────────────────────────
 
-  async function parseJob(pageText, pageUrl) {
-    const key = await confirmCredits("job_parse");
+  async function parseJob(pageText, pageUrl, { consentSignal } = {}) {
+    const session = await sessionSnapshot();
+    const key = await confirmCredits("job_parse", consentSignal, session);
+    await assertSession(session, consentSignal);
     const response = await apiFetch("/api/v1/jobs/parse", {
       method: "POST",
       headers: { "Idempotency-Key": key },
       body: JSON.stringify({ page_text: pageText, page_url: pageUrl }),
-    });
+    }, session, consentSignal);
 
     if (response.status === 401) throw new Error("SESSION_EXPIRED");
     await checkCreditError(response);
@@ -238,11 +205,11 @@ const JobberAPI = (() => {
     return response.json();
   }
 
-  async function createCompany(name) {
+  async function createCompany(name, { session, consentSignal } = {}) {
     const response = await apiFetch("/api/v1/companies", {
       method: "POST",
       body: JSON.stringify({ name }),
-    });
+    }, session, consentSignal);
     // Surface an expired session instead of silently saving the job with no
     // company; other statuses stay best-effort (null => caller omits company).
     if (response.status === 401) throw new Error("SESSION_EXPIRED");
@@ -250,7 +217,7 @@ const JobberAPI = (() => {
     return response.json();
   }
 
-  async function createJob({ title, companyId, source, url, description }) {
+  async function createJob({ title, companyId, source, url, description }, { session, consentSignal } = {}) {
     const body = {
       title,
       company_id: companyId || undefined,
@@ -262,7 +229,7 @@ const JobberAPI = (() => {
     const response = await apiFetch("/api/v1/jobs", {
       method: "POST",
       body: JSON.stringify(body),
-    });
+    }, session, consentSignal);
 
     if (response.status === 401) throw new Error("SESSION_EXPIRED");
     if (response.status === 403) throw new Error("JOBS_LIMIT_REACHED");
@@ -293,12 +260,16 @@ const JobberAPI = (() => {
   }
 
   // Read an existing profile for free; only an explicit POST may start AI.
-  async function getUploadedAutofillProfile(resumeId) {
+  async function getUploadedAutofillProfile(resumeId, { consentSignal } = {}) {
+    const session = await sessionSnapshot();
+    await assertSession(session, consentSignal);
     const path = `/api/v1/resumes/${encodeURIComponent(resumeId)}/autofill-profile`;
-    let response = await apiFetch(path);
+    let response = await apiFetch(path, {}, session);
+    await assertSession(session, consentSignal);
     if (response.status === 404) {
-      const key = await confirmCredits("autofill_import");
-      response = await apiFetch(path, { method: "POST", headers: { "Idempotency-Key": key } });
+      const key = await confirmCredits("autofill_import", consentSignal, session);
+      await assertSession(session, consentSignal);
+      response = await apiFetch(path, { method: "POST", headers: { "Idempotency-Key": key } }, session, consentSignal);
     }
     await checkCreditError(response);
     if (response.status === 401) throw new Error("SESSION_EXPIRED");
@@ -328,9 +299,10 @@ const JobberAPI = (() => {
   }
 
   async function getMatchScore(jobId, resumeId, { consentSignal } = {}) {
-    checkConsentSignal(consentSignal);
-    const cached = await apiFetch(`/api/v1/match-score?job_id=${encodeURIComponent(jobId)}&resume_id=${encodeURIComponent(resumeId)}`);
-    checkConsentSignal(consentSignal);
+    const session = await sessionSnapshot();
+    await assertSession(session, consentSignal);
+    const cached = await apiFetch(`/api/v1/match-score?job_id=${encodeURIComponent(jobId)}&resume_id=${encodeURIComponent(resumeId)}`, {}, session);
+    await assertSession(session, consentSignal);
     if (cached.status === 401) throw new Error("SESSION_EXPIRED");
     if (cached.ok) {
       const result = await cached.json();
@@ -341,14 +313,14 @@ const JobberAPI = (() => {
     const error = await cached.json().catch(() => null);
     checkConsentSignal(consentSignal);
     if (cached.status !== 404 || error?.error_code !== "MATCH_SCORE_NOT_READY") throw new Error("Failed to read saved match analysis");
-    const key = await confirmCredits("match", consentSignal);
-    checkConsentSignal(consentSignal);
+    const key = await confirmCredits("match", consentSignal, session);
+    await assertSession(session, consentSignal);
     // Origin cancellation stops lookup/consent; an already sent paid request keeps its transport.
     const response = await apiFetch("/api/v1/match-score", {
       method: "POST",
       headers: { "Idempotency-Key": key },
       body: JSON.stringify({ job_id: jobId, resume_id: resumeId }),
-    });
+    }, session, consentSignal);
 
     if (response.status === 401) throw new Error("SESSION_EXPIRED");
     await checkCreditError(response);
@@ -379,8 +351,8 @@ const JobberAPI = (() => {
 
   // ── Subscription ───────────────────────────────────
 
-  async function getSubscription() {
-    const response = await apiFetch("/api/v1/subscription");
+  async function getSubscription(session) {
+    const response = await apiFetch("/api/v1/subscription", {}, session);
     if (response.status === 401) throw new Error("SESSION_EXPIRED");
     if (!response.ok) return null;
     return response.json();
@@ -388,7 +360,12 @@ const JobberAPI = (() => {
 
   // ── Badge ───────────────────────────────────────────
 
-  async function incrementSavedCount() {
+  async function incrementSavedCount({ session, consentSignal } = {}) {
+    if (session) {
+      await assertSession(session, consentSignal);
+      checkConsentSignal(consentSignal);
+      return authMessage("authIncrementSavedCount", { session });
+    }
     const { savedCount = 0 } = await chrome.storage.session.get("savedCount");
     const newCount = savedCount + 1;
     await chrome.storage.session.set({ savedCount: newCount });
@@ -402,6 +379,12 @@ const JobberAPI = (() => {
     init,
     getWebAppBase,
     isLoggedIn,
+    sessionId,
+    sessionSnapshot,
+    takePendingParse: () => authMessage("authTakePending", { sessionId: sessionId() }),
+    storeAutofillProfile,
+    beginAutofillRequest,
+    getAutofillProfile,
     login,
     logout,
     refreshAccessToken,
