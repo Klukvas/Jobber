@@ -52,8 +52,8 @@ test('content script cannot invoke any privileged auth route',async()=>{
   assert.equal(calls,0);assert.equal(engine.local.accessToken,'synthetic');assert.equal(engine.local.autofillProfile,undefined);
 });
 test('only exact trusted API origins are used for auth',async()=>{
-  for(const base of ['https://jobber-app.com.evil.invalid','https://jobber-app.com@evil.invalid','https://jobber-app.com/extra']){
-    let called;const fetch=async url=>{called=url;return loginResponse()};const engine=extensionFixture({fetch,stored:{apiBase:base}});const api=panel(engine,fetch);await api.login('synthetic','synthetic');assert.equal(called,'https://jobber-app.com/api/v1/auth/login');
+  for(const base of ['https://cursopus.com.evil.invalid','https://cursopus.com@evil.invalid','https://cursopus.com/extra']){
+    let called;const fetch=async url=>{called=url;return loginResponse()};const engine=extensionFixture({fetch,stored:{apiBase:base}});const api=panel(engine,fetch);await api.login('synthetic','synthetic');assert.equal(called,'https://cursopus.com/api/v1/auth/login');
   }
 });
 for(const operation of ['parseJob','getUploadedAutofillProfile','getMatchScore'])test(`${operation} never confirms or posts A content after B login`,async()=>{
@@ -134,7 +134,7 @@ for(const operation of ['createCompany','createJob'])test(`${operation} checks c
   const fetch=async()=>{posts++;return Response.json({})};const engine=extensionFixture({fetch}),chrome=engine.chromeFor();
   const send=chrome.runtime.sendMessage;chrome.runtime.sendMessage=async message=>{const result=await send(message);if(message.action==='authSnapshot'){arrived.resolve();await gate.promise}return result};
   const api=vm.runInNewContext(`${source}\nJobberAPI`,{chrome,fetch,crypto});
-  const session={accessToken:'synthetic',authSessionId:'session-a',apiBase:'https://jobber-app.com'};
+  const session={accessToken:'synthetic',authSessionId:'session-a',apiBase:'https://cursopus.com'};
   const pending=api[operation](operation==='createCompany'?'Synthetic':{title:'Synthetic'}, {session,consentSignal:controller.signal}).then(()=>null,error=>error.message);
   await arrived.promise;controller.abort();gate.resolve();assert.equal(await pending,'AI_CANCELLED');assert.equal(posts,0);
 });
@@ -169,4 +169,18 @@ test('recovered pending registration rejects another document, session or revisi
   const foreign=engine.chromeFor({id:'fixture',documentId:'another-document',url:'chrome-extension://fixture/sidepanel/sidepanel.html'}).runtime;
   assert.equal((await foreign.sendMessage({action:'authBeginProfile',request:{...pending.request,revision:pending.request.revision+1}})).error,'AI_CANCELLED');
   await api.storeAutofillProfile({contact:{full_name:'Original owner'}},pending);assert.equal(engine.local.autofillProfile.contact.full_name,'Original owner');
+});
+test('update drops an autofill profile saved before session binding and keeps a bound one',async()=>{
+  const legacy=extensionFixture({stored:{accessToken:'synthetic',refreshToken:'synthetic',autofillProfile:{contact:{full_name:'Legacy Applicant'}}}});
+  await Promise.all(legacy.workerChrome.runtime.onInstalled.emit({reason:'update',previousVersion:'1.1.5'}));
+  assert.equal(legacy.local.autofillProfile,undefined);assert.equal(legacy.local.accessToken,'synthetic');assert.equal(legacy.local.refreshToken,'synthetic');
+  const request={owner:'browser-profile',revision:1,sessionId:'session-a',apiBase:'https://cursopus.com'};
+  const bound=extensionFixture({stored:{accessToken:'synthetic',refreshToken:'synthetic',authSessionId:'session-a',autofillProfile:{contact:{full_name:'Bound Applicant'}},autofillSessionId:'session-a',autofillProfileRequest:request}});
+  await Promise.all(bound.workerChrome.runtime.onInstalled.emit({reason:'update',previousVersion:'1.1.6'}));
+  assert.equal(bound.local.autofillProfile.contact.full_name,'Bound Applicant');
+});
+test('logout forgets which jobs the previous account saved',async()=>{
+  const fetch=async()=>Response.json({});const engine=extensionFixture({fetch,stored:{accessToken:'synthetic',refreshToken:'synthetic',authSessionId:'session-a',importedUrls:['https://fixture.invalid/private-a']}});
+  const api=panel(engine,fetch);await api.init();await api.logout();
+  assert.equal(engine.local.accessToken,undefined);assert.equal(engine.local.importedUrls,undefined);
 });

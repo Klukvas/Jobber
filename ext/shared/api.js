@@ -1,6 +1,6 @@
 // shared/api.js — Shared API utilities for Cursopus extension
 const JobberAPI = (() => {
-  const API_BASE = "https://jobber-app.com";
+  const API_BASE = "https://cursopus.com";
   const MAX_TRACKED_URLS = 500;
 
   let _accessToken = null;

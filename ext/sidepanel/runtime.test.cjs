@@ -29,7 +29,7 @@ test('real browser sidepanel loads all controllers, consumes repeated commands a
     });
     engine.storage.onChanged.addListener((changes,area)=>{void page.evaluate(({changes,area})=>window.fixtureChanges?.forEach(fn=>fn(changes,area)),{changes,area}).catch(()=>{})});
     await page.route('**/*',async route=>{
-      if(new URL(route.request().url()).origin==='https://jobber-app.com'){
+      if(new URL(route.request().url()).origin==='https://cursopus.com'){
         const headers={'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'GET,POST,OPTIONS'};
         if(route.request().method()==='OPTIONS')return route.fulfill({status:204,headers,body:''});
         const response=await fixtureFetch(route.request().url(),{method:route.request().method(),headers:route.request().headers(),body:route.request().postData()});

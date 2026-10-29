@@ -124,7 +124,8 @@
       if (pattern.test(combined)) return type;
     }
 
-    if (identifiers.some((value) => /^name$/i.test(value.trim())) && !/(?:company|business|organization|organisation|employer|user|account|file|screen|display|brand|product|project|event|team|nick|table|field)[\s_-]*name/i.test(combined)) return "fullName";
+    // "field" must start a word: Ashby names the applicant's name input "_systemfield_name".
+    if (identifiers.some((value) => /^name$/i.test(value.trim())) && !/(?:company|business|organization|organisation|employer|user|account|file|screen|display|brand|product|project|event|team|nick|table|(?<![a-z])field)[\s_-]*name/i.test(combined)) return "fullName";
     return null;
   }
 

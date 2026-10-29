@@ -1,8 +1,9 @@
 // Only the service worker mutates credentials. Panels share its refresh flight.
 const JobberAuth = (() => {
-  const API_BASE = "https://jobber-app.com";
-  const ALLOWED_ORIGINS = ["https://jobber-app.com", "http://localhost:8080"];
-  const PRIVATE_KEYS = ["accessToken", "refreshToken", "autofillProfile", "autofillSessionId", "autofillProfileRequest"];
+  const API_BASE = "https://cursopus.com";
+  const ALLOWED_ORIGINS = ["https://cursopus.com", "http://localhost:8080"];
+  // importedUrls marks jobs as saved on board pages; another account must not inherit them.
+  const PRIVATE_KEYS = ["accessToken", "refreshToken", "autofillProfile", "autofillSessionId", "autofillProfileRequest", "importedUrls"];
   let writes = Promise.resolve();
   let flight = null;
   let retryAfter = 0;
@@ -239,6 +240,16 @@ const JobberAuth = (() => {
       }
     });
   }
+  // Profiles saved before 1.1.6 have no owning session, so getAutofillProfile never serves
+  // them, and 1.1.5 kept them across a failed refresh, so they may belong to another account.
+  function dropLegacyAutofillProfile() {
+    return serialize(async () => {
+      const data = await chrome.storage.local.get(["autofillProfile", "autofillSessionId", "autofillProfileRequest"]);
+      if (data.autofillProfile && (!data.autofillSessionId || !data.autofillProfileRequest)) {
+        await chrome.storage.local.remove("autofillProfile");
+      }
+    });
+  }
   function getAutofillProfile() {
     return serialize(async () => {
       const data = await chrome.storage.local.get(["accessToken", "authSessionId", "apiBase", "autofillProfile", "autofillSessionId", "autofillProfileRequest"]);
@@ -318,5 +329,5 @@ const JobberAuth = (() => {
       default: throw new Error("Unknown auth action");
     }
   }
-  return { snapshot, assertSession, refresh, authedFetch, getAutofillProfile, finishQuickSave, publishPending, handle, safeBase };
+  return { snapshot, assertSession, refresh, authedFetch, getAutofillProfile, dropLegacyAutofillProfile, finishQuickSave, publishPending, handle, safeBase };
 })();

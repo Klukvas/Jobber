@@ -132,6 +132,14 @@
     setTimeout(() => toast.remove(), 6000);
   }
 
+  // Boards nest elements that match cardSelector (LinkedIn wraps each card in
+  // an <li>), so the outer one defers to an inner card for the same job.
+  function hasInnerCardForSameJob(card, url) {
+    return [...card.querySelectorAll(config.cardSelector)].some(
+      (inner) => config.getJobUrl(querySelector(inner, config.linkSelector)) === url,
+    );
+  }
+
   function processCards() {
     let cards;
     try {
@@ -150,13 +158,15 @@
       const company = getTextContent(companyEl);
 
       const signature = JSON.stringify([url, title, company]);
-      const previous = card.querySelector(".jobber-save-btn");
-      if (previous && card.dataset.jobberProcessed === signature) return;
-      if (previous) previous.remove();
-      if (!title || !url) {
+      // Only this card's own button: an inner card's button is not ours to keep or remove.
+      const previous = card.querySelector(":scope > .jobber-save-btn");
+      if (!title || !url || hasInnerCardForSameJob(card, url)) {
+        if (previous) previous.remove();
         delete card.dataset.jobberProcessed;
         return;
       }
+      if (previous && card.dataset.jobberProcessed === signature) return;
+      if (previous) previous.remove();
       card.dataset.jobberProcessed = signature;
 
       const isSaved = url && importedUrls.includes(url);

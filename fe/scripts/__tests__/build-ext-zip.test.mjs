@@ -49,7 +49,7 @@ describe("the Chrome Web Store zip", () => {
   it("ships a manifest that only talks to the production API", () => {
     const packaged = JSON.parse(unzip("-p", archive, "manifest.json"));
     expect(packaged.minimum_chrome_version).toBe("116");
-    expect(packaged.host_permissions).toEqual(["https://jobber-app.com/*"]);
+    expect(packaged.host_permissions).toEqual(["https://cursopus.com/*"]);
   });
 
   it("includes every file the manifest and side panel reference", () => {
