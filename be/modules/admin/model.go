@@ -13,6 +13,7 @@ type User struct {
 	Email          string     `json:"email"`
 	Name           string     `json:"name"`
 	Locale         string     `json:"locale"`
+	IsTest         bool       `json:"is_test"`
 	EmailVerified  bool       `json:"email_verified"`
 	CreatedAt      time.Time  `json:"created_at"`
 	ProviderPlan   string     `json:"provider_plan"`

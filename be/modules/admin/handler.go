@@ -28,6 +28,8 @@ type Store interface {
 	Update(context.Context, string, ProfileUpdate) error
 	Grant(context.Context, string, string, GrantRequest) error
 	Revoke(context.Context, string, string, string, string) error
+	Stats(context.Context, int, bool) (Stats, error)
+	SetTest(context.Context, string, bool) error
 }
 type Handler struct {
 	store      Store
@@ -53,9 +55,11 @@ func NewHandler(store Store, identities IdentityReader, emails, origins string) 
 func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authenticate gin.HandlerFunc) {
 	group := router.Group("/admin", authenticate, h.authorize)
 	group.GET("/access", func(c *gin.Context) { httpPlatform.RespondWithData(c, 200, gin.H{"allowed": true}) })
+	group.GET("/stats", h.stats)
 	group.GET("/users", h.list)
 	group.GET("/users/:id", h.detail)
 	group.PATCH("/users/:id", h.mutation, h.update)
+	group.PATCH("/users/:id/test-account", h.mutation, h.setTest)
 	group.POST("/users/:id/manual-access", h.mutation, h.grant)
 	group.POST("/users/:id/manual-access/:grant/revoke", h.mutation, h.revoke)
 }

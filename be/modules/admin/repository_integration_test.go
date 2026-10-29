@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const fixtureSchema = `CREATE TABLE users(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),email text NOT NULL,name text NOT NULL,locale text NOT NULL DEFAULT 'en',email_verified bool NOT NULL DEFAULT false,password_hash text NOT NULL DEFAULT '',created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now());
+const fixtureSchema = `CREATE TABLE users(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),email text NOT NULL,name text NOT NULL,locale text NOT NULL DEFAULT 'en',email_verified bool NOT NULL DEFAULT false,password_hash text NOT NULL DEFAULT '',created_at timestamp NOT NULL DEFAULT (now() AT TIME ZONE 'UTC'),updated_at timestamp NOT NULL DEFAULT (now() AT TIME ZONE 'UTC'));
 CREATE TABLE subscriptions(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id uuid UNIQUE REFERENCES users(id),external_subscription_id text UNIQUE,external_account_id text,status text NOT NULL,plan text NOT NULL,current_period_start timestamptz,current_period_end timestamptz,cancel_at timestamptz,last_event_at timestamptz,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE webhook_events(event_id text PRIMARY KEY,event_type text NOT NULL,processed_at timestamptz NOT NULL DEFAULT now());`
 
@@ -50,6 +50,7 @@ func isolatedPool(t *testing.T) *pgxpool.Pool {
 	require.NoError(t, err)
 	applyMigration(t, pool, "000052_subscription_credits.up.sql")
 	applyMigration(t, pool, "000053_manual_admin_access.up.sql")
+	applyMigration(t, pool, "000054_test_accounts.up.sql")
 	return pool
 }
 func migration(t *testing.T, name string) string {

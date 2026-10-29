@@ -27,10 +27,13 @@ type identityStub struct {
 func (s identityStub) GetByID(context.Context, string) (*userModel.User, error) { return s.user, s.err }
 
 type storeStub struct {
-	calls    int
-	lastUser string
-	profile  ProfileUpdate
-	grant    GrantRequest
+	calls        int
+	lastUser     string
+	profile      ProfileUpdate
+	grant        GrantRequest
+	isTest       bool
+	days         int
+	includeTests bool
 }
 
 func (s *storeStub) List(_ context.Context, q string, page, limit int) (UserList, error) {
@@ -54,6 +57,18 @@ func (s *storeStub) Grant(_ context.Context, _, _ string, p GrantRequest) error 
 }
 func (s *storeStub) Revoke(context.Context, string, string, string, string) error {
 	s.calls++
+	return nil
+}
+func (s *storeStub) Stats(_ context.Context, days int, includeTests bool) (Stats, error) {
+	s.calls++
+	s.days = days
+	s.includeTests = includeTests
+	return Stats{Days: days, IncludeTests: includeTests, Daily: []DailyRegistrations{}}, nil
+}
+func (s *storeStub) SetTest(_ context.Context, id string, isTest bool) error {
+	s.calls++
+	s.lastUser = id
+	s.isTest = isTest
 	return nil
 }
 func testRouter(identity identityStub, emails string, store *storeStub) (*gin.Engine, string) {
@@ -80,7 +95,7 @@ func request(r http.Handler, token, method, path, body, contentType, origin stri
 	return w
 }
 func TestAdminAuthorizationEveryEndpoint(t *testing.T) {
-	routes := []struct{ method, path, body string }{{"GET", "/access", ""}, {"GET", "/users", ""}, {"GET", "/users/" + testUser, ""}, {"PATCH", "/users/" + testUser, `{"name":"Safe","locale":"en"}`}, {"POST", "/users/" + testUser + "/manual-access", `{"id":"` + testGrant + `","days":30,"reason":"support"}`}, {"POST", "/users/" + testUser + "/manual-access/" + testGrant + "/revoke", `{"reason":"support"}`}}
+	routes := []struct{ method, path, body string }{{"GET", "/stats", ""}, {"PATCH", "/users/" + testUser + "/test-account", `{"is_test":true}`}, {"GET", "/access", ""}, {"GET", "/users", ""}, {"GET", "/users/" + testUser, ""}, {"PATCH", "/users/" + testUser, `{"name":"Safe","locale":"en"}`}, {"POST", "/users/" + testUser + "/manual-access", `{"id":"` + testGrant + `","days":30,"reason":"support"}`}, {"POST", "/users/" + testUser + "/manual-access/" + testGrant + "/revoke", `{"reason":"support"}`}}
 	for _, test := range []struct {
 		name, email, config string
 		verified            bool

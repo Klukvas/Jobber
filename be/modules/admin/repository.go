@@ -20,12 +20,12 @@ type Repository struct{ db DB }
 
 func NewRepository(db DB) *Repository { return &Repository{db: db} }
 
-const userColumns = `u.id::text,u.email,u.name,u.locale,u.email_verified,u.created_at,COALESCE(s.plan,'free'),COALESCE(s.status,'free'),(SELECT max(g.period_end) FROM credit_grants g JOIN manual_access_grants m ON m.grant_id=g.id WHERE g.user_id=u.id AND g.kind='manual_pro' AND g.revoked_at IS NULL AND g.period_start<=now() AND g.period_end>now())`
+const userColumns = `u.id::text,u.email,u.name,u.locale,u.email_verified,u.is_test,u.created_at,COALESCE(s.plan,'free'),COALESCE(s.status,'free'),(SELECT max(g.period_end) FROM credit_grants g JOIN manual_access_grants m ON m.grant_id=g.id WHERE g.user_id=u.id AND g.kind='manual_pro' AND g.revoked_at IS NULL AND g.period_start<=now() AND g.period_end>now())`
 const userJoin = ` FROM users u LEFT JOIN subscriptions s ON s.user_id=u.id `
 
 func scanUser(row pgx.Row) (User, error) {
 	var u User
-	err := row.Scan(&u.ID, &u.Email, &u.Name, &u.Locale, &u.EmailVerified, &u.CreatedAt, &u.ProviderPlan, &u.ProviderStatus, &u.ManualUntil)
+	err := row.Scan(&u.ID, &u.Email, &u.Name, &u.Locale, &u.EmailVerified, &u.IsTest, &u.CreatedAt, &u.ProviderPlan, &u.ProviderStatus, &u.ManualUntil)
 	return u, err
 }
 func (r *Repository) List(ctx context.Context, search string, page, limit int) (UserList, error) {
