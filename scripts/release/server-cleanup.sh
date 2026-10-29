@@ -4,7 +4,9 @@
 # container uses and no release can roll back to. Always keeps:
 #   - the images of all containers, running or stopped;
 #   - the images referenced by the live compose override;
-#   - the rollback target: images in the newest releases/*/compose.deploy.before.yml, plus any --keep.
+#   - the rollback target: images in the newest releases/*/compose.deploy.before.yml (manual release)
+#     or releases/*/previous-images.yml (CI release), plus any --keep. previous-images.yml only names
+#     the images to keep; the runnable CI rollback file is releases/ci-<sha>/rollback-<schema>.yml.
 # Only the latest release stays rollback-able; older rollback-release.sh scripts lose their images.
 #
 # Usage (root, on the server):
@@ -43,9 +45,13 @@ before=$(free_gb)
 # Captured first: a failing `docker ps` inside the for-list would not trip errexit.
 containers=$(docker ps -aq)
 for container in $containers; do keep[$(docker inspect -f '{{.Image}}' "$container")]=1; done
-rollback_override=$(ls -t "$releases"/*/compose.deploy.before.yml 2>/dev/null | head -1 || true)
+rollback_override=$(ls -t "$releases"/*/compose.deploy.before.yml "$releases"/*/previous-images.yml 2>/dev/null | head -1 || true)
 for file in "$project/docker-compose.deploy.yml" ${rollback_override:+"$rollback_override"}; do
-  for id in $(grep -oE 'sha256:[a-f0-9]{64}' "$file" || true); do keep[$id]=1; done
+  # A reference is an image ID or a repo@sha256 digest; a digest also keeps the ID it resolves to.
+  for ref in $(grep -oE '([a-z0-9._/-]+@)?sha256:[a-f0-9]{64}' "$file" || true); do
+    keep[${ref##*@}]=1
+    id=$(docker image inspect -f '{{.Id}}' "$ref" 2>/dev/null) && keep[$id]=1
+  done
 done
 [[ ${#keep[@]} -gt 0 ]] || { echo 'STOP: empty keep list, refusing to prune' >&2; exit 1; }
 echo "keeping ${#keep[@]} images (containers, live override, rollback target ${rollback_override:-none})"
@@ -54,7 +60,8 @@ echo "keeping ${#keep[@]} images (containers, live override, rollback target ${r
 declare -A refs=()
 while read -r id ref; do
   [[ -n ${keep[$id]:-} ]] && continue
-  [[ $ref == '<none>:<none>' ]] && ref=''
+  # Digest-only images list as repo:<none>, which is no valid reference; remove those by ID.
+  [[ $ref == *'<none>'* ]] && ref=''
   refs[$id]+="${ref:+$ref }"
 done < <(docker image ls --no-trunc --format '{{.ID}} {{.Repository}}:{{.Tag}}')
 
