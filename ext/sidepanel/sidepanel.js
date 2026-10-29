@@ -79,22 +79,23 @@ const spMatchMissing = document.getElementById("sp-match-missing");
 const usageBar = document.getElementById("usage-bar");
 
 let lastSavedJob = null;
+let matchRequest = null;
+
+function cancelSpMatchRequest() {
+  if (!matchRequest) return;
+  matchRequest.abort();
+  matchRequest = null;
+  spMatchLoading.classList.add("hidden");
+  spMatchIdle.classList.remove("hidden");
+}
+
+window.addEventListener("pagehide", cancelSpMatchRequest);
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.accessToken && !changes.accessToken.newValue) cancelSpMatchRequest();
+});
 // Full URL of the active tab, cached so the parse click can request host access
 // for it synchronously (permissions.request must run inside a user gesture).
 let currentTabUrl = null;
-// Subscription cached by loadUsage() so the autofill tab can present the
-// paid-only uploaded-resume options correctly. null = not loaded yet — then we
-// leave options enabled and let the server's 403 decide (it is the source of
-// truth either way).
-let cachedSubscription = null;
-
-function isPaidPlan(sub) {
-  if (!sub || sub.plan === "free") return false;
-  // Mirrors the backend's effective-plan rule: paused/cancelled paid plans
-  // fall back to free; past_due keeps a grace window.
-  return sub.status === "active" || sub.status === "past_due";
-}
-
 // ── Helpers ────────────────────────────────────────────
 
 function showError(el, msg) {
@@ -116,6 +117,7 @@ function unwrapList(data) {
 }
 
 function showSaveState(state) {
+  if (state !== "success") cancelSpMatchRequest();
   [saveIdle, saveLoading, savePreview, saveSuccess].forEach((el) =>
     el.classList.add("hidden"),
   );
@@ -123,9 +125,8 @@ function showSaveState(state) {
 }
 
 function handleSessionExpired() {
+  cancelSpMatchRequest();
   JobberAPI.logout();
-  // The next account may be on a different plan — never carry the old one over.
-  cachedSubscription = null;
   viewMain.classList.add("hidden");
   viewLogin.classList.remove("hidden");
   showError(loginError, "Session expired. Please sign in again.");
@@ -198,9 +199,13 @@ async function updateCurrentUrl() {
 
 // The panel outlives tab switches and in-tab navigations, so the cached URL has
 // to track them — it was previously refreshed only when the panel (re)opened.
-chrome.tabs.onActivated.addListener(() => updateCurrentUrl());
+chrome.tabs.onActivated.addListener(() => {
+  cancelSpMatchRequest();
+  updateCurrentUrl();
+});
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (tab.active && (changeInfo.url || changeInfo.status === "complete")) {
+    cancelSpMatchRequest();
     updateCurrentUrl();
   }
 });
@@ -229,7 +234,6 @@ async function loadUsage() {
   try {
     const sub = await JobberAPI.getSubscription();
     if (!sub) return;
-    cachedSubscription = sub;
 
     const limits = sub.limits || {};
     const usage = sub.usage || {};
@@ -238,14 +242,10 @@ async function loadUsage() {
     if (limits.max_jobs > 0) {
       parts.push(`Jobs: ${usage.jobs ?? 0}/${limits.max_jobs}`);
     }
-    if (limits.max_job_parses > 0) {
-      parts.push(
-        `Parses: ${usage.job_parses ?? 0}/${limits.max_job_parses}/mo`,
-      );
+    if (sub.credits) {
+      parts.push(`AI credits: ${sub.credits.remaining}/${sub.credits.granted}`);
     }
-    if (limits.max_ai_requests > 0) {
-      parts.push(`AI: ${usage.ai_requests ?? 0}/${limits.max_ai_requests}/mo`);
-    }
+
 
     if (parts.length > 0) {
       usageBar.textContent = parts.join("  \u2022  ");
@@ -264,6 +264,7 @@ tabButtons.forEach((btn) => {
     btn.classList.add("active");
 
     const name = btn.dataset.tab;
+    if (name !== "save") cancelSpMatchRequest();
     tabSave.classList.toggle("hidden", name !== "save");
     tabJobs.classList.toggle("hidden", name !== "jobs");
     tabAutofill.classList.toggle("hidden", name !== "autofill");
@@ -293,8 +294,8 @@ loginForm.addEventListener("submit", async (e) => {
 });
 
 btnLogout.addEventListener("click", async () => {
+  cancelSpMatchRequest();
   await JobberAPI.logout();
-  cachedSubscription = null;
   viewMain.classList.add("hidden");
   viewLogin.classList.remove("hidden");
 });
@@ -325,7 +326,7 @@ async function parseCurrentPage() {
       return;
     }
     showSaveState("idle");
-    showError(idleError, err.message);
+    if (err.message !== "AI_CANCELLED") showError(idleError, err.message);
   }
 }
 
@@ -361,11 +362,13 @@ async function parseWithData(pageData) {
     if (err.message === "PARSE_LIMIT_REACHED") {
       showError(
         idleError,
-        "Monthly AI parse limit reached. Upgrade your plan at cursopus.com.",
+        "Not enough AI credits. Check your balance at cursopus.com.",
       );
     } else {
-      showError(idleError, err.message);
+      if (err.message !== "AI_CANCELLED") showError(idleError, err.message);
     }
+  } finally {
+    void loadUsage();
   }
 }
 
@@ -418,6 +421,7 @@ function requestHostAccess() {
 
 saveForm.addEventListener("submit", async (e) => {
   e.preventDefault();
+  cancelSpMatchRequest();
   hideError(saveError);
   btnSave.disabled = true;
   btnSave.textContent = "Saving\u2026";
@@ -507,6 +511,7 @@ function getScoreColor(score) {
 }
 
 function resetSpMatchScore() {
+  cancelSpMatchRequest();
   spMatchIdle.classList.remove("hidden");
   spMatchLoading.classList.add("hidden");
   spMatchResult.classList.add("hidden");
@@ -519,6 +524,7 @@ async function loadSpMatchResumes() {
     const data = await JobberAPI.listResumes(50);
     const resumes = unwrapList(data);
 
+    resetSpMatchScore();
     spMatchResumeSelect.innerHTML =
       '<option value="">Select resume for match\u2026</option>';
     resumes.forEach((r) => {
@@ -540,6 +546,8 @@ async function loadSpMatchResumes() {
   }
 }
 
+spMatchResumeSelect.addEventListener("change", resetSpMatchScore);
+
 spBtnCheckMatch.addEventListener("click", async () => {
   const resumeId = spMatchResumeSelect.value;
   if (!resumeId) {
@@ -548,12 +556,18 @@ spBtnCheckMatch.addEventListener("click", async () => {
   }
   if (!lastSavedJob) return;
 
+  cancelSpMatchRequest();
+  const request = new AbortController();
+  matchRequest = request;
+  const jobId = lastSavedJob.id;
+  const isCurrent = () => matchRequest === request && !request.signal.aborted && lastSavedJob?.id === jobId && spMatchResumeSelect.value === resumeId;
   hideError(spMatchError);
   spMatchIdle.classList.add("hidden");
   spMatchLoading.classList.remove("hidden");
 
   try {
-    const result = await JobberAPI.getMatchScore(lastSavedJob.id, resumeId);
+    const result = await JobberAPI.getMatchScore(jobId, resumeId, { consentSignal: request.signal });
+    if (!isCurrent()) return;
     const score =
       typeof result.overall_score === "number"
         ? Math.round(result.overall_score)
@@ -612,6 +626,7 @@ spBtnCheckMatch.addEventListener("click", async () => {
     spMatchLoading.classList.add("hidden");
     spMatchResult.classList.remove("hidden");
   } catch (err) {
+    if (!isCurrent()) return;
     spMatchLoading.classList.add("hidden");
     spMatchIdle.classList.remove("hidden");
 
@@ -623,7 +638,12 @@ spBtnCheckMatch.addEventListener("click", async () => {
       showError(spMatchError, "AI usage limit reached. Upgrade your plan.");
       return;
     }
-    showError(spMatchError, err.message);
+    if (err.message !== "AI_CANCELLED") showError(spMatchError, err.message);
+  } finally {
+    if (isCurrent()) {
+      matchRequest = null;
+      void loadUsage();
+    }
   }
 });
 
@@ -733,10 +753,7 @@ async function showAutofillSetup() {
     ]);
     const builders = unwrapList(builderData);
     const uploaded = unwrapList(uploadedData);
-    // Unknown subscription (still loading) keeps options enabled \u2014 the server
-    // 403s free users anyway and the click handler shows the same upsell.
-    const uploadedEnabled =
-      cachedSubscription === null || isPaidPlan(cachedSubscription);
+    const uploadedEnabled = true;
 
     autofillResumeSelect.innerHTML =
       '<option value="">Select a resume\u2026</option>';
@@ -748,9 +765,6 @@ async function showAutofillSetup() {
     if (isEmpty) {
       hint =
         "Upload a resume or create one in the Resume Builder to use Autofill.";
-    } else if (!uploadedEnabled && uploaded.length > 0) {
-      hint =
-        "Autofill from uploaded resumes is available on paid plans \u2014 upgrade at cursopus.com, or create a resume in the Resume Builder.";
     }
     autofillHint.textContent = hint;
     btnSetAutofill.disabled = isEmpty;
@@ -769,7 +783,7 @@ function showActiveProfile(data) {
   autofillActive.classList.remove("hidden");
 
   // Extracted profiles can't be edited anywhere (accepted for v1) — bridge to
-  // the free escape hatch: the Resume Builder PDF import.
+  // the editable path: the Resume Builder PDF import.
   autofillBridgeHint.textContent =
     data.source === "uploaded"
       ? "Wrong details? Import this PDF in the Resume Builder to edit."
@@ -816,16 +830,15 @@ btnSetAutofill.addEventListener("click", async () => {
       return;
     }
     const friendly = {
-      PAID_FEATURE:
-        "Autofill from uploaded resumes is available on paid plans \u2014 upgrade at cursopus.com.",
       PLAN_LIMIT_REACHED:
         "AI usage limit reached. Upgrade your plan at cursopus.com.",
       RESUME_UNREADABLE:
         "Couldn't read this PDF. Try the Resume Builder instead.",
       RATE_LIMITED: "Too many attempts — wait a minute and try again.",
     };
-    showError(autofillError, friendly[err.message] || err.message);
+    if (err.message !== "AI_CANCELLED") showError(autofillError, friendly[err.message] || err.message);
   } finally {
+    void loadUsage();
     btnSetAutofill.disabled = false;
     btnSetAutofill.textContent = "Set as Autofill Profile";
   }

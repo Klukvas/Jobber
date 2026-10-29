@@ -162,15 +162,73 @@ const JobberAPI = (() => {
     await chrome.storage.local.set({ importedUrls: updated });
   }
 
+  // Every provider-start call asks once, before dispatch. Auth refresh preserves
+  // the same key; a user-initiated new attempt receives a new key and consent.
+  const CREDIT_COPY = {
+    en: {
+      cost: (cost, remaining) => `Cost: ${cost} AI credits. Available: ${remaining}.`,
+      policy: "Credits are reserved before processing and charged once AI starts. Errors after AI starts still use credits; checks before AI starts return them. A new AI operation uses a new credit charge. Repeated delivery of the same submitted request is not charged twice. Retrying an existing interview operation is included in its original credit charge (up to 3 attempts); each attempt remains subject to safety spending limits. Input and safety spending limits may stop AI before all credits are used. Continue?",
+      unavailable: "Could not verify AI credits. Try again later.",
+      CREDIT_UNAVAILABLE: "Not enough AI credits. Free grants 30 once; Pro grants 500 per confirmed paid period, without rollover.",
+      AI_BUDGET_REACHED: "AI is paused by a safety spending limit. Credits may remain. Try later or contact support.",
+      AI_OPERATION_CONFLICT: "This operation is already submitted or running. Check its status before retrying.",
+    },
+    ru: {
+      cost: (cost, remaining) => `Стоимость: ${cost} ИИ-кредитов. Доступно: ${remaining}.`,
+      policy: "Кредиты резервируются до обработки и списываются один раз при запуске ИИ. Ошибка после запуска также расходует кредиты; при остановке до запуска они возвращаются. Новая ИИ-операция оплачивается отдельно. Повторная доставка уже отправленного запроса не оплачивается дважды. Повтор существующей операции подготовки к интервью включён в её исходную стоимость в кредитах (до 3 попыток); каждая попытка ограничена безопасным бюджетом расходов. Лимиты ввода и безопасных расходов могут остановить ИИ до исчерпания кредитов. Продолжить?",
+      unavailable: "Не удалось проверить ИИ-кредиты. Повторите позже.",
+      CREDIT_UNAVAILABLE: "Недостаточно ИИ-кредитов. Free: 30 однократно; Pro: 500 на подтверждённый оплаченный период, без переноса.",
+      AI_BUDGET_REACHED: "ИИ приостановлен из-за безопасного лимита расходов. Кредиты могут оставаться. Попробуйте позже или обратитесь в поддержку.",
+      AI_OPERATION_CONFLICT: "Операция уже отправлена или выполняется. Проверьте её статус перед повтором.",
+    },
+    uk: {
+      cost: (cost, remaining) => `Вартість: ${cost} ШІ-кредитів. Доступно: ${remaining}.`,
+      policy: "Кредити резервуються до обробки та списуються один раз із запуском ШІ. Помилка після запуску також витрачає кредити; при зупинці до запуску вони повертаються. Нова ШІ-операція оплачується окремо. Повторне доставлення вже надісланого запиту не оплачується двічі. Повтор наявної операції підготовки до інтерв’ю включено до її початкової вартості в кредитах (до 3 спроб); кожна спроба обмежена безпечним бюджетом витрат. Ліміти вводу та безпечних витрат можуть зупинити ШІ до вичерпання кредитів. Продовжити?",
+      unavailable: "Не вдалося перевірити ШІ-кредити. Повторіть пізніше.",
+      CREDIT_UNAVAILABLE: "Недостатньо ШІ-кредитів. Free: 30 одноразово; Pro: 500 на підтверджений оплачений період, без перенесення.",
+      AI_BUDGET_REACHED: "ШІ призупинено через безпечний ліміт витрат. Кредити можуть залишатися. Спробуйте пізніше або зверніться до підтримки.",
+      AI_OPERATION_CONFLICT: "Операцію вже надіслано або вона виконується. Перевірте її статус перед повтором.",
+    },
+  };
+  function creditCopy() {
+    return CREDIT_COPY[globalThis.navigator?.language?.split("-")[0]] || CREDIT_COPY.en;
+  }
+  function checkConsentSignal(signal) {
+    if (signal?.aborted) throw new Error("AI_CANCELLED");
+  }
+
+  async function confirmCredits(operation, consentSignal) {
+    checkConsentSignal(consentSignal);
+    const copy = creditCopy();
+    const subscription = await getSubscription();
+    checkConsentSignal(consentSignal);
+    const cost = subscription?.credit_costs?.[operation];
+    const remaining = subscription?.credits?.remaining;
+    if (!Number.isSafeInteger(cost) || cost <= 0 || !Number.isSafeInteger(remaining)) throw new Error(copy.unavailable);
+    if (remaining < cost) throw new Error(copy.CREDIT_UNAVAILABLE);
+    if (typeof globalThis.confirm !== "function" || !globalThis.confirm(`${copy.cost(cost, remaining)}\n\n${copy.policy}`)) throw new Error("AI_CANCELLED");
+    checkConsentSignal(consentSignal);
+    return crypto.randomUUID();
+  }
+  async function checkCreditError(response) {
+    if (response.ok) return;
+    const error = await response.clone().json().catch(() => null);
+    const message = creditCopy()[error?.error_code];
+    if (typeof message === "string") throw new Error(message);
+  }
+
   // ── Job Operations ──────────────────────────────────
 
   async function parseJob(pageText, pageUrl) {
+    const key = await confirmCredits("job_parse");
     const response = await apiFetch("/api/v1/jobs/parse", {
       method: "POST",
+      headers: { "Idempotency-Key": key },
       body: JSON.stringify({ page_text: pageText, page_url: pageUrl }),
     });
 
     if (response.status === 401) throw new Error("SESSION_EXPIRED");
+    await checkCreditError(response);
     if (response.status === 403) throw new Error("PARSE_LIMIT_REACHED");
     if (!response.ok) {
       const err = await response.json().catch(() => null);
@@ -234,13 +292,15 @@ const JobberAPI = (() => {
     return response.json();
   }
 
-  // Autofill Profile of an uploaded resume. First call on a paid plan
-  // AI-extracts and caches server-side (can take ~5-15s); later calls are
-  // instant cache hits.
+  // Read an existing profile for free; only an explicit POST may start AI.
   async function getUploadedAutofillProfile(resumeId) {
-    const response = await apiFetch(
-      `/api/v1/resumes/${encodeURIComponent(resumeId)}/autofill-profile`,
-    );
+    const path = `/api/v1/resumes/${encodeURIComponent(resumeId)}/autofill-profile`;
+    let response = await apiFetch(path);
+    if (response.status === 404) {
+      const key = await confirmCredits("autofill_import");
+      response = await apiFetch(path, { method: "POST", headers: { "Idempotency-Key": key } });
+    }
+    await checkCreditError(response);
     if (response.status === 401) throw new Error("SESSION_EXPIRED");
     if (response.status === 403) {
       const err = await response.json().catch(() => null);
@@ -258,13 +318,40 @@ const JobberAPI = (() => {
 
   // ── Match Score ───────────────────────────────────
 
-  async function getMatchScore(jobId, resumeId) {
+  function isCachedMatch(result) {
+    const score = (value) => Number.isInteger(value) && value >= 0 && value <= 100;
+    const strings = (value) => value === null || (Array.isArray(value) && value.every((item) => typeof item === "string"));
+    return result && result.from_cache === true && score(result.overall_score) && typeof result.summary === "string" &&
+      strings(result.missing_keywords) && strings(result.strengths) &&
+      (result.categories === null || (Array.isArray(result.categories) && result.categories.every((category) =>
+        category && typeof category.name === "string" && score(category.score) && typeof category.details === "string")));
+  }
+
+  async function getMatchScore(jobId, resumeId, { consentSignal } = {}) {
+    checkConsentSignal(consentSignal);
+    const cached = await apiFetch(`/api/v1/match-score?job_id=${encodeURIComponent(jobId)}&resume_id=${encodeURIComponent(resumeId)}`);
+    checkConsentSignal(consentSignal);
+    if (cached.status === 401) throw new Error("SESSION_EXPIRED");
+    if (cached.ok) {
+      const result = await cached.json();
+      checkConsentSignal(consentSignal);
+      if (!isCachedMatch(result)) throw new Error("Failed to read saved match analysis");
+      return result;
+    }
+    const error = await cached.json().catch(() => null);
+    checkConsentSignal(consentSignal);
+    if (cached.status !== 404 || error?.error_code !== "MATCH_SCORE_NOT_READY") throw new Error("Failed to read saved match analysis");
+    const key = await confirmCredits("match", consentSignal);
+    checkConsentSignal(consentSignal);
+    // Origin cancellation stops lookup/consent; an already sent paid request keeps its transport.
     const response = await apiFetch("/api/v1/match-score", {
       method: "POST",
+      headers: { "Idempotency-Key": key },
       body: JSON.stringify({ job_id: jobId, resume_id: resumeId }),
     });
 
     if (response.status === 401) throw new Error("SESSION_EXPIRED");
+    await checkCreditError(response);
     if (response.status === 403) throw new Error("PLAN_LIMIT_REACHED");
     if (!response.ok) {
       const err = await response.json().catch(() => null);
@@ -293,7 +380,7 @@ const JobberAPI = (() => {
   // ── Subscription ───────────────────────────────────
 
   async function getSubscription() {
-    const response = await apiFetch("/api/v1/subscriptions");
+    const response = await apiFetch("/api/v1/subscription");
     if (response.status === 401) throw new Error("SESSION_EXPIRED");
     if (!response.ok) return null;
     return response.json();
