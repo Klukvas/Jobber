@@ -57,3 +57,11 @@ test('hydrated and reused SPA cards receive one trusted save control for their c
     await f.page.waitForFunction(()=>fixture.saves.length===2);assert.equal(await f.page.evaluate(()=>fixture.saves[1].title),'Reused Role');assert.match(await f.page.evaluate(()=>fixture.saves[1].url),/\/jobs\/view\/two$/);
   }finally{await f.context.close()}
 });
+test('nested card matches for one job receive a single save control',async()=>{
+  const f=await browserFixture('nested','<ul><li class="jobs-search-results__list-item"><div class="job-card-container" data-job-id="1"><a class="job-card-list__title" href="/jobs/view/one">Nested Role</a><span class="job-card-container__primary-description">Synthetic Company</span></div></li></ul>');
+  try{
+    await f.page.addScriptTag({path:path.join(__dirname,'jobboards.js')});await f.page.locator('.jobber-save-btn').first().waitFor();
+    await f.page.waitForTimeout(700);
+    assert.equal(await f.page.locator('.jobber-save-btn').count(),1);assert.equal(await f.page.locator('.job-card-container > .jobber-save-btn').count(),1);
+  }finally{await f.context.close()}
+});
