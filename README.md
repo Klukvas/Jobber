@@ -557,3 +557,23 @@ See [docs/FEATURES.md](docs/FEATURES.md) for the full feature-flag reference (in
 ---
 
 **Built with ❤️ for job seekers**
+
+### Administration
+
+Set server-only `ADMIN_EMAILS` to a comma-separated list of administrator email addresses.
+Whitespace and case are normalized; an empty value denies all access. Administrators must
+be authenticated with a currently existing, verified database user. The app exposes
+`/app/admin` and the server rechecks access on every `/api/v1/admin/*` request.
+Admin cookie writes require JSON and a concrete trusted `ALLOWED_ORIGINS` or `PUBLIC_BASE_URL`
+origin. Do not use wildcard CORS as the admin write origin.
+
+The panel supports user search/paging, profile name/locale edits, read-only Creem status,
+and manual Pro access grants/revocation. Review migration `000053` before deploying: normal API startup automatically applies
+pending migrations, including this schema change.
+Manual access grants provide 500 credits for a fixed 1–31-day period, with the existing
+$3 grant provider-spend cap and the global AI budget still enforced. They never create a
+Creem subscription/payment or auto-renew, and revoking them leaves provider access and
+incurred AI liability intact. A grant UUID is an immutable retry receipt; retries do not
+replenish credits or extend dates. Grant/revoke actor and reason are retained for audit.
+Unused migration 000053 can be rolled back; its down migration refuses to remove any manual
+allowance/history. After use, roll back application code while retaining that history.
