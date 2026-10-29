@@ -18,19 +18,15 @@ export function useSubscription() {
   const isEnterprise = plan === "enterprise";
   const isFree = plan === "free";
 
-  const nextPlan: SubscriptionPlan | null = isFree
-    ? "pro"
-    : plan === "pro"
-      ? "enterprise"
-      : null;
+  const nextPlan: SubscriptionPlan | null = isFree ? "pro" : null;
 
   const limits: PlanLimits = subscription?.limits ?? {
     max_jobs: 25,
     max_resumes: 1,
-    max_ai_requests: 1,
-    max_job_parses: 5,
-    max_resume_builders: 1,
-    max_cover_letters: 0,
+    max_ai_requests: 30,
+    max_job_parses: 0,
+    max_resume_builders: 2,
+    max_cover_letters: 1,
   };
 
   const usage: SubscriptionUsage = subscription?.usage ?? {
@@ -51,6 +47,7 @@ export function useSubscription() {
       case "resumes":
         return limits.max_resumes < 0 || usage.resumes < limits.max_resumes;
       case "ai":
+        if (subscription?.credits) return subscription.credits.remaining > 0;
         if (limits.max_ai_requests < 0) return true;
         if (limits.max_ai_requests === 0) return false;
         return usage.ai_requests < limits.max_ai_requests;
@@ -72,6 +69,7 @@ export function useSubscription() {
 
   return {
     subscription,
+    credits: subscription?.credits,
     plan,
     isPro,
     isEnterprise,

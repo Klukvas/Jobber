@@ -1,3 +1,5 @@
+import { useAIConsentSignal } from "@/shared/hooks/useAIConsentSignal";
+import { isAIActionCancelled } from "@/shared/lib/aiCredits";
 import { usePrepOperationRecovery } from "./usePrepOperationRecovery";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -41,6 +43,7 @@ export function InterviewPrepDialog({
   onClose,
 }: InterviewProps & { onClose: () => void }) {
   const { t, i18n } = useTranslation();
+  const getConsentSignal = useAIConsentSignal();
   const cache = useQueryClient();
   const key = ["interview-prep", job.id];
   const [resumeChoice, setResume] = useState<string | null>(null);
@@ -161,6 +164,7 @@ export function InterviewPrepDialog({
       await task();
     },
     onError: async (error) => {
+      if (isAIActionCancelled(error)) return;
       setRequestError(errorCode(error));
       await refresh();
     },
@@ -186,6 +190,7 @@ export function InterviewPrepDialog({
         resume,
         locale,
         requestKey(identity),
+        { consentSignal: getConsentSignal() },
       );
       requestKeys.current.delete(identity);
       remember(op);
@@ -203,6 +208,7 @@ export function InterviewPrepDialog({
         sessionId,
         id,
         requestKey(`feedback:${id}`),
+        { consentSignal: getConsentSignal() },
       );
       remember(op);
       await refresh();
@@ -752,6 +758,7 @@ export function InterviewPrepDialog({
                                     job.id,
                                     session.id,
                                     requestKey(`summary:${session.id}`),
+                                    { consentSignal: getConsentSignal() },
                                   );
                                   remember(op);
                                   await refresh();

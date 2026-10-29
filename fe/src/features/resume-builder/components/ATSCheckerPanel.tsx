@@ -1,3 +1,4 @@
+import { isAIActionCancelled } from "@/shared/lib/aiCredits";
 import { useAIAvailability, aiErrorKey } from "@/shared/hooks/useAIAvailability";
 import { AIAvailabilityNotice } from "@/shared/ui/AIAvailabilityNotice";
 import { useState } from "react";
@@ -136,7 +137,7 @@ export function ATSCheckerPanel() {
         </p>
       )}
 
-      {atsCheck.isError &&
+      {atsCheck.isError && !isAIActionCancelled(atsCheck.error) &&
         (isQuotaError ? (
           // A quota is not a failure — it needs the reason, the reset date and
           // a way forward, not a red "an error occurred".

@@ -50,10 +50,12 @@ func (s *SubscriptionService) CreateCheckoutSession(ctx context.Context, userID,
 	if err := s.ensureNotAlreadySubscribed(ctx, userID); err != nil {
 		return nil, err
 	}
-
 	contact, err := s.repo.GetUserContact(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load buyer contact: %w", err)
+	}
+	if err := s.validateProCatalog(ctx); err != nil {
+		return nil, err
 	}
 	// The webhook that grants the plan writes into this row, so it has to exist.
 	if err := s.repo.EnsureFree(ctx, userID); err != nil {
@@ -62,6 +64,7 @@ func (s *SubscriptionService) CreateCheckoutSession(ctx context.Context, userID,
 
 	checkout, err := s.billing.CreateCheckout(ctx, creem.CheckoutRequest{
 		ProductID:  productID,
+		Units:      1,
 		SuccessURL: s.cfg.SuccessURL,
 		Customer:   &creem.CheckoutCustomer{Email: contact.Email, Name: contact.Name},
 		Metadata:   map[string]string{metadataUserIDKey: userID},
@@ -92,6 +95,9 @@ func (s *SubscriptionService) ChangePlan(ctx context.Context, userID, newPlan st
 		return err
 	}
 
+	if err := s.validateProCatalog(ctx); err != nil {
+		return err
+	}
 	if err := s.billing.UpgradeSubscription(ctx, subscriptionID, productID); err != nil {
 		return fmt.Errorf("failed to change plan: %w", err)
 	}

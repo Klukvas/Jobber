@@ -66,6 +66,9 @@ func (h *ImportHandler) ImportFromText(c *gin.Context) {
 
 	result, err := h.importService.ImportFromText(c.Request.Context(), userID, text, req.Title)
 	if err != nil {
+		if httpPlatform.RespondAIError(c, err) {
+			return
+		}
 		h.handleError(c, err)
 		return
 	}
@@ -83,6 +86,9 @@ func (h *ImportHandler) ImportFromPDF(c *gin.Context) {
 
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
+		if httpPlatform.RespondAIError(c, err) {
+			return
+		}
 		httpPlatform.RespondWithError(c, http.StatusBadRequest, "NO_FILE", "PDF file is required")
 		return
 	}
@@ -95,6 +101,9 @@ func (h *ImportHandler) ImportFromPDF(c *gin.Context) {
 
 	pdfBytes, err := io.ReadAll(io.LimitReader(file, int64(pdf.MaxPDFSize)+1))
 	if err != nil {
+		if httpPlatform.RespondAIError(c, err) {
+			return
+		}
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, "READ_FAILED", "Failed to read PDF file")
 		return
 	}
@@ -114,6 +123,9 @@ func (h *ImportHandler) ImportFromPDF(c *gin.Context) {
 
 	result, err := h.importService.ImportFromPDF(c.Request.Context(), userID, pdfBytes, title)
 	if err != nil {
+		if httpPlatform.RespondAIError(c, err) {
+			return
+		}
 		h.handleError(c, err)
 		return
 	}

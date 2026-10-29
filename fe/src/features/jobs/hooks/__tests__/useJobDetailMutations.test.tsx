@@ -505,6 +505,7 @@ describe("useJobDetailMutations", () => {
       expect(mockMatchScoreService.checkMatch).toHaveBeenCalledWith(
         "job-1",
         "resume-1",
+        { consentSignal: expect.any(AbortSignal) },
       );
       expect(setters.setMatchScore).toHaveBeenCalledWith(scoreData);
       expect(setters.setMatchScoreError).toHaveBeenCalledWith(null);

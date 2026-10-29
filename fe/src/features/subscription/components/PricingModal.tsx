@@ -154,12 +154,7 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
         included("freeAI"),
         included("freeJobParses"),
         included("freeResumeBuilders"),
-        // Free has no cover letters at all — a green check here reads as a
-        // feature the plan does not have.
-        {
-          label: t("settings.subscription.pricing.freeCoverLetters"),
-          included: false,
-        },
+        included("freeCoverLetters"),
       ],
       highlighted: false,
     },
@@ -177,20 +172,7 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
       ],
       highlighted: true,
     },
-    {
-      id: "enterprise" as SubscriptionPlan,
-      name: t("settings.subscription.enterprisePlan"),
-      price: t("settings.subscription.pricing.enterprisePrice"),
-      features: [
-        included("enterpriseJobs"),
-        included("enterpriseResumes"),
-        included("enterpriseAI"),
-        included("enterpriseJobParses"),
-        included("enterpriseResumeBuilders"),
-        included("enterpriseCoverLetters"),
-      ],
-      highlighted: false,
-    },
+
   ];
 
   return (
@@ -213,13 +195,15 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
           </DialogTitle>
         </DialogHeader>
 
+        <p className="mt-4 text-sm text-muted-foreground">{t("credits.allowance")}</p>
+
         {errorMessageKey && (
           <p role="alert" className="mt-4 text-sm text-destructive">
             {t(errorMessageKey)}
           </p>
         )}
 
-        <div className="mt-6 grid grid-cols-1 gap-4 pt-4 md:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-4 pt-4 md:grid-cols-2">
           {plans.map((p) => (
             <PlanCard
               key={p.id}

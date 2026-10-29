@@ -82,7 +82,7 @@ func ownedRepo(applied *[]*model.Subscription, outcome model.WebhookApplyOutcome
 }
 
 func TestHandleWebhook_RejectsUntrustedDeliveries(t *testing.T) {
-	body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(nil))
+	body, signature := signed(t, "evt_1", creem.EventSubscriptionActive, subscriptionObject(nil))
 
 	tests := []struct {
 		name      string
@@ -142,11 +142,11 @@ func TestHandleWebhook_MapsSubscriptionState(t *testing.T) {
 		wantCancelAt *time.Time
 	}{
 		{
-			name: "a paid subscription grants the purchased plan", eventType: creem.EventSubscriptionPaid,
+			name: "a paid subscription grants the purchased plan", eventType: creem.EventSubscriptionActive,
 			object: subscriptionObject(nil), wantStatus: StatusActive, wantPlan: PlanPro, wantPeriod: true,
 		},
 		{
-			name: "the enterprise product grants enterprise", eventType: creem.EventSubscriptionPaid,
+			name: "the enterprise product grants enterprise", eventType: creem.EventSubscriptionActive,
 			object:     subscriptionObject(map[string]any{"product": map[string]any{"id": testEnterpriseProductID}}),
 			wantStatus: StatusActive, wantPlan: PlanEnterprise, wantPeriod: true,
 		},
@@ -234,7 +234,7 @@ func TestHandleWebhook_NeverGrantsAnUnknownProduct(t *testing.T) {
 	var applied []*model.Subscription
 	svc := newTestService(ownedRepo(&applied, model.WebhookApplied))
 
-	body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid,
+	body, signature := signed(t, "evt_1", creem.EventSubscriptionActive,
 		subscriptionObject(map[string]any{"product": map[string]any{"id": "prod_unknown"}}))
 	_, err := svc.HandleWebhook(context.Background(), body, signature)
 
@@ -259,7 +259,7 @@ func TestHandleWebhook_OrdersEventsByTheObjectsOwnTimestamp(t *testing.T) {
 		var applied []*model.Subscription
 		svc := newTestService(ownedRepo(&applied, model.WebhookApplied))
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(nil))
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive, subscriptionObject(nil))
 		_, err := svc.HandleWebhook(context.Background(), body, signature)
 
 		require.NoError(t, err)
@@ -272,7 +272,7 @@ func TestHandleWebhook_OrdersEventsByTheObjectsOwnTimestamp(t *testing.T) {
 		var applied []*model.Subscription
 		svc := newTestService(ownedRepo(&applied, model.WebhookApplied))
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid,
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive,
 			subscriptionObject(map[string]any{"updated_at": nil}))
 		_, err := svc.HandleWebhook(context.Background(), body, signature)
 
@@ -287,7 +287,7 @@ func TestHandleWebhook_OrdersEventsByTheObjectsOwnTimestamp(t *testing.T) {
 		svc := newTestService(ownedRepo(&applied, model.WebhookApplied))
 		millis := time.Date(2026, 10, 5, 12, 30, 0, 0, time.UTC).UnixMilli()
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid,
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive,
 			subscriptionObject(map[string]any{"updated_at": millis}))
 		_, err := svc.HandleWebhook(context.Background(), body, signature)
 
@@ -309,7 +309,7 @@ func TestHandleWebhook_ResolvesTheOwner(t *testing.T) {
 		}
 		svc := newTestService(repo)
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(nil))
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive, subscriptionObject(nil))
 		_, err := svc.HandleWebhook(context.Background(), body, signature)
 
 		require.NoError(t, err)
@@ -321,7 +321,7 @@ func TestHandleWebhook_ResolvesTheOwner(t *testing.T) {
 		var applied []*model.Subscription
 		svc := newTestService(ownedRepo(&applied, model.WebhookApplied))
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(nil))
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive, subscriptionObject(nil))
 		_, err := svc.HandleWebhook(context.Background(), body, signature)
 
 		require.NoError(t, err)
@@ -338,7 +338,7 @@ func TestHandleWebhook_ResolvesTheOwner(t *testing.T) {
 		}
 		svc := newTestService(repo)
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid,
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive,
 			subscriptionObject(map[string]any{"metadata": nil}))
 		_, err := svc.HandleWebhook(context.Background(), body, signature)
 
@@ -356,7 +356,7 @@ func TestHandleWebhook_ResolvesTheOwner(t *testing.T) {
 		}
 		svc := newTestService(repo)
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid,
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive,
 			subscriptionObject(map[string]any{"metadata": map[string]any{metadataUserIDKey: "' OR 1=1 --"}}))
 		_, err := svc.HandleWebhook(context.Background(), body, signature)
 
@@ -368,7 +368,7 @@ func TestHandleWebhook_ResolvesTheOwner(t *testing.T) {
 		var applied []*model.Subscription
 		svc := newTestService(ownedRepo(&applied, model.WebhookApplied))
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid,
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive,
 			subscriptionObject(map[string]any{"metadata": nil}))
 		_, err := svc.HandleWebhook(context.Background(), body, signature)
 
@@ -381,7 +381,7 @@ func TestHandleWebhook_ResolvesTheOwner(t *testing.T) {
 		var applied []*model.Subscription
 		svc := newTestService(ownedRepo(&applied, model.WebhookApplied))
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid,
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive,
 			subscriptionObject(map[string]any{"metadata": nil, "product": map[string]any{"id": "prod_other_app"}}))
 		result, err := svc.HandleWebhook(context.Background(), body, signature)
 
@@ -396,7 +396,7 @@ func TestHandleWebhook_EnvironmentGuard(t *testing.T) {
 		var applied []*model.Subscription
 		svc := newTestService(ownedRepo(&applied, model.WebhookApplied))
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid,
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive,
 			subscriptionObject(map[string]any{"mode": "prod"}))
 		result, err := svc.HandleWebhook(context.Background(), body, signature)
 
@@ -411,7 +411,7 @@ func TestHandleWebhook_EnvironmentGuard(t *testing.T) {
 		cfg.Environment = EnvironmentLive
 		svc := NewSubscriptionService(ownedRepo(&applied, model.WebhookApplied), creem.NewClient(creem.Config{}), cfg)
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(nil))
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive, subscriptionObject(nil))
 		result, err := svc.HandleWebhook(context.Background(), body, signature)
 
 		require.NoError(t, err)
@@ -423,7 +423,7 @@ func TestHandleWebhook_EnvironmentGuard(t *testing.T) {
 		var applied []*model.Subscription
 		svc := newTestService(ownedRepo(&applied, model.WebhookApplied))
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid,
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive,
 			subscriptionObject(map[string]any{"mode": "sandbox"}))
 		_, err := svc.HandleWebhook(context.Background(), body, signature)
 
@@ -435,7 +435,7 @@ func TestHandleWebhook_EnvironmentGuard(t *testing.T) {
 		var applied []*model.Subscription
 		svc := newTestService(ownedRepo(&applied, model.WebhookApplied))
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid,
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive,
 			subscriptionObject(map[string]any{"mode": nil}))
 		_, err := svc.HandleWebhook(context.Background(), body, signature)
 
@@ -461,7 +461,7 @@ func TestHandleWebhook_AtomicWriteOutcomes(t *testing.T) {
 			var applied []*model.Subscription
 			svc := newTestService(ownedRepo(&applied, tt.outcome))
 
-			body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(nil))
+			body, signature := signed(t, "evt_1", creem.EventSubscriptionActive, subscriptionObject(nil))
 			result, err := svc.HandleWebhook(context.Background(), body, signature)
 
 			require.NoError(t, err)
@@ -481,7 +481,7 @@ func TestHandleWebhook_AtomicWriteOutcomes(t *testing.T) {
 		var applied []*model.Subscription
 		svc := newTestService(ownedRepo(&applied, model.WebhookLinkConflict))
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(nil))
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive, subscriptionObject(nil))
 		result, err := svc.HandleWebhook(context.Background(), body, signature)
 
 		require.ErrorIs(t, err, ErrEventFailed)
@@ -496,7 +496,7 @@ func TestHandleWebhook_AtomicWriteOutcomes(t *testing.T) {
 		}
 		svc := newTestService(repo)
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(nil))
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive, subscriptionObject(nil))
 		result, err := svc.HandleWebhook(context.Background(), body, signature)
 
 		require.ErrorIs(t, err, ErrEventFailed)
@@ -507,7 +507,7 @@ func TestHandleWebhook_AtomicWriteOutcomes(t *testing.T) {
 		var applied []*model.Subscription
 		svc := newTestService(ownedRepo(&applied, model.WebhookApplied))
 
-		body, signature := signed(t, "", creem.EventSubscriptionPaid, subscriptionObject(nil))
+		body, signature := signed(t, "", creem.EventSubscriptionActive, subscriptionObject(nil))
 		_, err := svc.HandleWebhook(context.Background(), body, signature)
 
 		require.ErrorIs(t, err, ErrEventFailed)
@@ -540,6 +540,10 @@ func TestHandleWebhook_EventsThatAreNotActedOn(t *testing.T) {
 			body, signature := signed(t, "evt_1", tt.eventType, subscriptionObject(nil))
 			result, err := svc.HandleWebhook(context.Background(), body, signature)
 
+			if tt.eventType == creem.EventRefundCreated || tt.eventType == creem.EventDisputeCreated {
+				require.ErrorIs(t, err, ErrEventFailed)
+				return
+			}
 			require.NoError(t, err)
 			assert.ErrorIs(t, result.Skipped, tt.wantSkip)
 		})
@@ -718,7 +722,7 @@ func TestHandleWebhook_AnotherProductNeverReachesALinkedUser(t *testing.T) {
 
 			object := subscriptionObject(foreign)
 			object["status"] = status
-			body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, object)
+			body, signature := signed(t, "evt_1", creem.EventSubscriptionActive, object)
 			result, err := svc.HandleWebhook(context.Background(), body, signature)
 
 			require.NoError(t, err, "acknowledged: no retry makes it ours")
@@ -735,7 +739,7 @@ func TestHandleWebhook_OurCheckoutSurvivesAReconfiguredCatalog(t *testing.T) {
 	var applied []*model.Subscription
 	svc := newTestService(ownedRepo(&applied, model.WebhookApplied))
 
-	body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid,
+	body, signature := signed(t, "evt_1", creem.EventSubscriptionActive,
 		subscriptionObject(map[string]any{"product": map[string]any{"id": "prod_retired"}}))
 	_, err := svc.HandleWebhook(context.Background(), body, signature)
 
@@ -867,7 +871,7 @@ func TestHandleWebhook_RefusedReplacementOfALiveSubscription(t *testing.T) {
 	t.Run("a newer paid event is retried: the old subscription's cancel may just be late", func(t *testing.T) {
 		svc := newTestService(conflictRepo(liveRow(), model.WebhookLinkConflict))
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(at(storedAt.Add(time.Hour))))
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive, subscriptionObject(at(storedAt.Add(time.Hour))))
 		_, err := svc.HandleWebhook(context.Background(), body, signature)
 
 		require.ErrorIs(t, err, ErrEventFailed)
@@ -893,7 +897,7 @@ func TestHandleWebhook_RefusedReplacementOfALiveSubscription(t *testing.T) {
 		// what a user paying for two subscriptions looks like.
 		svc := newTestService(conflictRepo(liveRow(), model.WebhookLinkConflict))
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(at(storedAt.Add(-time.Hour))))
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive, subscriptionObject(at(storedAt.Add(-time.Hour))))
 		result, err := svc.HandleWebhook(context.Background(), body, signature)
 
 		require.NoError(t, err)
@@ -911,7 +915,7 @@ func TestHandleWebhook_RefusedReplacementOfALiveSubscription(t *testing.T) {
 		row.Status = StatusCancelled
 		svc := newTestService(conflictRepo(row, model.WebhookSuperseded))
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(at(storedAt.Add(-time.Hour))))
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive, subscriptionObject(at(storedAt.Add(-time.Hour))))
 		result, err := svc.HandleWebhook(context.Background(), body, signature)
 
 		require.NoError(t, err)
@@ -924,7 +928,7 @@ func TestHandleWebhook_RefusedReplacementOfALiveSubscription(t *testing.T) {
 		row.ExternalSubscriptionID = strPtr("sub_1")
 		svc := newTestService(conflictRepo(row, model.WebhookSuperseded))
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(nil))
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive, subscriptionObject(nil))
 		result, err := svc.HandleWebhook(context.Background(), body, signature)
 
 		require.NoError(t, err)
@@ -952,7 +956,7 @@ func TestHandleWebhook_AUserWithNoRowIsStillGranted(t *testing.T) {
 		}
 		svc := newTestService(repo)
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(nil))
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive, subscriptionObject(nil))
 		_, err := svc.HandleWebhook(context.Background(), body, signature)
 
 		require.NoError(t, err, "a paying customer must not be retried into the ground over a missing row")
@@ -971,7 +975,7 @@ func TestHandleWebhook_AUserWithNoRowIsStillGranted(t *testing.T) {
 		repo.EnsureFreeFunc = func(context.Context, string) error { return model.ErrUserNotFound }
 		svc := newTestService(repo)
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(nil))
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive, subscriptionObject(nil))
 		result, err := svc.HandleWebhook(context.Background(), body, signature)
 
 		require.NoError(t, err, "no retry brings a deleted account back")
@@ -1000,7 +1004,7 @@ func TestHandleWebhook_AUserWithNoRowIsStillGranted(t *testing.T) {
 		}
 		svc := newTestService(repo)
 
-		body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, subscriptionObject(nil))
+		body, signature := signed(t, "evt_1", creem.EventSubscriptionActive, subscriptionObject(nil))
 		_, err := svc.HandleWebhook(context.Background(), body, signature)
 
 		require.ErrorIs(t, err, ErrEventFailed)
@@ -1026,7 +1030,7 @@ func TestHandleWebhook_CheckoutCompletedWithoutACustomerIsAcknowledged(t *testin
 }
 
 func TestHandleWebhook_AMalformedObjectIsRejectedForRetryWithoutWriting(t *testing.T) {
-	body, signature := signed(t, "evt_1", creem.EventSubscriptionPaid, nil)
+	body, signature := signed(t, "evt_1", creem.EventSubscriptionActive, nil)
 	svc := newTestService(&MockSubscriptionRepository{
 		ApplySubscriptionEventFunc: func(context.Context, string, string, *model.Subscription) (model.WebhookApplyOutcome, error) {
 			t.Fatal("a payload with no subscription must not write")

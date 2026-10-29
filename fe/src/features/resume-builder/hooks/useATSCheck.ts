@@ -1,3 +1,4 @@
+import { useAIConsentSignal } from "@/shared/hooks/useAIConsentSignal";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { apiClient } from "@/services/api";
@@ -15,13 +16,14 @@ interface ATSCheckResult {
 }
 
 export function useATSCheck() {
+  const getConsentSignal = useAIConsentSignal();
   const { i18n } = useTranslation();
 
   return useMutation({
     mutationFn: async (resumeId: string) =>
       apiClient.post<ATSCheckResult>(`resume-builder/${resumeId}/ats-check`, {
         locale: i18n.language,
-      }),
+      }, { consentSignal: getConsentSignal() }),
     onError: (err) => console.error("[ATS] check failed:", err),
   });
 }

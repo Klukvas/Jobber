@@ -411,7 +411,19 @@ export type SubscriptionPlan = "free" | "pro" | "enterprise";
 export type SubscriptionStatus =
   "free" | "active" | "past_due" | "cancelled" | "paused";
 
+export interface CreditBalance {
+  granted: number;
+  used: number;
+  remaining: number;
+  kind: "free_once" | "pro";
+  period_end?: string;
+  spend_limit_nanodollars: number;
+  spend_allocated_nanodollars: number;
+}
+
 export interface SubscriptionDTO {
+  credits?: CreditBalance;
+  credit_costs?: Record<string, number>;
   plan: SubscriptionPlan;
   status: SubscriptionStatus;
   limits: PlanLimits;

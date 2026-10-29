@@ -97,13 +97,23 @@ type fixture struct {
 func setup(t *testing.T, maxConns int32) *fixture {
 	t.Helper()
 	dsn := os.Getenv("INTERVIEW_TEST_DATABASE_URL")
+	subscriptionsDSN := os.Getenv("SUBSCRIPTIONS_TEST_DATABASE_URL")
+	if subscriptionsDSN != "" {
+		dsn = subscriptionsDSN
+	}
 	if dsn == "" {
 		t.Skip("INTERVIEW_TEST_DATABASE_URL must point to isolated synthetic PostgreSQL")
 	}
 	cfg, err := pgxpool.ParseConfig(dsn)
 	require.NoError(t, err)
-	require.Equal(t, "interview_test", cfg.ConnConfig.Database)
-	require.Equal(t, uint16(55481), cfg.ConnConfig.Port)
+	if subscriptionsDSN != "" {
+		require.Equal(t, "subscriptions_fixture", cfg.ConnConfig.Database)
+		require.Equal(t, uint16(55439), cfg.ConnConfig.Port)
+		require.Equal(t, "subscriptions_fixture", cfg.ConnConfig.User)
+	} else {
+		require.Equal(t, "interview_test", cfg.ConnConfig.Database)
+		require.Equal(t, uint16(55481), cfg.ConnConfig.Port)
+	}
 	require.Equal(t, "127.0.0.1", cfg.ConnConfig.Host)
 	admin, err := pgxpool.NewWithConfig(t.Context(), cfg)
 	require.NoError(t, err)

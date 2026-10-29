@@ -46,9 +46,21 @@ func (h *AutofillProfileHandler) Get(c *gin.Context) {
 	}
 	resumeID := c.Param("id")
 
-	profile, err := h.service.GetProfile(c.Request.Context(), userID, resumeID)
+	c.Header("Cache-Control", "private, no-store")
+	var profile *model.AutofillProfileDTO
+	var err error
+	if c.Request.Method == http.MethodGet {
+		profile, err = h.service.GetCachedProfile(c.Request.Context(), userID, resumeID)
+	} else {
+		profile, err = h.service.GetProfile(c.Request.Context(), userID, resumeID)
+	}
 	if err != nil {
+		if httpPlatform.RespondAIError(c, err) {
+			return
+		}
 		switch {
+		case errors.Is(err, service.ErrAutofillProfileNotReady):
+			httpPlatform.RespondWithError(c, http.StatusNotFound, "AUTOFILL_PROFILE_NOT_READY", "Confirm extraction to prepare this autofill profile")
 		case errors.Is(err, subModel.ErrPaidFeature):
 			httpPlatform.RespondWithError(c, http.StatusForbidden, "PAID_FEATURE", "Autofill from uploaded resumes is available on paid plans.")
 		case errors.Is(err, subModel.ErrLimitReached):
@@ -70,5 +82,6 @@ func (h *AutofillProfileHandler) Get(c *gin.Context) {
 }
 
 func (h *AutofillProfileHandler) RegisterRoutes(router *gin.RouterGroup, authMiddleware, rateLimiter gin.HandlerFunc) {
-	router.GET("/resumes/:id/autofill-profile", authMiddleware, rateLimiter, h.Get)
+	router.GET("/resumes/:id/autofill-profile", authMiddleware, h.Get)
+	router.POST("/resumes/:id/autofill-profile", authMiddleware, rateLimiter, h.Get)
 }

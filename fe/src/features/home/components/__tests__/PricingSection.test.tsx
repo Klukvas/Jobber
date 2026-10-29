@@ -25,19 +25,18 @@ describe("PricingSection", () => {
     expect(screen.getByText("home.pricing.subtitle")).toBeInTheDocument();
   });
 
-  it("renders three pricing tiers", () => {
+  it("renders only Free and Pro", () => {
     render(<PricingSection {...defaultProps} />);
     expect(screen.getByText("home.pricing.free")).toBeInTheDocument();
     expect(screen.getByText("home.pricing.pro")).toBeInTheDocument();
-    expect(screen.getByText("home.pricing.enterprise")).toBeInTheDocument();
+    expect(screen.queryByText("home.pricing.enterprise")).not.toBeInTheDocument();
   });
 
   it("renders prices", () => {
     render(<PricingSection {...defaultProps} />);
     expect(screen.getByText("$0")).toBeInTheDocument();
-    // Pro price "7" and Enterprise price "19" are text nodes
-    expect(screen.getByText("7")).toBeInTheDocument();
-    expect(screen.getByText("19")).toBeInTheDocument();
+    expect(screen.getByText("24")).toBeInTheDocument();
+    expect(screen.queryByText("19")).not.toBeInTheDocument();
   });
 
   it("renders pro badge", () => {
@@ -49,7 +48,7 @@ describe("PricingSection", () => {
     render(<PricingSection {...defaultProps} />);
     expect(screen.getByText("home.pricing.freeFeature1")).toBeInTheDocument();
     expect(screen.getByText("home.pricing.proFeature1")).toBeInTheDocument();
-    expect(screen.getByText("home.pricing.enterpriseFeature1")).toBeInTheDocument();
+    expect(screen.queryByText("home.pricing.enterpriseFeature1")).not.toBeInTheDocument();
   });
 
   it("calls onRegister when not authenticated and CTA clicked", () => {
@@ -87,14 +86,13 @@ describe("PricingSection", () => {
 
   // A limitation dressed in the same green tick as every included feature reads
   // as a feature. The Free plan has no cover letters at all.
-  it("marks the unavailable Free feature with a cross, not a tick", () => {
+  it("includes the Free cover letter", () => {
     render(<PricingSection {...defaultProps} />);
     const bullet = screen
       .getByText("home.pricing.freeFeature7")
       .closest("div") as HTMLElement;
 
-    expect(bullet.textContent).toContain("✗");
-    expect(bullet.textContent).not.toContain("✓");
+    expect(bullet.textContent).toContain("✓");
   });
 
   it("keeps a tick on the Free features that are actually included", () => {
@@ -118,7 +116,7 @@ describe("PricingSection", () => {
         />,
       );
       const soon = screen.getAllByText("home.pricing.comingSoon");
-      expect(soon).toHaveLength(2);
+      expect(soon).toHaveLength(1);
       soon.forEach((el) => {
         expect(el.closest("button")).toBeDisabled();
         fireEvent.click(el);
@@ -139,7 +137,7 @@ describe("PricingSection", () => {
         />,
       );
       expect(screen.queryByText("home.pricing.comingSoon")).toBeNull();
-      fireEvent.click(screen.getByText("home.pricing.enterpriseCta"));
+      fireEvent.click(screen.getByText(/home\.pricing\.proCta/));
       expect(onRegister).toHaveBeenCalledOnce();
       featuresMock.FEATURES.PAYMENTS = false;
     });

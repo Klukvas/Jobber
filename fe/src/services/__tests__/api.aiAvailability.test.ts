@@ -1,3 +1,4 @@
+vi.mock("@/shared/lib/aiCredits", () => ({ confirmAIAction: vi.fn(async () => undefined) }));
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 

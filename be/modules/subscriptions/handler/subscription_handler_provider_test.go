@@ -26,7 +26,13 @@ import (
 // to end through the HTTP layer.
 func newProviderBackedHandler(t *testing.T, repo *MockSubscriptionRepository, providerHandler http.HandlerFunc) *SubscriptionHandler {
 	t.Helper()
-	server := httptest.NewServer(providerHandler)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/products" {
+			_ = json.NewEncoder(w).Encode(creem.Product{ID: r.URL.Query().Get("product_id"), Mode: "test", Price: 2400, Currency: "USD", BillingType: "recurring", BillingPeriod: "every-month", Status: "active"})
+			return
+		}
+		providerHandler.ServeHTTP(w, r)
+	}))
 	t.Cleanup(server.Close)
 
 	svc := service.NewSubscriptionService(
@@ -88,7 +94,7 @@ func TestSubscriptionHandler_ChangePlan_Success(t *testing.T) {
 	router := setupTestRouter()
 	router.POST("/subscription/change-plan", mockAuthMiddleware(testUserID), handler.ChangePlan)
 
-	req, _ := http.NewRequest(http.MethodPost, "/subscription/change-plan", bytes.NewBufferString(`{"plan":"enterprise"}`))
+	req, _ := http.NewRequest(http.MethodPost, "/subscription/change-plan", bytes.NewBufferString(`{"plan":"pro"}`))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -210,7 +216,7 @@ func TestSubscriptionHandler_CreateCheckoutSession_ConflictForExistingSubscriber
 			router := setupTestRouter()
 			router.POST("/subscription/checkout-session", mockAuthMiddleware(testUserID), handler.CreateCheckoutSession)
 
-			req, _ := http.NewRequest(http.MethodPost, "/subscription/checkout-session", bytes.NewBufferString(`{"plan":"enterprise"}`))
+			req, _ := http.NewRequest(http.MethodPost, "/subscription/checkout-session", bytes.NewBufferString(`{"plan":"pro"}`))
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)

@@ -394,7 +394,7 @@ func TestSubscriptionHandler_GetCheckoutConfig(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, service.Provider, response.Provider)
 		assert.Equal(t, service.EnvironmentTest, response.Environment)
-		assert.Equal(t, []string{"pro", "enterprise"}, response.Plans)
+		assert.Equal(t, []string{"pro"}, response.Plans)
 		assert.NotContains(t, w.Body.String(), testWebhookSecret,
 			"the public config must not expose any credential")
 	})
@@ -815,7 +815,7 @@ func ownerRepo(outcome model.WebhookApplyOutcome) *MockSubscriptionRepository {
 }
 
 func TestWebhookHandler_RejectsUnverifiedPayloads(t *testing.T) {
-	body := webhookBody("evt-1", creem.EventSubscriptionPaid, "test")
+	body := webhookBody("evt-1", creem.EventSubscriptionActive, "test")
 	tests := []struct {
 		name      string
 		body      string
@@ -846,7 +846,7 @@ func TestWebhookHandler_RejectsUnverifiedPayloads(t *testing.T) {
 }
 
 func TestWebhookHandler_AcknowledgesAnAppliedEvent(t *testing.T) {
-	body := webhookBody("evt-1", creem.EventSubscriptionPaid, "test")
+	body := webhookBody("evt-1", creem.EventSubscriptionActive, "test")
 
 	w := postWebhook(newTestWebhookHandler(ownerRepo(model.WebhookApplied)), body, signWebhook(body))
 
@@ -868,7 +868,7 @@ func TestWebhookHandler_LogsPermanentDropsLouderThanOrdinarySkips(t *testing.T) 
 	// users) is an error, because Creem never redelivers it and nothing else says
 	// a paying user may be on the wrong plan.
 	t.Run("an environment mismatch is an error", func(t *testing.T) {
-		body := webhookBody("evt-live", creem.EventSubscriptionPaid, "prod")
+		body := webhookBody("evt-live", creem.EventSubscriptionActive, "prod")
 		handler, logs := newObservedWebhookHandler(ownerRepo(model.WebhookApplied))
 
 		w := postWebhook(handler, body, signWebhook(body))
@@ -881,7 +881,7 @@ func TestWebhookHandler_LogsPermanentDropsLouderThanOrdinarySkips(t *testing.T) 
 	})
 
 	t.Run("a customer shared by two users is an error", func(t *testing.T) {
-		body := webhookBody("evt-shared", creem.EventSubscriptionPaid, "test")
+		body := webhookBody("evt-shared", creem.EventSubscriptionActive, "test")
 		handler, logs := newObservedWebhookHandler(ownerRepo(model.WebhookAccountConflict))
 
 		w := postWebhook(handler, body, signWebhook(body))
@@ -892,17 +892,12 @@ func TestWebhookHandler_LogsPermanentDropsLouderThanOrdinarySkips(t *testing.T) 
 		assert.Contains(t, errs[0].Message, "already linked to another user")
 	})
 
-	t.Run("a refund is a warning", func(t *testing.T) {
-		body := `{"id":"evt-refund","eventType":"refund.created","created_at":1759665600000,"object":{"id":"ref_1"}}`
+	t.Run("a refund with missing environment is rejected and logged", func(t *testing.T) {
+		body := `{"id":"evt-refund","eventType":"refund.created","object":{"id":"ref_1"}}`
 		handler, logs := newObservedWebhookHandler(&MockSubscriptionRepository{})
-
 		w := postWebhook(handler, body, signWebhook(body))
-
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Empty(t, logs.FilterLevelExact(zap.ErrorLevel).All())
-		warnings := logs.FilterLevelExact(zap.WarnLevel).All()
-		require.Len(t, warnings, 1)
-		assert.Contains(t, warnings[0].Message, "refund")
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		require.Len(t, logs.FilterLevelExact(zap.ErrorLevel).All(), 1)
 	})
 
 	t.Run("an event Jobber does not act on stays informational", func(t *testing.T) {
@@ -922,7 +917,7 @@ func TestWebhookHandler_LogsPermanentDropsLouderThanOrdinarySkips(t *testing.T) 
 func TestWebhookHandler_ASecondLiveSubscriptionIsRetriedAndLoggedAsAnError(t *testing.T) {
 	// Acknowledging would lose a paying user's new plan if the cancellation of
 	// the old subscription was merely late. A retry lets it land once it is.
-	body := webhookBody("evt-second-sub", creem.EventSubscriptionPaid, "test")
+	body := webhookBody("evt-second-sub", creem.EventSubscriptionActive, "test")
 	handler, logs := newObservedWebhookHandler(ownerRepo(model.WebhookLinkConflict))
 
 	w := postWebhook(handler, body, signWebhook(body))

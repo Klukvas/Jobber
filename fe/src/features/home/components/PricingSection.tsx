@@ -21,7 +21,7 @@ const FREE_FEATURES = [
   { key: "freeFeature4", included: true },
   { key: "freeFeature5", included: true },
   { key: "freeFeature6", included: true },
-  { key: "freeFeature7", included: false },
+  { key: "freeFeature7", included: true },
 ] as const;
 
 const PRO_FEATURES = [
@@ -32,16 +32,6 @@ const PRO_FEATURES = [
   "proFeature5",
   "proFeature6",
   "proFeature7",
-] as const;
-
-const ENTERPRISE_FEATURES = [
-  "enterpriseFeature1",
-  "enterpriseFeature2",
-  "enterpriseFeature3",
-  "enterpriseFeature4",
-  "enterpriseFeature5",
-  "enterpriseFeature6",
-  "enterpriseFeature7",
 ] as const;
 
 /**
@@ -77,7 +67,7 @@ export function PricingSection({
           </p>
         </Reveal>
 
-        <div className="mx-auto mt-14 grid max-w-[1020px] gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mx-auto mt-14 grid max-w-[760px] gap-5 sm:grid-cols-2">
           {/* Free */}
           <Reveal className="h-full">
             <div className="h-full rounded-2xl border border-white/[0.07] bg-card p-8 text-left">
@@ -134,7 +124,7 @@ export function PricingSection({
                 <span className="align-super text-base font-medium text-slate-400">
                   $
                 </span>
-                7
+                24
               </div>
               <div className="mb-6 text-[13px] text-slate-500">
                 {t("home.pricing.proPeriod")}
@@ -167,47 +157,7 @@ export function PricingSection({
             </div>
           </Reveal>
 
-          {/* Enterprise */}
-          <Reveal delayMs={200} className="h-full">
-            <div className="h-full rounded-2xl border border-white/[0.07] bg-card p-8 text-left">
-              <div className="mb-3 font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-lime-400">
-                {t("home.pricing.enterprise")}
-              </div>
-              <div className="mb-1 text-[40px] font-extrabold tracking-[-0.04em] text-slate-100">
-                <span className="align-super text-base font-medium text-slate-400">
-                  $
-                </span>
-                19
-              </div>
-              <div className="mb-6 text-[13px] text-slate-500">
-                {t("home.pricing.enterprisePeriod")}
-              </div>
-              <hr className="mb-5 border-white/[0.07]" />
-              <div className="space-y-2.5">
-                {ENTERPRISE_FEATURES.map((key) => (
-                  <div
-                    key={key}
-                    className="flex items-start gap-2.5 text-[13px] text-slate-400"
-                  >
-                    <span className="mt-0.5 shrink-0 text-xs text-lime-400">
-                      &#10003;
-                    </span>
-                    <span>{t(`home.pricing.${key}`)}</span>
-                  </div>
-                ))}
-              </div>
-              <Button
-                variant="outline"
-                className={`mt-6 w-full justify-center border-white/[0.07] bg-transparent text-slate-300 hover:border-white/[0.14] hover:text-white ${PLAN_CTA_HEIGHT}`}
-                onClick={paymentsOn ? handleCta : undefined}
-                disabled={!paymentsOn}
-              >
-                {paymentsOn
-                  ? t("home.pricing.enterpriseCta")
-                  : t("home.pricing.comingSoon")}
-              </Button>
-            </div>
-          </Reveal>
+
         </div>
 
         <p className="mt-5 font-mono text-xs text-slate-500">

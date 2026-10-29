@@ -104,6 +104,9 @@ func tailoringUser(c *gin.Context) (string, bool) {
 }
 
 func tailoringError(c *gin.Context, err error) {
+	if httpPlatform.RespondAIError(c, err) {
+		return
+	}
 	status, code, message := http.StatusInternalServerError, "INTERNAL_ERROR", "Unable to adapt resume"
 	switch {
 	case errors.Is(err, model.ErrRecognitionRequired):

@@ -1,3 +1,5 @@
+import { useAIConsentSignal } from "@/shared/hooks/useAIConsentSignal";
+import { isAIActionCancelled } from "@/shared/lib/aiCredits";
 import { useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -281,12 +283,13 @@ export function useJobDetailMutations({
     },
   });
 
+  const getConsentSignal = useAIConsentSignal();
   const checkMatchMutation = useMutation({
     mutationFn: () => {
       if (!effectiveMatchResumeId) {
         return Promise.reject(new Error(t("jobs.matchScore.noResume")));
       }
-      return matchScoreService.checkMatch(id!, effectiveMatchResumeId);
+      return matchScoreService.checkMatch(id!, effectiveMatchResumeId, { consentSignal: getConsentSignal() });
     },
     onSuccess: (data) => {
       setMatchScore(data);
@@ -294,7 +297,12 @@ export function useJobDetailMutations({
       setIsPricingModalOpen(false);
     },
     onError: (err: Error) => {
+      if (isAIActionCancelled(err)) return;
       if (err instanceof ApiError) {
+        if (["CREDIT_UNAVAILABLE", "AI_BUDGET_REACHED", "AI_OPERATION_CONFLICT"].includes(err.code)) {
+          setMatchScoreError(err.message);
+          return;
+        }
         if (err.code === "PLAN_LIMIT_REACHED") {
           setIsPricingModalOpen(true);
           queryClient.invalidateQueries({ queryKey: ["subscription"] });

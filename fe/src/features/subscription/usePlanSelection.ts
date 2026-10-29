@@ -56,7 +56,7 @@ export function usePlanSelection({ onPlanChanged }: PlanSelectionOptions = {}) {
   const isSubscriber = plan !== "free";
 
   const canSelect = useCallback(
-    (target: SubscriptionPlan) => target !== plan && target !== "free",
+    (target: SubscriptionPlan) => target !== plan && target === "pro",
     [plan],
   );
 

@@ -1,3 +1,4 @@
+import { AICreditConfirmation } from "@/features/subscription/components/AICreditConfirmation";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "react-router-dom";
 import { router } from "./router";
@@ -18,6 +19,10 @@ export function Providers() {
     router.subscribe,
     () => router.state.location.pathname,
   );
+  const originKey = useSyncExternalStore(
+    router.subscribe,
+    () => router.state.location.key,
+  );
   const isResumePrint = pathname.replace(/\/$/, "") === "/print/resume";
   const theme = useThemeStore((state) => state.theme);
 
@@ -37,6 +42,7 @@ export function Providers() {
               <>
                 <Toaster position="top-right" richColors closeButton />
                 <CookieConsent />
+                <AICreditConfirmation originKey={originKey} />
               </>
             )}
           </AuthProvider>

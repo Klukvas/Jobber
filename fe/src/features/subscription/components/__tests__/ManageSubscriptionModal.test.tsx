@@ -179,8 +179,8 @@ describe("ManageSubscriptionModal", () => {
       screen.getByText("settings.subscription.pricing.proPrice"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("settings.subscription.pricing.enterprisePrice"),
-    ).toBeInTheDocument();
+      screen.queryByText("settings.subscription.pricing.enterprisePrice"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/\$\d+\/mo/)).not.toBeInTheDocument();
   });
 
@@ -203,14 +203,14 @@ describe("ManageSubscriptionModal", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows upgrade to enterprise option when on pro plan", () => {
+  it("offers no Enterprise purchase on Pro", () => {
     renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
     expect(
-      screen.getByText("settings.subscription.enterprisePlan"),
-    ).toBeInTheDocument();
+      screen.queryByText("settings.subscription.enterprisePlan"),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByText("settings.subscription.manage.switchToEnterprise"),
-    ).toBeInTheDocument();
+      screen.queryByText("settings.subscription.manage.switchToEnterprise"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows downgrade to pro option when on enterprise plan", () => {
@@ -381,6 +381,7 @@ describe("ManageSubscriptionModal — billing portal", () => {
   });
 
   it("blocks the other actions while the portal session is being created", async () => {
+    mockSubscriptionRef.current = { ...mockSubscriptionRef.current, plan: "enterprise", subscription: { ...mockSubscriptionRef.current.subscription, plan: "enterprise" } };
     let releasePortal: (value: { url: string }) => void = () => {};
     api.createPortalSession.mockReturnValue(
       new Promise<{ url: string }>((resolve) => {
@@ -397,7 +398,7 @@ describe("ManageSubscriptionModal — billing portal", () => {
     await waitFor(() =>
       expect(
         screen
-          .getByText("settings.subscription.manage.switchToEnterprise")
+          .getByText("settings.subscription.manage.switchToPro")
           .closest("button"),
       ).toBeDisabled(),
     );
@@ -423,20 +424,21 @@ describe("ManageSubscriptionModal — plan change and cancellation", () => {
 
   const clickLabel = (key: string) => fireEvent.click(screen.getByText(key));
 
-  it("switches pro to enterprise, refreshes the subscription and closes", async () => {
+  it("switches legacy Enterprise to Pro and closes", async () => {
+    mockSubscriptionRef.current = { ...mockSubscriptionRef.current, plan: "enterprise", subscription: { ...mockSubscriptionRef.current.subscription, plan: "enterprise" } };
     const onOpenChange = vi.fn();
     renderModal(
       <ManageSubscriptionModal open={true} onOpenChange={onOpenChange} />,
     );
 
-    clickLabel("settings.subscription.manage.switchToEnterprise");
+    clickLabel("settings.subscription.manage.switchToPro");
 
     await waitFor(() =>
       expect(notifications.showSuccessNotification).toHaveBeenCalledWith(
         "settings.subscription.manage.planChanged",
       ),
     );
-    expect(api.changePlan).toHaveBeenCalledWith("enterprise");
+    expect(api.changePlan).toHaveBeenCalledWith("pro");
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -457,13 +459,14 @@ describe("ManageSubscriptionModal — plan change and cancellation", () => {
   });
 
   it("reports a failed plan change and keeps the modal open", async () => {
+    mockSubscriptionRef.current = { ...mockSubscriptionRef.current, plan: "enterprise", subscription: { ...mockSubscriptionRef.current.subscription, plan: "enterprise" } };
     api.changePlan.mockRejectedValue(new Error("nope"));
     const onOpenChange = vi.fn();
     renderModal(
       <ManageSubscriptionModal open={true} onOpenChange={onOpenChange} />,
     );
 
-    clickLabel("settings.subscription.manage.switchToEnterprise");
+    clickLabel("settings.subscription.manage.switchToPro");
 
     await waitFor(() =>
       expect(notifications.showErrorNotification).toHaveBeenCalledWith(

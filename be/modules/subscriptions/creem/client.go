@@ -189,6 +189,7 @@ func (c *Client) send(req *http.Request) (status int, raw []byte, err error) {
 //
 // https://docs.creem.io/api-reference/endpoint/create-checkout
 type CheckoutRequest struct {
+	Units      int               `json:"units,omitempty"`
 	ProductID  string            `json:"product_id"`
 	SuccessURL string            `json:"success_url,omitempty"`
 	Customer   *CheckoutCustomer `json:"customer,omitempty"`

@@ -29,6 +29,11 @@ func stubCreemAPI(t *testing.T, status int, response string) (*httptest.Server, 
 	t.Helper()
 	var requests []capturedRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/products" && status == http.StatusOK {
+			_ = json.NewEncoder(w).Encode(creem.Product{ID: r.URL.Query().Get("product_id"), Mode: "test", Price: 2400, Currency: "USD", BillingType: "recurring", BillingPeriod: "every-month", Status: "active"})
+			return
+		}
+
 		raw, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 		captured := capturedRequest{Method: r.Method, Path: r.URL.Path, APIKey: r.Header.Get("x-api-key")}
@@ -57,7 +62,7 @@ func TestGetCheckoutConfig(t *testing.T) {
 
 		assert.Equal(t, "creem", config.Provider)
 		assert.Equal(t, EnvironmentTest, config.Environment)
-		assert.Equal(t, []string{PlanPro, PlanEnterprise}, config.Plans)
+		assert.Equal(t, []string{PlanPro}, config.Plans)
 	})
 
 	t.Run("a plan without a product is never advertised", func(t *testing.T) {
@@ -109,14 +114,12 @@ func TestCreateCheckoutSession(t *testing.T) {
 		assert.Equal(t, map[string]any{"email": "buyer@example.com", "name": "Test Buyer"}, got.Body["customer"])
 	})
 
-	t.Run("the enterprise plan buys the enterprise product", func(t *testing.T) {
+	t.Run("enterprise is retired and never reaches the API", func(t *testing.T) {
 		server, requests := stubCreemAPI(t, http.StatusOK, response)
 		svc := newTestServiceWithAPI(&MockSubscriptionRepository{}, server.URL)
-
 		_, err := svc.CreateCheckoutSession(context.Background(), testUserID, PlanEnterprise)
-
-		require.NoError(t, err)
-		assert.Equal(t, testEnterpriseProductID, (*requests)[0].Body["product_id"])
+		require.ErrorIs(t, err, model.ErrUnknownPlan)
+		require.Empty(t, *requests)
 	})
 
 	t.Run("a plan that cannot be bought never reaches the API", func(t *testing.T) {
@@ -149,7 +152,7 @@ func TestCreateCheckoutSession(t *testing.T) {
 			})
 			svc := newTestServiceWithAPI(repo, server.URL)
 
-			_, err := svc.CreateCheckoutSession(context.Background(), testUserID, PlanEnterprise)
+			_, err := svc.CreateCheckoutSession(context.Background(), testUserID, PlanPro)
 
 			assert.ErrorIs(t, err, model.ErrAlreadySubscribed, "status %q", status)
 			assert.Empty(t, *requests, "status %q", status)
@@ -241,13 +244,13 @@ func TestChangePlan(t *testing.T) {
 		server, requests := stubCreemAPI(t, http.StatusOK, `{"id":"sub_1"}`)
 		svc := newTestServiceWithAPI(subscriberRepo(paying), server.URL)
 
-		err := svc.ChangePlan(context.Background(), testUserID, PlanEnterprise)
+		err := svc.ChangePlan(context.Background(), testUserID, PlanPro)
 
 		require.NoError(t, err)
 		require.Len(t, *requests, 1)
 		got := (*requests)[0]
 		assert.Equal(t, "/v1/subscriptions/sub_1/upgrade", got.Path)
-		assert.Equal(t, testEnterpriseProductID, got.Body["product_id"])
+		assert.Equal(t, testProProductID, got.Body["product_id"])
 		assert.Equal(t, "proration-charge-immediately", got.Body["update_behavior"])
 	})
 
@@ -259,7 +262,7 @@ func TestChangePlan(t *testing.T) {
 			return "", nil
 		}
 
-		require.NoError(t, newTestServiceWithAPI(repo, server.URL).ChangePlan(context.Background(), testUserID, PlanEnterprise))
+		require.NoError(t, newTestServiceWithAPI(repo, server.URL).ChangePlan(context.Background(), testUserID, PlanPro))
 	})
 
 	t.Run("a free user has nothing to change", func(t *testing.T) {
@@ -286,7 +289,7 @@ func TestChangePlan(t *testing.T) {
 		server, _ := stubCreemAPI(t, http.StatusBadRequest, `{"message":"nope"}`)
 		svc := newTestServiceWithAPI(subscriberRepo(paying), server.URL)
 
-		require.Error(t, svc.ChangePlan(context.Background(), testUserID, PlanEnterprise))
+		require.Error(t, svc.ChangePlan(context.Background(), testUserID, PlanPro))
 	})
 }
 

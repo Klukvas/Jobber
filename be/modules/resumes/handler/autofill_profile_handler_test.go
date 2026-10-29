@@ -65,7 +65,7 @@ func autofillGet(t *testing.T, svc *service.AutofillProfileService, userID strin
 	hdl.RegisterRoutes(&router.RouterGroup, mockAuthMiddleware(userID), func(c *gin.Context) { c.Next() })
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/resumes/resume-1/autofill-profile", nil)
+	req := httptest.NewRequest(http.MethodPost, "/resumes/resume-1/autofill-profile", nil)
 	router.ServeHTTP(w, req)
 	return w
 }
@@ -104,13 +104,13 @@ func TestAutofillProfileHandler_Get(t *testing.T) {
 		assert.Equal(t, "Jane Dev", dto.Contact.FullName)
 	})
 
-	t.Run("403 PAID_FEATURE for free plan", func(t *testing.T) {
+	t.Run("free extraction is permitted and validates the file", func(t *testing.T) {
 		svc := service.NewAutofillProfileService(resumeRepo, &MockAutofillProfileRepository{}, nil, stubParser{}, &stubPlanChecker{paidErr: subModel.ErrPaidFeature})
 
 		w := autofillGet(t, svc, userID)
 
-		require.Equal(t, http.StatusForbidden, w.Code)
-		assert.Contains(t, w.Body.String(), "PAID_FEATURE")
+		require.Equal(t, http.StatusUnprocessableEntity, w.Code)
+		assert.Contains(t, w.Body.String(), "RESUME_FILE_MISSING")
 	})
 
 	t.Run("403 PLAN_LIMIT_REACHED when AI quota exhausted", func(t *testing.T) {
@@ -178,7 +178,7 @@ func TestAutofillProfileHandler_Get(t *testing.T) {
 		NewAutofillProfileHandler(svc, zap.NewNop()).RegisterRoutes(&router.RouterGroup, mockAuthMiddleware(userID), func(c *gin.Context) { c.Next() })
 
 		w := httptest.NewRecorder()
-		router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/resumes/resume-1/autofill-profile", nil))
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/resumes/resume-1/autofill-profile", nil))
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 

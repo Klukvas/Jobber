@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"time"
 
 	"github.com/andreypavlenko/jobber/modules/subscriptions/creem"
@@ -91,6 +92,18 @@ func (s *SubscriptionService) GetSubscription(ctx context.Context, userID string
 	}
 
 	dto := sub.ToDTO(usage, s.effectivePlanOf(sub))
+	if ledger, ok := s.repo.(interface {
+		CreditBalance(context.Context, string) (model.CreditBalance, error)
+	}); ok {
+		balance, err := ledger.CreditBalance(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		dto.Credits = &balance
+		dto.CreditCosts = ai.OperationCosts
+		dto.Usage.AIRequests = balance.Used
+		dto.Limits.MaxAIRequests = balance.Granted
+	}
 	if s.scheduledCancelLapsed(sub) {
 		// The cancellation date passed and the webhook that should have ended the
 		// subscription never arrived. Show what enforcement already applies, as the
@@ -118,9 +131,7 @@ func (s *SubscriptionService) purchasablePlans() []string {
 	if s.cfg.ProProductID != "" {
 		plans = append(plans, PlanPro)
 	}
-	if s.cfg.EnterpriseProductID != "" {
-		plans = append(plans, PlanEnterprise)
-	}
+
 	return plans
 }
 
@@ -132,11 +143,6 @@ func (s *SubscriptionService) productIDForPlan(plan string) (string, error) {
 			return "", fmt.Errorf("%w: pro product is not configured", model.ErrUnknownPlan)
 		}
 		return s.cfg.ProProductID, nil
-	case PlanEnterprise:
-		if s.cfg.EnterpriseProductID == "" {
-			return "", fmt.Errorf("%w: enterprise product is not configured", model.ErrUnknownPlan)
-		}
-		return s.cfg.EnterpriseProductID, nil
 	default:
 		return "", fmt.Errorf("%w: %q", model.ErrUnknownPlan, plan)
 	}
@@ -213,6 +219,20 @@ func (s *SubscriptionService) RequirePaidPlan(ctx context.Context, userID string
 
 // CheckLimit checks if a user can create another resource of the given type.
 func (s *SubscriptionService) CheckLimit(ctx context.Context, userID, resource string) error {
+	if resource == "ai" || resource == "job_parses" {
+		if ledger, ok := s.repo.(interface {
+			CreditBalance(context.Context, string) (model.CreditBalance, error)
+		}); ok {
+			balance, err := ledger.CreditBalance(ctx, userID)
+			if err != nil {
+				return err
+			}
+			if balance.Remaining < ai.OperationCosts[creditKind(ctx)] {
+				return model.ErrCreditUnavailable
+			}
+			return nil
+		}
+	}
 	if resource == "ai" {
 		if handled, err := s.reserveScopedAI(ctx, userID); handled {
 			return err
@@ -327,6 +347,11 @@ func (s *SubscriptionService) ResourceLimit(ctx context.Context, userID, resourc
 
 // RecordAIUsage records an AI usage event for the user.
 func (s *SubscriptionService) RecordAIUsage(ctx context.Context, userID string) error {
+	if _, ok := s.repo.(interface {
+		CreditBalance(context.Context, string) (model.CreditBalance, error)
+	}); ok {
+		return nil
+	}
 	if handled, err := s.consumeScopedAI(ctx, userID, "match_score"); handled {
 		return err
 	}
@@ -335,11 +360,21 @@ func (s *SubscriptionService) RecordAIUsage(ctx context.Context, userID string) 
 
 // RecordJobParseUsage records a job parse usage event for the user.
 func (s *SubscriptionService) RecordJobParseUsage(ctx context.Context, userID string) error {
+	if _, ok := s.repo.(interface {
+		CreditBalance(context.Context, string) (model.CreditBalance, error)
+	}); ok {
+		return nil
+	}
 	return s.repo.RecordJobParseUsage(ctx, userID)
 }
 
 // RecordResumeAutofillUsage records a resume autofill extraction usage event.
 func (s *SubscriptionService) RecordResumeAutofillUsage(ctx context.Context, userID string) error {
+	if _, ok := s.repo.(interface {
+		CreditBalance(context.Context, string) (model.CreditBalance, error)
+	}); ok {
+		return nil
+	}
 	if handled, err := s.consumeScopedAI(ctx, userID, "resume_autofill_parse"); handled {
 		return err
 	}
@@ -367,4 +402,19 @@ func (s *SubscriptionService) getUsage(ctx context.Context, userID string) (mode
 		ResumeBuilders: resumeBuilders,
 		CoverLetters:   coverLetters,
 	}, nil
+}
+
+func creditKind(ctx context.Context) string {
+	op, _, ok := ai.CurrentCreditOperation(ctx)
+	if ok {
+		return op.Kind
+	}
+	return "improve"
+}
+
+func (s *SubscriptionService) CreditLedgerEnabled() bool {
+	_, ok := s.repo.(interface {
+		CreditBalance(context.Context, string) (model.CreditBalance, error)
+	})
+	return ok
 }

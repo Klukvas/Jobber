@@ -237,6 +237,8 @@ func (s *SubscriptionService) handlerFor(eventType string) eventHandler {
 		return s.applySubscriptionEvent
 	case creem.EventCheckoutCompleted:
 		return s.linkCompletedCheckout
+	case creem.EventRefundCreated, creem.EventDisputeCreated:
+		return s.holdCreditPayment
 	default:
 		return nil
 	}
@@ -267,7 +269,22 @@ func (s *SubscriptionService) applySubscriptionEvent(ctx context.Context, event 
 
 	// One statement claims the event and writes the state, so a failure can never
 	// record the event as processed while losing what it carried.
-	outcome, err := s.repo.ApplySubscriptionEvent(ctx, event.ID, event.Type, updated)
+	var outcome model.WebhookApplyOutcome
+	if event.Type == creem.EventSubscriptionPaid {
+		grant, grantErr := s.paidCreditGrant(ctx, event, incoming, existing.UserID)
+		if grantErr != nil {
+			return grantErr
+		}
+		ledger, ok := s.repo.(interface {
+			ApplyPaidCreditEvent(context.Context, string, string, *model.Subscription, model.PaidCreditGrant) (model.WebhookApplyOutcome, error)
+		})
+		if !ok {
+			return model.ErrCreditUnavailable
+		}
+		outcome, err = ledger.ApplyPaidCreditEvent(ctx, event.ID, event.Type, updated, grant)
+	} else {
+		outcome, err = s.repo.ApplySubscriptionEvent(ctx, event.ID, event.Type, updated)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to apply subscription event: %w", err)
 	}

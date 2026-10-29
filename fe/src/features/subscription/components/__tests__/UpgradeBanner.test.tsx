@@ -116,10 +116,10 @@ describe("UpgradeBanner", () => {
 
   // Only AI requests are counted per calendar month; every other allowance is
   // a lifetime cap, so quoting a reset date for those would be untrue.
-  it("quotes a reset date for the monthly AI allowance", () => {
+  it("describes the one-time Free allowance", () => {
     render(<UpgradeBanner resource="ai" />);
     expect(
-      screen.getByText(/settings.subscription.resetsOn/),
+      screen.getByText("credits.freePeriod"),
     ).toBeInTheDocument();
   });
 
@@ -140,11 +140,11 @@ describe("UpgradeBanner", () => {
    * month, and it is spent by resume assistance and imports as much as by match
    * scoring. The message names the allowance and its size instead.
    */
-  it("names the monthly AI allowance, with the number of requests in it", () => {
+  it("names the credit limit", () => {
     render(<UpgradeBanner resource="ai" />);
 
     expect(
-      screen.getByText(/settings\.subscription\.limitReachedAIMonthly/),
+      screen.getByText(/settings\.subscription\.aiLimitMessage/),
     ).toBeInTheDocument();
     expect(
       screen.queryByText(/settings\.subscription\.limitReachedAI$/),
@@ -215,17 +215,10 @@ describe("UpgradeBanner", () => {
     expect(screen.queryByTestId("pricing-modal")).not.toBeInTheDocument();
   });
 
-  it("opens the same modal from the enterprise-tier banner", () => {
-    subscription.nextPlan = "enterprise";
-    render(<UpgradeBanner resource="ai" />);
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "settings.subscription.upgradeToEnterprise",
-      }),
-    );
-
-    expect(screen.getByTestId("pricing-modal")).toBeInTheDocument();
+  it("does not offer another tier to Pro", () => {
+    subscription.nextPlan = null;
+    const { container } = render(<UpgradeBanner resource="ai" />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   // BUG-07: with payments off the limit used to be silent. The banner is now a

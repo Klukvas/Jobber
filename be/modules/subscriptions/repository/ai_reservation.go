@@ -35,6 +35,11 @@ func checkAIQuota(ctx context.Context, tx pgx.Tx, userID string, limit int) erro
 // ReserveAIInTransaction coordinates durable operations with legacy pending
 // reservations. Existing ledger rows and plan prices remain unchanged.
 func ReserveAIInTransaction(ctx context.Context, tx pgx.Tx, userID string, limit int, receiptIDs ...string) error {
+	if len(receiptIDs) > 0 {
+		if handled, err := ContextCreditReservation(ctx, tx, userID, receiptIDs[0]); handled {
+			return err
+		}
+	}
 	if err := lockAIQuota(ctx, tx, userID); err != nil {
 		return err
 	}

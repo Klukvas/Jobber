@@ -118,7 +118,7 @@ func (s *MatchScoreService) CheckMatch(ctx context.Context, userID string, req *
 	// Call AI to analyze match
 	result, err := s.aiClient.MatchResumeToJob(ctx, job.Title, *job.Description, pdfBase64)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", model.ErrMatchFailed, err)
+		return nil, fmt.Errorf("%w: %w", model.ErrMatchFailed, err)
 	}
 
 	// Record AI usage

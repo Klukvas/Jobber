@@ -53,6 +53,9 @@ func (h *MatchScoreHandler) CheckMatch(c *gin.Context) {
 
 	result, err := h.service.CheckMatch(c.Request.Context(), userID, &req)
 	if err != nil {
+		if httpPlatform.RespondAIError(c, err) {
+			return
+		}
 		if errors.Is(err, subModel.ErrLimitReached) {
 			httpPlatform.RespondWithError(c, http.StatusForbidden, "PLAN_LIMIT_REACHED", "You have reached the AI usage limit for your current plan.")
 			return

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"log/slog"
 	"sort"
 	"strings"
@@ -92,6 +93,9 @@ func (s *TailoringService) generateSnapshot(ctx context.Context, userID, jobID, 
 	defer cancel()
 	suggestions, err := s.client.TailorResume(ctxAI, job.Title+"\n"+job.Company+"\n"+job.Description, string(facts), locale)
 	if err != nil {
+		if errors.Is(err, subModel.ErrAIBudgetReached) || errors.Is(err, subModel.ErrCreditUnavailable) || errors.Is(err, subModel.ErrAIOperationConflict) {
+			return nil, err
+		}
 		if errors.Is(err, ai.ErrInvalidTailoringResponse) {
 			if charge {
 				if usageErr := s.limits.RecordAIUsage(ctx, userID); usageErr != nil {

@@ -49,6 +49,9 @@ func (h *ImportHandler) ParseJobPage(c *gin.Context) {
 
 	result, err := h.service.ParseJobPage(c.Request.Context(), userID, &req)
 	if err != nil {
+		if httpPlatform.RespondAIError(c, err) {
+			return
+		}
 		errorCode := model.GetErrorCode(err)
 		errorMessage := model.GetErrorMessage(err)
 
