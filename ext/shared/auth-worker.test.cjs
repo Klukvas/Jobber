@@ -52,8 +52,8 @@ test('content script cannot invoke any privileged auth route',async()=>{
   assert.equal(calls,0);assert.equal(engine.local.accessToken,'synthetic');assert.equal(engine.local.autofillProfile,undefined);
 });
 test('only exact trusted API origins are used for auth',async()=>{
-  for(const base of ['https://jobber-app.com.evil.invalid','https://jobber-app.com@evil.invalid','https://jobber-app.com/extra']){
-    let called;const fetch=async url=>{called=url;return loginResponse()};const engine=extensionFixture({fetch,stored:{apiBase:base}});const api=panel(engine,fetch);await api.login('synthetic','synthetic');assert.equal(called,'https://jobber-app.com/api/v1/auth/login');
+  for(const base of ['https://cursopus.com.evil.invalid','https://cursopus.com@evil.invalid','https://cursopus.com/extra']){
+    let called;const fetch=async url=>{called=url;return loginResponse()};const engine=extensionFixture({fetch,stored:{apiBase:base}});const api=panel(engine,fetch);await api.login('synthetic','synthetic');assert.equal(called,'https://cursopus.com/api/v1/auth/login');
   }
 });
 for(const operation of ['parseJob','getUploadedAutofillProfile','getMatchScore'])test(`${operation} never confirms or posts A content after B login`,async()=>{
@@ -134,7 +134,7 @@ for(const operation of ['createCompany','createJob'])test(`${operation} checks c
   const fetch=async()=>{posts++;return Response.json({})};const engine=extensionFixture({fetch}),chrome=engine.chromeFor();
   const send=chrome.runtime.sendMessage;chrome.runtime.sendMessage=async message=>{const result=await send(message);if(message.action==='authSnapshot'){arrived.resolve();await gate.promise}return result};
   const api=vm.runInNewContext(`${source}\nJobberAPI`,{chrome,fetch,crypto});
-  const session={accessToken:'synthetic',authSessionId:'session-a',apiBase:'https://jobber-app.com'};
+  const session={accessToken:'synthetic',authSessionId:'session-a',apiBase:'https://cursopus.com'};
   const pending=api[operation](operation==='createCompany'?'Synthetic':{title:'Synthetic'}, {session,consentSignal:controller.signal}).then(()=>null,error=>error.message);
   await arrived.promise;controller.abort();gate.resolve();assert.equal(await pending,'AI_CANCELLED');assert.equal(posts,0);
 });

@@ -3,7 +3,7 @@
 // are packaged (no tests, fixtures or promo assets). The source tree keeps
 // dev-only localhost origins for local testing; they are stripped from a
 // throwaway staging copy so the published package only talks to
-// https://jobber-app.com. Version comes from ext/manifest.json.
+// https://cursopus.com. Version comes from ext/manifest.json.
 //
 //   node fe/scripts/build-ext-zip.mjs
 import fs from "node:fs";
@@ -26,7 +26,7 @@ export function productionSource(relative, buffer) {
     return Buffer.from(JSON.stringify(manifest, null, 2) + "\n");
   }
   if (!relative.endsWith(".js")) return buffer;
-  let source = buffer.toString().replace('["https://jobber-app.com", "http://localhost:8080"]', '["https://jobber-app.com"]');
+  let source = buffer.toString().replace('["https://cursopus.com", "http://localhost:8080"]', '["https://cursopus.com"]');
   if (relative === "shared/api.js") source = source.replace(
     /    \/\/ In production[\s\S]*?    return _apiBase \|\| API_BASE;/,
     "    return _apiBase || API_BASE;",

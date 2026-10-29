@@ -437,7 +437,7 @@ async function parseWithData(pageData, request = beginParse()) {
   }
 }
 
-// The page can be any origin, but we only hold host access for jobber-app.com (the API host) by
+// The page can be any origin, but we only hold host access for cursopus.com (the API host) by
 // default — so extraction rode the gesture-scoped `activeTab` grant and broke on
 // the second parse (after "Save Another"). Request persistent host access to the
 // current tab's origin first, inside the click gesture, so re-parsing works.

@@ -10,7 +10,7 @@ async function browserFixture(name,html){
   const context=await chromium.launchPersistentContext('',{executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
   const page=await context.newPage();await page.route('**/*',route=>route.fulfill({status:200,contentType:'text/html',body:html}));
   await page.goto('https://www.linkedin.com/jobs/fixture');
-  const engine=extensionFixture({fetch:async(url,options={})=>Response.json({id:'synthetic-job',title:'Synthetic job',url:'https://fixture.invalid/saved'}),stored:{accessToken:'synthetic',refreshToken:'synthetic',authSessionId:'session-a',autofillSessionId:'session-a',autofillProfile:profile,autofillProfileRequest:{owner:'browser-profile',revision:1,sessionId:'session-a',apiBase:'https://jobber-app.com'}}});
+  const engine=extensionFixture({fetch:async(url,options={})=>Response.json({id:'synthetic-job',title:'Synthetic job',url:'https://fixture.invalid/saved'}),stored:{accessToken:'synthetic',refreshToken:'synthetic',authSessionId:'session-a',autofillSessionId:'session-a',autofillProfile:profile,autofillProfileRequest:{owner:'browser-profile',revision:1,sessionId:'session-a',apiBase:'https://cursopus.com'}}});
   const runtime=engine.chromeFor({id:'fixture',tab:{id:1},url:'https://www.linkedin.com/jobs/fixture'}).runtime;
   const state={hold:null};
   await page.exposeFunction('fixtureRuntimeMessage',async message=>{const result=await runtime.sendMessage(message);if(message.action==='getAutofillProfile'&&state.hold){const held=state.hold;state.hold=null;held.arrived.resolve();await held.gate.promise}return result});

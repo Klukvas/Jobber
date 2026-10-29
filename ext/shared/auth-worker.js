@@ -1,7 +1,7 @@
 // Only the service worker mutates credentials. Panels share its refresh flight.
 const JobberAuth = (() => {
-  const API_BASE = "https://jobber-app.com";
-  const ALLOWED_ORIGINS = ["https://jobber-app.com", "http://localhost:8080"];
+  const API_BASE = "https://cursopus.com";
+  const ALLOWED_ORIGINS = ["https://cursopus.com", "http://localhost:8080"];
   const PRIVATE_KEYS = ["accessToken", "refreshToken", "autofillProfile", "autofillSessionId", "autofillProfileRequest"];
   let writes = Promise.resolve();
   let flight = null;
