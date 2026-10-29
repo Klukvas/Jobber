@@ -286,3 +286,5 @@ describe("the phone navigation drawer", () => {
     });
   });
 });
+
+vi.mock("@/shared/hooks/useAdminAccess", () => ({ useAdminAccess: () => ({ data: undefined, isError: false }) }));

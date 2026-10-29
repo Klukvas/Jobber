@@ -11,6 +11,7 @@ import { useDialogFocus } from "@/shared/hooks/useDialogFocus";
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
 import { useTopmostEscape } from "@/shared/hooks/useTopmostEscape";
 import { useSubscription } from "@/shared/hooks/useSubscription";
+import { useAdminAccess } from "@/shared/hooks/useAdminAccess";
 import { authService } from "@/services/authService";
 import { useOnboardingHighlight } from "@/features/onboarding/useOnboarding";
 import { cn } from "@/shared/lib/utils";
@@ -25,6 +26,7 @@ import {
   BarChart3,
   LogOut,
   Mail,
+  ShieldCheck,
 } from "lucide-react";
 
 /**
@@ -103,6 +105,7 @@ export function Sidebar() {
   const user = useAuthStore((state) => state.user);
   const { plan } = useSubscription();
   const badge = getPlanBadge(plan, t);
+  const adminAccess = useAdminAccess();
 
   useBodyScrollLock(isModal);
   useDialogFocus(panelRef, { open: isModal });
@@ -208,7 +211,18 @@ export function Sidebar() {
 
           {/* Navigation */}
           <nav className="flex-1 space-y-1 p-2">
-            {navItems.map((item) => {
+            {[
+              ...navItems,
+              ...(adminAccess.data?.allowed && !adminAccess.isError
+                ? [
+                    {
+                      path: "/app/admin",
+                      icon: ShieldCheck,
+                      labelKey: "admin.title",
+                    },
+                  ]
+                : []),
+            ].map((item) => {
               const Icon = item.icon;
               const isHighlighted = highlightedPath === item.path;
               return (

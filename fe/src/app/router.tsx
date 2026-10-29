@@ -35,6 +35,7 @@ const ResumeBuilderEditorPage = lazy(
 );
 const CoverLettersPage = lazy(() => import("@/pages/CoverLetters"));
 const CoverLetterEditorPage = lazy(() => import("@/pages/CoverLetterEditor"));
+const AdminPage = lazy(() => import("@/pages/Admin"));
 const NotFoundPage = lazy(() => import("@/pages/NotFound"));
 
 // Password reset from a `?email=&code=` URL (no auth, noindex).
@@ -212,6 +213,10 @@ export const routes: RouteObject[] = [
           {
             path: "analytics",
             element: <AnalyticsPage />,
+          },
+          {
+            path: "admin",
+            element: <AdminPage />,
           },
           {
             path: "settings",

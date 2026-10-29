@@ -195,12 +195,23 @@ export default function Settings() {
                 {t("settings.subscription.currentPlan")}
               </p>
               <p className="font-semibold text-lg">{planLabel}</p>
+              {subscription?.manual_access && (
+                <p className="text-sm text-muted-foreground">
+                  {t("admin.manualSettings", {
+                    date: format(
+                      new Date(subscription.manual_access.period_end),
+                      "PP",
+                      { locale: dateLocale },
+                    ),
+                  })}
+                </p>
+              )}
               {subscription?.status === "past_due" && (
                 <p className="text-sm text-amber-600 dark:text-amber-400">
                   {t("settings.subscription.pastDue")}
                 </p>
               )}
-              {subscription?.cancel_at && (
+              {subscription?.cancel_at && !subscription?.manual_only && (
                 <p className="text-sm text-muted-foreground">
                   {t("settings.subscription.cancelledOn", {
                     date: format(new Date(subscription.cancel_at), "PP", {
@@ -211,6 +222,7 @@ export default function Settings() {
               )}
               {isPro &&
                 subscription?.current_period_end &&
+                !subscription?.manual_only &&
                 !subscription?.cancel_at && (
                   <p className="text-sm text-muted-foreground">
                     {t("settings.subscription.renewsOn", {
@@ -224,7 +236,7 @@ export default function Settings() {
                 )}
             </div>
             <div className="flex flex-wrap gap-2">
-              {isPro && (
+              {isPro && !subscription?.manual_only && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -295,7 +307,11 @@ export default function Settings() {
                     {credits?.granted ?? limits.max_ai_requests}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {t(credits?.kind === "pro" ? "credits.proPeriod" : "credits.freePeriod")}
+                    {t(
+                      credits?.kind === "manual_pro"
+                        ? "admin.manualCreditsPeriod"
+                        : credits?.kind === "pro" ? "credits.proPeriod" : "credits.freePeriod",
+                    )}
                   </p>
                   {credits && <p className="text-xs text-muted-foreground">{t("credits.remaining", { count: credits.remaining })}</p>}
                 </div>
