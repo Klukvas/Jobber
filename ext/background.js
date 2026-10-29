@@ -1,18 +1,7 @@
 // Background service worker
-const API_BASE = "https://jobber-app.com";
-const ALLOWED_ORIGINS = ["https://jobber-app.com", "http://localhost:8080"];
+importScripts("shared/auth-worker.js");
 const REFRESH_ALARM = "jobber-token-refresh";
 const REFRESH_INTERVAL_MINUTES = 10;
-
-function isAllowedOrigin(url) {
-  return ALLOWED_ORIGINS.some(
-    (origin) => url === origin || url.startsWith(origin),
-  );
-}
-
-function getSafeApiBase(storedBase) {
-  return storedBase && isAllowedOrigin(storedBase) ? storedBase : API_BASE;
-}
 
 // Clicking the toolbar icon opens the side panel (the single primary UI).
 // Registered at the top level so it applies on every service-worker spin-up.
@@ -95,6 +84,7 @@ async function openSidePanelWithPageData(tab) {
     return;
   }
 
+  const originalSession = await JobberAuth.snapshot();
   // Extract page text AFTER panel is open (panel listens for storage changes)
   let pageData = null;
   try {
@@ -110,9 +100,10 @@ async function openSidePanelWithPageData(tab) {
     console.warn("[Cursopus] Cannot extract page text:", err.message);
   }
 
-  // Store data — side panel picks it up via storage listener
-  await chrome.storage.session.set({
-    pendingParse: { tabId: tab.id, pageData, timestamp: Date.now() },
+  // Publication and consumption share the auth queue, so an older consumer
+  // cannot remove a newer command while it is publishing.
+  await JobberAuth.publishPending(originalSession, {
+    tabId: tab.id, pageData, timestamp: Date.now(),
   });
 }
 
@@ -122,6 +113,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Only our own content scripts / extension pages can reach us
   // (externally_connectable is absent) — assert it as defence-in-depth.
   if (sender.id !== chrome.runtime.id) return false;
+
+  if (typeof message.action === "string" && message.action.startsWith("auth")) {
+    // Credentials and profile writes are only available to extension pages.
+    if (sender.tab || !sender.url?.startsWith(chrome.runtime.getURL(""))) return false;
+    JobberAuth.handle(message, sender.documentId || sender.url).then(
+      (data) => sendResponse({ data }),
+      (error) => sendResponse({ error: error.message }),
+    );
+    return true;
+  }
+
+  if (message.action === "getAutofillProfile") {
+    // Content scripts receive only a validated profile, never credentials.
+    JobberAuth.getAutofillProfile().then(sendResponse, () => sendResponse({ profile: null }));
+    return true;
+  }
 
   if (message.action === "updateBadge") {
     if (Number.isFinite(message.count) && message.count >= 0) {
@@ -140,7 +147,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === "quickSave") {
-    handleQuickSave(message).then(sendResponse);
+    handleQuickSave(message, sendResponse).then((result) => { if (result) sendResponse(result); });
     return true;
   }
 
@@ -164,76 +171,18 @@ async function extractPageText(tabId) {
   }
 }
 
-// ── Auth (service-worker side) ─────────────────────────
-
-// Refresh the access token from the stored refresh token. Returns the new
-// access token, or null (and clears the dead tokens) on failure. Shared by the
-// refresh alarm and quick-save so the auth logic lives in one place.
-async function refreshTokens(apiBase) {
-  const { refreshToken } = await chrome.storage.local.get("refreshToken");
-  if (!refreshToken) return null;
-  try {
-    const res = await fetch(`${apiBase}/api/v1/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-    if (!res.ok) {
-      await chrome.storage.local.remove(["accessToken", "refreshToken"]);
-      return null;
-    }
-    const data = await res.json();
-    await chrome.storage.local.set({
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token,
-    });
-    return data.access_token;
-  } catch {
-    return null;
-  }
-}
-
-// Fetch with the current bearer token; on 401, refresh once and retry. Reads the
-// token from storage on each call so a refresh triggered by an earlier request
-// is picked up — avoids sending a rotated-away token on the following call.
-async function swAuthedFetch(apiBase, path, options) {
-  const send = (token) =>
-    fetch(`${apiBase}${path}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...(options.headers || {}),
-        Authorization: `Bearer ${token}`,
-      },
-    });
-  const { accessToken } = await chrome.storage.local.get("accessToken");
-  let res = await send(accessToken);
-  if (res.status === 401) {
-    const fresh = await refreshTokens(apiBase);
-    if (fresh) res = await send(fresh);
-  }
-  return res;
-}
-
 // ── Quick Save (from content scripts) ──────────────────
 
-async function handleQuickSave({ title, company, url, source }) {
-  const { accessToken, apiBase: storedBase } = await chrome.storage.local.get([
-    "accessToken",
-    "apiBase",
-  ]);
-
-  if (!accessToken) {
-    return { error: "Not logged in. Open Cursopus extension to sign in." };
-  }
-
-  const apiBase = getSafeApiBase(storedBase);
+async function handleQuickSave({ title, company, url, source }, onSuccess) {
+  const session = await JobberAuth.snapshot();
+  if (!session.accessToken) return { error: "Not logged in. Open Cursopus extension to sign in." };
+  const request = (path, options) => JobberAuth.authedFetch(path, options, session);
 
   try {
     // Create company if name provided (best-effort — a failure just omits it)
     let companyId;
     if (company) {
-      const compRes = await swAuthedFetch(apiBase, "/api/v1/companies", {
+      const compRes = await request("/api/v1/companies", {
         method: "POST",
         body: JSON.stringify({ name: company }),
       });
@@ -252,7 +201,7 @@ async function handleQuickSave({ title, company, url, source }) {
     const safeUrl = url && /^https?:\/\//i.test(url) ? url : undefined;
 
     // Create job
-    const jobRes = await swAuthedFetch(apiBase, "/api/v1/jobs", {
+    const jobRes = await request("/api/v1/jobs", {
       method: "POST",
       body: JSON.stringify({
         title,
@@ -279,22 +228,7 @@ async function handleQuickSave({ title, company, url, source }) {
 
     const job = await jobRes.json();
 
-    // Track URL
-    const { importedUrls = [] } =
-      await chrome.storage.local.get("importedUrls");
-    if (job.url && !importedUrls.includes(job.url)) {
-      await chrome.storage.local.set({
-        importedUrls: [...importedUrls, job.url].slice(-500),
-      });
-    }
-
-    // Update badge
-    const { savedCount = 0 } = await chrome.storage.session.get("savedCount");
-    const newCount = savedCount + 1;
-    await chrome.storage.session.set({ savedCount: newCount });
-    await updateBadge(newCount);
-
-    return { ok: true, job };
+    return await JobberAuth.finishQuickSave(session, job, updateBadge, onSuccess);
   } catch {
     return { error: "Network error. Check your connection." };
   }
@@ -318,6 +252,6 @@ chrome.runtime.onStartup.addListener(async () => {
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== REFRESH_ALARM) return;
-  const { apiBase } = await chrome.storage.local.get("apiBase");
-  await refreshTokens(getSafeApiBase(apiBase));
+  const session = await JobberAuth.snapshot();
+  if (session.accessToken) await JobberAuth.refresh(session).catch(() => {});
 });

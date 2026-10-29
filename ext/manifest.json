@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Cursopus - Smart Job Saver",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "Save jobs from any site to Cursopus in one click — AI parsing, resume-to-job match score, and one-tap application autofill.",
-  "minimum_chrome_version": "114",
+  "minimum_chrome_version": "116",
   "permissions": [
     "activeTab",
     "storage",

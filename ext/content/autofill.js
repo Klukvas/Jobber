@@ -4,6 +4,12 @@
   window.__jobberAutofillInit = true;
 
   let profile = null;
+  let profileEpoch = 0;
+  async function readCurrentProfile() {
+    const epoch = profileEpoch;
+    const data = await chrome.runtime.sendMessage({ action: "getAutofillProfile" });
+    profile = epoch === profileEpoch ? data?.profile || null : null;
+  }
 
   // Autofill trigger from the background (right-click context menu). Registered
   // synchronously — not inside the async init — and over runtime messaging (not
@@ -15,10 +21,7 @@
   });
 
   async function runAutofillFromTrigger() {
-    if (!profile) {
-      const data = await chrome.storage.local.get("autofillProfile");
-      profile = data.autofillProfile || null;
-    }
+    await readCurrentProfile();
     if (!profile?.contact) return;
 
     const { filled } = autofillPage();
@@ -38,11 +41,8 @@
     // \bfname\b / \blname\b anchored so they don't match inside "fullName".
     firstName: /first[\s_-]*name|given[\s_-]*name|\bfname\b|prénom/i,
     lastName: /last[\s_-]*name|family[\s_-]*name|surname|\blname\b/i,
-    // Person-name fields, plus a bare "name" that excludes non-person
-    // "<x> name" labels (Company Name, User Name, …) via the blocklist
-    // lookbehind — while still matching "Candidate Name", "Employee Name", etc.
     fullName:
-      /full[\s_-]*name|your[\s_-]*name|applicant[\s_-]*name|legal[\s_-]*name|preferred[\s_-]*name|candidate[\s_-]*name|(?<!(?:company|business|organization|organisation|employer|user|account|file|screen|display|brand|product|project|event|team|nick|db|table|field)[\s_-])\bname\b/i,
+      /full[\s_-]*name|your[\s_-]*name|applicant[\s_-]*name|legal[\s_-]*name|preferred[\s_-]*name|candidate[\s_-]*name|employee[\s_-]*name/i,
     email: /email|e[\s_-]*mail/i,
     phone: /phone|tel(?:ephone)?|mobile|cell/i,
     location: /city|location|address(?!.*email)/i,
@@ -114,11 +114,17 @@
       return AUTOCOMPLETE_MAP[autocomplete];
     }
 
-    const combined = getFieldIdentifiers(field).join(" ");
+    const identifiers = getFieldIdentifiers(field);
+    const combined = identifiers.join(" ");
+    // Education labels often include a generic name/id. Prefer their meaning.
+    for (const type of ["school", "degree", "fieldOfStudy", "currentCompany", "currentTitle"]) {
+      if (PATTERNS[type].test(combined)) return type;
+    }
     for (const [type, pattern] of Object.entries(PATTERNS)) {
       if (pattern.test(combined)) return type;
     }
 
+    if (identifiers.some((value) => /^name$/i.test(value.trim())) && !/(?:company|business|organization|organisation|employer|user|account|file|screen|display|brand|product|project|event|team|nick|table|field)[\s_-]*name/i.test(combined)) return "fullName";
     return null;
   }
 
@@ -264,11 +270,10 @@
     btn.textContent = "\uD83D\uDCBC Autofill";
     btn.title = "Autofill with Cursopus profile";
 
-    btn.addEventListener("click", async () => {
-      if (!profile) {
-        const data = await chrome.storage.local.get("autofillProfile");
-        profile = data.autofillProfile;
-      }
+    btn.addEventListener("click", async (event) => {
+      if (!event.isTrusted) return;
+      event.preventDefault();
+      await readCurrentProfile();
 
       if (!profile?.contact) {
         btn.textContent = "\u26A0\uFE0F No profile";
@@ -325,9 +330,6 @@
   // ── Init ─────────────────────────────────────────────
 
   async function init() {
-    const data = await chrome.storage.local.get("autofillProfile");
-    profile = data.autofillProfile || null;
-
     // Delay to let dynamic forms render
     setTimeout(() => {
       if (hasApplicationForm()) createButton();
@@ -347,8 +349,9 @@
 
     // Listen for profile updates from side panel
     chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === "local" && changes.autofillProfile) {
-        profile = changes.autofillProfile.newValue || null;
+      if (area === "local" && (["accessToken", "authSessionId", "autofillProfile", "autofillSessionId", "autofillProfileRequest"].some((key) => changes[key]) || Object.keys(changes).some((key) => key.startsWith("autofillRevoked:")))) {
+        profileEpoch++;
+        profile = null;
       }
     });
   }
