@@ -165,7 +165,7 @@ const (
 	testUserID              = "550e8400-e29b-41d4-a716-446655440000"
 	testProProductID        = "prod_pro"
 	testEnterpriseProductID = "prod_enterprise"
-	testSuccessURL          = "https://jobber.test/settings?subscription=success"
+	testSuccessURL          = "https://jobber.test/app/settings?subscription=success"
 	testWebhookSecret       = "test-webhook-secret"
 )
 

@@ -359,7 +359,7 @@ func TestCreatePortalSession(t *testing.T) {
 }
 
 func TestCheckoutSuccessURL(t *testing.T) {
-	assert.Equal(t, "https://app.test/settings?subscription=success", CheckoutSuccessURL("https://app.test"))
-	assert.Equal(t, "https://app.test/settings?subscription=success", CheckoutSuccessURL("https://app.test/"),
+	assert.Equal(t, "https://app.test/app/settings?subscription=success", CheckoutSuccessURL("https://app.test"))
+	assert.Equal(t, "https://app.test/app/settings?subscription=success", CheckoutSuccessURL("https://app.test/"),
 		"a trailing slash must not produce a double slash")
 }

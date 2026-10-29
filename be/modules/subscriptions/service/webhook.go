@@ -51,13 +51,14 @@ var ErrEnvironmentMismatch = errors.New("event environment does not match the co
 // logged at error, which is the signal that somebody may be paying twice.
 var ErrSubscriptionLinkConflict = errors.New("event describes a provider subscription other than the live one linked to this user")
 
-// ErrRefundNeedsReview marks a refund or dispute on this account.
+// ErrRefundNeedsReview marks a refund or dispute on this account, after the AI
+// credits of the refunded payment were held.
 //
-// Nothing is applied, and that is a decision rather than an omission: a refund is
-// not a cancellation — a partial refund leaves the subscription billing normally,
-// and revoking access on one would take a paid plan away from someone who still
-// has it. Ending a subscription because of a refund is a merchant decision, made
-// in the dashboard, which then arrives here as the cancellation it really is.
+// The subscription is left alone, and that is a decision rather than an omission:
+// a refund is not a cancellation — a partial refund leaves the subscription billing
+// normally, and revoking the plan on one would take it away from someone who still
+// pays. Ending a subscription because of a refund is a merchant decision, made in
+// the dashboard, which then arrives here as the cancellation it really is.
 //
 // What it must not be is invisible. Money left the account, so the event is
 // surfaced instead of being filed with the routine ones nobody reads. A downgrade
@@ -92,6 +93,13 @@ var (
 	// errEventMissingID marks an actionable event with no ID. It cannot be
 	// de-duplicated, so it is treated as a malformed delivery and retried.
 	errEventMissingID = errors.New("actionable event carried no event ID")
+	// errPaidWithoutCredits marks a subscription.paid whose subscription state was
+	// applied while its payment did not qualify for the period's AI credits: a
+	// prorated plan-change charge, a discount, a product other than Pro. Retrying
+	// cannot make the payment qualify, and failing the event would also have lost
+	// the plan it grants, so it is acknowledged — loudly, since a payer is left
+	// without the credits of that payment.
+	errPaidWithoutCredits = errors.New("payment applied without AI credits")
 )
 
 // HandleWebhook verifies and processes one Creem webhook delivery.
@@ -157,6 +165,8 @@ func isAcknowledgedSkip(err error) bool {
 		errors.Is(err, errEventNotActionable) ||
 		errors.Is(err, errNothingToEnd) ||
 		errors.Is(err, errSecondSubscription) ||
+		errors.Is(err, errPaidWithoutCredits) ||
+		errors.Is(err, ErrRefundNeedsReview) ||
 		errors.Is(err, ErrEnvironmentMismatch) ||
 		errors.Is(err, model.ErrBillingAccountTaken) ||
 		errors.Is(err, model.ErrUserNotFound)
@@ -207,8 +217,10 @@ func SkipReport(err error) (message string, severity SkipSeverity) {
 		return "Billing event dropped: the Jobber user it names no longer exists", SkipLostEvent
 	case errors.Is(err, errSecondSubscription):
 		return "Billing event for a second subscription that cannot replace the linked live one", SkipNeedsReview
+	case errors.Is(err, errPaidWithoutCredits):
+		return "Billing payment applied without AI credits", SkipNeedsReview
 	case errors.Is(err, ErrRefundNeedsReview):
-		return "Billing refund or dispute observed, no subscription changed by it", SkipNeedsReview
+		return "Billing refund or dispute: the payment's AI credits are held, no subscription changed by it", SkipNeedsReview
 	default:
 		return "Billing event acknowledged without changes", SkipRoutine
 	}
@@ -270,25 +282,27 @@ func (s *SubscriptionService) applySubscriptionEvent(ctx context.Context, event 
 	// One statement claims the event and writes the state, so a failure can never
 	// record the event as processed while losing what it carried.
 	var outcome model.WebhookApplyOutcome
+	var withheldCredits error
 	if event.Type == creem.EventSubscriptionPaid {
-		grant, grantErr := s.paidCreditGrant(ctx, event, incoming, existing.UserID)
-		if grantErr != nil {
-			return grantErr
-		}
-		ledger, ok := s.repo.(interface {
-			ApplyPaidCreditEvent(context.Context, string, string, *model.Subscription, model.PaidCreditGrant) (model.WebhookApplyOutcome, error)
-		})
-		if !ok {
-			return model.ErrCreditUnavailable
-		}
-		outcome, err = ledger.ApplyPaidCreditEvent(ctx, event.ID, event.Type, updated, grant)
+		outcome, withheldCredits, err = s.applyPaidEvent(ctx, event, incoming, updated)
 	} else {
 		outcome, err = s.repo.ApplySubscriptionEvent(ctx, event.ID, event.Type, updated)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to apply subscription event: %w", err)
 	}
-	return outcomeError(outcome, existing, incoming.ID, status, eventAt)
+	stateErr := outcomeError(outcome, existing, incoming.ID, status, eventAt)
+	if withheldCredits == nil || errors.Is(stateErr, errEventDuplicate) ||
+		(stateErr != nil && !isAcknowledgedSkip(stateErr)) {
+		return stateErr
+	}
+	if stateErr == nil {
+		return withheldCredits
+	}
+	// The payment is news even when the state it carries is not: a plan change
+	// emits subscription.update and subscription.paid under one updated_at, so the
+	// paid event loses the ordering tie while being the only word on its charge.
+	return fmt.Errorf("%w; %w", withheldCredits, stateErr)
 }
 
 // entitlementFor decides the status and plan an event grants.

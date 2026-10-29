@@ -188,7 +188,7 @@ func testBillingConfig() service.BillingConfig {
 	return service.BillingConfig{
 		WebhookSecret:       testWebhookSecret,
 		Environment:         service.EnvironmentTest,
-		SuccessURL:          "https://jobber.test/settings?subscription=success",
+		SuccessURL:          "https://jobber.test/app/settings?subscription=success",
 		ProProductID:        testProProductID,
 		EnterpriseProductID: testEnterpriseProductID,
 	}

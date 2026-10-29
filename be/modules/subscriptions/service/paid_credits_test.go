@@ -69,22 +69,109 @@ func TestPaidCreditsRequireSettledUndiscountedUSDInvoiceAndMatchingPeriod(t *tes
 				require.NoError(t, json.NewEncoder(w).Encode(transaction))
 			}))
 			defer server.Close()
-			ledger := &paidLedgerFixture{MockSubscriptionRepository: &MockSubscriptionRepository{GetByUserIDFunc: func(_ context.Context, owner string) (*model.Subscription, error) {
-				return &model.Subscription{UserID: owner, Plan: "free", Status: "free"}, nil
-			}}}
+			var lifecycleOnly []*model.Subscription
+			ledger := &paidLedgerFixture{MockSubscriptionRepository: ownedRepo(&lifecycleOnly, model.WebhookApplied)}
 			svc := NewSubscriptionService(ledger, creem.NewClient(creem.Config{APIKey: "fake-only", BaseURL: server.URL}), testBillingConfig())
 			body, signature := signed(t, "paid", creem.EventSubscriptionPaid, subscriptionObject(map[string]any{"product": paidProductFixture(), "last_transaction_id": "tran_paid"}))
-			_, err := svc.HandleWebhook(context.Background(), body, signature)
+			result, err := svc.HandleWebhook(context.Background(), body, signature)
+			require.NoError(t, err, "a payment is judged, never retried")
 			if tc.allowed {
-				require.NoError(t, err)
+				require.NoError(t, result.Skipped)
 				require.Len(t, ledger.grants, 1)
 				require.Equal(t, "tran_paid", ledger.grants[0].TransactionID)
+				require.Empty(t, lifecycleOnly)
 			} else {
-				require.Error(t, err)
+				require.ErrorIs(t, result.Skipped, errPaidWithoutCredits)
 				require.Empty(t, ledger.grants)
+				require.Len(t, lifecycleOnly, 1, "the plan the payment bought is applied without the grant")
+				require.Equal(t, PlanPro, lifecycleOnly[0].Plan)
+				require.Equal(t, StatusActive, lifecycleOnly[0].Status)
 			}
 		})
 	}
+}
+
+func TestPaidEventWithoutQualifyingPaymentStillMovesTheSubscription(t *testing.T) {
+	cases := []struct {
+		name     string
+		object   map[string]any
+		wantPlan string
+	}{
+		{
+			name:     "a payment for another plan grants that plan without credits",
+			object:   subscriptionObject(map[string]any{"product": map[string]any{"id": testEnterpriseProductID}, "last_transaction_id": "tran_paid"}),
+			wantPlan: PlanEnterprise,
+		},
+		{
+			name:     "a payment with no transaction to verify grants the plan without credits",
+			object:   subscriptionObject(map[string]any{"product": paidProductFixture()}),
+			wantPlan: PlanPro,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var lifecycleOnly []*model.Subscription
+			ledger := &paidLedgerFixture{MockSubscriptionRepository: ownedRepo(&lifecycleOnly, model.WebhookApplied)}
+			svc := NewSubscriptionService(ledger, creem.NewClient(creem.Config{}), testBillingConfig())
+			body, signature := signed(t, "paid", creem.EventSubscriptionPaid, tc.object)
+
+			result, err := svc.HandleWebhook(context.Background(), body, signature)
+
+			require.NoError(t, err)
+			require.ErrorIs(t, result.Skipped, errPaidWithoutCredits)
+			require.Empty(t, ledger.grants)
+			require.Len(t, lifecycleOnly, 1)
+			require.Equal(t, tc.wantPlan, lifecycleOnly[0].Plan)
+		})
+	}
+}
+
+func TestPaidEventIsRetriedWhenThePaymentCannotBeChecked(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+	var lifecycleOnly []*model.Subscription
+	ledger := &paidLedgerFixture{MockSubscriptionRepository: ownedRepo(&lifecycleOnly, model.WebhookApplied)}
+	svc := NewSubscriptionService(ledger, creem.NewClient(creem.Config{APIKey: "fake-only", BaseURL: server.URL}), testBillingConfig())
+	body, signature := signed(t, "paid", creem.EventSubscriptionPaid, subscriptionObject(map[string]any{"product": paidProductFixture(), "last_transaction_id": "tran_paid"}))
+
+	_, err := svc.HandleWebhook(context.Background(), body, signature)
+
+	require.ErrorIs(t, err, ErrEventFailed)
+	require.Empty(t, ledger.grants)
+	require.Empty(t, lifecycleOnly, "nothing is written while the payment is unverified, so the retry gets a clean run")
+}
+
+// A plan change emits subscription.update and subscription.paid with one
+// updated_at (test mode, 2026-10-28), so the paid event loses the tie; its charge
+// still went uncredited and must not be filed as a routine replay.
+func TestPaidEventWithoutCreditsIsReportedWhenItsStateIsSuperseded(t *testing.T) {
+	var lifecycleOnly []*model.Subscription
+	ledger := &paidLedgerFixture{MockSubscriptionRepository: ownedRepo(&lifecycleOnly, model.WebhookSuperseded)}
+	svc := NewSubscriptionService(ledger, creem.NewClient(creem.Config{}), testBillingConfig())
+	body, signature := signed(t, "paid", creem.EventSubscriptionPaid, subscriptionObject(map[string]any{"product": map[string]any{"id": testEnterpriseProductID}}))
+
+	result, err := svc.HandleWebhook(context.Background(), body, signature)
+
+	require.NoError(t, err)
+	require.ErrorIs(t, result.Skipped, errPaidWithoutCredits)
+	require.ErrorIs(t, result.Skipped, errEventSuperseded)
+	_, severity := SkipReport(result.Skipped)
+	require.Equal(t, SkipNeedsReview, severity)
+}
+
+func TestPaidEventWithoutCreditsIsNotReportedAgainOnReplay(t *testing.T) {
+	var lifecycleOnly []*model.Subscription
+	ledger := &paidLedgerFixture{MockSubscriptionRepository: ownedRepo(&lifecycleOnly, model.WebhookDuplicate)}
+	svc := NewSubscriptionService(ledger, creem.NewClient(creem.Config{}), testBillingConfig())
+	body, signature := signed(t, "paid", creem.EventSubscriptionPaid, subscriptionObject(map[string]any{"product": map[string]any{"id": testEnterpriseProductID}}))
+
+	result, err := svc.HandleWebhook(context.Background(), body, signature)
+
+	require.NoError(t, err)
+	require.ErrorIs(t, result.Skipped, errEventDuplicate)
+	require.NotErrorIs(t, result.Skipped, errPaidWithoutCredits)
 }
 func TestCheckoutValidatesCurrentCatalogEveryTimeAndPinsOneUnit(t *testing.T) {
 	price := int64(2400)
@@ -126,8 +213,9 @@ func TestRefundAndDisputeHoldTransactionBeforeAnyPaidGrant(t *testing.T) {
 			ledger := &paidLedgerFixture{MockSubscriptionRepository: &MockSubscriptionRepository{}}
 			svc := NewSubscriptionService(ledger, creem.NewClient(creem.Config{}), testBillingConfig())
 			body, signature := signed(t, "hold", kind, map[string]any{"mode": "test", "transaction": map[string]string{"id": "tran_hold"}})
-			_, err := svc.HandleWebhook(context.Background(), body, signature)
+			result, err := svc.HandleWebhook(context.Background(), body, signature)
 			require.NoError(t, err)
+			require.ErrorIs(t, result.Skipped, ErrRefundNeedsReview, "money left the account, so the hold is reported for a person")
 			require.Equal(t, []string{"test:tran_hold"}, ledger.holds)
 			require.Empty(t, ledger.grants)
 		})
@@ -154,8 +242,9 @@ func TestPaidCreditsAcceptDocumentedSandboxAndRefundModes(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, ledger.grants, 1)
 			body, signature = signed(t, "refund", creem.EventRefundCreated, map[string]any{"mode": mode, "transaction_id": "tran_paid"})
-			_, err = svc.HandleWebhook(context.Background(), body, signature)
+			result, err := svc.HandleWebhook(context.Background(), body, signature)
 			require.NoError(t, err)
+			require.ErrorIs(t, result.Skipped, ErrRefundNeedsReview)
 			require.Equal(t, []string{"test:tran_paid"}, ledger.holds)
 		})
 	}

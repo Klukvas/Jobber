@@ -681,6 +681,7 @@ func TestSkipReport(t *testing.T) {
 		{name: "environment mismatch loses the event", err: ErrEnvironmentMismatch, wantSeverity: SkipLostEvent},
 		{name: "customer shared by two users loses a paid purchase", err: model.ErrBillingAccountTaken, wantSeverity: SkipLostEvent},
 		{name: "refund needs a person", err: ErrRefundNeedsReview, wantSeverity: SkipNeedsReview},
+		{name: "a payment applied without credits needs a person", err: errPaidWithoutCredits, wantSeverity: SkipNeedsReview},
 		{name: "a deleted user's purchase loses the event", err: model.ErrUserNotFound, wantSeverity: SkipLostEvent},
 		{name: "a second subscription needs a person", err: errSecondSubscription, wantSeverity: SkipNeedsReview},
 		{name: "nothing to end is routine", err: errNothingToEnd, wantSeverity: SkipRoutine},

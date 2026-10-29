@@ -12,7 +12,7 @@ nothing, and those rows are preserved exactly as they stand — see
 | | FastSpring (ADR-0002) | Creem |
 | --- | --- | --- |
 | Checkout | Store Builder Library popup opened with a session id | Full-page redirect to a Creem-hosted checkout URL |
-| Return | popup close callback + `?subscription=success` | `success_url` → `/settings?subscription=success` |
+| Return | popup close callback + `?subscription=success` | `success_url` → `/app/settings?subscription=success` |
 | Webhook | batch of events, base64 HMAC in `X-FS-Signature`, 200/202/503 ack | one event per POST, hex HMAC-SHA256 in `creem-signature`, 200 = delivered |
 | Retries | 7 days, 12 attempts | 5 attempts, **24 hours** |
 | Missed events | pull `GET /events/unprocessed` (reconciliation sweep) | none available — see below |
@@ -91,9 +91,16 @@ Deliberately **not** acted on:
 - `subscription.expired` — Creem keeps `status: active` while it retries the
   charge; the subscription is over only when `subscription.canceled` follows.
 - `refund.created` / `dispute.created` — a refund is not a cancellation (a partial
-  refund leaves the subscription billing). They are logged at `warn` so money
-  leaving the account is never invisible; ending the subscription is a merchant
-  decision made in the dashboard and arrives here as `subscription.canceled`.
+  refund leaves the subscription billing), so the subscription is untouched. The
+  AI credits granted for the refunded transaction are held (revoked, even on a
+  partial refund), and the event is logged at `warn` so money leaving the account
+  is never invisible; ending the subscription is a merchant decision made in the
+  dashboard and arrives here as `subscription.canceled`.
+- a `subscription.paid` whose payment does not qualify for the period's AI credits
+  (a prorated plan-change charge, a discount, a product other than Pro) still
+  applies the subscription state — Creem sends no `subscription.active`, so this is
+  the event that grants a first purchase — and is acknowledged at `warn` without a
+  grant. Only a failure to *check* the payment (Creem unreachable) is retried.
 - everything else (`credits.*`, …) — acknowledged, `info` log.
 
 ### What stays from ADR-0002
@@ -321,8 +328,9 @@ navigation, not a script, frame, request or form post.
   shows the end date; the period end then produces `subscription.canceled`.
 - [ ] **Plan change** via `/upgrade` produces a `subscription.update` whose product is
   the new one (the parser reads `product`, falling back to `items[0].product_id`).
-- [ ] **`success_url`** lands on `/settings?subscription=success` and the extra query
-  parameters Creem appends are harmless.
+- [x] **`success_url`** lands on `/app/settings?subscription=success` and the extra query
+  parameters Creem appends are harmless. (Test mode, 2026-10-28: the original
+  `/settings` path was the 404 page.)
 - [ ] **Webhook subscriptions and signing secret** set in Developers → Webhooks for
   `checkout.completed`, `subscription.*`, `refund.created`, `dispute.created`;
   test and live events go to separate webhook URLs per Creem's test-mode page;

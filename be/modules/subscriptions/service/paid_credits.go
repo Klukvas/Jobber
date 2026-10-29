@@ -25,6 +25,42 @@ func (s *SubscriptionService) validateProCatalog(ctx context.Context) error {
 	return nil
 }
 
+// applyPaidEvent writes a subscription.paid together with the period's credit
+// grant when the payment qualifies for one.
+//
+// A payment that does not qualify — a prorated plan-change charge, a discount, a
+// product other than Pro — still carries the subscription's state, and Creem sends
+// no subscription.active, so this event is what grants a first purchase. Its state
+// is written without a grant and errPaidWithoutCredits says why. Only a failure to
+// check the payment (Creem unreachable, a malformed object) is returned as err and
+// retried.
+func (s *SubscriptionService) applyPaidEvent(
+	ctx context.Context, event creem.Event, incoming *creem.Subscription, updated *model.Subscription,
+) (outcome model.WebhookApplyOutcome, withheldCredits, err error) {
+	grant, grantErr := s.paidCreditGrant(ctx, event, incoming, updated.UserID)
+	if isIneligiblePayment(grantErr) {
+		outcome, err = s.repo.ApplySubscriptionEvent(ctx, event.ID, event.Type, updated)
+		return outcome, fmt.Errorf("%w: %w", errPaidWithoutCredits, grantErr), err
+	}
+	if grantErr != nil {
+		return "", nil, grantErr
+	}
+	ledger, ok := s.repo.(interface {
+		ApplyPaidCreditEvent(context.Context, string, string, *model.Subscription, model.PaidCreditGrant) (model.WebhookApplyOutcome, error)
+	})
+	if !ok {
+		return "", nil, model.ErrCreditUnavailable
+	}
+	outcome, err = ledger.ApplyPaidCreditEvent(ctx, event.ID, event.Type, updated, grant)
+	return outcome, nil, err
+}
+
+// isIneligiblePayment reports whether paidCreditGrant judged the payment itself,
+// as opposed to failing to look at it: no retry can make such a payment qualify.
+func isIneligiblePayment(err error) bool {
+	return errors.Is(err, model.ErrCreditUnavailable) || errors.Is(err, model.ErrUnknownPlan)
+}
+
 func (s *SubscriptionService) paidCreditGrant(ctx context.Context, event creem.Event, incoming *creem.Subscription, owner string) (model.PaidCreditGrant, error) {
 	var payment struct {
 		Mode        string          `json:"mode"`
@@ -111,5 +147,8 @@ func (s *SubscriptionService) holdCreditPayment(ctx context.Context, event creem
 	if !ok {
 		return model.ErrCreditUnavailable
 	}
-	return ledger.HoldCreditPayment(ctx, event.ID, event.Type, mode, id)
+	if err := ledger.HoldCreditPayment(ctx, event.ID, event.Type, mode, id); err != nil {
+		return err
+	}
+	return fmt.Errorf("%w: transaction %q", ErrRefundNeedsReview, id)
 }

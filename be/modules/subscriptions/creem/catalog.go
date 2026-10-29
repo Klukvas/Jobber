@@ -19,7 +19,9 @@ type Product struct {
 	BillingType   string `json:"billing_type"`
 	BillingPeriod string `json:"billing_period"`
 	Status        string `json:"status"`
-	TrialPeriod   int64  `json:"trial_period"`
+	// TrialPeriod is in days; the API names it trial_period_days and sends null
+	// for a product without a trial.
+	TrialPeriod int64 `json:"trial_period_days"`
 }
 
 func (p Product) IsProMonthly(id string, live bool) bool {

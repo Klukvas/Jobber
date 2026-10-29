@@ -16,10 +16,12 @@ import (
 // first purchase is linked to the user who started it.
 const metadataUserIDKey = "jobber_user_id"
 
-// checkoutSuccessPath is where Creem sends the buyer after paying. The frontend
-// reads the `subscription` parameter (Settings and AppLayout), so the two must
-// agree; Creem appends its own query parameters, which are ignored.
-const checkoutSuccessPath = "/settings?subscription=success"
+// checkoutSuccessPath is where Creem sends the buyer after paying. The Settings
+// page is only routed under /app (fe/src/app/router.tsx); a bare /settings is the
+// 404 page, where AppLayout never mounts to watch for the plan change. The
+// frontend reads the `subscription` parameter (Settings and AppLayout), so the
+// two must agree; Creem appends its own query parameters, which are ignored.
+const checkoutSuccessPath = "/app/settings?subscription=success"
 
 // CheckoutSuccessURL builds the success_url for a public base URL.
 func CheckoutSuccessURL(publicBaseURL string) string {
