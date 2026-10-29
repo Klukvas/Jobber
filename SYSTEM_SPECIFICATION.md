@@ -3956,6 +3956,27 @@ kind, optional paid period end, monetary limit and allocation in nanodollars) an
 Common errors are 403 `CREDIT_UNAVAILABLE`, 503 `AI_BUDGET_REACHED` and
 409 `AI_OPERATION_CONFLICT`. `Idempotency-Key` is CORS-allowed.
 
+Web and extension Resume / Job match first use authenticated cache-only
+`GET /api/v1/match-score?job_id=<uuid>&resume_id=<uuid>`. It validates UUIDs and
+checks ownership of both the Job and Uploaded Resume before reading the cache.
+A hit returns the saved `MatchScoreResponse` with `from_cache: true`, without
+credit confirmation, subscription lookup, allowance checks, downloads or AI.
+It remains available at balances 0–4 and while AI/provider funding is unavailable.
+All GET responses, including errors, are `Cache-Control: private, no-store`.
+Only 404 `MATCH_SCORE_NOT_READY` means an owned cache miss; auth, ownership,
+validation, storage, transport and malformed-response failures stop the client.
+GET never generates or persists a result. On an exact miss clients retain the
+normal 5-credit confirmation and guarded `POST /api/v1/match-score`: insufficient
+balance or cancellation sends no POST, and explicit acceptance sends one logical
+paid request. The POST remains registered only when AI is configured; its credit,
+budget and idempotency guards are unchanged. Leaving the originating web route,
+form, Job or resume selection cancels pending lookup/confirmation UI effects.
+The extension also binds matching to its originating save form, selected resume,
+active browser tab/page and authenticated session. Save Another, changing those
+contexts or closing the panel suppresses late results/errors and prevents a
+pending lookup or credit read from opening confirmation or sending a paid POST.
+Cancellation after paid dispatch suppresses stale UI without aborting its transport.
+
 Extension Autofill has a free cache-only
 `GET /api/v1/resumes/:id/autofill-profile`: a cache miss returns 404
 `AUTOFILL_PROFILE_NOT_READY` without AI. Explicitly confirmed

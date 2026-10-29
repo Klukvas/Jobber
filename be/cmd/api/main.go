@@ -495,6 +495,11 @@ func main() {
 		coverLetterExportHdl.SetDOCXService(docxSvc)
 	}
 
+	// Cache viewing remains available without a provider, storage client or allowance.
+	matchScoreCacheSvc := matchScoreService.NewMatchScoreService(nil, nil, jobRepository, resumeRepository, nil, matchScoreCacheRepo)
+	matchScoreCacheHdl := matchScoreHandler.NewMatchScoreHandler(matchScoreCacheSvc)
+	matchScoreCacheHdl.RegisterCacheRoutes(router.Group("/api/v1"), authMiddleware)
+
 	// Initialize AI client for job import, match scoring, and resume AI (optional — only if ANTHROPIC_API_KEY is set)
 	var importHdl *importHandler.ImportHandler
 	var matchScoreHdl *matchScoreHandler.MatchScoreHandler

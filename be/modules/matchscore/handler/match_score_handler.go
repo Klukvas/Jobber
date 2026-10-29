@@ -24,6 +24,47 @@ func NewMatchScoreHandler(service *service.MatchScoreService) *MatchScoreHandler
 	return &MatchScoreHandler{service: service}
 }
 
+// GetCachedMatch never starts AI: only an explicit cache miss permits a client to offer paid work.
+func (h *MatchScoreHandler) GetCachedMatch(c *gin.Context) {
+	c.Header("Cache-Control", "private, no-store")
+	userID, exists := auth.GetUserID(c)
+	if !exists {
+		httpPlatform.RespondWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized")
+		return
+	}
+	var query struct {
+		JobID    string `form:"job_id" binding:"required,uuid"`
+		ResumeID string `form:"resume_id" binding:"required,uuid"`
+	}
+	if err := c.ShouldBindQuery(&query); err != nil {
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, string(model.CodeValidationError), "Valid job_id and resume_id are required")
+		return
+	}
+	result, err := h.service.GetCachedMatch(c.Request.Context(), userID, &model.MatchScoreRequest{JobID: query.JobID, ResumeID: query.ResumeID})
+	if err != nil {
+		switch {
+		case errors.Is(err, jobModel.ErrJobNotFound):
+			httpPlatform.RespondWithError(c, http.StatusNotFound, "JOB_NOT_FOUND", "Job not found")
+		case errors.Is(err, resumeModel.ErrResumeNotFound):
+			httpPlatform.RespondWithError(c, http.StatusNotFound, "RESUME_NOT_FOUND", "Resume not found")
+		case errors.Is(err, model.ErrCacheMiss):
+			httpPlatform.RespondWithError(c, http.StatusNotFound, "MATCH_SCORE_NOT_READY", "No saved match analysis")
+		default:
+			httpPlatform.RespondWithError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Could not read saved match analysis")
+		}
+		return
+	}
+	httpPlatform.RespondWithData(c, http.StatusOK, result)
+}
+
+// RegisterCacheRoutes is independent of provider configuration and paid POST registration.
+func (h *MatchScoreHandler) RegisterCacheRoutes(router *gin.RouterGroup, authMiddleware gin.HandlerFunc) {
+	router.GET("/match-score", func(c *gin.Context) {
+		c.Header("Cache-Control", "private, no-store")
+		c.Next()
+	}, authMiddleware, h.GetCachedMatch)
+}
+
 // CheckMatch godoc
 // @Summary Check resume-job match score
 // @Description Analyzes how well a resume matches a job posting using AI

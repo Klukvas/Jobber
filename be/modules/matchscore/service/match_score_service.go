@@ -64,6 +64,29 @@ func NewMatchScoreService(
 	}
 }
 
+// GetCachedMatch reads an existing owned result without checking allowance or starting AI.
+func (s *MatchScoreService) GetCachedMatch(ctx context.Context, userID string, req *model.MatchScoreRequest) (*model.MatchScoreResponse, error) {
+	if _, err := s.jobRepo.GetByID(ctx, userID, req.JobID); err != nil {
+		return nil, fmt.Errorf("get owned job: %w", err)
+	}
+	if _, err := s.resumeRepo.GetByID(ctx, userID, req.ResumeID); err != nil {
+		return nil, fmt.Errorf("get owned resume: %w", err)
+	}
+	if s.cacheRepo == nil {
+		return nil, errors.New("match score cache unavailable")
+	}
+	cached, err := s.cacheRepo.Get(ctx, userID, req.JobID, req.ResumeID)
+	if err != nil {
+		return nil, fmt.Errorf("get cached match: %w", err)
+	}
+	if cached == nil {
+		return nil, model.ErrCacheMiss
+	}
+	result := *cached
+	result.FromCache = true
+	return &result, nil
+}
+
 // CheckMatch analyzes how well a resume matches a job posting.
 func (s *MatchScoreService) CheckMatch(ctx context.Context, userID string, req *model.MatchScoreRequest) (*model.MatchScoreResponse, error) {
 	// Check cache first — a hit skips AI call and quota entirely
