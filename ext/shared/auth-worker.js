@@ -2,7 +2,8 @@
 const JobberAuth = (() => {
   const API_BASE = "https://cursopus.com";
   const ALLOWED_ORIGINS = ["https://cursopus.com", "http://localhost:8080"];
-  const PRIVATE_KEYS = ["accessToken", "refreshToken", "autofillProfile", "autofillSessionId", "autofillProfileRequest"];
+  // importedUrls marks jobs as saved on board pages; another account must not inherit them.
+  const PRIVATE_KEYS = ["accessToken", "refreshToken", "autofillProfile", "autofillSessionId", "autofillProfileRequest", "importedUrls"];
   let writes = Promise.resolve();
   let flight = null;
   let retryAfter = 0;

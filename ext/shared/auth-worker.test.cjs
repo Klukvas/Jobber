@@ -179,3 +179,8 @@ test('update drops an autofill profile saved before session binding and keeps a 
   await Promise.all(bound.workerChrome.runtime.onInstalled.emit({reason:'update',previousVersion:'1.1.6'}));
   assert.equal(bound.local.autofillProfile.contact.full_name,'Bound Applicant');
 });
+test('logout forgets which jobs the previous account saved',async()=>{
+  const fetch=async()=>Response.json({});const engine=extensionFixture({fetch,stored:{accessToken:'synthetic',refreshToken:'synthetic',authSessionId:'session-a',importedUrls:['https://fixture.invalid/private-a']}});
+  const api=panel(engine,fetch);await api.init();await api.logout();
+  assert.equal(engine.local.accessToken,undefined);assert.equal(engine.local.importedUrls,undefined);
+});
