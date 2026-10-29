@@ -1,4 +1,5 @@
 import * as React from "react";
+import { isTopmostOverlay } from "./useTopmostEscape";
 
 import { isRendered } from "@/shared/lib/visibility";
 
@@ -150,7 +151,7 @@ export function useDialogFocus(
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Tab") return;
       const container = containerRef.current;
-      if (!container) return;
+      if (!container || !isTopmostOverlay(container)) return;
 
       const focusable = getFocusableElements(container);
       const active = document.activeElement as HTMLElement | null;

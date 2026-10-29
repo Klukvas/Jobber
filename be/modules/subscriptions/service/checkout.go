@@ -16,10 +16,12 @@ import (
 // first purchase is linked to the user who started it.
 const metadataUserIDKey = "jobber_user_id"
 
-// checkoutSuccessPath is where Creem sends the buyer after paying. The frontend
-// reads the `subscription` parameter (Settings and AppLayout), so the two must
-// agree; Creem appends its own query parameters, which are ignored.
-const checkoutSuccessPath = "/settings?subscription=success"
+// checkoutSuccessPath is where Creem sends the buyer after paying. The Settings
+// page is only routed under /app (fe/src/app/router.tsx); a bare /settings is the
+// 404 page, where AppLayout never mounts to watch for the plan change. The
+// frontend reads the `subscription` parameter (Settings and AppLayout), so the
+// two must agree; Creem appends its own query parameters, which are ignored.
+const checkoutSuccessPath = "/app/settings?subscription=success"
 
 // CheckoutSuccessURL builds the success_url for a public base URL.
 func CheckoutSuccessURL(publicBaseURL string) string {
@@ -50,10 +52,12 @@ func (s *SubscriptionService) CreateCheckoutSession(ctx context.Context, userID,
 	if err := s.ensureNotAlreadySubscribed(ctx, userID); err != nil {
 		return nil, err
 	}
-
 	contact, err := s.repo.GetUserContact(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load buyer contact: %w", err)
+	}
+	if err := s.validateProCatalog(ctx); err != nil {
+		return nil, err
 	}
 	// The webhook that grants the plan writes into this row, so it has to exist.
 	if err := s.repo.EnsureFree(ctx, userID); err != nil {
@@ -62,6 +66,7 @@ func (s *SubscriptionService) CreateCheckoutSession(ctx context.Context, userID,
 
 	checkout, err := s.billing.CreateCheckout(ctx, creem.CheckoutRequest{
 		ProductID:  productID,
+		Units:      1,
 		SuccessURL: s.cfg.SuccessURL,
 		Customer:   &creem.CheckoutCustomer{Email: contact.Email, Name: contact.Name},
 		Metadata:   map[string]string{metadataUserIDKey: userID},
@@ -92,6 +97,9 @@ func (s *SubscriptionService) ChangePlan(ctx context.Context, userID, newPlan st
 		return err
 	}
 
+	if err := s.validateProCatalog(ctx); err != nil {
+		return err
+	}
 	if err := s.billing.UpgradeSubscription(ctx, subscriptionID, productID); err != nil {
 		return fmt.Errorf("failed to change plan: %w", err)
 	}

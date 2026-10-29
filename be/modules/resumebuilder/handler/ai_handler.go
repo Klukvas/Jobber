@@ -56,6 +56,9 @@ func (h *AIHandler) SuggestBullets(c *gin.Context) {
 
 	result, err := h.aiService.SuggestBulletPoints(c.Request.Context(), userID, req.JobTitle, req.Company, req.CurrentDescription)
 	if err != nil {
+		if httpPlatform.RespondAIError(c, err) {
+			return
+		}
 		h.handleError(c, err)
 		return
 	}
@@ -88,6 +91,9 @@ func (h *AIHandler) SuggestSummary(c *gin.Context) {
 
 	summary, err := h.aiService.SuggestSummary(c.Request.Context(), userID, req.ResumeID)
 	if err != nil {
+		if httpPlatform.RespondAIError(c, err) {
+			return
+		}
 		h.handleError(c, err)
 		return
 	}
@@ -116,6 +122,9 @@ func (h *AIHandler) ImproveText(c *gin.Context) {
 
 	improved, err := h.aiService.ImproveText(c.Request.Context(), userID, req.Text, req.Instruction)
 	if err != nil {
+		if httpPlatform.RespondAIError(c, err) {
+			return
+		}
 		h.handleError(c, err)
 		return
 	}
@@ -153,6 +162,9 @@ func (h *AIHandler) ATSCheck(c *gin.Context) {
 
 	result, err := h.aiService.ATSCheck(c.Request.Context(), userID, resumeID, req.Locale)
 	if err != nil {
+		if httpPlatform.RespondAIError(c, err) {
+			return
+		}
 		h.handleError(c, err)
 		return
 	}

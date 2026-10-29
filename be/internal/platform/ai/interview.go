@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"errors"
+	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"strings"
 
 	"github.com/andreypavlenko/jobber/internal/platform/circuitbreaker"
@@ -18,6 +19,12 @@ var ErrInterviewNotDispatched = errors.New("interview provider not dispatched")
 // path disables SDK retries: each durable operation permits at most 3 explicit
 // attempts and cannot accidentally multiply provider calls behind that budget.
 func (c *AnthropicClient) Interview(ctx context.Context, kind string, payload []byte, dispatched func() error) ([]byte, error) {
+	return c.interviewPrepared(ctx, kind, payload, dispatched, nil)
+}
+func (c *AnthropicClient) InterviewPrepared(ctx context.Context, kind string, payload []byte, prepare func() (func() error, error)) ([]byte, error) {
+	return c.interviewPrepared(ctx, kind, payload, nil, prepare)
+}
+func (c *AnthropicClient) interviewPrepared(ctx context.Context, kind string, payload []byte, dispatched func() error, prepare func() (func() error, error)) ([]byte, error) {
 	if len(payload) > 120000 {
 		return nil, ErrInterviewNotDispatched
 	}
@@ -48,26 +55,29 @@ Followup when present: {"question":"clarifying question","purpose":"what this cl
 		return nil, ErrInterviewNotDispatched
 	}
 	params := anthropic.MessageNewParams{Model: anthropic.ModelClaudeHaiku4_5_20251001, MaxTokens: 12000, System: []anthropic.TextBlockParam{{Text: system}}, Messages: []anthropic.MessageParam{anthropic.NewUserMessage(anthropic.NewTextBlock(string(payload)))}}
-	var response *anthropic.Message
-	var err error
-	if c.callAPIFunc != nil {
-		if dispatched != nil {
-			if err := dispatched(); err != nil {
-				return nil, err
+	response, err := c.budgetedPreparedMessage(ctx, params, prepare, func(release func() error) (*anthropic.Message, error) {
+		if prepare != nil {
+			dispatched = release
+		}
+		var response *anthropic.Message
+		var err error
+		if c.callAPIFunc != nil {
+			if dispatched != nil {
+				if err := dispatched(); err != nil {
+					return nil, err
+				}
+			}
+			response, err = c.callAPIFunc(ctx, params)
+		} else {
+			callCtx, cancel, client, dispatchErr := interviewHTTP(ctx, dispatched)
+			defer cancel()
+			response, err = c.client.Messages.New(callCtx, params, option.WithMaxRetries(0), option.WithHTTPClient(client))
+			if e := dispatchErr(); e != nil {
+				return nil, e
 			}
 		}
-		response, err = c.callAPIFunc(ctx, params)
-	} else {
-		callCtx, cancel, client, dispatchErr := interviewHTTP(ctx, dispatched)
-		defer cancel()
-		err = c.breaker.Execute(func() error {
-			response, err = c.client.Messages.New(callCtx, params, option.WithMaxRetries(0), option.WithHTTPClient(client))
-			return err
-		})
-		if e := dispatchErr(); e != nil {
-			return nil, e
-		}
-	}
+		return response, err
+	})
 	if err != nil {
 		if errors.Is(err, circuitbreaker.ErrCircuitOpen) {
 			return nil, ErrInterviewNotDispatched
@@ -77,6 +87,12 @@ Followup when present: {"question":"clarifying question","purpose":"what this cl
 		}
 		if errors.Is(err, context.Canceled) {
 			return nil, context.Canceled
+		}
+		if errors.Is(err, ErrInterviewPreparationFailed) {
+			return nil, err
+		}
+		if errors.Is(err, subModel.ErrAIBudgetReached) || errors.Is(err, subModel.ErrCreditUnavailable) || errors.Is(err, subModel.ErrAIOperationConflict) {
+			return nil, err
 		}
 		return nil, errors.New("interview provider request failed")
 	}

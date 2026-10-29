@@ -299,6 +299,11 @@ func main() {
 	analyticsRepository := analyticsRepo.NewAnalyticsRepository(pgClient.Pool)
 	sharingRepository := sharingRepo.NewSharingRepository(pgClient.Pool)
 	subscriptionRepository := subRepo.NewSubscriptionRepository(pgClient.Pool)
+	budgetConfigured := true
+	if err := subscriptionRepository.ConfigureAIBudget(ctx, cfg.AIProviderBudgetNanodollars); err != nil {
+		budgetConfigured = false
+		logger.Warn("AI budget unavailable; provider calls fail closed", zap.Error(err))
+	}
 
 	// Initialize subscription service (used as limit checker by other services)
 	creemClient := creem.NewClient(creem.Config{
@@ -490,6 +495,11 @@ func main() {
 		coverLetterExportHdl.SetDOCXService(docxSvc)
 	}
 
+	// Cache viewing remains available without a provider, storage client or allowance.
+	matchScoreCacheSvc := matchScoreService.NewMatchScoreService(nil, nil, jobRepository, resumeRepository, nil, matchScoreCacheRepo)
+	matchScoreCacheHdl := matchScoreHandler.NewMatchScoreHandler(matchScoreCacheSvc)
+	matchScoreCacheHdl.RegisterCacheRoutes(router.Group("/api/v1"), authMiddleware)
+
 	// Initialize AI client for job import, match scoring, and resume AI (optional — only if ANTHROPIC_API_KEY is set)
 	var importHdl *importHandler.ImportHandler
 	var matchScoreHdl *matchScoreHandler.MatchScoreHandler
@@ -502,6 +512,9 @@ func main() {
 	var autofillProfileHdl *resumeHandler.AutofillProfileHandler
 	if cfg.Anthropic.APIKey != "" {
 		aiClient := ai.NewAnthropicClient(cfg.Anthropic.APIKey)
+		if budgetConfigured {
+			aiClient.SetCreditStore(subscriptionRepository)
+		}
 		tailoringAI = aiClient
 		interviewAI = aiClient
 		importSvc := importService.NewImportService(aiClient, subscriptionSvc)

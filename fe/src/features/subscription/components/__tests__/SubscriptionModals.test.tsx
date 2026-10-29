@@ -163,7 +163,7 @@ describe("PricingModal", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("renders all three plan cards", () => {
+  it("renders only Free and Pro", () => {
     renderWithClient(<PricingModal open={true} onOpenChange={vi.fn()} />);
     expect(
       screen.getByText("settings.subscription.freePlan"),
@@ -172,8 +172,8 @@ describe("PricingModal", () => {
       screen.getByText("settings.subscription.proPlan"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("settings.subscription.enterprisePlan"),
-    ).toBeInTheDocument();
+      screen.queryByText("settings.subscription.enterprisePlan"),
+    ).not.toBeInTheDocument();
   });
 
   it("marks current plan with badge", () => {
@@ -294,9 +294,9 @@ describe("an existing subscriber changes plan instead of buying again", () => {
   // provider with nothing pointing at it. The backend answers 409; the UI must
   // never get that far.
 
-  it("PricingModal sends pro -> enterprise through change-plan, never checkout", async () => {
-    subscription.plan = "pro";
-    subscription.nextPlan = "enterprise";
+  it("PricingModal sends legacy Enterprise -> Pro through change-plan, never checkout", async () => {
+    subscription.plan = "enterprise";
+    subscription.nextPlan = "pro";
     const onOpenChange = vi.fn();
 
     renderWithClient(<PricingModal open onOpenChange={onOpenChange} />);
@@ -306,30 +306,30 @@ describe("an existing subscriber changes plan instead of buying again", () => {
     );
 
     await waitFor(() =>
-      expect(api.changePlan).toHaveBeenCalledExactlyOnceWith("enterprise"),
+      expect(api.changePlan).toHaveBeenCalledExactlyOnceWith("pro"),
     );
     expect(checkout.openCheckout).not.toHaveBeenCalled();
     expect(api.createCheckoutSession).not.toHaveBeenCalled();
   });
 
-  it("UpgradeModal sends pro -> enterprise through change-plan, never checkout", async () => {
-    subscription.plan = "pro";
-    subscription.nextPlan = "enterprise";
+  it("UpgradeModal sends legacy Enterprise -> Pro through change-plan, never checkout", async () => {
+    subscription.plan = "enterprise";
+    subscription.nextPlan = "pro";
 
     renderWithClient(<UpgradeModal open onOpenChange={vi.fn()} />);
 
     fireEvent.click(screen.getByText("settings.subscription.upgradeForMore"));
 
     await waitFor(() =>
-      expect(api.changePlan).toHaveBeenCalledExactlyOnceWith("enterprise"),
+      expect(api.changePlan).toHaveBeenCalledExactlyOnceWith("pro"),
     );
     expect(checkout.openCheckout).not.toHaveBeenCalled();
     expect(api.createCheckoutSession).not.toHaveBeenCalled();
   });
 
   it("closes the modal and confirms once the plan change is accepted", async () => {
-    subscription.plan = "pro";
-    subscription.nextPlan = "enterprise";
+    subscription.plan = "enterprise";
+    subscription.nextPlan = "pro";
     const onOpenChange = vi.fn();
 
     renderWithClient(<PricingModal open onOpenChange={onOpenChange} />);
@@ -345,8 +345,8 @@ describe("an existing subscriber changes plan instead of buying again", () => {
   });
 
   it("keeps the modal open and shows the failure when a plan change is refused", async () => {
-    subscription.plan = "pro";
-    subscription.nextPlan = "enterprise";
+    subscription.plan = "enterprise";
+    subscription.nextPlan = "pro";
     api.changePlan.mockRejectedValue(new Error("provider refused"));
     const onOpenChange = vi.fn();
 
@@ -382,8 +382,8 @@ describe("an existing subscriber changes plan instead of buying again", () => {
 
     // Only the enterprise card offers a switch; free is a note, pro is current.
     expect(
-      screen.getAllByText("settings.subscription.pricing.switchPlan"),
-    ).toHaveLength(1);
+      screen.queryAllByText("settings.subscription.pricing.switchPlan"),
+    ).toHaveLength(0);
   });
 
   it("a free user still buys through checkout", async () => {

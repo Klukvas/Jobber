@@ -81,10 +81,11 @@ export function HeroSection({
 
           <p className="landing-fade-up landing-fade-up-4 mt-5 font-mono text-[11px] uppercase tracking-wider text-slate-600">
             {t("home.hero.microcopy")}
+            <span className="mt-2 block">{t("home.hero.demo")}</span>
           </p>
         </div>
 
-        {/* Live product collage */}
+        {/* Illustrative product collage */}
         <HeroShowcase />
       </div>
     </section>

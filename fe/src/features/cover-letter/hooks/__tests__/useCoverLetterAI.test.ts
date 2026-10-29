@@ -63,7 +63,7 @@ describe("useCoverLetterAI", () => {
     expect(mockPost).toHaveBeenCalledWith(
       "cover-letters/ai/generate",
       requestData,
-    );
+      { consentSignal: expect.any(AbortSignal) },    );
   });
 
   it("returns generated cover letter data", async () => {

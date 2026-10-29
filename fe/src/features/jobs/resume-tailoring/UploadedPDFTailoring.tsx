@@ -1,3 +1,5 @@
+import { useAIConsentSignal } from "@/shared/hooks/useAIConsentSignal";
+import { isAIActionCancelled } from "@/shared/lib/aiCredits";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -23,6 +25,7 @@ export function UploadedPDFTailoring({ jobId, resumeId, disabled }: { jobId: str
   const [errorKey, setErrorKey] = useState<string | null>(null);
   const [manual, setManual] = useState(false);
   const [text, setText] = useState("");
+  const getConsentSignal = useAIConsentSignal();
   const importPDF = async () => {
     if (pending.current || disabled || (manual && !text.trim())) return;
     pending.current = true; setBusy(true); setErrorKey(null);
@@ -31,12 +34,13 @@ export function UploadedPDFTailoring({ jobId, resumeId, disabled }: { jobId: str
     try {
     const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(identity));
     const storageId = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-      const result = await resumeTailoringService.importUploaded(jobId, resumeId, workflowRequestKey(storageId, terminalFailure), manual ? text.trim() : undefined);
+      const result = await resumeTailoringService.importUploaded(jobId, resumeId, workflowRequestKey(storageId, terminalFailure), manual ? text.trim() : undefined, { consentSignal: getConsentSignal() });
       void queryClient.invalidateQueries({ queryKey: resumeQueryKeys.builderList() });
       void queryClient.invalidateQueries({ queryKey: ["subscription"] });
       if (!mounted.current) return;
       navigate(`/app/resume-builder/${result.resume_builder.id}?tailoringJob=${encodeURIComponent(jobId)}&recognition=${encodeURIComponent(result.import_id)}`);
     } catch (error) {
+      if (isAIActionCancelled(error)) return;
       if (!mounted.current) return;
       setTerminalFailure(error instanceof ApiError && ["AI_TIMEOUT", "AI_INVALID_RESPONSE", "AI_REQUEST_FAILED", "OPERATION_INTERRUPTED", "OPERATION_RESULT_DELETED"].includes(error.code));
       setErrorKey(error instanceof ApiError && error.code === "PDF_UNREADABLE" ? "pdfUnreadable" : tailoringErrorKey(error));

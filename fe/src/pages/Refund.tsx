@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
 import { LogoMark } from "@/shared/ui/Logo";
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "@/shared/lib/supportContact";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 
 export default function Refund() {
@@ -25,7 +26,7 @@ export default function Refund() {
       </nav>
       <h1 className="mb-8 text-3xl font-bold">Refund Policy</h1>
       <p className="mb-4 text-sm text-muted-foreground">
-        Last updated: March 1, 2026
+        Last updated: October 25, 2026
       </p>
 
       <section className="mb-8">
@@ -60,21 +61,22 @@ export default function Refund() {
         <h2 className="mb-3 text-xl font-semibold">
           3. How to Request a Refund
         </h2>
-        <p className="mb-3">To request a refund, you can:</p>
+        <p className="mb-3">To request a refund:</p>
         <ul className="ml-6 list-disc space-y-2">
           <li>
             Email us at{" "}
             <a
-              href="mailto:apavlenko.dev@gmail.com"
+              href={SUPPORT_MAILTO}
               className="text-primary underline"
             >
-              apavlenko.dev@gmail.com
+              {SUPPORT_EMAIL}
             </a>{" "}
-            with your account email and the reason for the refund.
+            with your account email and purchase reference, if available. No reason is required
+            for a request within 14 days of the initial purchase.
           </li>
           <li>
-            Use the Creem customer portal (accessible from Settings &gt;
-            Subscription &gt; Manage Subscription) to contact billing support.
+            You can also access Creem billing support through its customer portal, opened from
+            Settings &gt; Subscription &gt; Manage Subscription.
           </li>
         </ul>
       </section>
@@ -98,8 +100,9 @@ export default function Refund() {
       <section className="mb-8">
         <h2 className="mb-3 text-xl font-semibold">5. Cancellation</h2>
         <p>
-          You can cancel your Pro subscription at any time from the Settings
-          page. When you cancel:
+          You can cancel in Settings &gt; Subscription &gt; Manage Subscription,
+          or open the Creem customer portal from that dialog. Cancel before the renewal
+          date to stop the next charge. When cancellation is confirmed:
         </p>
         <ul className="ml-6 mt-3 list-disc space-y-2">
           <li>
@@ -109,17 +112,18 @@ export default function Refund() {
             Your account automatically reverts to the Free plan after the period
             ends.
           </li>
-          <li>No further charges will be made.</li>
-          <li>Your data is preserved — nothing is deleted upon downgrade.</li>
+          <li>No future subscription renewals will be charged. Cancellation itself does not refund an earlier charge.</li>
+          <li>Downgrading does not delete saved documents. Free resource limits apply when adding new items, and unused Pro credits expire at the end of the paid period.</li>
         </ul>
       </section>
 
       <section className="mb-8">
         <h2 className="mb-3 text-xl font-semibold">6. Refund Processing</h2>
         <p>
-          Approved refunds are processed by Creem and typically appear in your
-          account within 5&ndash;10 business days, depending on your payment
-          method and financial institution.
+          Approved refunds are processed by Creem to the original payment method.
+          The time for funds to appear depends on Creem, your payment method and your
+          financial institution. This policy does not limit mandatory consumer rights,
+          including any applicable withdrawal or statutory refund rights.
         </p>
       </section>
 
@@ -128,12 +132,12 @@ export default function Refund() {
         <p>
           For any billing questions or refund requests, contact us at{" "}
           <a
-            href="mailto:apavlenko.dev@gmail.com"
+            href={SUPPORT_MAILTO}
             className="text-primary underline"
           >
-            apavlenko.dev@gmail.com
+            {SUPPORT_EMAIL}
           </a>
-          .
+          . We aim to respond within 3 business days.
         </p>
       </section>
     </div>

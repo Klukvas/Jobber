@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -503,4 +504,85 @@ func TestMatchScoreHandler_RegisterRoutes(t *testing.T) {
 
 func (m *MockResumeRepository) CountApplications(ctx context.Context, userID, resumeID string) (int, error) {
 	return 0, nil
+}
+
+func TestMatchScoreHandler_CacheLookup(t *testing.T) {
+	const jobID = "11111111-1111-4111-8111-111111111111"
+	const resumeID = "22222222-2222-4222-8222-222222222222"
+	for _, tt := range []struct {
+		name      string
+		user      string
+		query     string
+		jobErr    error
+		resumeErr error
+		cacheErr  error
+		hit       bool
+		status    int
+		code      string
+		lookups   int
+	}{
+		{name: "hit without AI or credits", user: "owner", hit: true, status: 200, lookups: 1},
+		{name: "exact miss never generates", user: "owner", status: 404, code: "MATCH_SCORE_NOT_READY", lookups: 1},
+		{name: "cache error is not a miss", user: "owner", cacheErr: errors.New("db unavailable"), status: 500, code: "INTERNAL_ERROR", lookups: 1},
+		{name: "other user's job", user: "other", jobErr: jobModel.ErrJobNotFound, hit: true, status: 404, code: "JOB_NOT_FOUND"},
+		{name: "other user's resume", user: "other", resumeErr: resumeModel.ErrResumeNotFound, hit: true, status: 404, code: "RESUME_NOT_FOUND"},
+		{name: "job read error", user: "owner", jobErr: errors.New("db error"), status: 500, code: "INTERNAL_ERROR"},
+		{name: "resume read error", user: "owner", resumeErr: errors.New("db error"), status: 500, code: "INTERNAL_ERROR"},
+		{name: "invalid UUID", user: "owner", query: "job_id=invalid&resume_id=" + resumeID, status: 400, code: "VALIDATION_ERROR"},
+		{name: "missing resume", user: "owner", query: "job_id=" + jobID, status: 400, code: "VALIDATION_ERROR"},
+		{name: "unauthenticated", status: 401, code: "UNAUTHORIZED"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			lookups, creditChecks, writes := 0, 0, 0
+			jobs := &MockJobRepository{GetByIDFunc: func(ctx context.Context, user, id string) (*jobModel.Job, error) {
+				require.Equal(t, tt.user, user)
+				require.Equal(t, jobID, id)
+				return &jobModel.Job{ID: id, UserID: user}, tt.jobErr
+			}}
+			resumes := &MockResumeRepository{GetByIDFunc: func(ctx context.Context, user, id string) (*resumeModel.Resume, error) {
+				require.Equal(t, tt.user, user)
+				require.Equal(t, resumeID, id)
+				return &resumeModel.Resume{ID: id, UserID: user}, tt.resumeErr
+			}}
+			cache := &MockMatchScoreCacheRepository{
+				GetFunc: func(ctx context.Context, user, job, resume string) (*model.MatchScoreResponse, error) {
+					lookups++
+					require.Equal(t, tt.user, user)
+					require.Equal(t, jobID, job)
+					require.Equal(t, resumeID, resume)
+					if tt.hit {
+						return &model.MatchScoreResponse{OverallScore: 85, Summary: "Saved result"}, nil
+					}
+					return nil, tt.cacheErr
+				},
+				UpsertFunc: func(context.Context, string, string, string, *model.MatchScoreResponse) error { writes++; return nil },
+			}
+			limits := &MockLimitChecker{CheckLimitFunc: func(context.Context, string, string) error { creditChecks++; return subModel.ErrLimitReached }}
+			h := newTestHandler(jobs, resumes, limits, cache)
+			router := setupTestRouter()
+			auth := func(c *gin.Context) {
+				if tt.user != "" {
+					c.Set("user_id", tt.user)
+				}
+				c.Next()
+			}
+			h.RegisterCacheRoutes(router.Group("/api/v1"), auth)
+			query := tt.query
+			if query == "" {
+				query = "job_id=" + jobID + "&resume_id=" + resumeID
+			}
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/match-score?"+query, nil))
+			require.Equal(t, tt.status, w.Code, w.Body.String())
+			assert.Equal(t, "private, no-store", w.Header().Get("Cache-Control"))
+			assert.Equal(t, tt.lookups, lookups)
+			assert.Zero(t, creditChecks)
+			assert.Zero(t, writes)
+			if tt.code != "" {
+				assert.Contains(t, w.Body.String(), `"error_code":"`+tt.code+`"`)
+			} else {
+				assert.Contains(t, w.Body.String(), `"from_cache":true`)
+			}
+		})
+	}
 }

@@ -431,10 +431,10 @@ describe("Settings", () => {
       ).toBeInTheDocument();
     });
 
-    it("labels the AI allowance as the monthly one", () => {
+    it("labels the one-time Free allowance", () => {
       render(<Settings />);
       expect(
-        screen.getByText("settings.subscription.perMonth"),
+        screen.getByText("credits.freePeriod"),
       ).toBeInTheDocument();
     });
 

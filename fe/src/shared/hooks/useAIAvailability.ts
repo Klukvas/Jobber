@@ -28,5 +28,10 @@ export function markAIUnavailable(client: QueryClient, error: unknown): void {
 }
 
 export function aiErrorKey(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.code === "CREDIT_UNAVAILABLE") return "credits.exhausted";
+    if (error.code === "AI_BUDGET_REACHED") return "credits.budgetReached";
+    if (error.code === "AI_OPERATION_CONFLICT") return "credits.operationConflict";
+  }
   return isAIUnavailable(error) ? "ai.unavailable" : "ai.requestFailed";
 }

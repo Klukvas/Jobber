@@ -3,23 +3,27 @@
 free:
   max_jobs: 25
   max_resumes: 1
-  max_ai_requests: 1
+  max_ai_requests: 30
   max_job_parses: 5
-  max_resume_builders: 1
-  max_cover_letters: 0
+  max_resume_builders: 2
+  max_cover_letters: 1
 
 pro:
   max_jobs: 100
   max_resumes: 10
-  max_ai_requests: -1
-  max_job_parses: -1
+  max_ai_requests: 500
+  max_job_parses: 500
   max_resume_builders: 10
   max_cover_letters: 10
 
 enterprise:
   max_jobs: -1
   max_resumes: -1
-  max_ai_requests: -1
-  max_job_parses: -1
+  max_ai_requests: 500
+  max_job_parses: 500
   max_resume_builders: -1
   max_cover_letters: -1
+
+# User-approved finite lifetime application liability, never replenished by restart.
+ai_budget:
+  global_lifetime_nanodollars: 10000000000

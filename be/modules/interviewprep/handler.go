@@ -70,6 +70,9 @@ func respondError(c *gin.Context, status int, code string) {
 	httpPlatform.RespondWithError(c, status, code, "Interview preparation request could not be completed")
 }
 func result(c *gin.Context, value any, err error) {
+	if httpPlatform.RespondAIError(c, err) {
+		return
+	}
 	if err == nil {
 		httpPlatform.RespondWithData(c, 200, value)
 		return

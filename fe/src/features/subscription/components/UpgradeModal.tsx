@@ -11,7 +11,6 @@ import {
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { usePlanSelection } from "@/features/subscription/usePlanSelection";
 import { FEATURES } from "@/shared/lib/features";
-import { useMonthlyResetDate } from "@/features/subscription/useMonthlyResetDate";
 
 interface UpgradeModalProps {
   open: boolean;
@@ -31,8 +30,6 @@ export function UpgradeModal({ open, onOpenChange }: UpgradeModalProps) {
     onPlanChanged: () => onOpenChange(false),
   });
 
-  // AI requests are counted per calendar month, so the quota genuinely returns.
-  const resetDate = useMonthlyResetDate();
 
   if (!FEATURES.PAYMENTS) return null;
 
@@ -58,7 +55,7 @@ export function UpgradeModal({ open, onOpenChange }: UpgradeModalProps) {
         <DialogHeader>
           <DialogTitle>{t("settings.subscription.aiLimitTitle")}</DialogTitle>
           <DialogDescription>
-            {t("settings.subscription.aiLimitMessage", { date: resetDate })}
+            {t("credits.exhausted")}
           </DialogDescription>
         </DialogHeader>
         {errorMessageKey && (

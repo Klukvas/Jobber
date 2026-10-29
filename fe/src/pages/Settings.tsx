@@ -39,7 +39,7 @@ export default function Settings() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { subscription, isPro, isEnterprise, nextPlan, usage, limits } =
+  const { subscription, isPro, isEnterprise, nextPlan, usage, limits, credits } =
     useSubscription();
   const [pricingOpen, setPricingOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
@@ -116,7 +116,7 @@ export default function Settings() {
       ? t("settings.subscription.proPlan")
       : t("settings.subscription.freePlan");
 
-  const hasLimits = !isEnterprise;
+  const hasLimits = true;
 
   return (
     <div className="space-y-6">
@@ -256,6 +256,8 @@ export default function Settings() {
             </div>
           )}
 
+          <p className="text-sm text-muted-foreground">{t("credits.allowance")}</p>
+
           {hasLimits && (
             <div className="space-y-2 pt-2 border-t">
               <p className="text-sm font-medium">
@@ -289,17 +291,13 @@ export default function Settings() {
                     {t("settings.subscription.aiRequests")}
                   </p>
                   <p className="font-medium">
-                    {usage.ai_requests} {t("settings.subscription.of")}{" "}
-                    {limits.max_ai_requests < 0
-                      ? t("settings.subscription.unlimited")
-                      : limits.max_ai_requests}
+                    {credits?.used ?? usage.ai_requests} {t("settings.subscription.of")}{" "}
+                    {credits?.granted ?? limits.max_ai_requests}
                   </p>
-                  {/* The only allowance the backend counts per calendar month
-                      (CountUserAIRequestsThisMonth) — everything else here is
-                      a lifetime total. */}
                   <p className="text-xs text-muted-foreground">
-                    {t("settings.subscription.perMonth")}
+                    {t(credits?.kind === "pro" ? "credits.proPeriod" : "credits.freePeriod")}
                   </p>
+                  {credits && <p className="text-xs text-muted-foreground">{t("credits.remaining", { count: credits.remaining })}</p>}
                 </div>
                 <div>
                   <p className="text-muted-foreground">

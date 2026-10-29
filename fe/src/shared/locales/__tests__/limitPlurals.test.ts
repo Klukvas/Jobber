@@ -13,7 +13,6 @@ const COUNTED_KEYS = [
   "settings.subscription.limitReachedJobs",
   "settings.subscription.limitReachedResumes",
   "settings.subscription.limitReachedResumeBuilders",
-  "settings.subscription.limitReachedAIMonthly",
   "settings.subscription.limitReachedCoverLettersUsed",
 ] as const;
 

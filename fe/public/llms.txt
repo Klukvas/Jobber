@@ -1,5 +1,5 @@
 # Cursopus
-> AI-powered job application tracker
+> Personal job application tracker with AI assistance
 
 Cursopus helps job seekers organize their job search with a Kanban-style board,
 company management, an AI resume builder, an AI cover letter generator,
@@ -8,7 +8,7 @@ application stages, and analytics.
 ## Features
 - Track job applications across customizable stages on a Kanban board
 - Manage companies and contacts
-- Build ATS-friendly resumes with AI suggestions and PDF export
+- Build and tailor editable resumes with AI suggestions and PDF export
 - Generate tailored cover letters with AI
 - Analytics dashboard with job search insights
 - Multi-language support (English, Russian, Ukrainian)
@@ -19,3 +19,12 @@ application stages, and analytics.
 - Resume builder: https://cursopus.com/features/resume-builder
 - Cover letters: https://cursopus.com/features/cover-letters
 - Blog: https://cursopus.com/blog
+
+## Plans and AI use
+- Free: 25 tracked jobs, 1 uploaded resume, 2 builder resumes, 1 cover letter and 30 AI credits once per account.
+- Pro: $24 USD/month, 100 tracked jobs, 10 uploaded resumes, 10 builder resumes, 10 cover letters in total and 500 AI credits per confirmed paid period. No credit rollover.
+- AI costs are shown before starting. Credit, input-size, availability and safety spending limits apply; AI can stop while credits remain. Review generated content; no hiring or ATS acceptance guarantee.
+- Cursopus helps users track jobs they find. It is not a job board or recruiting service.
+- Terms: https://cursopus.com/terms
+- Privacy: https://cursopus.com/privacy
+- Refunds: https://cursopus.com/refund

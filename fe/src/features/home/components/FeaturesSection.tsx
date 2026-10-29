@@ -5,7 +5,7 @@ import {
   FileText,
   Link2,
   BarChart3,
-  CalendarDays,
+  FilePenLine,
   type LucideIcon,
 } from "lucide-react";
 import { Reveal } from "./Reveal";
@@ -17,7 +17,7 @@ const FEATURES: readonly { readonly key: string; readonly Icon: LucideIcon }[] =
     { key: "resume", Icon: FileText },
     { key: "jobImport", Icon: Link2 },
     { key: "analyticsCard", Icon: BarChart3 },
-    { key: "calendar", Icon: CalendarDays },
+    { key: "coverLetters", Icon: FilePenLine },
   ];
 
 export function FeaturesSection() {

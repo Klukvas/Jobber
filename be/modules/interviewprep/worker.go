@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
+	quota "github.com/andreypavlenko/jobber/modules/subscriptions/repository"
 	"log/slog"
+	"strconv"
 	"sync"
 	"time"
 
@@ -119,37 +122,48 @@ func (s *Service) RunOnce(ctx context.Context) error {
 		}
 	}
 	if code == "" {
-		release, guardErr := s.store.guardDispatch(ctx, o, input.Snapshot)
-		if guardErr != nil {
-			if errors.Is(guardErr, ErrSourceChanged) {
-				code = "SOURCE_CHANGED"
-			} else {
-				code = "SAVE_FAILED"
+		priorStarted := o.ProviderStarted
+		o.ProviderStarted = true
+		callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		callCtx = ai.InterviewCreditContext(callCtx, o.Owner, o.ID, o.Kind, strconv.Itoa(o.Attempts))
+		ai.SetCreditFingerprint(callCtx, digest(input))
+		output, err = s.callInterview(callCtx, o, input)
+		if managed, ok := s.limits.(interface{ CreditLedgerEnabled() bool }); ok && managed.CreditLedgerEnabled() {
+			statusCtx, statusCancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+			sent, statusErr := quota.NewSubscriptionRepository(s.store.pool).CreditOperationDispatched(statusCtx, o.Owner, o.ID)
+			statusCancel()
+			if statusErr == nil {
+				o.ProviderStarted = priorStarted || sent
 			}
-		} else {
-			priorStarted := o.ProviderStarted
-			o.ProviderStarted = true
-			callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
-			output, err = s.client.Interview(callCtx, o.Kind, o.Input, release)
-			releaseErr := release()
-			if err != nil {
-				if errors.Is(err, ai.ErrInterviewNotDispatched) {
-					o.ProviderStarted = priorStarted
-					o.Attempts-- // No external attempt occurred; do not exhaust retries.
-					code = "AI_UNAVAILABLE"
-				} else if errors.Is(err, context.DeadlineExceeded) || errors.Is(callCtx.Err(), context.DeadlineExceeded) {
-					code = "AI_TIMEOUT"
-				} else if ctx.Err() != nil {
-					code = "INTERRUPTED"
-				} else {
-					code = "AI_FAILED"
-				}
-			} else if releaseErr != nil {
-				code = "SAVE_FAILED"
-			}
-			cancel()
+		} else if errors.Is(err, ai.ErrInterviewPreparationFailed) {
+			o.ProviderStarted = priorStarted
 		}
+		if err != nil {
+			switch {
+			case errors.Is(err, ErrSourceChanged):
+				code = "SOURCE_CHANGED"
+			case errors.Is(err, ai.ErrInterviewPreparationFailed):
+				code = "SAVE_FAILED"
+			case errors.Is(err, subModel.ErrAIBudgetReached):
+				code = "AI_BUDGET_REACHED"
+			case errors.Is(err, subModel.ErrCreditUnavailable):
+				code = "CREDIT_UNAVAILABLE"
+			case errors.Is(err, subModel.ErrAIOperationConflict):
+				code = "AI_OPERATION_CONFLICT"
+			case errors.Is(err, ai.ErrInterviewNotDispatched):
+				o.ProviderStarted = priorStarted
+				code = "AI_UNAVAILABLE"
+			case errors.Is(err, context.DeadlineExceeded) || errors.Is(callCtx.Err(), context.DeadlineExceeded):
+				code = "AI_TIMEOUT"
+			case ctx.Err() != nil:
+				code = "INTERRUPTED"
+			default:
+				code = "AI_FAILED"
+			}
+		}
+		cancel()
 	}
+
 	var plan Plan
 	var review Review
 	if code == "" {
@@ -166,6 +180,13 @@ func (s *Service) RunOnce(ctx context.Context) error {
 	// interrupted status. A crash leaves a lease that becomes interrupted on restart.
 	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
+	if code != "" {
+		if _, ok := s.limits.(interface{ CreditLedgerEnabled() bool }); ok {
+			if finishErr := quota.NewSubscriptionRepository(s.store.pool).FinishCreditOperation(saveCtx, o.Owner, o.ID); finishErr != nil {
+				return finishErr
+			}
+		}
+	}
 	outcome, err := s.complete(saveCtx, o, input, plan, review, code)
 	if outcome == "" {
 		outcome = "succeeded"
@@ -282,4 +303,19 @@ func (s *Service) Start(parent context.Context) func() {
 	workers.Add(1)
 	go func() { defer workers.Done(); s.Run(ctx) }()
 	return func() { cancel(); workers.Wait() }
+}
+
+func (s *Service) callInterview(ctx context.Context, o Operation, input AIInput) ([]byte, error) {
+	if prepared, ok := s.client.(interface {
+		InterviewPrepared(context.Context, string, []byte, func() (func() error, error)) ([]byte, error)
+	}); ok {
+		return prepared.InterviewPrepared(ctx, o.Kind, o.Input, func() (func() error, error) { return s.store.guardDispatch(ctx, o, input.Snapshot) })
+	}
+	// Alternate clients without a provider ledger keep the existing guard seam.
+	release, err := s.store.guardDispatch(ctx, o, input.Snapshot)
+	if err != nil {
+		return nil, errors.Join(ai.ErrInterviewPreparationFailed, err)
+	}
+	output, err := s.client.Interview(ctx, o.Kind, o.Input, release)
+	return output, errors.Join(err, release())
 }

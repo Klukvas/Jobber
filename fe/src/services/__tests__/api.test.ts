@@ -1,3 +1,5 @@
+import { vi } from "vitest";
+vi.mock("@/shared/lib/aiCredits", () => ({ confirmAIAction: vi.fn(async () => undefined) }));
 import { describe, it, expect } from "vitest";
 import { ApiError } from "../api";
 

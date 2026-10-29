@@ -67,12 +67,14 @@ type Subscription struct {
 
 // SubscriptionDTO is the JSON response for a subscription.
 type SubscriptionDTO struct {
-	Plan             string     `json:"plan"`
-	Status           string     `json:"status"`
-	Limits           PlanLimits `json:"limits"`
-	Usage            Usage      `json:"usage"`
-	CurrentPeriodEnd *string    `json:"current_period_end,omitempty"`
-	CancelAt         *string    `json:"cancel_at,omitempty"`
+	Credits          *CreditBalance `json:"credits,omitempty"`
+	CreditCosts      map[string]int `json:"credit_costs,omitempty"`
+	Plan             string         `json:"plan"`
+	Status           string         `json:"status"`
+	Limits           PlanLimits     `json:"limits"`
+	Usage            Usage          `json:"usage"`
+	CurrentPeriodEnd *string        `json:"current_period_end,omitempty"`
+	CancelAt         *string        `json:"cancel_at,omitempty"`
 }
 
 // Usage holds resource usage counts.
@@ -101,18 +103,18 @@ type PlanLimits struct {
 var FreePlanLimits = PlanLimits{
 	MaxJobs:           25,
 	MaxResumes:        1,
-	MaxAIRequests:     1,
+	MaxAIRequests:     30,
 	MaxJobParses:      5,
-	MaxResumeBuilders: 1,
-	MaxCoverLetters:   0,
+	MaxResumeBuilders: 2,
+	MaxCoverLetters:   1,
 }
 
 // ProPlanLimits defines limits for the pro plan.
 var ProPlanLimits = PlanLimits{
 	MaxJobs:           100,
 	MaxResumes:        10,
-	MaxAIRequests:     -1,
-	MaxJobParses:      -1,
+	MaxAIRequests:     500,
+	MaxJobParses:      500,
 	MaxResumeBuilders: 10,
 	MaxCoverLetters:   10,
 }
@@ -121,8 +123,8 @@ var ProPlanLimits = PlanLimits{
 var EnterprisePlanLimits = PlanLimits{
 	MaxJobs:           -1,
 	MaxResumes:        -1,
-	MaxAIRequests:     -1,
-	MaxJobParses:      -1,
+	MaxAIRequests:     500,
+	MaxJobParses:      500,
 	MaxResumeBuilders: -1,
 	MaxCoverLetters:   -1,
 }
@@ -152,14 +154,7 @@ func ApplyPlansConfig(plans map[string]PlanLimitsConfig) {
 }
 
 func configToPlanLimits(c PlanLimitsConfig) PlanLimits {
-	return PlanLimits{
-		MaxJobs:           c.MaxJobs,
-		MaxResumes:        c.MaxResumes,
-		MaxAIRequests:     c.MaxAIRequests,
-		MaxJobParses:      c.MaxJobParses,
-		MaxResumeBuilders: c.MaxResumeBuilders,
-		MaxCoverLetters:   c.MaxCoverLetters,
-	}
+	return PlanLimits(c)
 }
 
 // GetLimitsForPlan returns plan limits for the given plan name.

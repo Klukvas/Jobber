@@ -3860,6 +3860,134 @@ complete a first real Creem purchase. See ADR-0003, "Legacy billing rows".
 
 ---
 
+### I.8 Free / Pro credits and bounded AI spending (2026-10-25)
+
+Free grants **30 credits once per user**, without calendar resets. Pro costs
+**$24 USD per month** and grants **500 credits per confirmed paid provider
+period**. Credits do not roll over; opening Settings, recreating a subscription
+row, replaying a webhook, upgrading or downgrading never creates another Free
+grant. Enterprise is no longer sold. Existing documents and billing identifiers
+are preserved. Resource caps are Free: 25 tracked jobs, 1 uploaded resume,
+2 Builder Resumes, 1 cover letter; Pro: 100 / 10 / 10 / 10 respectively.
+
+| AI operation | Credits per logical operation |
+|---|---:|
+| Resume tailoring (generation + independent audit) | 7 |
+| Cover letter (generation + independent audit) | 5 |
+| Resume / Job match | 5 |
+| Resume import or extension Autofill extraction | 7 |
+| Job-page parse, bullet suggestions, summary suggestions, improve text | 2 |
+| ATS check | 3 |
+| Interview plan / answer feedback / session summary | 8 / 3 / 5 |
+
+Every application and extension AI start presents its credit cost and requires
+explicit confirmation. The server remains authoritative. Cache hits and successful
+workflow-result replays are free. Credits reserve before preparation/enqueue and
+are consumed once when the first durable provider dispatch starts. Validation and
+other proven pre-dispatch failures release the reservation. A timeout, malformed
+output, failed save, client disconnect or process crash after dispatch retains the
+charge. User-requested interview retries keep the same credit operation but each
+new provider attempt independently reserves dollars; SDK and automatic paid retries
+are disabled. Legacy non-workflow requests accept an `Idempotency-Key` UUID bound
+to method, path and actual body; another dispatch of that key fails with conflict.
+
+**Dollars are an independent hard guard, not an exchange rate for credits.**
+Free has a $3 lifetime acquisition-risk allowance. Each confirmed Pro period has
+a $5 AI allowance. The application also has a user-approved **$10 finite lifetime
+provider budget** in `be/config/plans.yaml`; restarting reads the existing spent
+and reserved liabilities and never replenishes it. Missing/invalid policy means
+zero available funding. A budget-configuration failure disables the process's
+AI transport. Raising the global cap requires an explicit operator decision; it
+is not a scheduled top-up. Free account abuse is bounded globally, not claimed to
+be prevented by a user-ID uniqueness constraint. No all-business profitability
+guarantee is made: tax, processor fees, hosting and other costs remain separate.
+
+Each provider stage atomically reserves its **full published context-window
+liability plus server-capped output**, using integral nanodollars. There is no
+approximate tokens-per-character admission claim. Sonnet 5.5 uses a 1,000,000-token
+input ceiling at $2/M plus output at $10/M; Haiku 4.5 uses 200,000 input tokens at
+$1/M plus output at $5/M. Only those model IDs and the operation-specific output
+caps are admitted. Caching, tools, fast/priority/regional premium request fields
+and unknown priced features are rejected. Sonnet tailoring preserves 1500 + 512
+output tokens, cover letters 1500 + 768, low effort and the existing grounding
+policy, with a shared 25-second deadline. Stage two is reserved only after stage
+one; if its guard fails, unaudited output is not published. Large inputs,
+concurrency and retained unknown costs can stop AI while credits remain.
+
+Accounting commits dispatch intent before HTTP can send any bytes. Valid
+provider response model and explicitly present input/output usage settle actual
+cost even when later output validation or persistence fails. Missing, malformed,
+premium or mismatched usage retains the full monetary reservation. A present, impossible response model/token/premium contract also persists a provider safety block across instances, restarts and budget reconfiguration until manual review; missing usage alone does not set that permanent block. Missing fields cannot mask other present contract violations. Token counts must be strict integral JSON numbers. Present but malformed optional cache/tool billing counters, their containers or service tier also retain the full reservation as unknown liability; omitted optional metadata remains allowed. Provider response failures count toward the circuit breaker; pre-dispatch allowance denials do not. Five-minute
+recovery releases **only undispatched** reservations via a state compare-and-set;
+a late sender then cannot dispatch. Dispatched unknown liabilities have no TTL
+refund. Pricing snapshot `anthropic-2026-10-25` records the assumptions; operators
+must review current provider pricing before changing models/features or enabling
+production. The guard cannot discover a future provider price change from token
+counts alone.
+
+`credit_grants`, `ai_credit_operations`, `ai_credit_attempts`,
+`credit_payment_holds` and `ai_provider_budget` (migration 000052) are PostgreSQL
+state. Reservation locking orders the provider budget before the user's grant
+and operation. Refund/dispute holds serialize with paid grants, including a hold
+arriving first. Account deletion removes private user-owned rows while global
+allocation and payment holds remain; deleting an account never refunds provider
+liability. Migration rollback refuses any grants, payment holds, operations, attempts, spent allocation or provider safety block; only a virgin empty ledger can be removed. One explicit transaction acquires exclusive locks on every ledger/budget table before checking state and holds them through the drops, so concurrent first writes cannot escape the refusal.
+No real database migration or deployment is part of local implementation.
+
+A Pro grant requires a signed matching-environment `subscription.paid`, the
+server-owned customer/user/subscription link, the configured Pro product and a
+valid UTC monthly period. Before each checkout the product is fetched and must
+still be active, recurring every month, $24 USD, without a trial. Checkout pins
+one unit and supplies no discount or custom-price input. A catalog price alone
+never proves payment: the referenced transaction is fetched and must be a settled
+USD subscription invoice, paid at least 2400 cents, with matching customer,
+subscription and period, no discount and no refunded amount. Tax may increase
+the total. Trials, zero/partial payments and discounts are not approved in this
+policy. Grants deduplicate both transaction and subscription period independently
+of lifecycle timestamps, so a newer scheduled cancellation cannot hide a genuine
+late paid grant. `checkout.completed`, active/update/trial events never grant
+credits. Full/partial refunds and disputes freeze unspent credits conservatively;
+already incurred spend is never erased. Legacy paid rows get no synthetic Pro grant.
+
+`GET /api/v1/subscription` adds `credits` (granted, used/reserved, remaining,
+kind, optional paid period end, monetary limit and allocation in nanodollars) and
+`credit_costs`. Legacy `usage.ai_requests` mirrors weighted credit usage and
+`limits.max_ai_requests` mirrors the current grant. There is no UTC-calendar reset.
+Common errors are 403 `CREDIT_UNAVAILABLE`, 503 `AI_BUDGET_REACHED` and
+409 `AI_OPERATION_CONFLICT`. `Idempotency-Key` is CORS-allowed.
+
+Web and extension Resume / Job match first use authenticated cache-only
+`GET /api/v1/match-score?job_id=<uuid>&resume_id=<uuid>`. It validates UUIDs and
+checks ownership of both the Job and Uploaded Resume before reading the cache.
+A hit returns the saved `MatchScoreResponse` with `from_cache: true`, without
+credit confirmation, subscription lookup, allowance checks, downloads or AI.
+It remains available at balances 0–4 and while AI/provider funding is unavailable.
+All GET responses, including errors, are `Cache-Control: private, no-store`.
+Only 404 `MATCH_SCORE_NOT_READY` means an owned cache miss; auth, ownership,
+validation, storage, transport and malformed-response failures stop the client.
+GET never generates or persists a result. On an exact miss clients retain the
+normal 5-credit confirmation and guarded `POST /api/v1/match-score`: insufficient
+balance or cancellation sends no POST, and explicit acceptance sends one logical
+paid request. The POST remains registered only when AI is configured; its credit,
+budget and idempotency guards are unchanged. Leaving the originating web route,
+form, Job or resume selection cancels pending lookup/confirmation UI effects.
+The extension also binds matching to its originating save form, selected resume,
+active browser tab/page and authenticated session. Save Another, changing those
+contexts or closing the panel suppresses late results/errors and prevents a
+pending lookup or credit read from opening confirmation or sending a paid POST.
+Cancellation after paid dispatch suppresses stale UI without aborting its transport.
+
+Extension Autofill has a free cache-only
+`GET /api/v1/resumes/:id/autofill-profile`: a cache miss returns 404
+`AUTOFILL_PROFILE_NOT_READY` without AI. Explicitly confirmed
+`POST` on the same path performs extraction for 7 credits on Free or Pro; both
+responses are private/no-store. Ownership is checked before cache or allowance.
+Payment feature flags remain off in deployment; this implementation does not
+activate checkout, edit secrets, touch a provider dashboard or send paid test calls.
+
+---
+
+
 ## 📋 Appendix A: Complete API Endpoint Reference
 
 ### Authentication Endpoints

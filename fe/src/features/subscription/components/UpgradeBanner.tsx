@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { FEATURES } from "@/shared/lib/features";
 import { PricingModal } from "@/features/subscription/components/PricingModal";
-import { useMonthlyResetDate } from "@/features/subscription/useMonthlyResetDate";
 import { usePlanLimitMessage } from "@/features/subscription/usePlanLimitMessage";
 
 type UpgradeResource =
@@ -19,11 +18,7 @@ interface UpgradeBannerProps {
 
 const limitKeyMap: Record<UpgradeResource, string> = {
   jobs: "limitReachedJobs",
-  // Not "AI is not available on your plan": the free plan *has* one AI request
-  // a month, shared by match scoring, resume assistance and resume imports —
-  // and it comes back. Saying the feature is missing next to a reset date read
-  // as two contradictory statements.
-  ai: "limitReachedAIMonthly",
+  ai: "aiLimitMessage",
   resumes: "limitReachedResumes",
   resume_builders: "limitReachedResumeBuilders",
   cover_letters: "limitReachedCoverLetters",
@@ -59,19 +54,9 @@ function limitMessageKey(resource: UpgradeResource, limit: number): string {
   return limitKeyMap[resource];
 }
 
-/**
- * Resources whose usage the backend counts per calendar month, and which
- * therefore genuinely come back on their own (CountUserAIRequestsThisMonth).
- * Everything else — tracked jobs, resumes, resume builders, cover letters — is
- * a lifetime total (CountUserCoverLetters and friends), so promising a reset
- * date for those would be a lie.
- */
-const MONTHLY_RESOURCES = new Set(["ai"]);
-
 export function UpgradeBanner({ resource }: UpgradeBannerProps) {
   const { t } = useTranslation();
   const { limits, nextPlan } = useSubscription();
-  const resetDate = useMonthlyResetDate();
   const [pricingOpen, setPricingOpen] = useState(false);
   const planLimitMessage = usePlanLimitMessage();
 
@@ -104,21 +89,13 @@ export function UpgradeBanner({ resource }: UpgradeBannerProps) {
           limit: limitValue,
         })}
       </p>
-      {/* Monthly allowances come back on their own — saying when turns a dead
-          end into a wait, and stops "upgrade" being the only way forward. */}
-      {MONTHLY_RESOURCES.has(resource) && (
-        <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
-          {t("settings.subscription.resetsOn", { date: resetDate })}
-        </p>
-      )}
+      {resource === "ai" && <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">{t("credits.freePeriod")}</p>}
       <button
         type="button"
         onClick={() => setPricingOpen(true)}
         className="mt-3 inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
-        {nextPlan === "enterprise"
-          ? t("settings.subscription.upgradeToEnterprise")
-          : t("settings.subscription.upgradeToPro")}
+        {t("settings.subscription.upgradeToPro")}
       </button>
 
       {/* Mounted on demand: the pricing modal pulls in the checkout hooks, and

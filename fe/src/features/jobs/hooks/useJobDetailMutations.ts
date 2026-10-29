@@ -1,4 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useAIConsentSignal } from "@/shared/hooks/useAIConsentSignal";
+import { isAIActionCancelled } from "@/shared/lib/aiCredits";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -281,12 +283,27 @@ export function useJobDetailMutations({
     },
   });
 
+  const getConsentSignal = useAIConsentSignal();
+  const matchContext = useRef(new AbortController());
+  useLayoutEffect(() => {
+    const controller = new AbortController();
+    matchContext.current = controller;
+    return () => controller.abort();
+  }, [id, effectiveMatchResumeId]);
   const checkMatchMutation = useMutation({
-    mutationFn: () => {
-      if (!effectiveMatchResumeId) {
+    mutationFn: async () => {
+      if (!id || !effectiveMatchResumeId) {
         return Promise.reject(new Error(t("jobs.matchScore.noResume")));
       }
-      return matchScoreService.checkMatch(id!, effectiveMatchResumeId);
+      const consentSignal = AbortSignal.any([getConsentSignal(), matchContext.current.signal]);
+      try {
+        const data = await matchScoreService.checkMatch(id, effectiveMatchResumeId, { consentSignal });
+        consentSignal.throwIfAborted();
+        return data;
+      } catch (error) {
+        consentSignal.throwIfAborted();
+        throw error;
+      }
     },
     onSuccess: (data) => {
       setMatchScore(data);
@@ -294,7 +311,12 @@ export function useJobDetailMutations({
       setIsPricingModalOpen(false);
     },
     onError: (err: Error) => {
+      if (isAIActionCancelled(err)) return;
       if (err instanceof ApiError) {
+        if (["CREDIT_UNAVAILABLE", "AI_BUDGET_REACHED", "AI_OPERATION_CONFLICT"].includes(err.code)) {
+          setMatchScoreError(err.message);
+          return;
+        }
         if (err.code === "PLAN_LIMIT_REACHED") {
           setIsPricingModalOpen(true);
           queryClient.invalidateQueries({ queryKey: ["subscription"] });

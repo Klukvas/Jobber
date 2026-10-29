@@ -4,7 +4,6 @@ import { format } from "date-fns";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
-  ArrowUpCircle,
   ArrowDownCircle,
   ExternalLink,
 } from "lucide-react";
@@ -94,7 +93,7 @@ export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
   });
 
   const targetPlan: SubscriptionPlan =
-    plan === "enterprise" ? "pro" : "enterprise";
+    "pro";
   const isDowngrade = plan === "enterprise";
   const isCancelled = !!subscription?.cancel_at;
   const isLoading =
@@ -150,16 +149,12 @@ export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
           )}
         </div>
 
-        {/* Change plan */}
-        <div className="rounded-lg border px-4 py-3 space-y-3">
+        {/* Legacy subscribers can move to the current Pro plan. */}
+        {isDowngrade && <div className="rounded-lg border px-4 py-3 space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="flex items-center gap-1.5">
-                {isDowngrade ? (
-                  <ArrowDownCircle className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <ArrowUpCircle className="h-4 w-4 text-blue-500" />
-                )}
+                <ArrowDownCircle className="h-4 w-4 text-muted-foreground" />
                 <span className="font-medium text-sm">
                   {t(`settings.subscription.${targetPlan}Plan`)}
                 </span>
@@ -179,12 +174,10 @@ export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
             >
               {changePlanMutation.isPending
                 ? t("common.loading")
-                : isDowngrade
-                  ? t("settings.subscription.manage.switchToPro")
-                  : t("settings.subscription.manage.switchToEnterprise")}
+                : t("settings.subscription.manage.switchToPro")}
             </Button>
           </div>
-        </div>
+        </div>}
 
         {/* Billing portal — invoices, receipts and the payment method live on
             the provider's side, so this is the only route to them. */}

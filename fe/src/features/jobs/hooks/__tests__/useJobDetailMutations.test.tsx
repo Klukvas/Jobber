@@ -505,6 +505,7 @@ describe("useJobDetailMutations", () => {
       expect(mockMatchScoreService.checkMatch).toHaveBeenCalledWith(
         "job-1",
         "resume-1",
+        { consentSignal: expect.any(AbortSignal) },
       );
       expect(setters.setMatchScore).toHaveBeenCalledWith(scoreData);
       expect(setters.setMatchScoreError).toHaveBeenCalledWith(null);
@@ -607,4 +608,25 @@ it("a failed resume selection does not replace the cached persisted selection", 
   act(() => result.current.changeResumeMutation.mutate(""));
   await waitFor(() => expect(result.current.changeResumeMutation.isError).toBe(true));
   expect(queryClient.getQueryData(["job", "job-1"])).toEqual(attached);
+});
+
+
+it.each(["job", "resume", "unmount"])("a delayed cache lookup cannot update a departed %s context", async (change) => {
+  let resolve: (value: MatchScoreResponse) => void = () => {};
+  mockMatchScoreService.checkMatch.mockReturnValue(new Promise<MatchScoreResponse>((done) => { resolve = done; }));
+  const setters = makeSetters();
+  const { Wrapper } = createWrapper();
+  const view = renderHook(({ id, resume }) => useJobDetailMutations({ id, effectiveMatchResumeId: resume, ...setters }), {
+    wrapper: Wrapper, initialProps: { id: "job-1", resume: "resume-1" },
+  });
+  act(() => view.result.current.checkMatchMutation.mutate());
+  await waitFor(() => expect(mockMatchScoreService.checkMatch).toHaveBeenCalled());
+  const options = mockMatchScoreService.checkMatch.mock.calls[0][2] as { consentSignal: AbortSignal };
+  if (change === "unmount") view.unmount();
+  else view.rerender({ id: change === "job" ? "job-2" : "job-1", resume: change === "resume" ? "resume-2" : "resume-1" });
+  expect(options.consentSignal.aborted).toBe(true);
+  await act(async () => resolve({ overall_score: 85, categories: [], missing_keywords: [], strengths: [], summary: "saved", from_cache: true }));
+  expect(setters.setMatchScore).not.toHaveBeenCalled();
+  expect(setters.setMatchScoreError).not.toHaveBeenCalled();
+  expect(setters.setIsPricingModalOpen).not.toHaveBeenCalled();
 });

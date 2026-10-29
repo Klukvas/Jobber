@@ -99,7 +99,7 @@ describe("useCheckout", () => {
     mockGetQueryData.mockReturnValue({ plan: "pro" });
     const { result } = renderHook(() => useCheckout());
 
-    await act(() => result.current.openCheckout("enterprise"));
+    await act(() => result.current.openCheckout("pro"));
 
     expect(readFreshPreCheckoutPlan()).toBe("pro");
   });

@@ -1,4 +1,4 @@
-import { apiClient } from "./api";
+import { apiClient, type RequestOptions } from "./api";
 import type {
   ResumeBuilderDTO,
   FullResumeDTO,
@@ -270,19 +270,18 @@ export const resumeBuilderService = {
   async importFromText(data: {
     text: string;
     title?: string;
-  }): Promise<FullResumeDTO> {
-    return apiClient.post<FullResumeDTO>(`${BASE}/import/text`, data);
+  }, options?: RequestOptions): Promise<FullResumeDTO> {
+    return apiClient.post<FullResumeDTO>(`${BASE}/import/text`, data, ...(options ? [options] as const : []));
   },
 
-  async importFromPDF(file: File, title?: string): Promise<FullResumeDTO> {
+  async importFromPDF(file: File, title?: string, options?: RequestOptions): Promise<FullResumeDTO> {
     const formData = new FormData();
     formData.append("file", file);
     if (title) {
       formData.append("title", title);
     }
-    return apiClient.postFormData<FullResumeDTO>(
-      `${BASE}/import/pdf`,
-      formData,
-    );
+    return options
+      ? apiClient.postFormData<FullResumeDTO>(`${BASE}/import/pdf`, formData, undefined, options)
+      : apiClient.postFormData<FullResumeDTO>(`${BASE}/import/pdf`, formData);
   },
 };

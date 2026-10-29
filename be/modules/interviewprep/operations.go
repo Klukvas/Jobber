@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"strconv"
 
 	quota "github.com/andreypavlenko/jobber/modules/subscriptions/repository"
@@ -185,7 +186,12 @@ func (s *Service) enqueue(ctx context.Context, owner, job, kind, key, business s
 			return limitErr
 		}
 		id = uuid.NewString()
-		if err := quota.ReserveAIInTransaction(ctx, tx, owner, limit, id); err != nil {
+		creditCtx := ctx
+		if managed, ok := s.limits.(interface{ CreditLedgerEnabled() bool }); ok && managed.CreditLedgerEnabled() {
+			creditCtx = ai.InterviewCreditContext(ctx, owner, id, kind, "")
+			ai.SetCreditFingerprint(creditCtx, digest(input))
+		}
+		if err := quota.ReserveAIInTransaction(creditCtx, tx, owner, limit, id); err != nil {
 			return err
 		}
 		_, err = tx.Exec(ctx, `INSERT INTO interview_operations(id,user_id,job_id,kind,business_key,fingerprint,input,version_id,session_id,answer_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, id, owner, job, kind, business, fingerprint, raw, version, session, answer)
@@ -240,7 +246,20 @@ func (s *Service) Retry(ctx context.Context, owner, job, id string) (Operation, 
 			if limitErr != nil {
 				return limitErr
 			}
-			if err := quota.ReserveAIInTransaction(ctx, tx, owner, limit, result.ID); err != nil {
+			retryCtx := ctx
+			if managed, ok := s.limits.(interface{ CreditLedgerEnabled() bool }); ok && managed.CreditLedgerEnabled() {
+				var raw []byte
+				if err := tx.QueryRow(ctx, `SELECT input FROM interview_operations WHERE id=$1 AND user_id=$2`, id, owner).Scan(&raw); err != nil {
+					return err
+				}
+				var input AIInput
+				if err := json.Unmarshal(raw, &input); err != nil {
+					return err
+				}
+				retryCtx = ai.InterviewCreditContext(ctx, owner, id, result.Kind, "")
+				ai.SetCreditFingerprint(retryCtx, digest(input))
+			}
+			if err := quota.ReserveAIInTransaction(retryCtx, tx, owner, limit, result.ID); err != nil {
 				return err
 			}
 		}

@@ -70,6 +70,7 @@ export default function FeatureApplications() {
 
             {/* Screenshot — overflows into the next section */}
             <div className="relative mx-auto max-w-5xl">
+              <p className="mb-3 text-center text-xs text-slate-400">{t("home.hero.demo")}</p>
               <div className="absolute inset-x-0 -bottom-8 h-40 bg-gradient-to-t from-background to-transparent" />
               <BrowserMockup
                 dark
@@ -84,21 +85,21 @@ export default function FeatureApplications() {
         {/* Stats bar */}
         <section className="border-y bg-muted/30 py-12">
           <div className="mx-auto max-w-3xl px-4">
-            <div className="grid grid-cols-3 divide-x text-center">
-              <div className="px-6">
-                <div className="text-3xl font-bold text-primary">12k+</div>
+            <div className="grid grid-cols-1 divide-y text-center sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+              <div className="min-w-0 px-3 py-4 sm:px-6 sm:py-0">
+                <div className="break-words text-2xl font-bold text-primary sm:text-3xl">{t(`${NS}.stats.jobsValue`)}</div>
                 <div className="mt-1 text-sm text-muted-foreground">
                   {t(`${NS}.stats.users`)}
                 </div>
               </div>
-              <div className="px-6">
-                <div className="text-3xl font-bold text-primary">75%</div>
+              <div className="min-w-0 px-3 py-4 sm:px-6 sm:py-0">
+                <div className="break-words text-2xl font-bold text-primary sm:text-3xl">{t(`${NS}.stats.stagesValue`)}</div>
                 <div className="mt-1 text-sm text-muted-foreground">
                   {t(`${NS}.stats.responseRate`)}
                 </div>
               </div>
-              <div className="px-6">
-                <div className="text-3xl font-bold text-primary">5h+</div>
+              <div className="min-w-0 px-3 py-4 sm:px-6 sm:py-0">
+                <div className="break-words text-2xl font-bold text-primary sm:text-3xl">{t(`${NS}.stats.analyticsValue`)}</div>
                 <div className="mt-1 text-sm text-muted-foreground">
                   {t(`${NS}.stats.timeSaved`)}
                 </div>

@@ -20,7 +20,7 @@ func TestMatchScoreCacheRepository_Get(t *testing.T) {
 
 		raw := []byte(`{"overall_score":88,"summary":"good fit","from_cache":false}`)
 		rows := pgxmock.NewRows([]string{"result"}).AddRow(raw)
-		mock.ExpectQuery("SELECT result FROM match_score_cache").
+		mock.ExpectQuery(`SELECT result FROM match_score_cache WHERE user_id = \$1 AND job_id = \$2 AND resume_id = \$3`).
 			WithArgs("user-1", "job-1", "resume-1").
 			WillReturnRows(rows)
 
@@ -38,7 +38,7 @@ func TestMatchScoreCacheRepository_Get(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		mock.ExpectQuery("SELECT result FROM match_score_cache").
+		mock.ExpectQuery(`SELECT result FROM match_score_cache WHERE user_id = \$1 AND job_id = \$2 AND resume_id = \$3`).
 			WithArgs("user-1", "job-1", "resume-1").
 			WillReturnError(pgx.ErrNoRows)
 
@@ -54,7 +54,7 @@ func TestMatchScoreCacheRepository_Get(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		mock.ExpectQuery("SELECT result FROM match_score_cache").
+		mock.ExpectQuery(`SELECT result FROM match_score_cache WHERE user_id = \$1 AND job_id = \$2 AND resume_id = \$3`).
 			WithArgs("user-1", "job-1", "resume-1").
 			WillReturnError(errors.New("boom"))
 
@@ -71,7 +71,7 @@ func TestMatchScoreCacheRepository_Get(t *testing.T) {
 		defer mock.Close()
 
 		rows := pgxmock.NewRows([]string{"result"}).AddRow([]byte(`{not json`))
-		mock.ExpectQuery("SELECT result FROM match_score_cache").
+		mock.ExpectQuery(`SELECT result FROM match_score_cache WHERE user_id = \$1 AND job_id = \$2 AND resume_id = \$3`).
 			WithArgs("user-1", "job-1", "resume-1").
 			WillReturnRows(rows)
 
