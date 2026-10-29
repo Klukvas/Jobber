@@ -18,6 +18,8 @@ import { AdminUserDetail } from "@/features/admin/AdminUserDetail";
 vi.mock("@/services/adminService", () => ({
   adminService: {
     access: vi.fn(),
+    stats: vi.fn(),
+    setTest: vi.fn(),
     users: vi.fn(),
     detail: vi.fn(),
     update: vi.fn(),
@@ -32,6 +34,7 @@ const user = {
   locale: "en",
   created_at: "2026-10-29T00:00:00Z",
   email_verified: true,
+  is_test: false,
   provider_plan: "free",
   provider_status: "free",
   manual_until: null,
@@ -56,6 +59,23 @@ beforeEach(async () => {
   vi.resetAllMocks();
   await i18n.changeLanguage("en");
   useAuthStore.setState({ user, isAuthenticated: true });
+  vi.mocked(adminService.stats).mockResolvedValue({
+    total_users: 21,
+    registrations_7_days: 7,
+    registrations_30_days: 20,
+    daily_registrations: Array.from({ length: 30 }, (_, i) => ({
+      date: `2026-10-${String(i + 1).padStart(2, "0")}`,
+      count: i % 3,
+    })),
+    days: 30,
+    include_test: false,
+    timezone: "Europe/Kyiv",
+    as_of: "2026-10-29T10:00:00Z",
+  });
+  vi.mocked(adminService.setTest).mockResolvedValue({
+    saved: true,
+    is_test: true,
+  });
   vi.mocked(adminService.access).mockResolvedValue({ allowed: true });
   vi.mocked(adminService.users).mockResolvedValue({
     users: [user],
@@ -69,6 +89,151 @@ beforeEach(async () => {
   vi.mocked(adminService.revoke).mockResolvedValue({ saved: true });
 });
 afterEach(cleanup);
+
+describe("Registration overview and test accounts", () => {
+  it("refreshes the current metrics once while keeping the dated snapshot visible", async () => {
+    setup();
+    const refresh = await screen.findByRole("button", {
+      name: "Refresh statistics",
+    });
+    expect(screen.getByText(/Updated at/)).toHaveTextContent("Oct 29, 2026");
+    await userEvent.click(screen.getByRole("button", { name: "7 days" }));
+    await screen.findByRole("button", { name: "Refresh statistics" });
+    await userEvent.click(
+      screen.getByRole("checkbox", {
+        name: "Include test accounts in statistics",
+      }),
+    );
+    await screen.findByRole("button", { name: "Refresh statistics" });
+    const previous = await vi.mocked(adminService.stats).mock.results.at(-1)
+      ?.value;
+    let release: ((value: typeof previous) => void) | undefined;
+    vi.mocked(adminService.stats).mockReturnValueOnce(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+    const calls = vi.mocked(adminService.stats).mock.calls.length;
+    fireEvent.click(refresh);
+    fireEvent.click(refresh);
+    await waitFor(() =>
+      expect(adminService.stats).toHaveBeenCalledTimes(calls + 1),
+    );
+    expect(adminService.stats).toHaveBeenLastCalledWith(
+      7,
+      true,
+      expect.any(AbortSignal),
+    );
+    expect(screen.getByRole("button", { name: "Refreshing…" })).toBeDisabled();
+    expect(screen.getByText(/Updated at/)).toHaveTextContent("Oct 29, 2026");
+    release?.({ ...previous, as_of: "2026-10-30T10:00:00Z" });
+    await waitFor(() =>
+      expect(screen.getByText(/Updated at/)).toHaveTextContent("Oct 30, 2026"),
+    );
+    expect(
+      screen.getByRole("button", { name: "Refresh statistics" }),
+    ).toBeEnabled();
+  });
+  it("keeps fixed cards, switches chart period and scopes the test checkbox to metrics", async () => {
+    setup();
+    await screen.findByRole("heading", { name: "Registration overview" });
+    await screen.findByRole("img", { name: /Registrations by day/ });
+    expect(
+      screen.getByRole("heading", { name: "Total accounts" }).parentElement
+        ?.parentElement,
+    ).toHaveTextContent("21");
+    await userEvent.click(screen.getByRole("button", { name: "7 days" }));
+    await waitFor(() =>
+      expect(adminService.stats).toHaveBeenLastCalledWith(
+        7,
+        false,
+        expect.any(AbortSignal),
+      ),
+    );
+    await userEvent.click(
+      screen.getByRole("checkbox", {
+        name: "Include test accounts in statistics",
+      }),
+    );
+    await waitFor(() =>
+      expect(adminService.stats).toHaveBeenLastCalledWith(
+        7,
+        true,
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(adminService.users).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByText(
+        "Statistics include test accounts. User list shows all accounts.",
+      ),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByText("View daily data"));
+    expect(
+      screen.getByRole("table", { name: "Registrations by day" }),
+    ).toHaveTextContent("0");
+    expect(screen.getByText(/today is partial/)).toBeInTheDocument();
+  });
+  it("renders loading, retryable metric failure and zero registrations", async () => {
+    vi.mocked(adminService.stats).mockRejectedValueOnce(new Error("offline"));
+    setup();
+    await screen.findByText("Could not load registration statistics.");
+    const empty = {
+      total_users: 0,
+      registrations_7_days: 0,
+      registrations_30_days: 0,
+      daily_registrations: [{ date: "2026-10-29", count: 0 }],
+      days: 30 as const,
+      include_test: false,
+      timezone: "Europe/Kyiv",
+      as_of: "2026-10-29T10:00:00Z",
+    };
+    vi.mocked(adminService.stats).mockResolvedValue(empty);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Retry statistics" }),
+    );
+    await screen.findByText("No registrations in this period.");
+    expect(
+      screen.queryByRole("status", { name: "Loading registration statistics" }),
+    ).not.toBeInTheDocument();
+  });
+  it("marks and unmarks only through the dedicated action, with pending and error recovery", async () => {
+    let release:
+      ((value: { saved: boolean; is_test: boolean }) => void) | undefined;
+    vi.mocked(adminService.setTest).mockReturnValueOnce(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+    setup(<AdminUserDetail id={user.id} onClose={vi.fn()} />);
+    const mark = await screen.findByRole("button", {
+      name: "Mark as test account",
+    });
+    fireEvent.click(mark);
+    fireEvent.click(mark);
+    await waitFor(() => expect(adminService.setTest).toHaveBeenCalledTimes(1));
+    expect(adminService.setTest).toHaveBeenCalledWith(user.id, true);
+    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+    vi.mocked(adminService.detail).mockResolvedValue({
+      ...detail,
+      user: { ...user, is_test: true },
+    });
+    release?.({ saved: true, is_test: true });
+    const unmark = await screen.findByRole("button", {
+      name: "Remove test account mark",
+    });
+    expect(unmark).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Test")).toBeInTheDocument();
+    vi.mocked(adminService.setTest).mockRejectedValueOnce(new Error("offline"));
+    await userEvent.click(unmark);
+    await screen.findByRole("alert");
+    expect(
+      screen.getByRole("button", { name: "Remove test account mark" }),
+    ).toBeEnabled();
+    expect(adminService.update).not.toHaveBeenCalled();
+    expect(adminService.grant).not.toHaveBeenCalled();
+  });
+});
 
 describe("Admin access and user list", () => {
   it("denies access without fetching any user data", async () => {

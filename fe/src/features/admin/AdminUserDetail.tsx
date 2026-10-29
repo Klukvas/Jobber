@@ -118,8 +118,10 @@ function DetailForm({
     }
   };
   const mutation = useMutation({
-    mutationFn: async (action: "profile" | "grant" | string) => {
+    mutationFn: async (action: string | { isTest: boolean }) => {
       assertCurrentAdminRequest(requestScope.current);
+      if (typeof action !== "string")
+        return adminService.setTest(user.id, action.isTest);
       if (action === "profile")
         return adminService.update(user.id, { name: name.trim(), locale });
       if (action === "grant") {
@@ -137,12 +139,21 @@ function DetailForm({
     onSuccess: async (_data, action) => {
       if (!isCurrentAdminRequest(requestScope.current)) return;
       setNotice(
-        action === "profile"
-          ? t("admin.profileSaved")
-          : action === "grant"
-            ? t("admin.granted")
-            : t("admin.revokedNotice"),
+        typeof action !== "string"
+          ? t("admin.testSaved")
+          : action === "profile"
+            ? t("admin.profileSaved")
+            : action === "grant"
+              ? t("admin.granted")
+              : t("admin.revokedNotice"),
       );
+      await Promise.all([
+        queryClient.cancelQueries({
+          queryKey: adminKeys.detail(scope, user.id),
+        }),
+        queryClient.cancelQueries({ queryKey: adminKeys.users(scope) }),
+      ]);
+      if (!isCurrentAdminRequest(requestScope.current)) return;
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: adminKeys.detail(scope, user.id),
@@ -184,7 +195,11 @@ function DetailForm({
       return;
     inFlight.current = true;
     setNotice("");
-    mutation.mutate(action);
+    // Capture the desired value before an offline mutation can pause and the
+    // detail cache can refresh to a different flag value.
+    mutation.mutate(
+      action === "test-account" ? { isTest: !user.is_test } : action,
+    );
   };
   const active = detail.manual_grants.find((grant) => grant.active);
   const pending = mutation.isPending;
@@ -212,6 +227,32 @@ function DetailForm({
         ID: {user.id} ·{" "}
         {user.email_verified ? t("admin.verified") : t("admin.unverified")}
       </p>
+      <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-semibold">{t("admin.testAccount")}</h3>
+          {user.is_test && (
+            <span className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs font-medium">
+              {t("admin.testBadge")}
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {t("admin.testDescription")}
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          aria-pressed={user.is_test}
+          disabled={pending}
+          onClick={() => save("test-account")}
+        >
+          {pending && typeof mutation.variables === "object"
+            ? t("admin.saving")
+            : user.is_test
+              ? t("admin.unmarkTest")
+              : t("admin.markTest")}
+        </Button>
+      </div>
       <form
         className="space-y-3"
         onSubmit={(event) => {

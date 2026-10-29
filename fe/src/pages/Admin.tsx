@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ShieldCheck, Search } from "lucide-react";
 import { adminService } from "@/services/adminService";
 import { useAdminAccess, useAdminScope } from "@/shared/hooks/useAdminAccess";
+import { AdminStatsPanel } from "@/features/admin/AdminStatsPanel";
 import { AdminUserDetail } from "@/features/admin/AdminUserDetail";
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
@@ -68,6 +69,7 @@ function AdminUsers() {
           {t("admin.subtitle")}
         </p>
       </header>
+      <AdminStatsPanel />
       <div
         className={
           selected
@@ -170,6 +172,11 @@ function AdminUsers() {
                           <span className="block break-words">
                             {user.name || user.email}
                           </span>
+                          {user.is_test && (
+                            <span className="inline-flex rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-xs font-medium text-foreground">
+                              {t("admin.testBadge")}
+                            </span>
+                          )}
                           <span className="block break-all text-xs font-normal text-muted-foreground">
                             {user.email}
                           </span>

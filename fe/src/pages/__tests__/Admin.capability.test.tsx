@@ -1,4 +1,11 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -36,6 +43,7 @@ const target = {
   name: "Protected name",
   email: "target@example.com",
   email_verified: true,
+  is_test: false,
   provider_plan: "free",
   provider_status: "free",
   manual_until: null,
@@ -50,6 +58,16 @@ const detail: AdminDetail = {
   manual_grants: [],
 };
 const list = { users: [target], total: 50, page: 1, limit: 20 };
+const stats = {
+  total_users: 50,
+  registrations_7_days: 7,
+  registrations_30_days: 30,
+  daily_registrations: [{ date: "2026-10-29", count: 7 }],
+  days: 30,
+  include_test: false,
+  timezone: "Europe/Kyiv",
+  as_of: "2026-10-29T10:00:00Z",
+};
 const forbidden = () => new ApiError("Forbidden", "FORBIDDEN", 403);
 function deferred<T>() {
   let resolve: (value: T) => void = () => {
@@ -93,11 +111,13 @@ beforeEach(async () => {
   });
   unbind = bindAdminClient(client);
   vi.mocked(apiClient.get).mockImplementation(async (url) =>
-    url === "admin/access"
-      ? { allowed: true }
-      : url.includes("?")
-        ? list
-        : detail,
+    url.startsWith("admin/stats?")
+      ? Promise.resolve(stats)
+      : url === "admin/access"
+        ? { allowed: true }
+        : url.includes("?")
+          ? list
+          : detail,
   );
   vi.mocked(apiClient.patch).mockResolvedValue({ saved: true });
   vi.mocked(apiClient.post).mockResolvedValue({ saved: true });
@@ -121,13 +141,140 @@ function expectNoProtectedData() {
     client
       .getQueriesData({
         predicate: (query) =>
-          ["admin-user", "admin-users"].includes(String(query.queryKey[0])),
+          ["admin-user", "admin-users", "admin-stats"].includes(
+            String(query.queryKey[0]),
+          ),
       })
       .every(([, data]) => data === undefined),
   ).toBe(true);
 }
 
 describe("admin capability boundary", () => {
+  it("keeps the clicked test-account value when an offline mutation resumes after a detail refresh", async () => {
+    setup();
+    await selectTarget();
+    onlineManager.setOnline(false);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mark as test account" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled(),
+    );
+    await act(async () => {
+      client.setQueryData(adminKeys.detail(currentAdminRequest(), target.id), {
+        ...detail,
+        user: { ...target, is_test: true },
+      });
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Saving…" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      ),
+    );
+    expect(apiClient.patch).not.toHaveBeenCalled();
+    await act(async () => {
+      onlineManager.setOnline(true);
+    });
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith(
+        "admin/users/target/test-account",
+        { is_test: true },
+      ),
+    );
+  });
+  it.each([401, 403])(
+    "clears statistics and every protected surface on metric %s",
+    async (status) => {
+      setup();
+      await selectTarget();
+      const oldScope = currentAdminRequest();
+      expect(
+        client.getQueryCache().findAll({ queryKey: adminKeys.stats(oldScope) }),
+      ).toHaveLength(1);
+      vi.mocked(apiClient.get).mockRejectedValue(
+        new ApiError("Denied", "DENIED", status),
+      );
+      await act(async () => {
+        await client.refetchQueries({ queryKey: ["admin-stats"] });
+      });
+      await screen.findByRole("heading", {
+        name: "Administrator access required",
+      });
+      expectNoProtectedData();
+      expect(
+        screen.queryByRole("heading", { name: "Registration overview" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+  it("fences metric responses while concurrent test flag writes settle", async () => {
+    const old = deferred<typeof stats>();
+    vi.mocked(apiClient.get).mockReturnValueOnce(old.promise);
+    const read = adminService.stats(30, false).catch((error: unknown) => error);
+    const first = deferred<{ saved: boolean; is_test: boolean }>();
+    const second = deferred<{ saved: boolean; is_test: boolean }>();
+    vi.mocked(apiClient.patch)
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const a = adminService.setTest("a", true),
+      b = adminService.setTest("b", true);
+    expect(currentAdminRequest().statsUpdates).toBe(2);
+    old.resolve(stats);
+    expect(await read).toHaveProperty("name", "AbortError");
+    first.resolve({ saved: true, is_test: true });
+    await a;
+    expect(currentAdminRequest().statsUpdates).toBe(1);
+    await expect(adminService.stats(7, true)).rejects.toHaveProperty(
+      "name",
+      "AbortError",
+    );
+    second.resolve({ saved: true, is_test: true });
+    await b;
+    expect(currentAdminRequest().statsUpdates).toBe(0);
+    vi.mocked(apiClient.get).mockResolvedValue({ ...stats, total_users: 48 });
+    expect(await adminService.stats(30, false)).toHaveProperty(
+      "total_users",
+      48,
+    );
+  });
+  it.each(["success", "denial"])(
+    "discards old-session statistics %s after switching accounts",
+    async (outcome) => {
+      const pending = deferred<typeof stats>();
+      vi.mocked(apiClient.get).mockReturnValueOnce(pending.promise);
+      const read = adminService
+        .stats(30, false)
+        .catch((error: unknown) => error);
+      const oldScope = currentAdminRequest();
+      client.setQueryData([...adminKeys.stats(oldScope), 30, false], stats);
+      useAuthStore.setState({ user: { ...actor, id: "actor-b" } });
+      expect(
+        client.getQueryCache().findAll({ queryKey: ["admin-stats"] }),
+      ).toHaveLength(0);
+      if (outcome === "success") pending.resolve(stats);
+      else pending.reject(forbidden());
+      const result = await read;
+      expect(result).toHaveProperty(
+        outcome === "success" ? "name" : "status",
+        outcome === "success" ? "AbortError" : 403,
+      );
+      expect(currentAdminRequest().denied).toBe(false);
+    },
+  );
+  it("unlocks metrics after a denied flag write and explicit access recovery", async () => {
+    vi.mocked(apiClient.patch).mockRejectedValue(forbidden());
+    await expect(adminService.setTest(target.id, true)).rejects.toHaveProperty(
+      "status",
+      403,
+    );
+    expect(currentAdminRequest().statsUpdates).toBe(0);
+    expect(currentAdminRequest().denied).toBe(true);
+    await adminService.access();
+    expect(await adminService.stats(30, false)).toHaveProperty(
+      "total_users",
+      50,
+    );
+  });
   it.each([401, 403])(
     "removes cached list, details, actions and navigation after final mutation %s",
     async (status) => {
@@ -154,7 +301,9 @@ describe("admin capability boundary", () => {
       expect(
         client.getQueryCache().findAll({
           predicate: (query) =>
-            ["admin-user", "admin-users"].includes(String(query.queryKey[0])),
+            ["admin-user", "admin-users", "admin-stats"].includes(
+              String(query.queryKey[0]),
+            ),
         }),
       ).toHaveLength(0);
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
@@ -166,11 +315,13 @@ describe("admin capability boundary", () => {
     const pendingDetail = deferred<AdminDetail>();
     const pendingAccess = deferred<{ allowed: boolean }>();
     vi.mocked(apiClient.get).mockImplementation((url) =>
-      url === "admin/access"
-        ? pendingAccess.promise
-        : url.includes("?")
-          ? Promise.reject(forbidden())
-          : pendingDetail.promise,
+      url.startsWith("admin/stats?")
+        ? Promise.resolve(stats)
+        : url === "admin/access"
+          ? pendingAccess.promise
+          : url.includes("?")
+            ? Promise.reject(forbidden())
+            : pendingDetail.promise,
     );
     const detailRead = client.refetchQueries({
       queryKey: adminKeys.detail(currentAdminRequest(), target.id),
@@ -193,7 +344,11 @@ describe("admin capability boundary", () => {
     expectNoProtectedData();
     // A fresh explicit probe can restore capability after server permission returns.
     vi.mocked(apiClient.get).mockImplementation(async (url) =>
-      url === "admin/access" ? { allowed: true } : list,
+      url.startsWith("admin/stats?")
+        ? Promise.resolve(stats)
+        : url === "admin/access"
+          ? { allowed: true }
+          : list,
     );
     await userEvent.click(
       screen.getByRole("button", { name: "Check access again" }),
@@ -335,6 +490,7 @@ describe("admin capability boundary", () => {
         users: [{ ...target, name: "Actor B result" }],
       };
       vi.mocked(apiClient.get).mockImplementation(async (url) => {
+        if (url.startsWith("admin/stats?")) return stats;
         if (url === "admin/access") return { allowed: true };
         if (firstList) {
           firstList = false;
