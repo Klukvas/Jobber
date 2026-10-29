@@ -97,6 +97,10 @@ services:
 
       # Frontend URL (enables React-based PDF rendering; must be internal hostname in production)
       FRONTEND_URL: ${FRONTEND_URL:-http://frontend}
+      # Public origin for links that leave the server: email links, share pages and
+      # the Creem checkout success_url. Empty falls back to ALLOWED_ORIGINS, then
+      # the code default.
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
 
       # Anthropic AI (optional - for job import parsing)
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
