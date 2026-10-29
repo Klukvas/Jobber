@@ -23,14 +23,14 @@ async function browserFixture(name,html){
   return{context,page,engine,state};
 }
 test('autofill requires trusted click, matches semantic labels, and rechecks signed-out storage',async()=>{
-  const f=await browserFixture('autofill',`<form>${['Name','First Name','Last Name','School Name','University Name','Current Company Name','Company Name','User Name','Email'].map((label,index)=>`<label>${label}<input id="field-${index}" placeholder="${label}"></label>`).join('')}</form>`);
+  const f=await browserFixture('autofill',`<form>${['Name','First Name','Last Name','School Name','University Name','Current Company Name','Company Name','User Name','Email'].map((label,index)=>`<label>${label}<input id="field-${index}" placeholder="${label}"></label>`).join('')}<div><label for="_systemfield_name">Name</label><input id="_systemfield_name" name="_systemfield_name" placeholder="Type here..."></div></form>`);
   try{
     await f.page.addScriptTag({path:path.join(__dirname,'autofill.js')});await f.page.locator('#jobber-autofill-btn').waitFor();
     await f.page.evaluate(()=>document.querySelector('#jobber-autofill-btn').click());
     assert.equal(await f.page.evaluate(()=>fixture.reads),0);assert.equal(await f.page.locator('#field-0').inputValue(),'');
     await f.page.locator('#jobber-autofill-btn').click();
     await f.page.waitForFunction(()=>document.querySelector('#field-0').value==='Synthetic Applicant');
-    assert.deepEqual(await f.page.locator('input').evaluateAll(fields=>fields.map(field=>field.value)),['Synthetic Applicant','Synthetic','Applicant','Synthetic University','Synthetic University','Synthetic Employer','','','synthetic@example.invalid']);
+    assert.deepEqual(await f.page.locator('input').evaluateAll(fields=>fields.map(field=>field.value)),['Synthetic Applicant','Synthetic','Applicant','Synthetic University','Synthetic University','Synthetic Employer','','','synthetic@example.invalid','Synthetic Applicant']);
     await f.page.evaluate(()=>document.querySelectorAll('input').forEach(field=>field.value=''));
     const held={arrived:deferred(),gate:deferred()};f.state.hold=held;
     await f.page.locator('#jobber-autofill-btn').click();await held.arrived.promise;
