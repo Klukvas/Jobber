@@ -40,6 +40,15 @@ def started_image(files, service):
    if line.startswith('  ') and not line.startswith('   ') and line.strip().endswith(':'): current=line.strip()[:-1]
    if current==service and line.strip().startswith('image: '): image=line.strip()[7:]
  return image
+def rendered_flags(files):
+ # Like compose: an override pin wins, otherwise .env with the base defaults (false, empty).
+ payments,webhook=s['env_flags'].split('|')
+ flags={'FEATURE_PAYMENTS_ENABLED':payments or 'false','FEATURE_BILLING_WEBHOOK_ENABLED':webhook}
+ for file in files:
+  for line in file.read_text().splitlines():
+   key,_,value=line.strip().partition(': ')
+   if key in flags: flags[key]=value.strip('"')
+ return flags['FEATURE_PAYMENTS_ENABLED'],flags['FEATURE_BILLING_WEBHOOK_ENABLED']
 if name in ('sleep','flock'): done()
 if name=='timeout':
  os.execvp(a[1], a[1:])
@@ -64,6 +73,7 @@ if name=='docker':
  if a[0]=='run': done('restore-id\n')
  if a[0]=='image':
   f=a[a.index('--format')+1]
+  if 'feature-payments' in f: done(s['frontend_payments']+'\n')
   if 'Architecture' in f: done('amd64\n')
   if 'revision' in f: done('a'*40+'\n')
   if '.Id' in f: done((new_id if is_new(a[-1]) else old_id)+'\n')
@@ -73,7 +83,10 @@ if name=='docker':
  if a[0]=='inspect':
   f=a[a.index('--format')+1]; c=a[-1]
   if 'StopSignal' in f: done('SIGQUIT\n')
-  if 'Config.Env' in f: done('' if case=='env_not_carried' else 'ADMIN_EMAILS=admin@example.test\nFEATURE_PAYMENTS_ENABLED=false\n')
+  if 'Config.Env' in f:
+   payments,webhook=s['backend_flags'].split('|')
+   flags='FEATURE_PAYMENTS_ENABLED='+payments+'\nFEATURE_BILLING_WEBHOOK_ENABLED='+webhook+'\n'
+   done(flags if case=='env_not_carried' else 'ADMIN_EMAILS=admin@example.test\n'+flags)
   if 'Running' in f: done(str(s.get(c+'Running',True)).lower()+'\n')
   if 'ExitCode' in f: done(('137 false' if case=='forced_drain' else '0 false')+'\n')
   done(s.get(c+'Image',old_id)+'\n')
@@ -81,6 +94,10 @@ if name=='docker':
  if a[0]=='compose':
   target=a[-1]; rollback=any('rollback' in x for x in a)
   files=[pathlib.Path(a[i+1]) for i,x in enumerate(a) if x=='-f']
+  if 'config' in a:
+   if case=='config_failure': done(code=1)
+   payments,webhook=rendered_flags(files)
+   done(json.dumps({'services':{'backend':{'environment':{'FEATURE_PAYMENTS_ENABLED':payments,'FEATURE_BILLING_WEBHOOK_ENABLED':webhook}}}}))
   image=started_image(files, target)
   if image: s['jobber-'+target+'Image']=new_id if is_new(image) else old_id
   if target=='backend':
@@ -90,6 +107,7 @@ if name=='docker':
      if ':/app/migrations:ro' in line: mount=pathlib.Path(line.strip()[2:].split(':/app/')[0])
    source=max(int(p.name[:6]) for p in mount.glob('*.up.sql')) if mount else s['target']
    s.setdefault('backend_starts',[]).append({'rollback':rollback,'source':source,'schema_before':s['schema'],'backup_verified':s.get('backup_verified',False)})
+   s['backend_flags']='true|true' if case=='flags_not_from_env' and not rollback else '|'.join(rendered_flags(files))
    if rollback:
     s['rolling_back']=True
     if case=='rollback_backend_failure': done(code=1)
@@ -158,7 +176,10 @@ exit {code}
 '''
 
 class ReleaseProtocol(unittest.TestCase):
-    def run_case(self, case, schema='52:0', target=52, phase='deploy', frontend_only=False, backend_only=False, live_env=None, live_override=None):
+    # env_flags is what the server's .env sets and running_flags what the live backend holds, both
+    # "<payments>|<webhook>" with empty meaning unset; frontend_payments is the new image's label.
+    def run_case(self, case, schema='52:0', target=52, phase='deploy', frontend_only=False, backend_only=False, live_env=None, live_override=None,
+                 env_flags='|', running_flags='false|false', frontend_payments='false'):
         with tempfile.TemporaryDirectory(prefix='ci-release-') as directory:
             root = Path(directory)
             project = root / 'jobber'
@@ -185,7 +206,9 @@ class ReleaseProtocol(unittest.TestCase):
                 path.chmod(0o755)
             state = root / 'state.json'
             state.write_text(json.dumps({'case': 'postcheck_failure' if case == 'frontend_only_after_rollback' else case,
-                                         'schema': schema, 'source': schema, 'target': target, 'calls': []}))
+                                         'schema': schema, 'source': schema, 'target': target, 'calls': [],
+                                         'env_flags': env_flags, 'backend_flags': running_flags,
+                                         'frontend_payments': frontend_payments}))
             digest = hashlib.sha256(b'synthetic fixture\n').hexdigest()
             env = dict(os.environ, HOME=str(root), PATH=str(mockbin)+os.pathsep+os.environ['PATH'], MOCK_STATE=str(state))
             command = ['bash', str(HELPER), phase, SHA, digest, digest,
@@ -210,6 +233,8 @@ class ReleaseProtocol(unittest.TestCase):
             final['live_override'] = (project / 'docker-compose.deploy.yml').read_text()
             source_rollback = release / f"rollback-{int(schema.split(':')[0])}.yml"
             final['rollback_override'] = source_rollback.read_text() if source_rollback.exists() else ''
+            final['written_overrides'] = {path.name: path.read_text() for path in release.glob('*.yml')
+                                          if path.name == 'new-images.yml' or path.name.startswith('rollback-')}
             final['raw_backups'] = [path.name for path in release.glob('backup-*.sql')]
             return result, final
 
@@ -224,7 +249,7 @@ class ReleaseProtocol(unittest.TestCase):
                 tailoring = [c for c in state['calls'] if (c[0] == 'curl' or 'wget' in c) and '/resume-tailoring/source/' in c[-1]]
                 self.assertEqual(len(tailoring), 2)
                 calls = state['calls']
-                starts = [i for i, call in enumerate(calls) if call[0:2] == ['docker', 'compose']]
+                starts = [i for i, call in enumerate(calls) if call[0:2] == ['docker', 'compose'] and 'up' in call]
                 self.assertEqual([calls[i][-1] for i in starts], ['backend', 'frontend'])
 
     def test_bad_schema_and_missing_constraints_fail_before_stop(self):
@@ -457,7 +482,7 @@ class ReleaseProtocol(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(line, state['live_override'])
         self.assertIn(line, state['rollback_override'])
-        self.assertEqual(state['live_override'].count('FEATURE_PAYMENTS_ENABLED'), 1)
+        self.assertNotIn('FEATURE_', state['live_override'])
 
     def test_unsafe_live_override_env_fails_before_stop(self):
         for line in ('      ADMIN_EMAILS: "$(id)"', '      ADMIN_EMAILS: unquoted'):
@@ -484,13 +509,95 @@ class ReleaseProtocol(unittest.TestCase):
                 self.assertIn('release_error=unsupported_live_override_line_', result.stderr)
                 self.assertFalse(any(call[:2] == ['docker', 'stop'] for call in state['calls']))
 
-    def test_live_override_with_payments_on_fails_before_stop(self):
-        override = ('services:\n  backend:\n    image: ' + OLD_ID + '\n    environment:\n'
-                    '      FEATURE_PAYMENTS_ENABLED: "true"\n      FEATURE_BILLING_WEBHOOK_ENABLED: "false"\n'
-                    '  frontend:\n    image: ' + OLD_ID + '\n')
+    def test_written_overrides_never_pin_payment_flags(self):
+        for pin in ('false', 'true'):
+            with self.subTest(pin=pin):
+                override = ('services:\n  backend:\n    image: ' + OLD_ID + '\n    environment:\n'
+                            '      ADMIN_EMAILS: "admin@example.test"\n'
+                            f'      FEATURE_PAYMENTS_ENABLED: "{pin}"\n      FEATURE_BILLING_WEBHOOK_ENABLED: "{pin}"\n'
+                            '  frontend:\n    image: ' + OLD_ID + '\n')
+                result, state = self.run_case('success', '52:0', 53, live_override=override, env_flags=pin + '|',
+                                              running_flags=pin + '|' + pin, frontend_payments=pin)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(sorted(state['written_overrides']), ['new-images.yml', 'rollback-52.yml', 'rollback-53.yml'])
+                for name, text in [('live', state['live_override']), *state['written_overrides'].items()]:
+                    self.assertNotIn('FEATURE_', text, name)
+                    self.assertIn('      ADMIN_EMAILS: "admin@example.test"', text, name)
+
+    def test_override_without_backend_env_has_no_environment_block(self):
+        override = 'services:\n  backend:\n    image: ' + OLD_ID + '\n  frontend:\n    image: ' + OLD_ID + '\n'
         result, state = self.run_case('success', '52:0', 53, live_override=override)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for name, text in [('live', state['live_override']), *state['written_overrides'].items()]:
+            self.assertNotIn('environment:', text, name)
+
+    def test_release_keeps_the_payment_flags_it_finds(self):
+        for env_flags, running, frontend, expected in [
+                ('|', 'false|false', 'false', 'payments=false webhook=false'),
+                ('false|false', 'false|', 'false', 'payments=false webhook=false'),
+                ('true|', 'true|true', 'true', 'payments=true webhook=true'),
+                ('true|false', 'true|false', 'true', 'payments=true webhook=false')]:
+            with self.subTest(env=env_flags, running=running):
+                result, state = self.run_case('success', '52:0', 53, env_flags=env_flags, running_flags=running,
+                                              frontend_payments=frontend)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(expected, result.stdout)
+
+    def test_release_never_switches_payments_and_fails_before_stop(self):
+        # The first case is production before go-live: .env says true, the live override pins false.
+        for env_flags, running in [('true|true', 'false|false'), ('|', 'true|true'),
+                                   ('true|false', 'true|true'), ('false|true', 'false|')]:
+            with self.subTest(env=env_flags, running=running):
+                result, state = self.run_case('success', '52:0', 53, env_flags=env_flags, running_flags=running,
+                                              frontend_payments='true' if env_flags.startswith('true') else 'false')
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('release_error=payment_flags_would_change', result.stderr)
+                self.assertFalse(any(call[:2] == ['docker', 'stop'] for call in state['calls']))
+
+    def test_unrecognised_payment_flag_fails_before_stop(self):
+        for env_flags, running in [('yes|', 'false|false'), ('false|1', 'false|false'), ('|', '1|')]:
+            with self.subTest(env=env_flags, running=running):
+                result, state = self.run_case('success', '52:0', 53, env_flags=env_flags, running_flags=running)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('release_error=invalid_payment_flags', result.stderr)
+                self.assertFalse(any(call[:2] == ['docker', 'stop'] for call in state['calls']))
+
+    def test_unreadable_payment_flags_fail_before_stop(self):
+        result, state = self.run_case('config_failure', '52:0', 53)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('release_error=live_override_enables_payments', result.stderr)
+        self.assertIn('release_error=payment_flags_unreadable', result.stderr)
+        self.assertFalse(any(call[:2] == ['docker', 'stop'] for call in state['calls']))
+
+    def test_frontend_payment_ui_must_match_backend(self):
+        for env_flags, running, frontend in [('true|', 'true|true', 'false'), ('|', 'false|false', 'true'),
+                                             ('|', 'false|false', '')]:
+            with self.subTest(env=env_flags, frontend=frontend):
+                result, state = self.run_case('success', '52:0', 53, env_flags=env_flags, running_flags=running,
+                                              frontend_payments=frontend)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('release_error=frontend_payments_mismatch', result.stderr)
+                self.assertFalse(any(call[:2] == ['docker', 'stop'] for call in state['calls']))
+
+    def test_backend_only_release_does_not_read_a_frontend_label(self):
+        result, state = self.run_case('success', '52:0', 53, backend_only=True, frontend_payments='')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_backend_flags_that_differ_from_env_roll_back(self):
+        result, state = self.run_case('flags_not_from_env', '52:0', 53)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('release_error=payment_flags_not_from_env', result.stderr)
+        self.assertIn('rollback=healthy schema=53:0', result.stderr)
+        self.assertEqual(state['backend_flags'], 'false|')
+
+    def test_production_override_reset_line_fails_before_stop(self):
+        # A `!reset` tag would hide a value .env sets (PUBLIC_BASE_URL), so it is never carried over.
+        override = ('services:\n  backend:\n    image: ' + OLD_ID + '\n    environment:\n'
+                    '      PUBLIC_BASE_URL: !reset null\n      ADMIN_EMAILS: "admin@example.test"\n'
+                    '      FEATURE_PAYMENTS_ENABLED: "false"\n      FEATURE_BILLING_WEBHOOK_ENABLED: "false"\n'
+                    '  frontend:\n    image: ' + OLD_ID + '\n')
+        result, state = self.run_case('success', '52:0', 54, live_override=override, env_flags='true|true')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('release_error=unsupported_live_override_line_5', result.stderr)
         self.assertFalse(any(call[:2] == ['docker', 'stop'] for call in state['calls']))
 
     def test_ci_written_override_is_accepted_as_live(self):
