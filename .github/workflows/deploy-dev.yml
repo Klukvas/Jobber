@@ -416,6 +416,11 @@ jobs:
       (needs.test-frontend.result == 'success' || needs.test-frontend.result == 'skipped')
     outputs:
       image_tag: ${{ steps.set_tag.outputs.tag }}
+    env:
+      # The checkout UI ships only when the repository variable is exactly 'true'. The same value
+      # labels the image, and release.sh refuses a frontend that disagrees with the backend's
+      # payment flag from the server's .env (ADR-0003, "Turning payments on or off").
+      VITE_FEATURE_PAYMENTS: ${{ vars.VITE_FEATURE_PAYMENTS == 'true' && 'true' || 'false' }}
 
     steps:
       - name: Checkout code
@@ -446,7 +451,9 @@ jobs:
           file: ./fe/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            com.cursopus.feature-payments=${{ env.VITE_FEATURE_PAYMENTS }}
           cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:buildcache
           cache-to: type=registry,ref=${{ env.FRONTEND_IMAGE }}:buildcache,mode=max
 
@@ -455,15 +462,14 @@ jobs:
           # If not set, docker-compose.yml will use the default.
           # For production deploys, consider making this configurable via GitHub Secret.
           #
-          # VITE_FEATURE_PAYMENTS is pinned to false below until Creem go-live
-          # (ADR-0003). To go live, read it from the VITE_FEATURE_PAYMENTS secret
-          # again, with a 'false' fallback like the lines around it. Keep any
+          # VITE_FEATURE_PAYMENTS comes from the job env above, never straight from a
+          # variable, so the bundle and the image label cannot disagree. Keep any
           # comment out of the block: its lines are build-args, not YAML.
           build-args: |
             VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL || '/api/v1' }}
             VITE_SENTRY_DSN=${{ secrets.VITE_SENTRY_DSN || '' }}
             VITE_FEATURE_SENTRY=${{ secrets.VITE_FEATURE_SENTRY || 'false' }}
-            VITE_FEATURE_PAYMENTS=false
+            VITE_FEATURE_PAYMENTS=${{ env.VITE_FEATURE_PAYMENTS }}
             VITE_FEATURE_EMAIL_NOTIFICATIONS=${{ secrets.VITE_FEATURE_EMAIL_NOTIFICATIONS || 'true' }}
             GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
 

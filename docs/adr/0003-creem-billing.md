@@ -282,6 +282,11 @@ hours. The realistic options are to clear the identifiers on rows confirmed to b
 test-mode, or to mark them cancelled — per row, after looking at the data, as its
 own reviewed change rather than a side effect of a deployment.
 
+Production still holds such a row. It is dealt with at go-live by a one-off SQL
+statement run by hand after a verified backup, not by a migration: the decision
+depends on that row, and a migration would run the same change on every other
+installation.
+
 An installation where the original `000046` already ran cannot recover the
 cleared values from the current migration. Only a dump taken before that run
 holds them.
@@ -294,12 +299,52 @@ holds them.
 | `CREEM_WEBHOOK_SECRET` | required when webhook ingestion is on; the server refuses to start without it |
 | `CREEM_ENVIRONMENT` | `test` (default) → `test-api.creem.io`, `live` → `api.creem.io` |
 | `CREEM_PRO_PRODUCT_ID`, `CREEM_ENTERPRISE_PRODUCT_ID` | no defaults; an empty one means that plan is not purchasable. At least one is required when payments **or** webhook ingestion is on, or the server refuses to start |
-| `TRUSTED_PROXIES` | optional comma-separated IPs/CIDRs whose `X-Forwarded-For` is honoured; empty keeps gin's trust-all default |
+| `TRUSTED_PROXIES` | optional comma-separated IPs/CIDRs whose `X-Forwarded-For` is honoured; empty keeps gin's trust-all default. In production: the `jobber-network` bridge subnet (see Known gaps) |
 
 `FEATURE_PAYMENTS_ENABLED` (new purchases and plan management) and
 `FEATURE_BILLING_WEBHOOK_ENABLED` (ingestion, defaults to the payments flag) stay
 independent kill switches, as in ADR-0002. The webhook route is
 `POST /api/v1/webhooks/creem`. `success_url` is built from `PUBLIC_BASE_URL`.
+
+## Turning payments on or off
+
+The server's `.env` is the only switch for the backend: `FEATURE_PAYMENTS_ENABLED`,
+`FEATURE_BILLING_WEBHOOK_ENABLED` (empty follows payments) and the `CREEM_*` values,
+which reach the container through `docker-compose.yml`. The checkout UI follows the
+repository variable `VITE_FEATURE_PAYMENTS` (exactly `true` turns it on), which CI
+compiles into the bundle and records as the image label `com.cursopus.feature-payments`.
+
+A CI release never changes either. The overrides `.github/scripts/release.sh` writes
+carry no payment flags, and a pin left in an older live override is dropped. Before
+anything stops, the release refuses when:
+
+- the flags the new override renders from `.env` differ from the running backend's
+  (`payment_flags_would_change`), compared the way the backend reads them, so an
+  empty webhook flag equals the payments flag;
+- a flag is spelled other than `true`, `false` or empty (`invalid_payment_flags`): the
+  backend would silently read `yes` or a typo as the default;
+- a new frontend's label differs from the backend's payments flag
+  (`frontend_payments_mismatch`).
+
+After the new backend starts, its flags must equal what `.env` rendered, or the
+release rolls back (`payment_flags_not_from_env`).
+
+Switching is therefore an operator step on the server, followed by a frontend build:
+
+1. Back up the database.
+2. Edit `.env`. On: the live `CREEM_*` values, `CREEM_ENVIRONMENT=live`,
+   `PUBLIC_BASE_URL` and `FEATURE_PAYMENTS_ENABLED=true`. Off:
+   `FEATURE_PAYMENTS_ENABLED=false`, or only `FEATURE_BILLING_WEBHOOK_ENABLED=false`
+   to stop ingestion (Creem then retries for 24 hours).
+3. Check that `docker-compose.deploy.yml` holds no payment pin and no `!reset` line
+   (either would override `.env`), recreate the backend from it
+   (`docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --no-deps backend`)
+   and reload the frontend's nginx (`docker exec jobber-frontend nginx -s reload`),
+   which resolves the backend only when it starts.
+4. Set `VITE_FEATURE_PAYMENTS` to match and run the deploy workflow by hand with
+   `force_frontend`. Until then the backend offers payments the UI does not show, which
+   is harmless. Turning payments off in a hurry is steps 2 and 3 alone: the UI keeps
+   showing a checkout that fails until the new frontend is out.
 
 ## Frontend
 
@@ -317,16 +362,25 @@ navigation, not a script, frame, request or form post.
 
 ## Must be confirmed with one test-mode purchase before go-live
 
-- [ ] **Metadata reaches the subscription events.** Complete a purchase through the
+Test mode, 2026-10-28, through `creem listen` against a local stack, unless an item
+says otherwise.
+
+- [x] **Metadata reaches the subscription events.** Complete a purchase through the
   app's own checkout and confirm `subscription.paid` carries
-  `metadata.jobber_user_id`, and that the buyer lands on the paid plan.
-- [ ] **`checkout.completed` links the customer** (`external_account_id` is set), and
+  `metadata.jobber_user_id`, and that the buyer lands on the paid plan. (It is on
+  `paid`, `update`, `scheduled_cancel` and `canceled`; `paid` arrived before
+  `checkout.completed` and applied through the metadata. `subscription.active` never
+  arrived, so only `paid` grants the plan.)
+- [x] **`checkout.completed` links the customer** (`external_account_id` is set), and
   the portal opens.
-- [ ] **`updated_at` is present and monotonic** on subscription objects, and its
-  encoding (RFC 3339 string or epoch milliseconds — both are accepted).
+- [x] **`updated_at` is present and monotonic** on subscription objects, and its
+  encoding (RFC 3339 string or epoch milliseconds — both are accepted). (RFC 3339
+  with milliseconds.)
 - [ ] **Cancel at period end** produces `subscription.scheduled_cancel` and the app
-  shows the end date; the period end then produces `subscription.canceled`.
-- [ ] **Plan change** via `/upgrade` produces a `subscription.update` whose product is
+  shows the end date; the period end then produces `subscription.canceled`. (The
+  first half is confirmed; `canceled` was only seen after an immediate cancel, not at
+  a period end.)
+- [x] **Plan change** via `/upgrade` produces a `subscription.update` whose product is
   the new one (the parser reads `product`, falling back to `items[0].product_id`).
 - [x] **`success_url`** lands on `/app/settings?subscription=success` and the extra query
   parameters Creem appends are harmless. (Test mode, 2026-10-28: the original
@@ -336,7 +390,7 @@ navigation, not a script, frame, request or form post.
   test and live events go to separate webhook URLs per Creem's test-mode page;
   whether their signing secrets also differ is not stated, so confirm it and
   keep one secret per environment either way.
-- [ ] **The hosted checkout locks the pre-filled email.** Creem identifies customers
+- [x] **The hosted checkout locks the pre-filled email.** Creem identifies customers
   by email. If a buyer can change it, user A can pay with user V's email and A's own
   `jobber_user_id`: `checkout.completed` then links V's Creem customer to A (A reaches
   V's billing portal) and V's own later purchase hits the unique index and grants
@@ -346,38 +400,48 @@ navigation, not a script, frame, request or form post.
   and only `subscription.canceled` ends it; the refunds and introduction pages say
   expiry revokes access. We follow the former (the event is not acted on). Confirm
   with a real failed-charge run, and if `expired` means access is over, handle it.
-- [ ] **Equal `updated_at`s.** An upgrade with an immediate proration charge can emit
+- [x] **Equal `updated_at`s.** An upgrade with an immediate proration charge can emit
   `subscription.update` and `subscription.paid` for one change; confirm they do not
   both carry the same `updated_at` with different content (a tie is dropped as
-  superseded, except for a cancellation).
-- [ ] **A downgrade** shows the expected `refund.created` warning and ends on the new
-  plan.
-- [ ] **Re-subscribing after a cancellation** (a new subscription id) replaces the old
+  superseded, except for a cancellation). (They share it, with the same content.)
+- [x] **A downgrade** shows the expected `refund.created` warning and ends on the new
+  plan. (The proration refund also holds and revokes all of the period's credits.)
+- [x] **Re-subscribing after a cancellation** (a new subscription id) replaces the old
   link and grants the plan.
-- [ ] **The checkout and portal hosts.** The frontend only navigates to `creem.io` and
+- [x] **The checkout and portal hosts.** The frontend only navigates to `creem.io` and
   `*.creem.io` (`BILLING_HOST_SUFFIX` in `fe/src/features/subscription/safeHttpsUrl.ts`).
   Confirm the real `checkout_url` and portal link hosts in the first test-mode
   purchase; a different (custom) domain would be refused with the generic checkout
-  error until the constant is updated.
+  error until the constant is updated. (Checkout: `www.creem.io`; portal: `creem.io`.)
 - [ ] **A user with no `subscriptions` row** that pays ends up on the plan (covered by
   tests; confirm once against a real account created before registration wrote a row).
-- [ ] **Decide what happens to the legacy subscription rows** (see
+- [ ] **Deal with the legacy subscription rows** (see
   [Legacy billing rows](#legacy-billing-rows)). Until they are dealt with, a user
   whose row still carries a non-Creem `external_subscription_id` cannot complete
-  a first real purchase: the link guard refuses the event and Creem stops
-  retrying after 24 hours.
-- [ ] **Remove the production pin.** `.github/scripts/release.sh` (run by
-  `.github/workflows/deploy-dev.yml`) pins `FEATURE_PAYMENTS_ENABLED=false` and
-  `FEATURE_BILLING_WEBHOOK_ENABLED=false` in every `docker-compose.deploy.yml`
-  override it writes, and refuses to release over a live override that enables them — not in the server's
-  `.env`, which CI never writes — and builds the frontend with
-  `VITE_FEATURE_PAYMENTS=false`, whatever the secrets say, so production ships
-  with payments off. Going live means reading those three from their secrets
-  again (and setting the `CREEM_*` ones first, or the API refuses to boot).
-- [ ] **Delete the stale GitHub Secrets**: all `FASTSPRING_*` and the earlier
-  `PADDLE_*`, and add the five `CREEM_*` ones.
-- [ ] **Legal pages** (Terms, Privacy, Refund) name Creem as Merchant of Record —
-  confirm the wording is accurate for the refund policy actually in force.
+  a first real purchase: checkout answers `ALREADY_SUBSCRIBED`, and the link guard
+  refuses the event until Creem stops retrying after 24 hours.
+- [x] **Remove the production pin.** Releases no longer pin the payment flags or
+  build the frontend with a fixed `VITE_FEATURE_PAYMENTS=false`; see
+  [Turning payments on or off](#turning-payments-on-or-off). The server's `.env`
+  must hold the live `CREEM_*` values before payments are switched on there, or the
+  API refuses to boot.
+- [ ] **Clean up GitHub**: delete the stale `FASTSPRING_*` and `PADDLE_*` secrets
+  and set the repository variable `VITE_FEATURE_PAYMENTS`. The `CREEM_*` values live
+  only in the server's `.env`, which CI never reads or writes, so they need no secret.
+- [x] **Legal pages** (Terms, Privacy, Refund) name Creem as Merchant of Record —
+  confirm the wording is accurate for the refund policy actually in force. (Creem's
+  Buyer Terms leave refund eligibility to the merchant's terms. The Refund page no
+  longer offers a prorated refund or credit, and says a refund ends the subscription
+  and removes that period's credits.)
+
+### Only live mode can confirm
+
+- [ ] The live product is reported with `mode: "prod"`, which `ModeMatches` expects
+  for live; anything else makes checkout refuse the product.
+- [ ] With tax-inclusive pricing, a buyer charged VAT still has a transaction
+  `amount` of at least 2400, or `ValidPaidPro` grants the plan without its credits.
+- [ ] The first live purchase: every webhook delivery in the dashboard answers 200.
+- [ ] The first renewal: `subscription.paid` for the new period grants its credits.
 
 ## Known gaps, not built
 
@@ -388,12 +452,15 @@ navigation, not a script, frame, request or form post.
 - **A second subscription bought outside the app** while one is live can be lost
   (see the link-conflict rules above). Recovery needs a new event for the second
   subscription (a plan change, the next renewal) or a manual fix of the row.
-- **The `TRUSTED_PROXIES` default keeps gin's behaviour** (every proxy trusted, so
-  `X-Forwarded-For` can be rotated to dodge per-IP limits, including the webhook
-  route's). It is configurable now; set it in production once the proxy's address
-  is known. It affects every rate limiter, not just billing. Production is safe
-  either way: Caddy overwrites the header with the client it resolved (see "Client
-  IP behind Cloudflare" in the README).
+- **Per-IP rate limits treat every IPv6 address as its own client.** The request path
+  is Cloudflare → Caddy → nginx → backend, and only Caddy publishes ports. Caddy
+  takes `CF-Connecting-IP` from Cloudflare's ranges alone and overwrites
+  `X-Forwarded-For` with that one address (see "Client IP behind Cloudflare" in the
+  README), so the header cannot be forged through this chain and visitors behind one
+  edge no longer share a limit. `TRUSTED_PROXIES` set to the bridge subnet changes
+  nothing today; it stops a port published later from being trusted blindly. What is
+  left: a client holding an IPv6 /64 gets a fresh key per address. It affects every
+  rate limiter, not just billing.
 - **`Incomplete`** appears on Creem's introduction page (23 hours to pay) but is not
   in the API's status enum or event list; an unrecognised status fails the event
   and is retried until Creem gives up.

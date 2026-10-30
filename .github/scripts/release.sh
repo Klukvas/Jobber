@@ -148,21 +148,29 @@ bad_line=$(awk 'NR==1 {if ($0!="services:") {bad=NR; exit}; next}
  block=="vol" && /^      - [^ ]+:\/app\/migrations:ro$/ {next}
  {bad=NR; exit}
  END {if (bad) {print bad; exit 1}}' "$LIVE") || fail "unsupported_live_override_line_${bad_line:-unreadable}"
-# Going live with payments means changing the pins below, never a silent switch back to off.
-if grep -qE '^      FEATURE_(PAYMENTS|BILLING_WEBHOOK)_ENABLED: "(true|1)"$' "$LIVE"; then fail live_override_enables_payments; fi
 # Backend settings kept only in the live override (such as ADMIN_EMAILS) carry over to every
-# override this release writes; the payment flags are always pinned off.
+# override this release writes. The payment flags never do: they come from the server's .env
+# alone, so a pin left in an older live override is dropped here.
 LIVE_ENV=$(awk '/^  (backend|frontend):$/ {svc=$1; env=0; next} svc=="backend:" && /^    environment:$/ {env=1; next} /^    [^ ]/ {env=0} env' "$LIVE" | grep -vE '^      FEATURE_(PAYMENTS|BILLING_WEBHOOK)_ENABLED: ' || true)
+# Both print "<payments>|<webhook>" exactly as the backend receives them; empty means unset.
+rendered_payment_flags() { compose "$1" config --format json 2>/dev/null | jq -er '.services.backend.environment | "\(.FEATURE_PAYMENTS_ENABLED // "")|\(.FEATURE_BILLING_WEBHOOK_ENABLED // "")"'; }
+running_payment_flags() { docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' jobber-backend | awk '/^FEATURE_PAYMENTS_ENABLED=/ {sub(/^[^=]*=/, ""); payments=$0} /^FEATURE_BILLING_WEBHOOK_ENABLED=/ {sub(/^[^=]*=/, ""); webhook=$0} END {printf "%s|%s", payments, webhook}'; }
+# Reads them the way config.getEnvAsBool does (payments default off, an empty webhook flag follows
+# payments), but refuses any spelling other than true/false instead of falling back silently.
+effective_payment_flags() {
+ local payments webhook
+ IFS='|' read -r payments webhook <<<"$1"
+ case $payments in ''|false) payments=false;; true) ;; *) return 1;; esac
+ case $webhook in '') webhook=$payments;; true|false) ;; *) return 1;; esac
+ printf 'payments=%s webhook=%s' "$payments" "$webhook"
+}
 write_override() {
  cat >"$1" <<YAML
 services:
   backend:
     image: $2
-    environment:
-      FEATURE_PAYMENTS_ENABLED: "false"
-      FEATURE_BILLING_WEBHOOK_ENABLED: "false"
 YAML
- [[ -z $LIVE_ENV ]] || printf '%s\n' "$LIVE_ENV" >>"$1"
+ [[ -z $LIVE_ENV ]] || printf '    environment:\n%s\n' "$LIVE_ENV" >>"$1"
  if [[ -n ${4:-} ]]; then
   cat >>"$1" <<YAML
     volumes:
@@ -196,6 +204,18 @@ done
 SOURCE_MOUNT=
 [[ -n $BACKEND ]] || SOURCE_MOUNT="$RELEASE_DIR/migrations-through-$SOURCE"
 write_override "$RELEASE_DIR/new-images.yml" "$NEW_BACKEND" "$NEW_FRONTEND" "$SOURCE_MOUNT"
+# A release never switches payments on or off: what the new override renders from .env must
+# match the running backend, or nothing stops. Turning payments on is an operator step.
+PLANNED_FLAGS=$(rendered_payment_flags "$RELEASE_DIR/new-images.yml") || fail payment_flags_unreadable
+RUNNING_FLAGS=$(running_payment_flags) || fail payment_flags_unreadable
+PAYMENTS=$(effective_payment_flags "$PLANNED_FLAGS") || fail invalid_payment_flags
+CURRENT_PAYMENTS=$(effective_payment_flags "$RUNNING_FLAGS") || fail invalid_payment_flags
+[[ $PAYMENTS == "$CURRENT_PAYMENTS" ]] || fail payment_flags_would_change
+# A checkout UI must not go out over a backend without payments, nor a backend with payments
+# behind a frontend that hides them. CI labels every frontend image with the value it built.
+if [[ -n $FRONTEND ]]; then
+ [[ payments=$(docker image inspect --format '{{index .Config.Labels "com.cursopus.feature-payments"}}' "$FRONTEND") == "${PAYMENTS%% *}" ]] || fail frontend_payments_mismatch
+fi
 ENTRY_CLOSED=false; COMMITTED=false; RESTORE_CONTAINER=
 rollback() {
  local reason=$? current version
@@ -279,7 +299,7 @@ EXPECTED_SCHEMA="$TARGET:0"
 [[ -n $BACKEND ]] || EXPECTED_SCHEMA=$SOURCE_SCHEMA
 [[ $(schema) == "$EXPECTED_SCHEMA" ]] || fail target_schema_not_expected_clean
 validate52
-docker exec jobber-backend sh -c 'test "$FEATURE_PAYMENTS_ENABLED" = false && test "$FEATURE_BILLING_WEBHOOK_ENABLED" = false'
+[[ $(running_payment_flags) == "$PLANNED_FLAGS" ]] || fail payment_flags_not_from_env
 BACKEND_ENV=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' jobber-backend)
 while IFS= read -r line; do
  [[ -n $line ]] || continue
@@ -305,7 +325,7 @@ public_ready || fail public_frontend_not_200
 [[ $(sha256sum "$BASE" | cut -d' ' -f1) == "$BASE_HASH" && $(sha256sum Caddyfile | cut -d' ' -f1) == "$CADDY_HASH" ]] || fail static_config_changed
 COMMITTED=true
 trap - ERR
-say "release=healthy schema=$EXPECTED_SCHEMA protected_routes=401 existing_data=preserved env=unchanged"
+say "release=healthy schema=$EXPECTED_SCHEMA protected_routes=401 existing_data=preserved env=unchanged $PAYMENTS"
 say "backend_image=$NEW_BACKEND"; say "frontend_image=$NEW_FRONTEND"; say "backup_file=$BACKUP"
 # Keeps the images just replaced as the rollback target; a cleanup failure never fails the release.
 cleanup_images() {

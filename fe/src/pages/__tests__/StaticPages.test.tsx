@@ -77,6 +77,12 @@ describe("Refund", () => {
     expect(container.textContent).not.toContain("the reason for the refund");
     expect(container.textContent).toContain("mandatory consumer rights");
   });
+  it("states what a refund ends and promises no prorated refund or credit", () => {
+    const { container } = render(<Refund />);
+    expect(container.textContent).toContain("A refund ends the refunded subscription");
+    expect(container.textContent).toContain("credits of the refunded billing period are removed");
+    expect(container.textContent).not.toContain("prorated");
+  });
   it("renders without crash and shows heading", () => {
     render(<Refund />);
     expect(screen.getByText("Refund Policy")).toBeInTheDocument();
