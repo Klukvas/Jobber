@@ -213,6 +213,11 @@ func TestMain(m *testing.M) {
 	matchScoreCacheRepository := matchScoreRepo.NewMatchScoreCacheRepository(pool)
 	resumeBuilderRepository := rbRepo.NewResumeBuilderRepository(pool)
 
+	// cmd/api/main.go writes this row at boot, and GET /subscription needs it.
+	if err := subscriptionRepository.ConfigureAIBudget(ctx, 100_000_000_000); err != nil {
+		log.Fatalf("failed to configure AI budget: %v", err)
+	}
+
 	// Services
 	//
 	// Billing runs with no provider credentials: these tests exercise plan

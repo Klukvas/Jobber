@@ -9,22 +9,24 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIntegrationFreePlanLimitOneBuilder(t *testing.T) {
+func TestIntegrationFreePlanBuilderLimit(t *testing.T) {
 	cleanupAll(t)
 	userID := seedUser(t, "sub-free@test.com", "securepass123")
 	seedSubscription(t, userID, "free")
 	token := authToken(t, userID)
 
-	// First builder — OK
-	resp := doRequest(t, http.MethodPost, "/api/v1/resume-builder", map[string]string{
-		"title": "Builder 1",
-	}, token)
-	assertStatus(t, resp, http.StatusCreated)
-	resp.Body.Close()
+	// The two free builders — OK
+	for i := 0; i < 2; i++ {
+		resp := doRequest(t, http.MethodPost, "/api/v1/resume-builder", map[string]string{
+			"title": "Builder",
+		}, token)
+		assertStatus(t, resp, http.StatusCreated)
+		resp.Body.Close()
+	}
 
-	// Second builder — should be blocked
-	resp = doRequest(t, http.MethodPost, "/api/v1/resume-builder", map[string]string{
-		"title": "Builder 2",
+	// Third builder — should be blocked
+	resp := doRequest(t, http.MethodPost, "/api/v1/resume-builder", map[string]string{
+		"title": "Builder 3",
 	}, token)
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 	assertErrorCode(t, resp, "PLAN_LIMIT_REACHED")
@@ -36,10 +38,15 @@ func TestIntegrationFreePlanCoverLetterLimit(t *testing.T) {
 	seedSubscription(t, userID, "free")
 	token := authToken(t, userID)
 
-	// Cover letters are not part of the Free plan: both config/plans.yaml and
-	// the hardcoded fallback (used here, without plans.yaml) give free = 0, so
-	// the very first create is refused.
+	// Both config/plans.yaml and the hardcoded fallback (used here, without
+	// plans.yaml) give Free one cover letter.
 	resp := doRequest(t, http.MethodPost, "/api/v1/cover-letters", map[string]string{
+		"title": "Free CL",
+	}, token)
+	assertStatus(t, resp, http.StatusCreated)
+	resp.Body.Close()
+
+	resp = doRequest(t, http.MethodPost, "/api/v1/cover-letters", map[string]string{
 		"title": "CL Over Limit",
 	}, token)
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
@@ -53,7 +60,7 @@ func TestIntegrationFreePlanCoverLetterLimit(t *testing.T) {
 			MaxCoverLetters int `json:"max_cover_letters"`
 		} `json:"limits"`
 	}](t, resp)
-	assert.Equal(t, 0, sub.Limits.MaxCoverLetters)
+	assert.Equal(t, 1, sub.Limits.MaxCoverLetters)
 }
 
 func TestIntegrationProPlanMultipleBuilders(t *testing.T) {
@@ -86,7 +93,7 @@ func TestIntegrationLimitCheckAfterDelete(t *testing.T) {
 	seedSubscription(t, userID, "free")
 	token := authToken(t, userID)
 
-	// Create first builder (uses up the 1 free slot)
+	// Create two builders (uses up the free slots)
 	resp := doRequest(t, http.MethodPost, "/api/v1/resume-builder", map[string]string{
 		"title": "Builder 1",
 	}, token)
@@ -94,9 +101,15 @@ func TestIntegrationLimitCheckAfterDelete(t *testing.T) {
 	body := parseJSON[map[string]interface{}](t, resp)
 	rbID := body["id"].(string)
 
-	// Verify limit reached
 	resp = doRequest(t, http.MethodPost, "/api/v1/resume-builder", map[string]string{
 		"title": "Builder 2",
+	}, token)
+	assertStatus(t, resp, http.StatusCreated)
+	resp.Body.Close()
+
+	// Verify limit reached
+	resp = doRequest(t, http.MethodPost, "/api/v1/resume-builder", map[string]string{
+		"title": "Builder 3",
 	}, token)
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 	resp.Body.Close()
