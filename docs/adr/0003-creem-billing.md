@@ -488,14 +488,14 @@ a partial refund and an immediate cancellation.
 - **A second subscription bought outside the app** while one is live can be lost
   (see the link-conflict rules above). Recovery needs a new event for the second
   subscription (a plan change, the next renewal) or a manual fix of the row.
-- **Per-IP rate limits treat every IPv6 address as its own client.** The request path
-  is Cloudflare → Caddy → nginx → backend, and only Caddy publishes ports. Caddy
-  takes `CF-Connecting-IP` from Cloudflare's ranges alone and overwrites
-  `X-Forwarded-For` with that one address (see "Client IP behind Cloudflare" in the
-  README), so the header cannot be forged through this chain and visitors behind one
-  edge no longer share a limit. `TRUSTED_PROXIES` set to the bridge subnet changes
-  nothing today; it stops a port published later from being trusted blindly. What is
-  left: a client holding an IPv6 /64 gets a fresh key per address. It affects every
+- **Per-IP rate limits stop at the IPv6 /64.** The request path is Cloudflare → Caddy
+  → nginx → backend, and only Caddy publishes ports. Caddy takes `CF-Connecting-IP`
+  from Cloudflare's ranges alone and overwrites `X-Forwarded-For` with that one
+  address (see "Client IP behind Cloudflare" in the README), so the header cannot be
+  forged through this chain and visitors behind one edge no longer share a limit.
+  `TRUSTED_PROXIES` set to the bridge subnet changes nothing today; it stops a port
+  published later from being trusted blindly. What is left: IPv6 clients count per
+  /64, so one holding a /56 or /48 can still move between /64s. It affects every
   rate limiter, not just billing.
 - **A plan set by hand has no provider subscription**, so the UI offers a plan change
   that answers `NO_SUBSCRIPTION`. That account cannot buy until its row is free.
