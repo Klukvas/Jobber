@@ -63,6 +63,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "jsdom",
+    // `api.ts` falls back to a relative base URL, which ky cannot parse outside a browser.
+    env: { VITE_API_BASE_URL: "http://localhost:3000/api/v1" },
     setupFiles: ["./src/test/setup.ts"],
     include: [
       "src/**/*.test.{ts,tsx}",
