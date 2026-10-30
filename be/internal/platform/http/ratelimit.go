@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -26,6 +27,11 @@ type RateLimitConfig struct {
 // sees the request succeed while the limiter fails open.
 const redisCallTimeout = 300 * time.Millisecond
 
+// ipv6ClientPrefixBits is how much of an IPv6 address identifies one client. A
+// subscriber usually holds a whole /64 and can pick any address in it, so counting
+// single addresses would let them step around every per-IP limit.
+const ipv6ClientPrefixBits = 64
+
 // rateLimitScript atomically increments the counter and sets TTL only on first access.
 // Returns the current count after increment.
 var rateLimitScript = redis.NewScript(`
@@ -38,11 +44,11 @@ return count
 `)
 
 // RateLimitMiddleware creates a Redis-based rate limiting middleware.
-// Limits requests by client IP using a fixed-window counter in Redis.
+// Limits requests by client IP (IPv6 by /64) using a fixed-window counter in Redis.
 // Uses a Lua script for atomic INCR + EXPIRE to prevent TTL-less keys on crashes.
 func RateLimitMiddleware(rdb *redis.Client, cfg RateLimitConfig, logger *zap.Logger) gin.HandlerFunc {
 	return rateLimitByKey(rdb, cfg, logger, func(c *gin.Context) string {
-		return c.ClientIP()
+		return clientIPIdentity(c.ClientIP())
 	})
 }
 
@@ -56,8 +62,29 @@ func UserRateLimitMiddleware(rdb *redis.Client, cfg RateLimitConfig, logger *zap
 				return "user:" + userID
 			}
 		}
-		return c.ClientIP()
+		return clientIPIdentity(c.ClientIP())
 	})
+}
+
+// clientIPIdentity returns what a client IP is counted under: the /64 for IPv6, the
+// address for IPv4. An IPv4-mapped IPv6 address is the same client as its IPv4 form,
+// and a string that does not parse is kept so it still gets a counter of its own.
+func clientIPIdentity(clientIP string) string {
+	addr, err := netip.ParseAddr(clientIP)
+	if err != nil {
+		return clientIP
+	}
+
+	addr = addr.Unmap()
+	if addr.Is4() {
+		return addr.String()
+	}
+
+	prefix, err := addr.Prefix(ipv6ClientPrefixBits)
+	if err != nil {
+		return clientIP
+	}
+	return prefix.String()
 }
 
 func rateLimitByKey(rdb *redis.Client, cfg RateLimitConfig, logger *zap.Logger, keyFn func(*gin.Context) string) gin.HandlerFunc {

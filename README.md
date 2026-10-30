@@ -125,6 +125,35 @@ make deploy
 
 **Infrastructure details:** See [terraform/README.md](./terraform/README.md)
 
+### Client IP behind Cloudflare
+
+Per-IP rate limits key on gin's `ClientIP()`, and a request reaches it through
+Cloudflare → Caddy → nginx (frontend) → gin. The `Caddyfile` is what makes that the real caller:
+
+- `trusted_proxies` + `client_ip_headers`: Caddy believes `CF-Connecting-IP` only from
+  Cloudflare's published ranges. Anyone connecting to the origin directly is taken at
+  their socket address, whatever headers they send.
+- `header_up X-Forwarded-For {client_ip}`: Caddy passes on that one address. Keep it:
+  the chain Cloudflare sends starts with whatever the caller put in the header, and gin
+  would take that forged entry.
+
+nginx appends Caddy's address and gin skips it, so `TRUSTED_PROXIES` can stay empty. If you
+set it, trust the whole Docker subnet: with only Caddy's address listed, every client counts as nginx.
+
+**Updating the ranges.** The `Cloudflare IP ranges` workflow fails when the list in the
+`Caddyfile` differs from what Cloudflare publishes (weekly, and on PRs touching the file).
+A missing range only means that edge's traffic is limited per edge again, so this is not an
+emergency. CI never writes the server's `Caddyfile`, so a change goes out by hand:
+
+1. Change the `trusted_proxies` line in a PR.
+2. On the server, back up the file and write the new one **in place** (`cat new > Caddyfile`).
+   It is a single-file bind mount: `mv`, `sed -i` or rsync would leave the container on the old file.
+3. Apply it with no downtime:
+   `docker exec jobber-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`
+4. Merge with `[skip ci]` in the merge commit. Until the server and `main` match, a release stops
+   at preflight with `caddy_drift`; without `[skip ci]` the `Caddyfile` counts as a frontend change
+   and rebuilds and releases the frontend for nothing.
+
 ---
 
 ## 📚 Documentation

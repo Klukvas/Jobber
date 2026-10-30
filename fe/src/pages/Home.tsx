@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/stores/authStore";
 import { getAuthModalRoute } from "@/features/auth/authModalRoutes";
+import { CHOOSE_PLAN_PATH } from "@/features/subscription/choosePlanLink";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { scrollToSection } from "@/shared/lib/scrollToSection";
 import { LoginModal } from "@/features/auth/modals/LoginModal";
@@ -58,6 +59,7 @@ export default function Home() {
   const switchToLogin = () => navigate("/login");
   const openForgotPassword = () => navigate("/forgot-password");
   const goPlatform = () => navigate("/app/jobs");
+  const choosePlan = () => navigate(CHOOSE_PLAN_PATH);
 
   return (
     <>
@@ -89,6 +91,7 @@ export default function Home() {
             isAuthenticated={isAuthenticated}
             onRegister={openRegister}
             onGoPlatform={goPlatform}
+            onChoosePlan={choosePlan}
           />
           <FaqSection />
           <FooterCtaSection

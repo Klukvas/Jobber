@@ -29,6 +29,8 @@ import { useSubscription } from "@/shared/hooks/useSubscription";
 import { ProfileSection } from "@/features/settings/ProfileSection";
 import { PricingModal } from "@/features/subscription/components/PricingModal";
 import { ManageSubscriptionModal } from "@/features/subscription/components/ManageSubscriptionModal";
+import { CHOOSE_PLAN_PARAM } from "@/features/subscription/choosePlanLink";
+import { useCancellationWatch } from "@/features/subscription/useCancellationWatch";
 
 export default function Settings() {
   const { t, i18n } = useTranslation();
@@ -39,10 +41,21 @@ export default function Settings() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { subscription, isPro, isEnterprise, nextPlan, usage, limits, credits } =
-    useSubscription();
-  const [pricingOpen, setPricingOpen] = useState(false);
+  const {
+    subscription,
+    isPro,
+    isEnterprise,
+    nextPlan,
+    usage,
+    limits,
+    credits,
+    isLoading: isSubscriptionLoading,
+  } = useSubscription();
+  const [pricingOpen, setPricingOpen] = useState(() =>
+    searchParams.has(CHOOSE_PLAN_PARAM),
+  );
   const [manageOpen, setManageOpen] = useState(false);
+  const { isCancelPending, watchCancellation } = useCancellationWatch();
 
   const logoutMutation = useMutation({
     mutationFn: authService.logout,
@@ -109,6 +122,16 @@ export default function Settings() {
       setSearchParams({});
     }
   }, [calendarParam, subscriptionParam, t, queryClient, setSearchParams]);
+
+  // Read once by the `pricingOpen` initialiser above, and taken out of the URL
+  // right away: checkout is a full-page redirect, and Back from it must land on
+  // the plain page rather than open the plan choice over the return overlay.
+  useEffect(() => {
+    if (!searchParams.has(CHOOSE_PLAN_PARAM)) return;
+    const remaining = new URLSearchParams(searchParams);
+    remaining.delete(CHOOSE_PLAN_PARAM);
+    setSearchParams(remaining, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const planLabel = isEnterprise
     ? t("settings.subscription.enterprisePlan")
@@ -220,10 +243,16 @@ export default function Settings() {
                   })}
                 </p>
               )}
+              {isCancelPending && (
+                <p className="text-sm text-muted-foreground">
+                  {t("settings.subscription.cancelPending")}
+                </p>
+              )}
               {isPro &&
                 subscription?.current_period_end &&
                 !subscription?.manual_only &&
-                !subscription?.cancel_at && (
+                !subscription?.cancel_at &&
+                !isCancelPending && (
                   <p className="text-sm text-muted-foreground">
                     {t("settings.subscription.renewsOn", {
                       date: format(
@@ -429,8 +458,18 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      <PricingModal open={pricingOpen} onOpenChange={setPricingOpen} />
-      <ManageSubscriptionModal open={manageOpen} onOpenChange={setManageOpen} />
+      {/* `nextPlan` reads "pro" until the subscription has loaded, and the plan
+          choice can be asked for by a link before that. */}
+      <PricingModal
+        open={pricingOpen && nextPlan !== null && !isSubscriptionLoading}
+        onOpenChange={setPricingOpen}
+      />
+      <ManageSubscriptionModal
+        open={manageOpen}
+        onOpenChange={setManageOpen}
+        isCancelPending={isCancelPending}
+        onCancelRequested={watchCancellation}
+      />
     </div>
   );
 }

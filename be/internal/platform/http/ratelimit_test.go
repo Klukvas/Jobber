@@ -220,6 +220,78 @@ func TestUserRateLimitMiddleware(t *testing.T) {
 	})
 }
 
+func TestClientIPIdentity(t *testing.T) {
+	tests := []struct {
+		name     string
+		clientIP string
+		want     string
+	}{
+		{"IPv4 stays as is", "203.0.113.7", "203.0.113.7"},
+		{"IPv6 becomes its /64", "2001:db8:1:2:3:4:5:6", "2001:db8:1:2::/64"},
+		{"IPv6 spelling does not matter", "2001:0DB8:1:2:3:4:5:6", "2001:db8:1:2::/64"},
+		{"IPv6 already at the /64 boundary", "2001:db8:1:2::", "2001:db8:1:2::/64"},
+		{"IPv6 loopback", "::1", "::/64"},
+		{"IPv4-mapped IPv6 is the IPv4 client", "::ffff:203.0.113.7", "203.0.113.7"},
+		{"zone is dropped", "fe80::1%eth0", "fe80::/64"},
+		{"unparsable string stays as is", "not-an-ip", "not-an-ip"},
+		{"empty string stays as is", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, clientIPIdentity(tt.clientIP))
+		})
+	}
+}
+
+func TestRateLimit_CountsIPv6ClientsPerSubnet(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := RateLimitConfig{
+		MaxRequests: 2,
+		Window:      1 * time.Minute,
+		KeyPrefix:   "test",
+	}
+
+	middlewares := map[string]func(*redis.Client, RateLimitConfig, *zap.Logger) gin.HandlerFunc{
+		"client IP limiter":        RateLimitMiddleware,
+		"user limiter IP fallback": UserRateLimitMiddleware,
+	}
+
+	for name, middleware := range middlewares {
+		t.Run(name, func(t *testing.T) {
+			mr, rdb := setupRateLimitTest(t)
+
+			router := gin.New()
+			router.Use(middleware(rdb, cfg, zap.NewNop()))
+			router.GET("/ping", func(c *gin.Context) {
+				c.JSON(http.StatusOK, gin.H{"message": "pong"})
+			})
+
+			send := func(remoteAddr string) int {
+				req := httptest.NewRequest(http.MethodGet, "/ping", nil)
+				req.RemoteAddr = remoteAddr
+				w := httptest.NewRecorder()
+				router.ServeHTTP(w, req)
+				return w.Code
+			}
+
+			// Every address of one /64 spends the same budget
+			require.Equal(t, http.StatusOK, send("[2001:db8:1:2::a]:1234"))
+			require.Equal(t, http.StatusOK, send("[2001:db8:1:2:ffff::b]:1234"))
+			assert.Equal(t, http.StatusTooManyRequests, send("[2001:db8:1:2::c]:1234"))
+
+			// The neighbouring /64 still has its own budget
+			assert.Equal(t, http.StatusOK, send("[2001:db8:1:3::a]:1234"))
+
+			assert.ElementsMatch(t, []string{
+				"ratelimit:test:2001:db8:1:2::/64",
+				"ratelimit:test:2001:db8:1:3::/64",
+			}, mr.Keys())
+		})
+	}
+}
+
 func TestRateLimitMiddleware_BoundsTheRedisCall(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

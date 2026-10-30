@@ -22,22 +22,32 @@ import type { SubscriptionPlan } from "@/shared/types/api";
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** The provider accepted a cancellation the subscription does not show yet. */
+  isCancelPending?: boolean;
+  /** Called once the provider accepted the cancellation. */
+  onCancelRequested?: () => void;
 }
 
 /**
- * The i18n key holding a plan's price, so this modal quotes the same copy the
+ * The i18n key holding the Pro price, so this modal quotes the same copy the
  * pricing modal does.
  *
  * It used to be a literal table — "$7/mo", "$19/mo" — which was a second copy
  * of the price *and* English-only: RU and UK translate the same strings as
  * "$7/мес" and "$7/міс", so a Russian-speaking subscriber read "/mo" here and
  * "/мес" one screen away, and every price change had two places to land in.
+ *
+ * Pro is the only price there is to quote. Enterprise is no longer sold, and
+ * what a legacy subscriber pays is on their provider subscription, not in copy.
  */
-function planPriceKey(plan: SubscriptionPlan): string {
-  return `settings.subscription.pricing.${plan}Price`;
-}
+const PRO_PRICE_KEY = "settings.subscription.pricing.proPrice";
 
-export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
+export function ManageSubscriptionModal({
+  open,
+  onOpenChange,
+  isCancelPending = false,
+  onCancelRequested,
+}: Props) {
   const { t } = useTranslation();
   const dateLocale = useDateLocale();
   const queryClient = useQueryClient();
@@ -81,6 +91,7 @@ export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
     mutationFn: subscriptionService.cancelSubscription,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subscription"] });
+      onCancelRequested?.();
       showSuccessNotification(
         t("settings.subscription.manage.cancelScheduled"),
       );
@@ -125,19 +136,30 @@ export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
             <span className="font-semibold text-base">
               {t(`settings.subscription.${plan}Plan`)}
             </span>
-            <span className="text-sm text-muted-foreground">
-              {t(planPriceKey(plan))}
-            </span>
+            {plan === "pro" && (
+              <span className="text-sm text-muted-foreground">
+                {t(PRO_PRICE_KEY)}
+              </span>
+            )}
           </div>
-          {subscription?.current_period_end && !isCancelled && (
-            <p className="text-xs text-muted-foreground mt-1">
-              {t("settings.subscription.renewsOn", {
-                date: format(new Date(subscription.current_period_end), "PP", {
-                  locale: dateLocale,
-                }),
-              })}
+          {isCancelPending && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+              {t("settings.subscription.cancelPending")}
             </p>
           )}
+          {subscription?.current_period_end &&
+            !isCancelled &&
+            !isCancelPending && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {t("settings.subscription.renewsOn", {
+                  date: format(
+                    new Date(subscription.current_period_end),
+                    "PP",
+                    { locale: dateLocale },
+                  ),
+                })}
+              </p>
+            )}
           {isCancelled && subscription?.cancel_at && (
             <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
               {t("settings.subscription.cancelledOn", {
@@ -159,7 +181,7 @@ export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
                   {t(`settings.subscription.${targetPlan}Plan`)}
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  {t(planPriceKey(targetPlan))}
+                  {t(PRO_PRICE_KEY)}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -207,8 +229,9 @@ export function ManageSubscriptionModal({ open, onOpenChange }: Props) {
           </div>
         </div>
 
-        {/* Cancel section */}
-        {!isCancelled && (
+        {/* Cancel section. Gone while a cancellation is pending too: the
+            provider already has it, and a second one would only fail. */}
+        {!isCancelled && !isCancelPending && (
           <div className="border-t pt-4">
             {!confirmCancel ? (
               <button

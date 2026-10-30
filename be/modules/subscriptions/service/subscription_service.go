@@ -104,7 +104,8 @@ func (s *SubscriptionService) GetSubscription(ctx context.Context, userID string
 		dto.Plan = plan
 	}
 	dto.ManualAccess = manual
-	dto.ManualOnly = manual != nil && s.effectivePlanOf(sub) == PlanFree
+	dto.ManualOnly = (manual != nil && s.effectivePlanOf(sub) == PlanFree) ||
+		(plan != PlanFree && !hasProviderSubscription(sub))
 	if ledger, ok := s.repo.(interface {
 		CreditBalance(context.Context, string) (model.CreditBalance, error)
 	}); ok {
@@ -125,6 +126,14 @@ func (s *SubscriptionService) GetSubscription(ctx context.Context, userID string
 		dto.CurrentPeriodEnd, dto.CancelAt = nil, nil
 	}
 	return dto, nil
+}
+
+// hasProviderSubscription reports whether a row names a subscription at Creem.
+// A paid plan without one was set by hand: cancelling or changing it answers
+// NO_SUBSCRIPTION and nothing renews it, so the DTO marks it manual_only and the
+// frontend offers none of that.
+func hasProviderSubscription(sub *model.Subscription) bool {
+	return sub.ExternalSubscriptionID != nil && *sub.ExternalSubscriptionID != ""
 }
 
 // GetCheckoutConfig tells the frontend which provider and plans are live. It

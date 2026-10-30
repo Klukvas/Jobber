@@ -26,7 +26,7 @@ export default function Refund() {
       </nav>
       <h1 className="mb-8 text-3xl font-bold">Refund Policy</h1>
       <p className="mb-4 text-sm text-muted-foreground">
-        Last updated: October 25, 2026
+        Last updated: October 30, 2026
       </p>
 
       <section className="mb-8">
@@ -85,8 +85,7 @@ export default function Refund() {
         <h2 className="mb-3 text-xl font-semibold">4. After 14 Days</h2>
         <p>
           Refunds after the 14-day period are handled on a case-by-case basis.
-          We may issue a prorated refund or credit at our discretion. Common
-          reasons we may approve a late refund include:
+          Common reasons we may approve a late refund include:
         </p>
         <ul className="ml-6 mt-3 list-disc space-y-2">
           <li>Accidental renewal due to a billing issue.</li>
@@ -121,6 +120,8 @@ export default function Refund() {
         <h2 className="mb-3 text-xl font-semibold">6. Refund Processing</h2>
         <p>
           Approved refunds are processed by Creem to the original payment method.
+          A refund ends the refunded subscription: Pro access stops and the AI credits
+          of the refunded billing period are removed.
           The time for funds to appear depends on Creem, your payment method and your
           financial institution. This policy does not limit mandatory consumer rights,
           including any applicable withdrawal or statutory refund rights.

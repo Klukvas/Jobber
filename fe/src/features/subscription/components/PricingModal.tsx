@@ -123,6 +123,7 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
     selectPlan,
     canSelect,
     isSubscriber,
+    isManualPlan,
     isReady,
     isPending,
     isCheckoutRedirecting,
@@ -215,11 +216,16 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
               onSelect={() => handleSelect(p.id)}
               disabled={!FEATURES.PAYMENTS || !isReady || isPending}
               // Downgrading to free means cancelling the subscription, which
-              // lives in the manage flow — so this card offers no CTA here.
+              // lives in the manage flow — so this card offers no CTA here. A
+              // manual plan has no such flow, only somebody to ask.
               unavailableNote={
                 canSelect(p.id)
                   ? undefined
-                  : t("settings.subscription.pricing.downgradeViaCancel")
+                  : t(
+                      isManualPlan
+                        ? "settings.subscription.pricing.manualPlanNote"
+                        : "settings.subscription.pricing.downgradeViaCancel",
+                    )
               }
               currentBadge={t("settings.subscription.pricing.currentPlanBadge")}
               ctaLabel={
