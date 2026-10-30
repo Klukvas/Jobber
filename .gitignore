@@ -78,6 +78,7 @@ cors-config-fixed.json
 
 *.sh
 !scripts/release/*.sh
+!.github/scripts/*.sh
 ext.zip
 
 # Playwright
