@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"net/url"
 	"os"
 	"strconv"
@@ -312,12 +313,39 @@ func Load() (*Config, error) {
 		if len(cfg.JWT.RefreshSecret) < 32 {
 			return nil, fmt.Errorf("JWT_REFRESH_SECRET must be at least 32 characters in production")
 		}
-		if cfg.Database.SSLMode == "disable" {
-			return nil, fmt.Errorf("DB_SSL_MODE must not be 'disable' in production")
+		if !isInternalDatabaseHost(cfg.Database.Host) && !enforcesTLS(cfg.Database.SSLMode) {
+			return nil, fmt.Errorf("DB_SSL_MODE must be require, verify-ca or verify-full in production "+
+				"for DB_HOST %q: only a loopback or single-label host may run without TLS", cfg.Database.Host)
 		}
 	}
 
 	return cfg, nil
+}
+
+// isInternalDatabaseHost reports a database reached without crossing a network
+// anyone else shares: a loopback address, or a single-label name. Public DNS has
+// no single-label hosts, so such a name comes from a local resolver, which is how
+// the backend finds the Compose service `postgres` on the private Docker bridge.
+//
+// A private IP does not count: unlike a Docker service name it can sit on a VPC
+// that spans machines. See docs/adr/0004-production-mode.md.
+func isInternalDatabaseHost(host string) bool {
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return host != "" && !strings.Contains(host, ".")
+}
+
+// enforcesTLS reports an sslmode that refuses a plaintext connection. "allow" and
+// "prefer" are not among them: against a server with TLS off they connect in the
+// clear without a word, so they would satisfy a guard and protect nothing.
+func enforcesTLS(sslMode string) bool {
+	switch sslMode {
+	case "require", "verify-ca", "verify-full":
+		return true
+	default:
+		return false
+	}
 }
 
 // DSN returns the database connection string
@@ -369,7 +397,7 @@ const defaultPublicBaseURL = "https://cursopus.com"
 // resolvePublicBaseURL picks the public origin for share/OG links. FRONTEND_URL
 // is the *internal* Docker host (http://frontend) and must never be used here.
 // Order: explicit PUBLIC_BASE_URL → first concrete CORS origin → canonical default
-// (this env deploys with ALLOWED_ORIGINS="*", from which no origin can be derived).
+// (ALLOWED_ORIGINS="*", the development default, names no origin to derive from).
 func resolvePublicBaseURL() string {
 	if v := strings.TrimRight(getEnv("PUBLIC_BASE_URL", ""), "/"); v != "" {
 		return v

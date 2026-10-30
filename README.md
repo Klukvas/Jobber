@@ -336,7 +336,7 @@ npm run lint      # Run ESLint
 | `DB_USER` | Yes | PostgreSQL user | `jobber` |
 | `DB_PASSWORD` | Yes | PostgreSQL password | `jobber` |
 | `DB_NAME` | Yes | PostgreSQL database name | `jobber` |
-| `DB_SSL_MODE` | No | PostgreSQL SSL mode | `disable` |
+| `DB_SSL_MODE` | No | PostgreSQL SSL mode. In production `disable` is allowed only for a loopback or single-label `DB_HOST` ([ADR-0004](docs/adr/0004-production-mode.md)) | `disable` |
 | `DB_MAX_CONNS` | No | Max open connections | `25` |
 | `DB_MAX_IDLE_CONNS` | No | Max idle connections | `5` |
 | `DB_CONN_MAX_LIFETIME` | No | Connection max lifetime | `5m` |
@@ -348,7 +348,7 @@ npm run lint      # Run ESLint
 | `JWT_REFRESH_SECRET` | **Yes** | JWT refresh token signing key | — |
 | `JWT_ACCESS_EXPIRY` | No | Access token TTL | `15m` |
 | `JWT_REFRESH_EXPIRY` | No | Refresh token TTL | `168h` |
-| `ALLOWED_ORIGINS` | No | CORS origins (comma-separated, `*` in dev) | `*` |
+| `ALLOWED_ORIGINS` | No | CORS origins (comma-separated, `*` in dev). Production refuses `*` and empty; the site comes first ([ADR-0004](docs/adr/0004-production-mode.md)) | `*` |
 | `LOG_LEVEL` | No | Log level (`debug`, `info`, `warn`, `error`) | `debug` |
 | `LOG_FORMAT` | No | Log format (`json` / `text`) | `json` |
 | `S3_ENDPOINT` | **Yes** | S3-compatible storage endpoint | — |

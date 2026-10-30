@@ -109,17 +109,33 @@ func TestLoad_ProductionGuards(t *testing.T) {
 		assert.Contains(t, err.Error(), "32 characters")
 	})
 
-	t.Run("rejects DB_SSL_MODE=disable in production", func(t *testing.T) {
+	t.Run("rejects an empty ALLOWED_ORIGINS, which reads as the wildcard", func(t *testing.T) {
 		t.Setenv("SERVER_ENV", "production")
-		t.Setenv("ALLOWED_ORIGINS", "https://example.com")
+		t.Setenv("ALLOWED_ORIGINS", "")
 		t.Setenv("JWT_ACCESS_SECRET", "a-very-long-secret-at-least-32-chars!!")
 		t.Setenv("JWT_REFRESH_SECRET", "another-long-secret-at-least-32-chars")
-		t.Setenv("DB_SSL_MODE", "disable")
+		t.Setenv("DB_HOST", "postgres")
 
 		_, err := Load()
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "DB_SSL_MODE")
+		assert.Contains(t, err.Error(), "ALLOWED_ORIGINS")
+	})
+
+	t.Run("boots with the values the Compose stack passes", func(t *testing.T) {
+		t.Setenv("SERVER_ENV", "production")
+		t.Setenv("ALLOWED_ORIGINS", "https://cursopus.com,chrome-extension://koegfmmcpedfgnjnohcaieecdoflmlab")
+		t.Setenv("PUBLIC_BASE_URL", "")
+		t.Setenv("JWT_ACCESS_SECRET", "a-very-long-secret-at-least-32-chars!!")
+		t.Setenv("JWT_REFRESH_SECRET", "another-long-secret-at-least-32-chars")
+		t.Setenv("DB_HOST", "postgres")
+		t.Setenv("DB_SSL_MODE", "disable")
+
+		cfg, err := Load()
+
+		require.NoError(t, err)
+		assert.Equal(t, "https://cursopus.com", cfg.Server.PublicBaseURL,
+			"links in emails and checkout must use the site, not the extension origin")
 	})
 
 	t.Run("succeeds with valid production config", func(t *testing.T) {
@@ -133,6 +149,62 @@ func TestLoad_ProductionGuards(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, "production", cfg.Server.Env)
+	})
+}
+
+func TestLoad_ProductionDatabaseTLS(t *testing.T) {
+	tests := []struct {
+		name      string
+		host      string
+		sslMode   string
+		wantError bool
+	}{
+		{name: "Docker service name without TLS", host: "postgres", sslMode: "disable"},
+		{name: "loopback name without TLS", host: "localhost", sslMode: "disable"},
+		{name: "loopback IPv4 without TLS", host: "127.0.0.1", sslMode: "disable"},
+		{name: "loopback IPv6 without TLS", host: "::1", sslMode: "disable"},
+		{name: "Docker service name with TLS", host: "postgres", sslMode: "require"},
+		{name: "DNS name with require", host: "db.example.com", sslMode: "require"},
+		{name: "DNS name with verify-ca", host: "db.example.com", sslMode: "verify-ca"},
+		{name: "DNS name with verify-full", host: "db.example.com", sslMode: "verify-full"},
+		{name: "DNS name without TLS", host: "db.example.com", sslMode: "disable", wantError: true},
+		{name: "qualified name with a trailing dot", host: "postgres.", sslMode: "disable", wantError: true},
+		{name: "public IP without TLS", host: "203.0.113.10", sslMode: "disable", wantError: true},
+		{name: "private IP can be another machine", host: "10.0.0.5", sslMode: "disable", wantError: true},
+		{name: "prefer falls back to plaintext", host: "db.example.com", sslMode: "prefer", wantError: true},
+		{name: "allow falls back to plaintext", host: "db.example.com", sslMode: "allow", wantError: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("SERVER_ENV", "production")
+			t.Setenv("ALLOWED_ORIGINS", "https://example.com")
+			t.Setenv("JWT_ACCESS_SECRET", "a-very-long-secret-at-least-32-chars!!")
+			t.Setenv("JWT_REFRESH_SECRET", "another-long-secret-at-least-32-chars")
+			t.Setenv("DB_HOST", tt.host)
+			t.Setenv("DB_SSL_MODE", tt.sslMode)
+
+			_, err := Load()
+
+			if tt.wantError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "DB_SSL_MODE")
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+
+	t.Run("development keeps its plaintext default on any host", func(t *testing.T) {
+		t.Setenv("SERVER_ENV", "development")
+		t.Setenv("JWT_ACCESS_SECRET", "some-access-secret")
+		t.Setenv("JWT_REFRESH_SECRET", "some-refresh-secret")
+		t.Setenv("DB_HOST", "db.example.com")
+		t.Setenv("DB_SSL_MODE", "disable")
+
+		_, err := Load()
+
+		require.NoError(t, err)
 	})
 }
 

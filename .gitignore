@@ -56,6 +56,8 @@ temp/
 # Tracked because README.md links to it as the billing design record.
 !docs/adr/0002-fastspring-billing.md
 !docs/adr/0003-creem-billing.md
+# Tracked because README.md links to it as the production-mode runbook.
+!docs/adr/0004-production-mode.md
 # QA regression plan and reports.
 !docs/qa/*.md
 
