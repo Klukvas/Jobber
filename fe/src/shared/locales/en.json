@@ -652,7 +652,8 @@
         "description": "Welcome to the {{plan}} plan. Enjoy your new features!",
         "cta": "Let's go"
       },
-      "activating": "Activating your subscription...",
+      "activating": "Checking your payment status...",
+      "activatingTimeout": "We haven't received a payment confirmation yet. If you paid, your plan updates automatically once the payment is confirmed. If the payment didn't go through, you can try again in Settings.",
       "activatingDismiss": "Continue to the app",
       "checkoutError": "Could not start checkout. Please try again.",
       "upgrade": "Upgrade",
@@ -671,6 +672,7 @@
       "limitReachedCoverLettersUsed_other": "You've used all {{count}} cover letters your plan includes. Upgrade for more.",
       "renewsOn": "Renews on {{date}}",
       "cancelledOn": "Cancelled, access until {{date}}",
+      "cancelPending": "Cancellation requested. The status will update shortly.",
       "pastDue": "Payment past due",
       "aiRequests": "AI credits",
       "jobs": "Jobs",
@@ -703,7 +705,6 @@
         "popular": "Popular",
         "freePrice": "$0",
         "proPrice": "$24/month",
-        "enterprisePrice": "$19/mo",
         "freeJobs": "25 tracked jobs",
         "freeResumes": "1 resume",
         "freeAI": "30 AI credits once per account",
@@ -717,7 +718,8 @@
         "proResumeBuilders": "10 resume builders",
         "proCoverLetters": "10 cover letters in total",
         "switchPlan": "Switch to this plan",
-        "downgradeViaCancel": "Cancel your subscription to return to Free."
+        "downgradeViaCancel": "Cancel your subscription to return to Free.",
+        "manualPlanNote": "Your plan was set up manually. Contact support to change it."
       },
       "checkoutReceived": "If you just completed a payment, your plan updates automatically once it is confirmed.",
       "coverLetters": "Cover Letters",

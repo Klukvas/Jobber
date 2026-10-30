@@ -184,7 +184,9 @@ describe("ManageSubscriptionModal", () => {
     expect(screen.queryByText(/\$\d+\/mo/)).not.toBeInTheDocument();
   });
 
-  it("quotes the free price from the same source when a plan lapses to free", () => {
+  // Enterprise is no longer sold, so the app has no price for it: the "$19/mo"
+  // this used to quote was a retired number, not what the subscriber pays.
+  it("quotes no price for legacy Enterprise, only for the Pro it can switch to", () => {
     mockSubscriptionRef.current = {
       ...mockSubscriptionRef.current,
       plan: "enterprise",
@@ -196,11 +198,14 @@ describe("ManageSubscriptionModal", () => {
     renderModal(<ManageSubscriptionModal open={true} onOpenChange={vi.fn()} />);
 
     expect(
-      screen.getByText("settings.subscription.pricing.enterprisePrice"),
+      screen.getByText("settings.subscription.enterprisePlan"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("settings.subscription.pricing.proPrice"),
-    ).toBeInTheDocument();
+      screen.queryByText("settings.subscription.pricing.enterprisePrice"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getAllByText("settings.subscription.pricing.proPrice"),
+    ).toHaveLength(1);
   });
 
   it("offers no Enterprise purchase on Pro", () => {
@@ -514,11 +519,55 @@ describe("ManageSubscriptionModal — plan change and cancellation", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("reports the accepted cancellation so it can be watched for", async () => {
+    const onCancelRequested = vi.fn();
+    renderModal(
+      <ManageSubscriptionModal
+        open={true}
+        onOpenChange={vi.fn()}
+        onCancelRequested={onCancelRequested}
+      />,
+    );
+
+    clickLabel("settings.subscription.manage.cancelSubscription");
+    clickLabel("settings.subscription.manage.confirmCancel");
+
+    await waitFor(() => expect(onCancelRequested).toHaveBeenCalledOnce());
+  });
+
+  // The provider has it already, and until its webhook lands the row still
+  // reads as a renewing subscription with a live cancel link. A second click
+  // would only fail.
+  it("shows a pending cancellation instead of renewal and a second cancel", () => {
+    renderModal(
+      <ManageSubscriptionModal
+        open={true}
+        onOpenChange={vi.fn()}
+        isCancelPending
+      />,
+    );
+
+    expect(
+      screen.getByText("settings.subscription.cancelPending"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("settings.subscription.renewsOn"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("settings.subscription.manage.cancelSubscription"),
+    ).not.toBeInTheDocument();
+  });
+
   it("reports a failed cancellation and leaves the confirmation open", async () => {
     api.cancelSubscription.mockRejectedValue(new Error("nope"));
     const onOpenChange = vi.fn();
+    const onCancelRequested = vi.fn();
     renderModal(
-      <ManageSubscriptionModal open={true} onOpenChange={onOpenChange} />,
+      <ManageSubscriptionModal
+        open={true}
+        onOpenChange={onOpenChange}
+        onCancelRequested={onCancelRequested}
+      />,
     );
 
     clickLabel("settings.subscription.manage.cancelSubscription");
@@ -531,6 +580,7 @@ describe("ManageSubscriptionModal — plan change and cancellation", () => {
     );
     expect(notifications.showSuccessNotification).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();
+    expect(onCancelRequested).not.toHaveBeenCalled();
     expect(
       screen.getByText("settings.subscription.manage.cancelConfirmText"),
     ).toBeInTheDocument();

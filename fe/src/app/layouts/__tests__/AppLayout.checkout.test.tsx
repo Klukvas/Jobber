@@ -7,7 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { AppLayout, POLL_INTERVAL_MS } from "../AppLayout";
+import { AppLayout, POLL_INTERVAL_MS, POLL_TIMEOUT_MS } from "../AppLayout";
 import {
   PRE_CHECKOUT_PLAN_KEY,
   PRE_CHECKOUT_TTL_MS,
@@ -389,6 +389,109 @@ describe("AppLayout — the activating overlay is escapable", () => {
     expect(
       screen.getByText("settings.subscription.activating"),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * A declined card and the browser's Back button look exactly like a payment
+ * that is still being confirmed, so the wait can only run out. It used to do
+ * that by vanishing, which told a buyer nothing about what had happened.
+ */
+describe("AppLayout — the wait for a checkout runs out", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sessionStorage.clear();
+    plan.value = "free";
+    vi.useFakeTimers();
+    rememberPreCheckoutPlan("free");
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    sessionStorage.clear();
+  });
+
+  const runOutOfTime = () =>
+    act(() => {
+      vi.advanceTimersByTime(POLL_TIMEOUT_MS);
+    });
+
+  it("keeps waiting right up to the timeout", () => {
+    renderLayout();
+
+    act(() => {
+      vi.advanceTimersByTime(POLL_TIMEOUT_MS - 1);
+    });
+
+    expect(
+      screen.getByText("settings.subscription.activating"),
+    ).toBeInTheDocument();
+  });
+
+  it("says what happened instead of disappearing", () => {
+    renderLayout();
+
+    runOutOfTime();
+
+    expect(
+      screen.getByText("settings.subscription.activatingTimeout"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("settings.subscription.activating"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("stops polling once the wait is over", () => {
+    renderLayout();
+
+    runOutOfTime();
+    const callsAtTimeout = invalidateQueries.mock.calls.length;
+    act(() => {
+      vi.advanceTimersByTime(POLL_INTERVAL_MS * 5);
+    });
+
+    expect(invalidateQueries.mock.calls.length).toBe(callsAtTimeout);
+  });
+
+  it("leaves the way back into the app focused", () => {
+    renderLayout();
+
+    runOutOfTime();
+
+    expect(
+      screen.getByText("settings.subscription.activatingDismiss"),
+    ).toHaveFocus();
+  });
+
+  it("closes the message when the user moves on", () => {
+    renderLayout();
+
+    runOutOfTime();
+    fireEvent.click(
+      screen.getByText("settings.subscription.activatingDismiss"),
+    );
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("upgrade-success")).not.toBeInTheDocument();
+  });
+
+  // Running out of time says nothing about the payment. A webhook can land
+  // after the timeout and be picked up by an ordinary refetch.
+  it("still celebrates a purchase confirmed after the timeout", () => {
+    const layout = () => (
+      <MemoryRouter initialEntries={["/app/jobs"]}>
+        <AppLayout />
+      </MemoryRouter>
+    );
+    const { rerender } = render(layout());
+
+    runOutOfTime();
+    plan.value = "pro";
+    rerender(layout());
+
+    expect(screen.getByTestId("upgrade-success")).toHaveTextContent("pro");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
 

@@ -45,9 +45,36 @@ func TestManualAccessEnforcesAndReportsEffectivePlan(t *testing.T) {
 		})
 	}
 }
+func TestHandSetPlanWithoutProviderSubscriptionIsManualOnly(t *testing.T) {
+	emptyID := ""
+	providerID := "sub_123"
+	for name, tc := range map[string]struct {
+		sub        model.Subscription
+		manual     *model.ManualAccess
+		manualOnly bool
+	}{
+		"hand-set pro":                   {sub: model.Subscription{Plan: PlanPro, Status: StatusActive}, manualOnly: true},
+		"hand-set enterprise":            {sub: model.Subscription{Plan: PlanEnterprise, Status: StatusActive}, manualOnly: true},
+		"empty provider id":              {sub: model.Subscription{Plan: PlanPro, Status: StatusActive, ExternalSubscriptionID: &emptyID}, manualOnly: true},
+		"hand-set plan and manual grant": {sub: model.Subscription{Plan: PlanPro, Status: StatusActive}, manual: &model.ManualAccess{ID: "manual"}, manualOnly: true},
+		"provider subscription":          {sub: model.Subscription{Plan: PlanPro, Status: StatusActive, ExternalSubscriptionID: &providerID}},
+		"provider past due":              {sub: model.Subscription{Plan: PlanPro, Status: StatusPastDue, ExternalSubscriptionID: &providerID}},
+		"free":                           {sub: model.Subscription{Plan: PlanFree, Status: "free"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			repo := &manualRepository{MockSubscriptionRepository: &MockSubscriptionRepository{GetByUserIDFunc: func(context.Context, string) (*model.Subscription, error) {
+				return &tc.sub, nil
+			}}, manual: tc.manual}
+			dto, err := NewSubscriptionService(repo, nil, BillingConfig{}).GetSubscription(t.Context(), "user")
+			require.NoError(t, err)
+			require.Equal(t, tc.manualOnly, dto.ManualOnly)
+		})
+	}
+}
 func TestManualRevocationPreservesEffectiveProviderPlan(t *testing.T) {
+	providerID := "sub_123"
 	repo := &manualRepository{MockSubscriptionRepository: &MockSubscriptionRepository{GetByUserIDFunc: func(context.Context, string) (*model.Subscription, error) {
-		return &model.Subscription{Plan: PlanEnterprise, Status: StatusActive}, nil
+		return &model.Subscription{Plan: PlanEnterprise, Status: StatusActive, ExternalSubscriptionID: &providerID}, nil
 	}}, manual: &model.ManualAccess{ID: "manual"}}
 	svc := NewSubscriptionService(repo, nil, BillingConfig{})
 	dto, err := svc.GetSubscription(t.Context(), "user")

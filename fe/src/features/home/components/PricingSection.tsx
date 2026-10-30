@@ -7,6 +7,8 @@ interface PricingSectionProps {
   readonly isAuthenticated: boolean;
   readonly onRegister: () => void;
   readonly onGoPlatform: () => void;
+  /** Where a signed-in visitor goes from the paid CTA: the dashboard sells nothing. */
+  readonly onChoosePlan: () => void;
 }
 
 /**
@@ -45,9 +47,11 @@ export function PricingSection({
   isAuthenticated,
   onRegister,
   onGoPlatform,
+  onChoosePlan,
 }: PricingSectionProps) {
   const { t } = useTranslation();
   const handleCta = isAuthenticated ? onGoPlatform : onRegister;
+  const handleProCta = isAuthenticated ? onChoosePlan : onRegister;
   // Paid tiers cannot be bought while payments are off — say so instead of
   // sending visitors to a plain sign-up under a "Choose Pro" label.
   const paymentsOn = FEATURES.PAYMENTS;
@@ -145,7 +149,7 @@ export function PricingSection({
               </div>
               <Button
                 className={`mt-6 w-full justify-center ${PLAN_CTA_HEIGHT}`}
-                onClick={paymentsOn ? handleCta : undefined}
+                onClick={paymentsOn ? handleProCta : undefined}
                 disabled={!paymentsOn}
               >
                 {paymentsOn ? (

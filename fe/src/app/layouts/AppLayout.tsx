@@ -28,7 +28,7 @@ const PLAN_RANK: Record<SubscriptionPlan, number> = {
 
 /** How often the backend is re-read while a checkout return is pending. */
 export const POLL_INTERVAL_MS = 3_000;
-const POLL_TIMEOUT_MS = 5 * 60_000;
+export const POLL_TIMEOUT_MS = 5 * 60_000;
 
 /**
  * The hosted checkout's post-purchase redirect parameter.
@@ -40,6 +40,15 @@ const POLL_TIMEOUT_MS = 5 * 60_000;
  * this app wrote before redirecting to the checkout.
  */
 const SUBSCRIPTION_PARAM = "subscription";
+
+/**
+ * Where the wait after a checkout stands.
+ *
+ * `timedOut` is a state of its own rather than the end of the wait: nothing tells
+ * us a buyer gave up, so running out of time proves nothing about the payment,
+ * and whoever was looking at the overlay is owed an explanation before it goes.
+ */
+type CheckoutReturn = "waiting" | "timedOut" | null;
 
 const FOOTER_LINK = `${TAP_TARGET_INLINE} transition-colors hover:text-foreground`;
 
@@ -78,18 +87,20 @@ export function AppLayout() {
   const [upgradedPlan, setUpgradedPlan] = useState<SubscriptionPlan | null>(
     null,
   );
-  const [isAwaitingUpgrade, setIsAwaitingUpgrade] = useState(
-    initialBaseline !== null,
+  const [checkoutReturn, setCheckoutReturn] = useState<CheckoutReturn>(
+    initialBaseline === null ? null : "waiting",
   );
 
   // Detect upgrade during render (avoids setState-in-effect).
-  // Self-terminating: once triggered, isAwaitingUpgrade becomes false.
+  // Self-terminating: once triggered, checkoutReturn becomes null. Still armed
+  // after a timeout: a late webhook picked up by a focus refetch is a purchase
+  // like any other, and beats the "not confirmed yet" message it replaces.
   if (
-    isAwaitingUpgrade &&
+    checkoutReturn !== null &&
     preCheckoutPlan !== null &&
     PLAN_RANK[plan] > PLAN_RANK[preCheckoutPlan]
   ) {
-    setIsAwaitingUpgrade(false);
+    setCheckoutReturn(null);
     setPreCheckoutPlan(null);
     setUpgradedPlan(plan);
   }
@@ -98,8 +109,8 @@ export function AppLayout() {
   // page load. Used both by the overlay's own dismiss button and by the bfcache
   // restore below — a buyer who backed out is done, and must not be held behind
   // a spinner until the poll times out.
-  const dismissAwaitingUpgrade = useCallback(() => {
-    setIsAwaitingUpgrade(false);
+  const dismissCheckoutReturn = useCallback(() => {
+    setCheckoutReturn(null);
     setPreCheckoutPlan(null);
     forgetPreCheckoutPlan();
   }, []);
@@ -111,19 +122,19 @@ export function AppLayout() {
   useEffect(() => {
     const handlePageShow = (event: PageTransitionEvent) => {
       if (!event.persisted) return;
-      dismissAwaitingUpgrade();
+      dismissCheckoutReturn();
     };
 
     window.addEventListener("pageshow", handlePageShow);
     return () => window.removeEventListener("pageshow", handlePageShow);
-  }, [dismissAwaitingUpgrade]);
+  }, [dismissCheckoutReturn]);
 
-  // Polling: driven by isAwaitingUpgrade state so it's immune to React
+  // Polling: driven by checkoutReturn state so it's immune to React
   // StrictMode's double-invocation. State changes from the mount effect below
   // are only applied after the double-invocation completes, at which point
-  // this effect re-runs cleanly with isAwaitingUpgrade = true.
+  // this effect re-runs cleanly with checkoutReturn = "waiting".
   useEffect(() => {
-    if (!isAwaitingUpgrade) return;
+    if (checkoutReturn !== "waiting") return;
 
     queryClient.invalidateQueries({ queryKey: ["subscription"] });
 
@@ -132,7 +143,7 @@ export function AppLayout() {
     }, POLL_INTERVAL_MS);
 
     const timeoutId = setTimeout(
-      () => setIsAwaitingUpgrade(false),
+      () => setCheckoutReturn("timedOut"),
       POLL_TIMEOUT_MS,
     );
 
@@ -140,7 +151,7 @@ export function AppLayout() {
       clearInterval(intervalId);
       clearTimeout(timeoutId);
     };
-  }, [isAwaitingUpgrade, queryClient]);
+  }, [checkoutReturn, queryClient]);
 
   // The baseline has been lifted into state above; leaving the copy on disk
   // would make the next page load poll all over again.
@@ -223,24 +234,30 @@ export function AppLayout() {
         onClose={() => setUpgradedPlan(null)}
       />
 
-      {isAwaitingUpgrade && (
+      {checkoutReturn !== null && (
         <div
           role="dialog"
           aria-modal="true"
           aria-labelledby="checkout-activating-label"
           className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
         >
-          <div className="flex flex-col items-center gap-4 rounded-xl border bg-card p-8 shadow-lg">
-            <div
-              aria-hidden="true"
-              className="h-10 w-10 animate-spin rounded-full border-4 border-muted border-t-primary"
-            />
+          <div className="mx-4 flex max-w-sm flex-col items-center gap-4 rounded-xl border bg-card p-8 text-center shadow-lg">
+            {checkoutReturn === "waiting" && (
+              <div
+                aria-hidden="true"
+                className="h-10 w-10 animate-spin rounded-full border-4 border-muted border-t-primary"
+              />
+            )}
             <p
               id="checkout-activating-label"
               role="status"
               className="text-sm font-medium text-muted-foreground"
             >
-              {t("settings.subscription.activating")}
+              {t(
+                checkoutReturn === "waiting"
+                  ? "settings.subscription.activating"
+                  : "settings.subscription.activatingTimeout",
+              )}
             </p>
             {/* A buyer who closed the checkout without paying is otherwise
                 trapped behind this until the poll times out. Focused on open:
@@ -249,7 +266,7 @@ export function AppLayout() {
             <button
               type="button"
               autoFocus
-              onClick={dismissAwaitingUpgrade}
+              onClick={dismissCheckoutReturn}
               className="rounded-md border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
             >
               {t("settings.subscription.activatingDismiss")}

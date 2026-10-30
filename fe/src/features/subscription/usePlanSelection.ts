@@ -25,11 +25,15 @@ interface PlanSelectionOptions {
  *
  * Returning to free is not a plan change but a cancellation, and lives in the
  * manage-subscription flow. Selecting it here does nothing.
+ *
+ * A manual plan has no provider subscription behind it: a change answers
+ * NO_SUBSCRIPTION and a checkout would swap it for a paid one, so nothing can be
+ * selected at all.
  */
 export function usePlanSelection({ onPlanChanged }: PlanSelectionOptions = {}) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { plan } = useSubscription();
+  const { plan, subscription } = useSubscription();
   const {
     openCheckout,
     isReady: isCheckoutReady,
@@ -54,10 +58,12 @@ export function usePlanSelection({ onPlanChanged }: PlanSelectionOptions = {}) {
   });
 
   const isSubscriber = plan !== "free";
+  const isManualPlan = subscription?.manual_only === true;
 
   const canSelect = useCallback(
-    (target: SubscriptionPlan) => target !== plan && target === "pro",
-    [plan],
+    (target: SubscriptionPlan) =>
+      !isManualPlan && target !== plan && target === "pro",
+    [isManualPlan, plan],
   );
 
   const selectPlan = useCallback(
@@ -76,6 +82,7 @@ export function usePlanSelection({ onPlanChanged }: PlanSelectionOptions = {}) {
     selectPlan,
     canSelect,
     isSubscriber,
+    isManualPlan,
     // A plan change goes straight to the backend, so it needs none of the
     // checkout config the purchase path waits for.
     isReady: isSubscriber || isCheckoutReady,
