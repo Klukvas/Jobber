@@ -391,7 +391,9 @@ navigation, not a script, frame, request or form post.
 - **The `TRUSTED_PROXIES` default keeps gin's behaviour** (every proxy trusted, so
   `X-Forwarded-For` can be rotated to dodge per-IP limits, including the webhook
   route's). It is configurable now; set it in production once the proxy's address
-  is known. It affects every rate limiter, not just billing.
+  is known. It affects every rate limiter, not just billing. Production is safe
+  either way: Caddy overwrites the header with the client it resolved (see "Client
+  IP behind Cloudflare" in the README).
 - **`Incomplete`** appears on Creem's introduction page (23 hours to pay) but is not
   in the API's status enum or event list; an unrecognised status fails the event
   and is retried until Creem gives up.
