@@ -309,6 +309,28 @@ func TestCORSMiddleware(t *testing.T) {
 		assert.Empty(t, w.Header().Get("Access-Control-Allow-Origin"))
 	})
 
+	// An extension whose site access the user restricted loses its host permission
+	// and falls back to plain CORS, so its preflight must pass for the headers
+	// it sends.
+	t.Run("listed extension origin passes preflight for a bearer request", func(t *testing.T) {
+		const extensionOrigin = "chrome-extension://koegfmmcpedfgnjnohcaieecdoflmlab"
+		router := gin.New()
+		router.Use(CORSMiddleware("https://app.example.com," + extensionOrigin))
+
+		req := httptest.NewRequest(http.MethodOptions, "/test", nil)
+		req.Header.Set("Origin", extensionOrigin)
+		req.Header.Set("Access-Control-Request-Headers", "authorization,content-type,idempotency-key")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNoContent, w.Code)
+		assert.Equal(t, extensionOrigin, w.Header().Get("Access-Control-Allow-Origin"))
+		allowedHeaders := w.Header().Get("Access-Control-Allow-Headers")
+		assert.Contains(t, allowedHeaders, "Authorization")
+		assert.Contains(t, allowedHeaders, "Content-Type")
+		assert.Contains(t, allowedHeaders, "Idempotency-Key")
+	})
+
 	t.Run("preflight OPTIONS returns 204 and aborts", func(t *testing.T) {
 		router := gin.New()
 		router.Use(CORSMiddleware("*"))
