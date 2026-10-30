@@ -1,0 +1,29 @@
+name: Cloudflare IP ranges
+
+# Caddy believes CF-Connecting-IP only from the ranges listed in Caddyfile. When
+# Cloudflare adds one, traffic from it silently goes back to being rate-limited
+# per edge and nothing else would say so: a failed run here is that signal.
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  pull_request:
+    paths:
+      - 'Caddyfile'
+      - '.github/scripts/check-cloudflare-ips.sh'
+      - '.github/workflows/cloudflare-ips.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    name: Compare with published ranges
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Compare Caddyfile with Cloudflare's list
+        run: bash .github/scripts/check-cloudflare-ips.sh
