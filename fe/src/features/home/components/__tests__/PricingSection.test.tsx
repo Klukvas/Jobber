@@ -17,6 +17,7 @@ describe("PricingSection", () => {
     isAuthenticated: false,
     onRegister: vi.fn(),
     onGoPlatform: vi.fn(),
+    onChoosePlan: vi.fn(),
   };
 
   it("renders section title and subtitle", () => {
@@ -58,6 +59,7 @@ describe("PricingSection", () => {
         isAuthenticated={false}
         onRegister={onRegister}
         onGoPlatform={vi.fn()}
+        onChoosePlan={vi.fn()}
       />,
     );
     const freeCta = screen.getByText("home.pricing.freeCta");
@@ -72,6 +74,7 @@ describe("PricingSection", () => {
         isAuthenticated={true}
         onRegister={vi.fn()}
         onGoPlatform={onGoPlatform}
+        onChoosePlan={vi.fn()}
       />,
     );
     const freeCta = screen.getByText("home.pricing.freeCta");
@@ -113,6 +116,7 @@ describe("PricingSection", () => {
           isAuthenticated={false}
           onRegister={onRegister}
           onGoPlatform={vi.fn()}
+          onChoosePlan={vi.fn()}
         />,
       );
       const soon = screen.getAllByText("home.pricing.comingSoon");
@@ -134,11 +138,32 @@ describe("PricingSection", () => {
           isAuthenticated={false}
           onRegister={onRegister}
           onGoPlatform={vi.fn()}
+          onChoosePlan={vi.fn()}
         />,
       );
       expect(screen.queryByText("home.pricing.comingSoon")).toBeNull();
       fireEvent.click(screen.getByText(/home\.pricing\.proCta/));
       expect(onRegister).toHaveBeenCalledOnce();
+      featuresMock.FEATURES.PAYMENTS = false;
+    });
+
+    // "Choose Pro" used to share the Free CTA's handler, so somebody already
+    // signed in landed on the dashboard, which sells nothing.
+    it("takes a signed-in visitor to the plan choice, not the dashboard", () => {
+      featuresMock.FEATURES.PAYMENTS = true;
+      const onGoPlatform = vi.fn();
+      const onChoosePlan = vi.fn();
+      render(
+        <PricingSection
+          isAuthenticated={true}
+          onRegister={vi.fn()}
+          onGoPlatform={onGoPlatform}
+          onChoosePlan={onChoosePlan}
+        />,
+      );
+      fireEvent.click(screen.getByText(/home\.pricing\.proCta/));
+      expect(onChoosePlan).toHaveBeenCalledOnce();
+      expect(onGoPlatform).not.toHaveBeenCalled();
       featuresMock.FEATURES.PAYMENTS = false;
     });
   });

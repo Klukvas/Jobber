@@ -25,6 +25,7 @@ vi.mock("react-i18next", () => ({
 const subscription = vi.hoisted(() => ({
   plan: "free" as SubscriptionPlan,
   nextPlan: "pro" as SubscriptionPlan | null,
+  subscription: undefined as { manual_only?: boolean } | undefined,
 }));
 
 vi.mock("@/shared/hooks/useSubscription", () => ({
@@ -80,6 +81,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   subscription.plan = "free";
   subscription.nextPlan = "pro";
+  subscription.subscription = undefined;
   checkout.openCheckout = vi.fn();
   checkout.isReady = true;
   checkout.isPending = false;
@@ -415,6 +417,53 @@ function expectDialogNamedBy(headingText: string) {
     headingText,
   );
 }
+
+describe("a manual plan has no provider subscription to change", () => {
+  beforeEach(() => {
+    subscription.plan = "enterprise";
+    subscription.nextPlan = null;
+    subscription.subscription = { manual_only: true };
+  });
+
+  // Change-plan answers NO_SUBSCRIPTION here, and a checkout would swap a plan
+  // somebody was given for one they pay for.
+  it("PricingModal offers neither a plan change nor a checkout", () => {
+    renderWithClient(<PricingModal open onOpenChange={vi.fn()} />);
+
+    expect(
+      screen.queryByText("settings.subscription.pricing.switchPlan"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("settings.subscription.pricing.choosePlan"),
+    ).not.toBeInTheDocument();
+  });
+
+  // Hand-set Pro: the Free card's "cancel your subscription" points at a flow
+  // this user does not have.
+  it("explains who can change it rather than sending them to cancel", () => {
+    subscription.plan = "pro";
+
+    renderWithClient(<PricingModal open onOpenChange={vi.fn()} />);
+
+    expect(
+      screen.getByText("settings.subscription.pricing.manualPlanNote"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("settings.subscription.pricing.downgradeViaCancel"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("UpgradeModal cannot start one either", () => {
+    subscription.nextPlan = "pro";
+
+    renderWithClient(<UpgradeModal open onOpenChange={vi.fn()} />);
+
+    fireEvent.click(screen.getByText("settings.subscription.upgradeForMore"));
+
+    expect(api.changePlan).not.toHaveBeenCalled();
+    expect(checkout.openCheckout).not.toHaveBeenCalled();
+  });
+});
 
 describe("PricingModal — accessible name", () => {
   it("names the plan chooser by its own heading", () => {

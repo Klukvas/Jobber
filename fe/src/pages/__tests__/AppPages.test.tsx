@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import Companies from "../Companies";
 import Jobs from "../Jobs";
 import JobDetail from "../JobDetail";
 import Analytics from "../Analytics";
 import Settings from "../Settings";
+import { CHOOSE_PLAN_PARAM } from "@/features/subscription/choosePlanLink";
 import StageTemplates from "../StageTemplates";
 
 vi.mock("react-i18next", () => ({
@@ -294,11 +295,16 @@ vi.mock("@/features/stages/modals/EditStageTemplateModal", () => ({
 }));
 
 vi.mock("@/features/subscription/components/PricingModal", () => ({
-  PricingModal: () => null,
+  PricingModal: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="pricing-modal" /> : null,
 }));
 
 vi.mock("@/features/subscription/components/ManageSubscriptionModal", () => ({
-  ManageSubscriptionModal: () => null,
+  ManageSubscriptionModal: ({
+    onCancelRequested,
+  }: {
+    onCancelRequested: () => void;
+  }) => <button onClick={onCancelRequested}>accept cancellation</button>,
 }));
 
 vi.mock("@/features/onboarding/useOnboarding", () => ({
@@ -469,6 +475,135 @@ describe("Settings", () => {
       const upgrade = screen.getByText("settings.subscription.upgrade");
 
       expect(upgrade.className).toContain("max-sm:min-h-11");
+    });
+  });
+
+  // The landing page's "Choose Pro" arrives here by link: the plan choice is a
+  // modal, and the page is the only way into it from outside the app.
+  describe("the plan choice link", () => {
+    const originalPlan = { ...mockSubscription.value };
+
+    beforeEach(() => {
+      mockFeatures.value.PAYMENTS = true;
+      mockSearchParams.set.mockClear();
+      mockSearchParams.value = new URLSearchParams(`${CHOOSE_PLAN_PARAM}=1`);
+      mockSubscription.value.nextPlan = "pro";
+    });
+
+    afterEach(() => {
+      mockFeatures.value.PAYMENTS = false;
+      mockSearchParams.value = new URLSearchParams();
+      mockSubscription.value = { ...originalPlan };
+    });
+
+    it("opens the plan choice", () => {
+      render(<Settings />);
+
+      expect(screen.getByTestId("pricing-modal")).toBeInTheDocument();
+    });
+
+    // Back from the hosted checkout must not reopen the choice over the
+    // "checking your payment" overlay.
+    it("takes itself out of the URL and keeps everything else", () => {
+      mockSearchParams.value = new URLSearchParams(
+        `${CHOOSE_PLAN_PARAM}=1&tab=billing`,
+      );
+
+      render(<Settings />);
+
+      const [remaining, options] = mockSearchParams.set.mock.calls[0];
+      expect(remaining.has(CHOOSE_PLAN_PARAM)).toBe(false);
+      expect(remaining.get("tab")).toBe("billing");
+      expect(options).toEqual({ replace: true });
+    });
+
+    it("has nothing to offer somebody already on a paid plan", () => {
+      mockSubscription.value.nextPlan = null;
+
+      render(<Settings />);
+
+      expect(screen.queryByTestId("pricing-modal")).not.toBeInTheDocument();
+    });
+
+    // `nextPlan` reads "pro" for everybody until the subscription has loaded.
+    it("waits for the subscription before offering anything", () => {
+      mockSubscription.value = {
+        ...mockSubscription.value,
+        isLoading: true,
+      } as typeof mockSubscription.value;
+
+      render(<Settings />);
+
+      expect(screen.queryByTestId("pricing-modal")).not.toBeInTheDocument();
+    });
+
+    it("stays closed on an ordinary visit", () => {
+      mockSearchParams.value = new URLSearchParams();
+
+      render(<Settings />);
+
+      expect(screen.queryByTestId("pricing-modal")).not.toBeInTheDocument();
+      expect(mockSearchParams.set).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("a paid plan", () => {
+    const originalPlan = { ...mockSubscription.value };
+    const paidSubscription = {
+      plan: "pro",
+      status: "active",
+      current_period_end: "2026-11-30T00:00:00Z",
+    };
+
+    afterEach(() => {
+      mockSubscription.value = { ...originalPlan };
+    });
+
+    const renderPaidPlan = (overrides: Record<string, unknown>) => {
+      mockSubscription.value = {
+        ...originalPlan,
+        plan: "pro",
+        isPro: true,
+        subscription: { ...paidSubscription, ...overrides },
+      } as unknown as typeof mockSubscription.value;
+      render(<Settings />);
+    };
+
+    it("offers Manage on a provider subscription", () => {
+      renderPaidPlan({});
+
+      expect(
+        screen.getByText("settings.subscription.managePlan"),
+      ).toBeInTheDocument();
+    });
+
+    // Without a provider subscription every action behind Manage answers
+    // NO_SUBSCRIPTION, and no date on the row is a renewal.
+    it("offers neither Manage nor a renewal date on a manual plan", () => {
+      renderPaidPlan({ manual_only: true });
+
+      expect(
+        screen.queryByText("settings.subscription.managePlan"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("settings.subscription.renewsOn"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("stops promising a renewal once a cancellation is accepted", () => {
+      renderPaidPlan({});
+      expect(
+        screen.getByText("settings.subscription.renewsOn"),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByText("accept cancellation"));
+
+      expect(
+        screen.getByText("settings.subscription.cancelPending"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("settings.subscription.renewsOn"),
+      ).not.toBeInTheDocument();
     });
   });
 
