@@ -87,39 +87,46 @@ same-site and carries the cookie. `Strict` therefore stays.
 | Extension opening a job in a tab | Same as any outside link. |
 | Session issued before the switch | Keeps working; refresh replaces its cookies without duplicates. |
 | PDF rendering | The print page gets its data injected and makes no API call. |
+| Creem billing portal | Leaves by a same-tab redirect and comes back like any outside link. |
+| Creem webhooks | Server to server: no cookie, and CORS does not apply. The signature is the only check. |
 
 `Secure` is safe behind the proxies: the browser only ever sees HTTPS, the API sets
 the attribute regardless of the proxied scheme.
 
 ## Checked locally (2026-10-30)
 
-The API ran with `SERVER_ENV=production` and `DB_SSL_MODE=disable` on a Docker network
-with the service names `postgres` and `redis`, migrated to v54, against the built SPA.
-A real Chrome drove every flow above from a page on another site, and the extension
-was loaded unpacked:
+The code was merged with `main` at `d0e8362`, with payments live. The API ran with
+`SERVER_ENV=production` and `DB_SSL_MODE=disable` on a Docker network with the service
+names `postgres` and `redis`, migrated to v54, behind a local proxy serving the SPA from
+one origin as nginx does. A real Chrome drove every flow above from a page on another site:
 
-- without its origin listed and with site access withheld, the extension got
-  `Failed to fetch`; with its origin listed, login, session, jobs and refresh passed;
-- with host permission it passed either way;
-- `/swagger/index.html` answered 404, the log had no `GIN-debug` line, a foreign site
-  could not read the API;
+- paid return: the app waited for the upgrade, a webhook with a bad signature got 400, a
+  signed one got 200 with and without an `Origin` header, the overlay closed and the
+  buyer was on Pro;
+- extension 1.1.5 (the store build, with only its API address changed) and 1.1.6, each
+  covering login, session, jobs and refresh. With host permission both passed whether or
+  not the origin was listed. With site access withheld both got `Failed to fetch`
+  until the origin was listed, then passed;
+- `/swagger/index.html` answered 404, the log had no `GIN-debug` line and no error, a
+  foreign site could not read the API;
 - `*`, an empty list, a dotted `DB_HOST` without TLS, `prefer`, a private IP and a
   short JWT secret each refused to boot.
 
-Not exercised: real Creem, Google and mail hosts (an outside page stood in for them),
-Safari and Firefox, real HTTPS (Chrome treats `localhost` as secure), and the extension
-under its store ID. The smoke test below covers these.
+Not exercised: real Creem, Google and mail hosts (an outside page stood in for them, and
+webhooks were signed locally), the Creem portal, which has not run in live yet, Safari
+and Firefox, real HTTPS (Chrome treats `localhost` as secure), and the extension under
+its store ID. The smoke test below covers all of these except Google and Firefox;
+Calendar is off behind a frontend flag.
 
 ## Switching the server
 
-Do this after the Creem go-live has settled. Every step marked **[go-ahead]** changes
-the server and needs its own explicit approval.
+Payments are live, so pick a quiet hour. A Creem delivery that lands during either
+restart is retried for 24 hours, and a buyer on the hosted checkout only notices if they
+return in that window. Every step marked **[go-ahead]** changes the server and needs its
+own explicit approval.
 
-1. **Ship the code.** Merge this change without `[skip ci]`: `be/**` triggers a backend
-   release. With `SERVER_ENV=development` the new guard is inert, so behaviour does not
-   change. `docker-compose.yml` and `Caddyfile` are untouched, so `release.sh` sees no drift.
-2. **Read-only check.**
-   - the running backend image is the release from step 1;
+1. **Read-only check**, before anything ships, so a blocker stops the plan with nothing
+   changed.
    - both JWT secrets are 32+ characters. Lengths only:
      `docker exec jobber-backend sh -c 'echo ${#JWT_ACCESS_SECRET} ${#JWT_REFRESH_SECRET}'`.
      If either is shorter, stop: replacing a secret signs everyone out, and that is a
@@ -128,6 +135,11 @@ the server and needs its own explicit approval.
    - `docker port jobber-postgres` and `docker port jobber-redis` print nothing;
    - `LOG_LEVEL` is known. The Compose default is `debug`;
    - whether Sentry is on, and whether any alert filters on `environment: development`.
+2. **Ship the code [go-ahead].** Merge this change without `[skip ci]`: `be/**` triggers
+   a backend release, with its verified backup and about 1-3 minutes of downtime. With
+   `SERVER_ENV=development` the new guard is inert, so behaviour does not change.
+   `docker-compose.yml` and `Caddyfile` are untouched, so `release.sh` sees no drift.
+   Confirm the running backend image is this release before going on.
 3. **Back up [go-ahead].** Copy `.env` and `docker-compose.deploy.yml` to
    `backups/pre-production-mode-<stamp>/`, mode 600.
 4. **Edit `.env` [go-ahead].** Set the three keys below, leave `DB_SSL_MODE` alone, and
@@ -149,15 +161,20 @@ the server and needs its own explicit approval.
 6. **Postflight, read-only.**
    - health is green, the startup log says `"env":"production"`, there is no `GIN-debug`
      line and no error;
+   - the payment flags and `CREEM_ENVIRONMENT=live` in the container are unchanged, and
+     the log has no `CREEM_ENVIRONMENT=test` warning and no `Creem webhook event failed`;
    - an unauthenticated API call answers 401;
    - `POST /api/v1/webhooks/creem` with a bad signature answers 400;
    - `curl -s -D - -o /dev/null -H 'Origin: <origin>' https://cursopus.com/api/v1/session`
      returns that origin in `Access-Control-Allow-Origin` for both listed origins, and
      nothing for `https://evil.example`.
-7. **Browser smoke test, by hand.**
+7. **Browser smoke test, by hand.** `/auth/*` allows 10 requests a minute per client IP,
+   so a burst of sign-ins answers 429 without saying anything about the switch.
    - a browser signed in before the switch is still signed in;
    - after a fresh sign-in, DevTools shows both cookies as `Secure` and `Strict`;
-   - Settings, then the Creem billing portal, then back: still signed in;
+   - from another site, open a link to `/app/settings?subscription=success`: still signed
+     in. Without a checkout started in that tab it shows no overlay, and no money moves;
+   - if an account has a Creem customer, Settings, then the billing portal, then back;
    - a password reset link opened from a real inbox;
    - the store extension: open the panel, list jobs, save a job;
    - sign-in and an outside link in Safari.
@@ -171,6 +188,12 @@ Sessions survive in both directions: JWT secrets do not change and no schema cha
 and cookies are replaced at the next refresh. If the backend fails to boot after step 5,
 `docker logs --tail 20 jobber-backend` names the guard in `Failed to load configuration`;
 roll back first and read the reason second.
+
+The order matters: `.env` first, image second. An image from before this change refuses
+to boot with `SERVER_ENV=production` and `DB_SSL_MODE=disable`, and that includes the one
+in `releases/ci-<sha>/rollback-54.yml` from step 2. Going back past this change with
+`.env` still on `production` turns a rollback into an outage. `release.sh` is not
+exposed to this: any release after step 5 falls back to an image that has the guard.
 
 ## Leftover
 
