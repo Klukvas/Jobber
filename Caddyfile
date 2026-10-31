@@ -27,7 +27,7 @@
 		# gtag.js is one exact host. Google's collection hosts are regional and it
 		# picks them itself, so connect-src and img-src need its documented masks.
 		# PostHog is one host because nothing is lazy-loaded (fe/src/shared/lib/posthog.ts).
-		Content-Security-Policy "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.google-analytics.com https://*.googletagmanager.com; connect-src 'self' https://nbg1.your-objectstorage.com https://*.ingest.de.sentry.io https://cloudflareinsights.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://eu.i.posthog.com; form-action 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.google-analytics.com https://*.googletagmanager.com; connect-src 'self' https://nbg1.your-objectstorage.com https://o4511050131505152.ingest.de.sentry.io https://cloudflareinsights.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://eu.i.posthog.com; form-action 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 
 		# Referrer policy
 		Referrer-Policy "strict-origin-when-cross-origin"
