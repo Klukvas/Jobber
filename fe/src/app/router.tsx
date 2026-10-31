@@ -1,6 +1,7 @@
 import { Navigate, type RouteObject } from "react-router-dom";
 import { sentryCreateBrowserRouter } from "@/shared/lib/sentry";
 import { LegacyApplicationDetailRedirect } from "./LegacyApplicationRedirect";
+import { RouteError } from "./RouteError";
 import { RootLayout } from "./layouts/RootLayout";
 import { LandingLayout } from "./layouts/LandingLayout";
 import { AppLayout } from "./layouts/AppLayout";
@@ -61,6 +62,7 @@ export const routes: RouteObject[] = [
   {
     path: "/",
     element: <RootLayout />,
+    errorElement: <RouteError />,
     children: [
       {
         // The landing page and the three modal routes drawn over it are

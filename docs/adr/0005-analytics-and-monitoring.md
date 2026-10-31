@@ -61,12 +61,23 @@ has to be handled.
 Docker build, and in the backend's headless Chrome on `/print/resume` with a customer's resume on the
 page. Neither may report.
 
+**Page crashes.** React Router catches a crash inside a page before any boundary of ours: without an
+error element it shows its own developer screen and reports nothing. The root route's `RouteError`
+rethrows the error, so `GlobalErrorBoundary` reports it and shows the app's own page.
+
 ## Consent
 
 `CONSENT_POLICY_VERSION` became 2. The banner used to say no analytics were in use, so an earlier
 acceptance was not informed; those visitors are asked again and refusals stand. Bump the version
 again whenever the banner's description of what is collected changes, and keep
 `fe/src/pages/Privacy.tsx` in step.
+
+**Fonts.** DM Sans, DM Mono and Syne are bundled from `@fontsource` (`fe/src/app/fonts.ts`), because a
+stylesheet from Google Fonts hands every visitor's address to Google before the banner is answered.
+The `Caddyfile` still allows `fonts.googleapis.com` and `fonts.gstatic.com`, and nothing on the public
+path uses them any more: remove both with the next `Caddyfile` change, which needs a write on the
+server. `ResumeBuilderPrint` still loads a resume's fonts from Google, but only in the backend's
+headless Chrome, where no visitor is involved.
 
 ## Build
 

@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { Providers } from "./app/providers";
 import { initSentry } from "./shared/lib/sentry";
 import { initAnalyticsIfConsented } from "./shared/lib/consent";
+import "./app/fonts";
 import "./index.css";
 
 initSentry();
