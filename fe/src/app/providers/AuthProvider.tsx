@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/react";
 import { useAuthStore } from "@/stores/authStore";
 import { apiClient, ApiError } from "@/services/api";
 import { FEATURES } from "@/shared/lib/features";
+import { setPostHogUser } from "@/shared/lib/posthog";
 
 interface AuthProviderProps {
   children: React.ReactNode;
@@ -12,15 +13,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isInitialized, setIsInitialized] = useState(false);
   const user = useAuthStore((s) => s.user);
 
-  // Sync Sentry user context with auth state
+  // Sync Sentry user context with auth state. The id is enough to find the
+  // account, so the email never leaves for a third party.
   useEffect(() => {
     if (!FEATURES.SENTRY) return;
     if (user) {
-      Sentry.setUser({ id: user.id, email: user.email });
+      Sentry.setUser({ id: user.id });
     } else {
       Sentry.setUser(null);
     }
   }, [user]);
+
+  useEffect(() => {
+    setPostHogUser(user?.id ?? null);
+  }, [user?.id]);
 
   useEffect(() => {
     const initializeAuth = async () => {

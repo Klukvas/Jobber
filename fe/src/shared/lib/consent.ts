@@ -1,6 +1,6 @@
 import posthog from "posthog-js";
 import { initGA4, setGA4Disabled, trackGA4PageView } from "./gtag";
-import { initPostHog, trackPageView } from "./posthog";
+import { initPostHog, restorePostHogUser, trackPageView } from "./posthog";
 
 const STORAGE_KEY = "cookie-consent";
 
@@ -21,7 +21,7 @@ export const CONSENT_RESET_EVENT = "jobber:cookie-consent-reset";
  * back and nothing loads until they answer it again. A *refusal* is not
  * re-asked — see `getStoredConsent`.
  */
-export const CONSENT_POLICY_VERSION = 1;
+export const CONSENT_POLICY_VERSION = 2;
 
 export type CookieConsent = "accepted" | "essential";
 
@@ -215,6 +215,9 @@ function startAnalytics(): void {
   if (posthog.__loaded && posthog.has_opted_out_capturing()) {
     posthog.opt_in_capturing({ captureEventName: null });
   }
+
+  // Consent can arrive after sign-in, and a withdrawal took the identity with it.
+  restorePostHogUser();
 }
 
 /**
