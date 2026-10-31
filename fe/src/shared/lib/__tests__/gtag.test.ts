@@ -53,19 +53,12 @@ describe("gtag", () => {
     expect(JSON.stringify(sentArguments())).not.toContain("a%40b.co");
   });
 
-  it("marks an event sent on the way out as a beacon, with a callback", () => {
-    const onDelivered = vi.fn();
+  it("marks an event sent on the way out as a beacon", () => {
     initGA4();
 
-    expect(trackGA4Event("begin_checkout", { value: 24 }, onDelivered)).toBe(
-      true,
-    );
+    expect(trackGA4Event("begin_checkout", { value: 24 }, true)).toBe(true);
 
     const event = sentArguments().find(([, name]) => name === "begin_checkout");
-    expect(event?.[2]).toMatchObject({
-      value: 24,
-      transport_type: "beacon",
-      event_callback: onDelivered,
-    });
+    expect(event?.[2]).toMatchObject({ value: 24, transport_type: "beacon" });
   });
 });

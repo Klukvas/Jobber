@@ -49,8 +49,10 @@ reload while the webhook is still pending loses the event; undercounting is the 
 `transaction_id` is a UUID written with the baseline, so no backend change was needed. A plan granted
 by hand in the admin is not a sale.
 
-**Begin checkout.** gtag sends on its own schedule, so an immediate redirect lost the hit. The
-redirect waits for gtag's callback, 400 ms at the latest, and not at all without consent.
+**Begin checkout.** gtag sends on its own schedule, so an immediate redirect lost the hit. The redirect
+waits a fixed 400 ms with consent, and not at all without it. It does not wait for `event_callback`:
+on production that fired 4 ms after the event, while the request left 160 ms later, and a real
+`begin_checkout` was lost that way.
 
 **Addresses.** `analyticsUrl.ts` is the single cleaner used by GA4, PostHog and Sentry. Only campaign
 tags survive in a query. `/s/:token`, record ids and the public share API are collapsed. Another

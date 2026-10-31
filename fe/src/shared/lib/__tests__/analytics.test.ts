@@ -135,22 +135,12 @@ describe("trackBeginCheckout", () => {
       "begin_checkout",
     );
     expect(trackers.trackPostHogEvent.mock.calls[0]?.[2]).toBe(true);
-    expect(trackers.trackGA4Event.mock.calls[0]?.[2]).toEqual(
-      expect.any(Function),
-    );
+    expect(trackers.trackGA4Event.mock.calls[0]?.[2]).toBe(true);
   });
 
-  it("proceeds as soon as gtag has handed the event over", async () => {
-    trackers.trackGA4Event.mockImplementation((_name, _params, delivered) => {
-      delivered();
-      return true;
-    });
-
-    await expect(trackBeginCheckout()).resolves.toBeUndefined();
-  });
-
-  // A blocked gtag.js never calls back, and a buyer must not be left waiting.
-  it("proceeds on its own when gtag never answers", async () => {
+  // gtag makes the request a moment after it takes the event, so proceeding
+  // any earlier is what lost begin_checkout on production.
+  it("holds the redirect long enough for gtag to send", async () => {
     vi.useFakeTimers();
     trackers.trackGA4Event.mockReturnValue(true);
 
