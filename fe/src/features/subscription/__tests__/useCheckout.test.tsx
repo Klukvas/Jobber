@@ -14,6 +14,9 @@ vi.mock("@/shared/lib/features", () => ({
 const mockConfig = vi.hoisted(() => ({ value: undefined as unknown }));
 const mockGetQueryData = vi.hoisted(() => vi.fn());
 const mockCreateSession = vi.hoisted(() => vi.fn());
+const trackBeginCheckout = vi.hoisted(() => vi.fn());
+
+vi.mock("@/shared/lib/analytics", () => ({ trackBeginCheckout }));
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({ data: mockConfig.value }),
@@ -374,5 +377,44 @@ describe("useCheckout", () => {
       await act(() => result.current.openCheckout("pro"));
       expect(mockCreateSession).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("reports begin_checkout once the session exists, before leaving", async () => {
+    const { result } = renderHook(() => useCheckout());
+
+    await act(() => result.current.openCheckout("pro"));
+
+    expect(trackBeginCheckout).toHaveBeenCalledOnce();
+    expect(trackBeginCheckout.mock.invocationCallOrder[0]).toBeLessThan(
+      assignSpy.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  // gtag sends on its own schedule: a redirect that does not wait loses the hit.
+  it("holds the redirect until the event has been handed over", async () => {
+    let handedOver = () => {};
+    trackBeginCheckout.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        handedOver = resolve;
+      }),
+    );
+    const { result } = renderHook(() => useCheckout());
+
+    const opening = act(() => result.current.openCheckout("pro"));
+    await vi.waitFor(() => expect(trackBeginCheckout).toHaveBeenCalled());
+    expect(assignSpy).not.toHaveBeenCalled();
+
+    handedOver();
+    await opening;
+    expect(assignSpy).toHaveBeenCalledWith(CHECKOUT_URL);
+  });
+
+  it("reports nothing when the checkout could not be created", async () => {
+    mockCreateSession.mockRejectedValue(new Error("rejected"));
+    const { result } = renderHook(() => useCheckout());
+
+    await act(() => result.current.openCheckout("pro"));
+
+    expect(trackBeginCheckout).not.toHaveBeenCalled();
   });
 });

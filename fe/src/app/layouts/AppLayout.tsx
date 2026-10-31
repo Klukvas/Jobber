@@ -14,7 +14,9 @@ import { SupportButton } from "@/features/support/SupportButton";
 import {
   forgetPreCheckoutPlan,
   readFreshPreCheckoutPlan,
+  readPreCheckoutId,
 } from "@/features/subscription/checkoutSignals";
+import { trackConversion } from "@/shared/lib/analytics";
 import { resetConsent } from "@/shared/lib/consent";
 import { PoweredByFluxLab } from "@/shared/ui/PoweredByFluxLab";
 import { TAP_TARGET_INLINE } from "@/shared/ui/tapTarget";
@@ -58,7 +60,8 @@ export function AppLayout() {
   const { shouldShow, complete, dismissForSession } = useOnboarding();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const { plan } = useSubscription();
+  const { plan, subscription } = useSubscription();
+  const isManualGrant = subscription?.manual_access !== undefined;
 
   // Read the checkout return state once, on mount.
   //
@@ -81,6 +84,7 @@ export function AppLayout() {
   const [initialBaseline] = useState<SubscriptionPlan | null>(() =>
     readFreshPreCheckoutPlan(),
   );
+  const [checkoutId] = useState<string | null>(() => readPreCheckoutId());
 
   const [preCheckoutPlan, setPreCheckoutPlan] =
     useState<SubscriptionPlan | null>(initialBaseline);
@@ -104,6 +108,19 @@ export function AppLayout() {
     setPreCheckoutPlan(null);
     setUpgradedPlan(plan);
   }
+
+  // The only place a purchase is reported from. It takes a baseline this app
+  // wrote before the redirect, read once and then deleted, and a plan the backend
+  // says went up, which only a processed webhook can do. So a reload, a shared
+  // success URL or an abandoned checkout cannot report one. A plan granted by
+  // hand in the admin while the page waits is not a sale.
+  useEffect(() => {
+    if (upgradedPlan === null || isManualGrant) return;
+    trackConversion({
+      name: "purchase",
+      transactionId: checkoutId ?? crypto.randomUUID(),
+    });
+  }, [upgradedPlan, isManualGrant, checkoutId]);
 
   // Stops waiting and forgets the baseline, so nothing re-triggers on the next
   // page load. Used both by the overlay's own dismiss button and by the bfcache

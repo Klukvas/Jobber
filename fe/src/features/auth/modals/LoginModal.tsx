@@ -8,6 +8,7 @@ import { loginSchema, type LoginFormData } from "@/shared/lib/validation";
 import { authService } from "@/services/authService";
 import { useAuthStore } from "@/stores/authStore";
 import { useResendCode } from "@/features/auth/hooks/useResendCode";
+import { trackConversion } from "@/shared/lib/analytics";
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { PasswordInput } from "@/shared/ui/PasswordInput";
@@ -81,6 +82,7 @@ function ModalContent({
   const verifyMutation = useMutation({
     mutationFn: authService.verifyEmail,
     onSuccess: () => {
+      trackConversion({ name: "email_verified" });
       setEmailNotVerified(false);
       setCode("");
       setCodeError("");
