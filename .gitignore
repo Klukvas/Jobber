@@ -58,6 +58,7 @@ temp/
 !docs/adr/0003-creem-billing.md
 # Tracked because README.md links to it as the production-mode runbook.
 !docs/adr/0004-production-mode.md
+!docs/adr/0005-analytics-and-monitoring.md
 # QA regression plan and reports.
 !docs/qa/*.md
 

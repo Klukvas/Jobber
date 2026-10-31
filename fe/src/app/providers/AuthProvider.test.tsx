@@ -9,8 +9,18 @@ const mocks = vi.hoisted(() => ({
   state: { user: null as Record<string, unknown> | null },
 }));
 
+const trackers = vi.hoisted(() => ({
+  features: { SENTRY: false },
+  sentrySetUser: vi.fn(),
+  setPostHogUser: vi.fn(),
+}));
+
 vi.mock("@sentry/react", () => ({
-  setUser: vi.fn(),
+  setUser: trackers.sentrySetUser,
+}));
+
+vi.mock("@/shared/lib/posthog", () => ({
+  setPostHogUser: trackers.setPostHogUser,
 }));
 
 vi.mock("@/stores/authStore", () => ({
@@ -46,7 +56,7 @@ vi.mock("@/services/api", () => {
 });
 
 vi.mock("@/shared/lib/features", () => ({
-  FEATURES: { SENTRY: false },
+  FEATURES: trackers.features,
 }));
 
 const TEST_USER = {
@@ -72,6 +82,7 @@ async function renderAndInitialize() {
 describe("AuthProvider", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    trackers.features.SENTRY = false;
     mocks.state.user = null;
     mocks.apiGet.mockResolvedValue({});
   });
@@ -154,5 +165,39 @@ describe("AuthProvider", () => {
     await renderAndInitialize();
 
     expect(mocks.clearAuth).not.toHaveBeenCalled();
+  });
+
+  describe("who the trackers hear about", () => {
+    beforeEach(() => {
+      trackers.features.SENTRY = true;
+      mocks.apiGet.mockResolvedValue({});
+    });
+
+    it("gives Sentry the account id and never the email", async () => {
+      mocks.state.user = TEST_USER;
+
+      await renderAndInitialize();
+
+      expect(trackers.sentrySetUser).toHaveBeenLastCalledWith({
+        id: TEST_USER.id,
+      });
+    });
+
+    it("gives PostHog the account id alone", async () => {
+      mocks.state.user = TEST_USER;
+
+      await renderAndInitialize();
+
+      expect(trackers.setPostHogUser).toHaveBeenLastCalledWith(TEST_USER.id);
+    });
+
+    it("clears both when nobody is signed in", async () => {
+      mocks.state.user = null;
+
+      await renderAndInitialize();
+
+      expect(trackers.sentrySetUser).toHaveBeenLastCalledWith(null);
+      expect(trackers.setPostHogUser).toHaveBeenLastCalledWith(null);
+    });
   });
 });

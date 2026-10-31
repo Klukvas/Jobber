@@ -16,7 +16,11 @@ import {
 import type { SubscriptionPlan } from "@/shared/types/api";
 
 const plan = vi.hoisted(() => ({ value: "free" as SubscriptionPlan }));
+const subscription = vi.hoisted(() => ({
+  value: undefined as { manual_access?: { id: string } } | undefined,
+}));
 const invalidateQueries = vi.hoisted(() => vi.fn());
+const trackConversion = vi.hoisted(() => vi.fn());
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -30,8 +34,10 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 
 vi.mock("@/shared/hooks/useSubscription", () => ({
-  useSubscription: () => ({ plan: plan.value }),
+  useSubscription: () => ({ plan: plan.value, subscription: subscription.value }),
 }));
+
+vi.mock("@/shared/lib/analytics", () => ({ trackConversion }));
 
 vi.mock("@/stores/authStore", () => ({
   useAuthStore: (selector: (s: unknown) => unknown) =>
@@ -86,10 +92,87 @@ describe("AppLayout — returning from checkout", () => {
     vi.clearAllMocks();
     sessionStorage.clear();
     plan.value = "free";
+    subscription.value = undefined;
   });
 
   afterEach(() => {
     sessionStorage.clear();
+  });
+
+  describe("reporting the purchase", () => {
+    function purchases() {
+      return trackConversion.mock.calls.filter(
+        ([event]) => event.name === "purchase",
+      );
+    }
+
+    it("reports once, when the backend confirms the higher plan", () => {
+      rememberPreCheckoutPlan("free");
+      const { rerender } = renderLayout();
+      expect(purchases()).toHaveLength(0);
+
+      plan.value = "pro";
+      const confirmed = (
+        <MemoryRouter initialEntries={["/app/jobs"]}>
+          <AppLayout />
+        </MemoryRouter>
+      );
+      rerender(confirmed);
+      rerender(confirmed);
+
+      expect(purchases()).toHaveLength(1);
+      expect(purchases()[0]?.[0].transactionId).toEqual(expect.any(String));
+    });
+
+    it("names the checkout that started it", () => {
+      rememberPreCheckoutPlan("free");
+      const stored = JSON.parse(
+        sessionStorage.getItem(PRE_CHECKOUT_PLAN_KEY) ?? "{}",
+      );
+      plan.value = "pro";
+
+      renderLayout();
+
+      expect(purchases()[0]?.[0].transactionId).toBe(stored.checkoutId);
+    });
+
+    it("stays silent while the webhook has not landed", () => {
+      rememberPreCheckoutPlan("free");
+
+      renderLayout("?subscription=success");
+
+      expect(purchases()).toHaveLength(0);
+    });
+
+    it("is not fooled by a shared or bookmarked success URL", () => {
+      plan.value = "pro";
+
+      renderLayout("?subscription=success");
+
+      expect(purchases()).toHaveLength(0);
+    });
+
+    it("does not report again after a reload", () => {
+      rememberPreCheckoutPlan("free");
+      plan.value = "pro";
+      const first = renderLayout();
+      expect(purchases()).toHaveLength(1);
+      first.unmount();
+
+      renderLayout();
+
+      expect(purchases()).toHaveLength(1);
+    });
+
+    it("does not count a plan granted by hand as a sale", () => {
+      rememberPreCheckoutPlan("free");
+      plan.value = "pro";
+      subscription.value = { manual_access: { id: "grant-1" } };
+
+      renderLayout();
+
+      expect(purchases()).toHaveLength(0);
+    });
   });
 
   it("shows no success modal and does not poll without a pending checkout", () => {

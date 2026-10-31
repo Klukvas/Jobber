@@ -7,6 +7,7 @@ const gtagMock = vi.hoisted(() => ({
 }));
 const posthogLibMock = vi.hoisted(() => ({
   initPostHog: vi.fn(),
+  restorePostHogUser: vi.fn(),
   trackPageView: vi.fn(),
 }));
 const posthogClientMock = vi.hoisted(() => ({
@@ -155,6 +156,14 @@ describe("applyConsent(accepted)", () => {
     applyConsent("accepted");
     expect(gtagMock.initGA4).toHaveBeenCalledOnce();
     expect(gtagMock.trackGA4PageView).toHaveBeenCalledOnce();
+  });
+
+  it("tells PostHog who is signed in once it may hear it", async () => {
+    const { applyConsent } = await freshConsent();
+
+    applyConsent("accepted");
+
+    expect(posthogLibMock.restorePostHogUser).toHaveBeenCalledOnce();
   });
 
   it("lifts PostHog's persisted opt-out so explicit consent wins", async () => {

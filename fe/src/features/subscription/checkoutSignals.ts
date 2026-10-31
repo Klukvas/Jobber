@@ -50,7 +50,15 @@ interface StoredBaseline {
   readonly plan: SubscriptionPlan;
   /** Epoch milliseconds. Absent on entries written by older builds. */
   readonly at?: number;
+  /** Names this checkout in analytics. Absent on entries from older builds. */
+  readonly checkoutId?: string;
 }
+
+/**
+ * sessionStorage is writable by anything on the origin, and this value leaves
+ * the browser as a transaction id, so only the shape this app writes is read.
+ */
+const CHECKOUT_ID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 
 /**
  * Every plan the app knows how to compare. sessionStorage is writable by
@@ -86,9 +94,14 @@ function parseBaseline(raw: string | null): StoredBaseline | null {
     const plan = (parsed as { plan?: unknown })?.plan;
     if (!isKnownPlan(plan)) return null;
     const at = (parsed as { at?: unknown })?.at;
+    const checkoutId = (parsed as { checkoutId?: unknown })?.checkoutId;
     return {
       plan,
       at: typeof at === "number" && Number.isFinite(at) ? at : undefined,
+      checkoutId:
+        typeof checkoutId === "string" && CHECKOUT_ID.test(checkoutId)
+          ? checkoutId
+          : undefined,
     };
   } catch {
     return null;
@@ -131,7 +144,7 @@ export function rememberPreCheckoutPlan(plan: SubscriptionPlan): void {
   try {
     sessionStorage.setItem(
       PRE_CHECKOUT_PLAN_KEY,
-      JSON.stringify({ plan, at: Date.now() }),
+      JSON.stringify({ plan, at: Date.now(), checkoutId: crypto.randomUUID() }),
     );
   } catch {
     // Nothing recorded; the plan change is still picked up by normal refetches.
@@ -148,6 +161,14 @@ export function forgetPreCheckoutPlan(): void {
   } catch {
     // Nothing was stored to forget.
   }
+}
+
+/**
+ * The id of the checkout whose baseline is on disk, read before the baseline is
+ * forgotten. It ties a purchase to the one checkout that produced it.
+ */
+export function readPreCheckoutId(): string | null {
+  return takeUsableBaseline()?.checkoutId ?? null;
 }
 
 /**

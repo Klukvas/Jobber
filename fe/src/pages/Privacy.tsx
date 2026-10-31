@@ -26,7 +26,7 @@ export default function Privacy() {
       </nav>
       <h1 className="mb-8 text-3xl font-bold">Privacy Policy</h1>
       <p className="mb-4 text-sm text-muted-foreground">
-        Last updated: October 25, 2026
+        Last updated: October 31, 2026
       </p>
 
       <section className="mb-8">
@@ -68,6 +68,15 @@ export default function Privacy() {
             <strong>Billing and support:</strong> subscription and payment identifiers, billing
             status, and messages you send to support.
           </li>
+          <li>
+            <strong>Usage data (only if you accept analytics cookies):</strong> the pages you
+            visit, whether you signed up, verified your email, started a checkout or bought a
+            plan, your device and browser type, and your account ID once you sign in.
+          </li>
+          <li>
+            <strong>Error reports:</strong> what went wrong, the page it happened on, your device
+            and browser type, and your account ID if you are signed in.
+          </li>
         </ul>
       </section>
 
@@ -82,6 +91,7 @@ export default function Privacy() {
           </li>
           <li>To authenticate you and secure your account.</li>
           <li>To manage subscriptions and credit usage, respond to support requests and diagnose errors.</li>
+          <li>To understand how the product is used and improve it, if you accept analytics cookies.</li>
         </ul>
       </section>
 
@@ -121,16 +131,23 @@ export default function Privacy() {
             . We never see or store your full payment card details.
           </li>
           <li>
-            <strong>Google Analytics and PostHog</strong> — when configured, optional usage
-            analytics load only if you accept analytics cookies. These may include page URLs,
-            interactions and account identifiers (see Cookies below).
+            <strong>Google Analytics</strong> — loads only if you accept analytics cookies and
+            receives the pages you visit and the sign-up, email verification, checkout and
+            purchase events above, without your account ID. Google may process this data in the
+            United States and other countries. Advertising features are switched off.
           </li>
           <li>
-            <strong>Sentry</strong> — when configured, error monitoring. When something breaks,
-            an error report is sent to Sentry so we can fix it; reports may
-            include your account ID and email address and, for errors in the web
-            app, a screen recording of the failing session with text content
-            masked.
+            <strong>PostHog</strong> — loads only if you accept analytics cookies and receives the
+            same pages and events, linked to your account ID once you sign in, so we can see how
+            people move through the product. Data is stored in PostHog&apos;s EU cloud. We do not
+            use its session recording or automatic capture of what is on screen.
+          </li>
+          <li>
+            <strong>Sentry</strong> — error monitoring. When something breaks, an error report is
+            sent to Sentry so we can fix it, whatever you chose in the cookie banner: it uses no
+            cookies and is limited to the error report described above. If you accept analytics
+            cookies, a sample of page load timings is sent too. We do not send your email address
+            and we do not record your screen.
           </li>
           <li>
             <strong>Infrastructure and connected services</strong> — hosting, database,
@@ -138,6 +155,12 @@ export default function Privacy() {
             Providers may process data outside your country.
           </li>
         </ul>
+        <p className="mt-3">
+          Addresses are cleaned before they reach Google Analytics, PostHog or Sentry: query
+          parameters other than campaign tags, and private identifiers in paths, are removed. Your
+          email address, name, contacts, job details, resumes and cover letters are not sent to
+          these three services.
+        </p>
       </section>
 
       <section className="mb-8">
@@ -167,15 +190,18 @@ export default function Privacy() {
           </li>
           <li>
             <strong>Analytics cookies (optional)</strong> — set only after you
-            accept them in the cookie banner: when configured, Google Analytics and PostHog help
-            us understand how the product is used so we can improve it. If you
-            choose &quot;Essential only&quot;, no analytics cookies are set.
+            accept them in the cookie banner: Google Analytics (<code>_ga</code>,{" "}
+            <code>_ga_*</code>) and PostHog (<code>ph_*</code>) help us understand how the product
+            is used so we can improve it. PostHog keeps the same identifier in your browser&apos;s
+            local storage. If you choose &quot;Essential only&quot;, no analytics cookies are set
+            and no usage data is sent.
           </li>
         </ul>
         <p className="mt-3">
           You can change your choice at any time via the &quot;Cookie
-          settings&quot; link in the footer — the banner will reappear and your
-          new choice takes effect immediately. (Clearing this site&apos;s data
+          settings&quot; link in the footer — the banner will reappear, analytics
+          stop and their cookies are removed straight away, and your new choice
+          takes effect immediately. (Clearing this site&apos;s data
           in your browser also resets the choice, but signs you out too.)
         </p>
       </section>

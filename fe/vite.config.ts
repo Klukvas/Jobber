@@ -1,12 +1,37 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { sentryVitePlugin } from "@sentry/vite-plugin";
 import path from "path";
 import sitemapPlugin from "./plugins/vite-plugin-sitemap";
 
+// Only the Docker build in CI has this. Everywhere else, the test job's build
+// included, there is no upload and therefore no source maps at all.
+const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), sitemapPlugin()],
+  plugins: [
+    react(),
+    sitemapPlugin(),
+    ...(sentryAuthToken
+      ? [
+          sentryVitePlugin({
+            org: "fluxlab",
+            project: "jobber-fe",
+            authToken: sentryAuthToken,
+            telemetry: false,
+            release: { name: process.env.VITE_SENTRY_RELEASE },
+            // The image serves dist/ as is, so the maps must not outlive the upload.
+            sourcemaps: { filesToDeleteAfterUpload: ["./dist/**/*.map"] },
+            // Payments are live: a Sentry outage costs readable stack traces for
+            // one release, and must not hold that release back.
+            errorHandler: (error) =>
+              console.warn("Sentry source map upload failed:", error),
+          }),
+        ]
+      : []),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -14,6 +39,7 @@ export default defineConfig({
   },
   build: {
     cssCodeSplit: true,
+    sourcemap: sentryAuthToken ? "hidden" : false,
     rollupOptions: {
       output: {
         manualChunks(id) {

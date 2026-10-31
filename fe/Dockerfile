@@ -17,7 +17,13 @@ ARG VITE_API_BASE_URL=/api/v1
 ARG VITE_FEATURE_SENTRY=false
 ARG VITE_FEATURE_PAYMENTS=false
 ARG VITE_FEATURE_EMAIL_NOTIFICATIONS=true
+ARG VITE_FEATURE_GA4=false
+ARG VITE_FEATURE_POSTHOG=false
 ARG VITE_SENTRY_DSN=
+ARG VITE_SENTRY_RELEASE=
+ARG VITE_GA4_MEASUREMENT_ID=
+ARG VITE_POSTHOG_KEY=
+ARG VITE_POSTHOG_HOST=
 # Toggle prerender (default on). Pass --build-arg PRERENDER=false to skip.
 ARG PRERENDER=true
 
@@ -25,7 +31,12 @@ ARG PRERENDER=true
 COPY . .
 
 # Build + prerender public routes to static HTML for SEO.
-RUN if [ "$PRERENDER" = "true" ]; then npm run build:prerender; else npm run build; fi
+# The Sentry token is a BuildKit secret, never an ARG: the CI cache pushes every
+# builder layer to the registry. Source maps are uploaded and deleted inside this
+# one step (vite.config.ts), so no layer holds them. Without a token neither runs.
+RUN --mount=type=secret,id=sentry_auth_token,required=false \
+    export SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token 2>/dev/null || true)"; \
+    if [ "$PRERENDER" = "true" ]; then npm run build:prerender; else npm run build; fi
 
 # Runtime stage - serve with nginx
 FROM nginx:alpine

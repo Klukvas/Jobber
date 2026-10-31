@@ -4,6 +4,7 @@ import {
   PRE_CHECKOUT_PLAN_KEY,
   PRE_CHECKOUT_TTL_MS,
   readFreshPreCheckoutPlan,
+  readPreCheckoutId,
   forgetPreCheckoutPlan,
   rememberPreCheckoutPlan,
 } from "../checkoutSignals";
@@ -260,5 +261,41 @@ describe("storage failures are survivable", () => {
     } finally {
       getItem.mockRestore();
     }
+  });
+
+  describe("readPreCheckoutId", () => {
+    it("reads back the id written with the baseline", () => {
+      rememberPreCheckoutPlan("free");
+
+      expect(readPreCheckoutId()).toMatch(/^[0-9a-f-]{36}$/);
+    });
+
+    it("gives every checkout its own id", () => {
+      rememberPreCheckoutPlan("free");
+      const first = readPreCheckoutId();
+      rememberPreCheckoutPlan("free");
+
+      expect(readPreCheckoutId()).not.toBe(first);
+    });
+
+    // It leaves the browser as a transaction id, and storage is writable by
+    // anything on the origin.
+    it("ignores anything that is not an id this app wrote", () => {
+      sessionStorage.setItem(
+        PRE_CHECKOUT_PLAN_KEY,
+        JSON.stringify({ plan: "free", at: Date.now(), checkoutId: "a@b.co" }),
+      );
+
+      expect(readPreCheckoutId()).toBeNull();
+    });
+
+    it("has nothing to read from a baseline of an older build", () => {
+      sessionStorage.setItem(
+        PRE_CHECKOUT_PLAN_KEY,
+        JSON.stringify({ plan: "free", at: Date.now() }),
+      );
+
+      expect(readPreCheckoutId()).toBeNull();
+    });
   });
 });

@@ -7,6 +7,7 @@ import {
   rememberPreCheckoutPlan,
 } from "@/features/subscription/checkoutSignals";
 import { safeBillingUrl } from "@/features/subscription/safeHttpsUrl";
+import { trackBeginCheckout } from "@/shared/lib/analytics";
 import { FEATURES } from "@/shared/lib/features";
 import type { SubscriptionPlan } from "@/shared/types/api";
 
@@ -84,6 +85,8 @@ export function useCheckout() {
         if (!checkoutUrl) {
           throw new Error(CHECKOUT_FAILED_MESSAGE);
         }
+
+        await trackBeginCheckout();
 
         // Stay busy: the page is navigating away.
         window.location.assign(checkoutUrl);

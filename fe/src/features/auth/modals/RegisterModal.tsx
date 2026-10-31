@@ -8,6 +8,7 @@ import { registerSchema, type RegisterFormData } from "@/shared/lib/validation";
 import { authService } from "@/services/authService";
 import { useAuthStore } from "@/stores/authStore";
 import { useResendCode } from "@/features/auth/hooks/useResendCode";
+import { trackConversion } from "@/shared/lib/analytics";
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { PasswordInput } from "@/shared/ui/PasswordInput";
@@ -54,6 +55,7 @@ function ModalContent({
   const registerMutation = useMutation({
     mutationFn: authService.register,
     onSuccess: () => {
+      trackConversion({ name: "sign_up" });
       setRegisteredEmail(getValues("email"));
     },
     // Attach the failure to the field it is actually about. Everything used to
@@ -102,6 +104,7 @@ function ModalContent({
   const verifyMutation = useMutation({
     mutationFn: authService.verifyEmail,
     onSuccess: () => {
+      trackConversion({ name: "email_verified" });
       const { email, password } = getValues();
       loginMutation.mutate({ email, password });
     },
