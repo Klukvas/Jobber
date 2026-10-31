@@ -20,9 +20,9 @@
 #      - GitHub Actions NEVER creates, modifies, or overwrites this file;
 #        it is provisioned and updated by hand on the server
 #      - No application secrets appear in GitHub Actions logs
-#      - GitHub Secrets are used for CI/CD operations (Docker Hub, SSH) and for
-#        the public VITE_* values compiled into the frontend bundle — nothing
-#        server-side reads them
+#      - GitHub Secrets are used for CI/CD operations (Docker Hub, SSH, the Sentry
+#        upload token) — nothing server-side reads them. The VITE_* values compiled
+#        into the public bundle are not secret, so they live in GitHub Variables
 #
 #   3. DATA PERSISTENCE
 #      - Named volumes (postgres_data, redis_data) persist across deployments
@@ -456,6 +456,9 @@ jobs:
             com.cursopus.feature-payments=${{ env.VITE_FEATURE_PAYMENTS }}
           cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:buildcache
           cache-to: type=registry,ref=${{ env.FRONTEND_IMAGE }}:buildcache,mode=max
+          # A secret mount, not a build-arg: mode=max above pushes the builder's layers.
+          secrets: |
+            sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
 
           # IMPORTANT: VITE_API_BASE_URL build arg
           # This should match the server's public IP/domain.
@@ -467,8 +470,14 @@ jobs:
           # comment out of the block: its lines are build-args, not YAML.
           build-args: |
             VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL || '/api/v1' }}
-            VITE_SENTRY_DSN=${{ secrets.VITE_SENTRY_DSN || '' }}
-            VITE_FEATURE_SENTRY=${{ secrets.VITE_FEATURE_SENTRY || 'false' }}
+            VITE_SENTRY_DSN=${{ vars.VITE_SENTRY_DSN || '' }}
+            VITE_SENTRY_RELEASE=${{ github.sha }}
+            VITE_FEATURE_SENTRY=${{ vars.VITE_FEATURE_SENTRY == 'true' && 'true' || 'false' }}
+            VITE_FEATURE_GA4=${{ vars.VITE_FEATURE_GA4 == 'true' && 'true' || 'false' }}
+            VITE_GA4_MEASUREMENT_ID=${{ vars.VITE_GA4_MEASUREMENT_ID || '' }}
+            VITE_FEATURE_POSTHOG=${{ vars.VITE_FEATURE_POSTHOG == 'true' && 'true' || 'false' }}
+            VITE_POSTHOG_KEY=${{ vars.VITE_POSTHOG_KEY || '' }}
+            VITE_POSTHOG_HOST=${{ vars.VITE_POSTHOG_HOST || '' }}
             VITE_FEATURE_PAYMENTS=${{ env.VITE_FEATURE_PAYMENTS }}
             VITE_FEATURE_EMAIL_NOTIFICATIONS=${{ secrets.VITE_FEATURE_EMAIL_NOTIFICATIONS || 'true' }}
             GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
@@ -680,6 +689,16 @@ jobs:
 #   VITE_API_BASE_URL     - (Optional) API URL for frontend build
 #                           Example: http://65.108.123.45:8080/api/v1
 #                           If not set, uses docker-compose.yml default
+#
+#   SENTRY_AUTH_TOKEN     - (Optional) Organization token for the source map upload.
+#                           Reaches the build as a BuildKit secret. If not set, no
+#                           source maps are built and the stack traces stay minified
+#
+# Repository variables (Settings → Secrets and variables → Actions → Variables). All
+# of these end up in the public bundle; anything but exactly 'true' turns a flag off:
+#
+#   VITE_FEATURE_PAYMENTS, VITE_FEATURE_SENTRY, VITE_FEATURE_GA4, VITE_FEATURE_POSTHOG
+#   VITE_SENTRY_DSN, VITE_GA4_MEASUREMENT_ID, VITE_POSTHOG_KEY, VITE_POSTHOG_HOST
 #
 # Application/runtime secrets (JWT, DB, S3, Resend, Anthropic, Creem, …) are NOT
 # needed here: they live only in ~/jobber/.env on the server, which this
