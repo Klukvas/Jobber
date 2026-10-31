@@ -9,9 +9,11 @@ import { trackPostHogEvent } from "./posthog";
 export const PRO_PRICE_USD = 24;
 
 /**
- * How long the checkout redirect waits for gtag to hand `begin_checkout` over.
- * gtag sends on its own schedule, so an immediate redirect loses the hit, but a
- * buyer must not be kept waiting by a blocked or slow script.
+ * How long the checkout redirect waits so gtag can send `begin_checkout`.
+ *
+ * A fixed wait, because gtag's `event_callback` proves nothing: on production it
+ * fired 4 ms after the event, and the request itself left 160 ms later. A
+ * redirect on the callback lost the hit whenever the next page was quick.
  */
 export const BEGIN_CHECKOUT_DELIVERY_MS = 400;
 
@@ -61,13 +63,13 @@ function paramsFor(event: ConversionEvent): Readonly<Record<string, unknown>> {
  * Called from the sign-up and checkout paths, so it must never be the reason one
  * of them fails: an event lost is a number off in a report, nothing more.
  */
-function send(event: ConversionEvent, onDelivered?: () => void): boolean {
+function send(event: ConversionEvent, leavingPage = false): boolean {
   if (getStoredConsent() !== "accepted") return false;
 
   const params = paramsFor(event);
   try {
-    trackPostHogEvent(event.name, params, onDelivered !== undefined);
-    return trackGA4Event(event.name, params, onDelivered);
+    trackPostHogEvent(event.name, params, leavingPage);
+    return trackGA4Event(event.name, params, leavingPage);
   } catch (error) {
     console.error("Analytics event failed", event.name, error);
     return false;
@@ -79,13 +81,13 @@ export function trackConversion(event: ConversionEvent): void {
 }
 
 /**
- * Reports the start of a checkout, resolving when the redirect may go ahead: as
- * soon as GA4 has the event, after BEGIN_CHECKOUT_DELIVERY_MS at the latest, and
- * at once when nothing was sent, so a visitor without consent never waits.
+ * Reports the start of a checkout, resolving when the redirect may go ahead:
+ * after BEGIN_CHECKOUT_DELIVERY_MS, or at once when nothing was sent, so a
+ * visitor without consent never waits.
  */
 export function trackBeginCheckout(): Promise<void> {
   return new Promise((proceed) => {
-    const sent = send({ name: "begin_checkout" }, proceed);
+    const sent = send({ name: "begin_checkout" }, true);
     if (sent) {
       setTimeout(proceed, BEGIN_CHECKOUT_DELIVERY_MS);
     } else {

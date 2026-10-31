@@ -62,23 +62,21 @@ export function trackGA4PageView(path: string) {
 }
 
 /**
- * Sends one event and answers whether gtag took it. `onDelivered` is for an
- * event sent right before the page navigates away: it goes as a beacon, and the
- * callback fires once gtag has handed it to the browser.
+ * Sends one event and answers whether gtag took it. `leavingPage` is for an
+ * event sent right before the page navigates away: it goes as a beacon, whose
+ * request survives the navigation once gtag has made it.
  */
 export function trackGA4Event(
   name: string,
   params: Readonly<Record<string, unknown>>,
-  onDelivered?: () => void,
+  leavingPage = false,
 ): boolean {
   if (typeof window.gtag !== "function") return false;
 
   window.gtag("event", name, {
     ...params,
     ...currentPage(window.location.pathname),
-    ...(onDelivered
-      ? { transport_type: "beacon", event_callback: onDelivered }
-      : {}),
+    ...(leavingPage ? { transport_type: "beacon" } : {}),
   });
   return true;
 }
