@@ -441,6 +441,7 @@ every test skips.
 - **Job Import** - Import jobs from LinkedIn, Indeed, DOU by URL (JSON-LD + Claude AI fallback)
 - **AI Match Score** - Resume-to-job matching with Claude Haiku (score, categories, missing keywords)
 - **Subscriptions** - Free/Pro/Enterprise plans with Creem integration (see `docs/adr/0003-creem-billing.md`)
+- **Analytics & monitoring** - Sentry, GA4 and PostHog behind the cookie banner, conversion events (see `docs/adr/0005-analytics-and-monitoring.md`)
 - **Google Calendar** - Schedule interviews from app (hidden behind feature flag, pending Google verification)
 - **i18n** - Full localization: English, Russian, Ukrainian
 - **Reminders** - Schedule follow-ups (model + repository ready, API pending)
