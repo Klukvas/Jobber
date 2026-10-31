@@ -194,10 +194,3 @@ to boot with `SERVER_ENV=production` and `DB_SSL_MODE=disable`, and that include
 in `releases/ci-<sha>/rollback-54.yml` from step 2. Going back past this change with
 `.env` still on `production` turns a rollback into an outage. `release.sh` is not
 exposed to this: any release after step 5 falls back to an image that has the guard.
-
-## Leftover
-
-`docker-compose.yml` still says `must be 'require' in production` next to `DB_SSL_MODE`.
-The comment is out of date, but `release.sh` compares the server's Compose file with
-`main` by hash (`base_compose_drift`), so correcting it here would block the release
-until the file is copied to the server by hand. Fix it with the next Compose change.
