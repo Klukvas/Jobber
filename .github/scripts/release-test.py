@@ -10,6 +10,7 @@ import unittest
 
 HELPER = Path(__file__).with_name('release.sh').resolve()
 SHA = 'a' * 40
+OTHER_SHA = 'b' * 40
 OLD_ID = 'sha256:' + 'c' * 64
 NEW_ID = 'sha256:' + 'd' * 64
 MIGRATIONS = [(49, 'interview_preparation'), (50, 'job_contacts'), (51, 'resume_tailoring_operations'),
@@ -175,11 +176,23 @@ printf '%s\\n' "$@" >"$HOME/cleanup-args"
 exit {code}
 '''
 
+def dump(day, year=2026):
+    return f'ci-{OTHER_SHA}-{year}01{day:02}T000000Z.sql.gz'
+
+
+def release_dumps(names):
+    return [name for name in names if name.startswith('ci-' + OTHER_SHA) and name.endswith('.sql.gz')]
+
+
+def new_dumps(names):
+    return [name for name in names if name.startswith('ci-' + SHA) and name.endswith('.sql.gz')]
+
+
 class ReleaseProtocol(unittest.TestCase):
     # env_flags is what the server's .env sets and running_flags what the live backend holds, both
     # "<payments>|<webhook>" with empty meaning unset; frontend_payments is the new image's label.
     def run_case(self, case, schema='52:0', target=52, phase='deploy', frontend_only=False, backend_only=False, live_env=None, live_override=None,
-                 env_flags='|', running_flags='false|false', frontend_payments='false'):
+                 env_flags='|', running_flags='false|false', frontend_payments='false', old_dumps=()):
         with tempfile.TemporaryDirectory(prefix='ci-release-') as directory:
             root = Path(directory)
             project = root / 'jobber'
@@ -198,8 +211,17 @@ class ReleaseProtocol(unittest.TestCase):
                 'services:\n  backend:\n    image: ' + OLD_ID + '\n    environment:\n' + (live_env + '\n' if live_env else '') +
                 '      FEATURE_PAYMENTS_ENABLED: "false"\n      FEATURE_BILLING_WEBHOOK_ENABLED: "false"\n'
                 '  frontend:\n    image: ' + OLD_ID + '\n')
+            backups = project / 'backups'
+            backups.mkdir()
+            for name in old_dumps:
+                (backups / name).write_text('old dump')
+                if name.endswith('.sql.gz'):
+                    (backups / (name + '.sha256')).write_text('old checksum')
             mockbin = root / 'bin'
             mockbin.mkdir()
+            if case == 'prune_failure':
+                (mockbin / 'rm').write_text('#!/bin/sh\nexit 1\n')
+                (mockbin / 'rm').chmod(0o755)
             for name in ('docker', 'curl', 'sleep', 'df', 'flock', 'timeout'):
                 path = mockbin / name
                 path.write_text(MOCK)
@@ -236,6 +258,7 @@ class ReleaseProtocol(unittest.TestCase):
             final['written_overrides'] = {path.name: path.read_text() for path in release.glob('*.yml')
                                           if path.name == 'new-images.yml' or path.name.startswith('rollback-')}
             final['raw_backups'] = [path.name for path in release.glob('backup-*.sql')]
+            final['backups'] = sorted(path.name for path in backups.iterdir())
             return result, final
 
     def test_clean_rollout_to_same_or_next_schema(self):
@@ -430,6 +453,50 @@ class ReleaseProtocol(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('release=healthy schema=53:0', result.stdout)
         self.assertIn('cleanup=failed release=unaffected', result.stdout)
+
+    def test_only_the_newest_dumps_survive_a_healthy_release(self):
+        old = [dump(day) for day in range(1, 8)]
+        result, state = self.run_case('success', '52:0', 53, old_dumps=old)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(release_dumps(state['backups']), old[-4:], 'four old dumps plus the new one')
+        self.assertEqual(len(new_dumps(state['backups'])), 1)
+        for name in old[:-4]:
+            self.assertNotIn(name + '.sha256', state['backups'])
+        for name in old[-4:]:
+            self.assertIn(name + '.sha256', state['backups'])
+
+    def test_manual_backups_are_never_pruned(self):
+        manual = ['predeploy-20260830-214803.sql.gz', 'contacts-20261023T090711Z.sql.gz', 'ci-short-20260101T000000Z.sql.gz']
+        result, state = self.run_case('success', '52:0', 53, old_dumps=manual + [dump(day) for day in range(1, 8)])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for name in manual:
+            self.assertIn(name, state['backups'])
+
+    def test_fewer_dumps_than_the_limit_are_all_kept(self):
+        old = [dump(day) for day in range(1, 5)]
+        result, state = self.run_case('success', '52:0', 53, old_dumps=old)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(release_dumps(state['backups']), old)
+
+    def test_the_dump_just_verified_survives_a_clock_that_went_backwards(self):
+        future = [dump(day, year=2099) for day in range(1, 8)]
+        result, state = self.run_case('success', '52:0', 53, old_dumps=future)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(new_dumps(state['backups'])), 1)
+        self.assertEqual(release_dumps(state['backups']), future[-5:])
+
+    def test_failed_release_prunes_nothing(self):
+        old = [dump(day) for day in range(1, 8)]
+        result, state = self.run_case('postcheck_failure', '52:0', 53, old_dumps=old)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(release_dumps(state['backups']), old)
+
+    def test_prune_failure_never_fails_release(self):
+        old = [dump(day) for day in range(1, 8)]
+        result, state = self.run_case('prune_failure', '52:0', 53, old_dumps=old)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('release=healthy schema=53:0', result.stdout)
+        self.assertIn('backup_prune=failed release=unaffected', result.stdout)
 
     def test_intermediate_clean_schema_rolls_back_on_that_schema(self):
         result, state = self.run_case('intermediate_failure', '52:0', 54)

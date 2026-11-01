@@ -662,7 +662,7 @@ jobs:
 # the full through51 source read-only at /app/migrations. The51 source is never
 # mounted at50 before a verified backup. Never down/force the DB.
 # Dirty/unreadable/unexpected schemas keep entry closed for operator recovery.
-# Backups and isolated PG15 restore-check data are preserved, never auto-pruned.
+# A healthy release keeps the five newest verified dumps and prunes older CI dumps.
 # Base Compose/Caddy/.env remain unchanged; only the image override is promoted.
 #
 ################################################################################
@@ -712,7 +712,7 @@ jobs:
 # ✅ StrictHostKeyChecking enabled (uses known_hosts)
 # ✅ Docker Hub authentication on server for private repos
 # ✅ Automatic rollback to the compose snapshot taken before the new files land
-# ✅ Pre-deploy database dump, never auto-pruned
+# ✅ Pre-deploy database dump, the five newest kept
 # ✅ Health checks with timeout before marking deployment successful
 # ✅ Smoke tests verify critical endpoints
 # ✅ Concurrency control prevents simultaneous deployments
