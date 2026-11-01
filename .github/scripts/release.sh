@@ -9,6 +9,8 @@ PHASE=${1:?phase}; RELEASE=${2:?release}; BASE_HASH=${3:?base hash}; CADDY_HASH=
 [[ $RELEASE =~ ^[0-9a-f]{40}$ && $BASE_HASH =~ ^[0-9a-f]{64}$ && $CADDY_HASH =~ ^[0-9a-f]{64}$ ]] || exit 2
 # Production has run AI credits (migration 052) since the manual creem-site release.
 readonly MIN_SCHEMA=52
+# Every dump holds personal data, so a release keeps only this many of its own.
+readonly KEEP_BACKUPS=5
 PROJECT="$HOME/jobber"
 RELEASE_DIR="$PROJECT/releases/ci-$RELEASE"
 BASE="$PROJECT/docker-compose.yml"
@@ -337,4 +339,15 @@ cleanup_images() {
  frontend_id=$(docker image inspect --format '{{.Id}}' "$OLD_FRONTEND") || return 1
  timeout 600 bash "$cleanup" --lock-held --keep "$backend_id" --keep "$frontend_id"
 }
+# Age comes from the UTC stamp in the name, not mtimes, and the strict name leaves manual backups alone.
+prune_backups() (
+ cd "$PROJECT/backups" || exit 1
+ names=$(printf '%s\n' ci-*.sql.gz | grep -E '^ci-[0-9a-f]{40}-[0-9]{8}T[0-9]{6}Z\.sql\.gz$' | sort -t- -k3,3r) || exit 1
+ for dump in $(tail -n +$((KEEP_BACKUPS + 1)) <<<"$names"); do
+  # A server clock that went backwards must not cost the dump this release just verified.
+  [[ $dump != "${BACKUP##*/}" ]] || continue
+  rm -f -- "$dump" "$dump.sha256" || exit 1
+ done
+)
+prune_backups || say 'backup_prune=failed release=unaffected'
 cleanup_images || say 'cleanup=failed release=unaffected'

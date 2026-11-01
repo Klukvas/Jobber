@@ -4758,8 +4758,9 @@ Since the AI-credits release the helper accepts any clean live schema from 52 up
 release's newest migration. It writes one rollback override per clean schema in that range,
 mounting migrations only through that schema, so the previous backend never advances the
 schema it finds; a dirty or out-of-range schema keeps the entry point closed. After a
-committed release it runs `scripts/release/server-cleanup.sh`, keeping the replaced images as
-the rollback target. The history below describes the original 48→49 rollout.
+committed release it deletes CI database dumps beyond the five newest, because each one holds
+personal data, and runs `scripts/release/server-cleanup.sh`, keeping the replaced images as the
+rollback target. Manual backups in `backups/` are left alone. The history below describes the original 48→49 rollout.
 
 Rollback depends on the observed clean schema. At 48, restart the previous image
 with its original migration source. At 49, the old 22561cb image additionally
