@@ -12,7 +12,11 @@ import {
   parseFrontmatter,
   readExistingPosts,
 } from "../blog-autopost/existingPosts.mjs";
-import { buildTopicRequest } from "../blog-autopost/prompt.mjs";
+import {
+  buildEditorialBrief,
+  buildTopicRequest,
+  productNameFrom,
+} from "../blog-autopost/prompt.mjs";
 import {
   articleFiles,
   renderPostMarkdown,
@@ -39,7 +43,7 @@ function validArticle() {
       tags: ["interview", "follow-up", "job search"],
       content: body(
         "How to Follow Up After an Interview Without Being Pushy",
-        "Track every application in one place so you can follow up on time. See https://jobber-app.com/features/applications for a board.",
+        "Track every application in one place so you can follow up on time. See https://cursopus.com/features/applications for a board.",
       ),
     },
     ua: {
@@ -109,7 +113,7 @@ describe("validateArticle", () => {
     });
 
     expect(validateArticle(article, existing)).toContain(
-      "en.content links to example.org; only jobber-app.com links are allowed",
+      "en.content links to example.org; only cursopus.com links are allowed",
     );
   });
 
@@ -206,6 +210,16 @@ describe("existing content", () => {
     for (const post of posts) {
       expect(prompt).toContain(post.title);
     }
+  });
+
+  it("names the product the way the site's llms.txt does", () => {
+    const productFacts = fs.readFileSync(path.resolve(realBlogDir, "../../../public/llms.txt"), "utf8");
+    const name = productNameFrom(productFacts);
+    const brief = buildEditorialBrief(productFacts);
+
+    expect(name).not.toBe("");
+    expect(brief).toContain(`blog of ${name} (https://cursopus.com)`);
+    expect(brief).not.toMatch(/Jobber|jobber-app/);
   });
 
   it("strips quotes and parses JSON arrays like the app does", () => {

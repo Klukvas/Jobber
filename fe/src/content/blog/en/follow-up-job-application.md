@@ -117,7 +117,7 @@ A simple system helps:
 3. After sending a follow-up, log the date and update the next check date.
 4. Move applications that reached two unanswered follow-ups to a closed column.
 
-A board makes it easier than a spreadsheet to see which stage each application is in. In Jobber you can keep each application as a card on a Kanban board with its own stage, store the company and its contacts alongside it, and see where your applications stall in the analytics dashboard — which is exactly the information you need to decide who to follow up with today.
+A board makes it easier than a spreadsheet to see which stage each application is in. In Cursopus you can keep each application as a card on a Kanban board with its own stage, store the company and its contacts alongside it, and see where your applications stall in the analytics dashboard — which is exactly the information you need to decide who to follow up with today.
 
 ## A quick checklist before you hit Send
 
@@ -130,4 +130,4 @@ A board makes it easier than a spreadsheet to see which stage each application i
 
 Following up is a small habit, but it consistently separates organized candidates from the crowd. Send fewer, better messages, keep track of them, and let silence tell you when to move on.
 
-*Never miss a follow-up date again — [track every application and its next step in Jobber](https://jobber-app.com/features/applications).*
+*Never miss a follow-up date again — [track every application and its next step in Cursopus](https://cursopus.com/features/applications).*

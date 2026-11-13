@@ -3,7 +3,7 @@ import { z } from "zod";
 import { BLOG_LANGS } from "./existingPosts.mjs";
 
 /** The only host generated posts may link to; anything else is likely invented. */
-export const SITE_HOST = "jobber-app.com";
+export const SITE_HOST = "cursopus.com";
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_SLUG_LENGTH = 80;

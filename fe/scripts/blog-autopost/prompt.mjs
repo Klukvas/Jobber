@@ -1,12 +1,23 @@
 import { SITE_HOST } from "./articleSchema.mjs";
 
 /**
+ * The product's public name: the "# " heading of llms.txt, so a rebrand on the
+ * site reaches the posts without touching this code.
+ */
+export function productNameFrom(productFacts) {
+  const name = productFacts.match(/^#\s+(.+?)\s*$/m)?.[1];
+  if (!name) throw new Error('llms.txt must start with a "# <product name>" heading');
+  return name;
+}
+
+/**
  * The editorial brief the scheduled Claude routine reads before writing.
  * Product facts come from `public/llms.txt` so the posts describe the product
  * the way the site itself does, and follow it as it changes.
  */
 export function buildEditorialBrief(productFacts) {
-  return `You write articles for the blog of Jobber (https://${SITE_HOST}), a personal job application tracker with AI assistance. Readers are job seekers, many of them in IT and in Ukraine or other Russian- and Ukrainian-speaking markets, others applying internationally.
+  const productName = productNameFrom(productFacts);
+  return `You write articles for the blog of ${productName} (https://${SITE_HOST}), a personal job application tracker with AI assistance. Readers are job seekers, many of them in IT and in Ukraine or other Russian- and Ukrainian-speaking markets, others applying internationally.
 
 What the product is and does (this is the whole truth about it; never claim features, prices or limits beyond it):
 <product_facts>
@@ -15,7 +26,7 @@ ${productFacts.trim()}
 
 Each article you write must:
 - Teach something concrete and useful about job searching: practical steps, examples, templates, checklists or numbers a reader can act on today. Advice comes first; it is not an advert.
-- Mention Jobber at most a couple of times where it genuinely helps, and end with one short italic call to action that links to a relevant ${SITE_HOST} page from the product facts.
+- Mention ${productName} at most a couple of times where it genuinely helps, and end with one short italic call to action that links to a relevant ${SITE_HOST} page from the product facts.
 - Be 900-1400 words per language, in markdown: start with a single "# " heading equal to the title, use "##" sections, lists and an occasional table where they help scanning.
 - Be written natively in each language, not translated word for word: English (en), Ukrainian (ua) and Russian (ru). Adapt examples to the reader where it matters (for example Djinni and DOU for the Ukrainian IT market, LinkedIn for international roles).
 - Never invent statistics, studies, quotes, people or company policies. If you give a figure, make it a clearly labelled rule of thumb.
