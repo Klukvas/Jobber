@@ -1077,6 +1077,8 @@ func TestSectionRepository_SectionOrder(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
+		mock.ExpectQuery(`SELECT id FROM resume_builders WHERE id = \$1 FOR UPDATE`).WithArgs("rb-1").WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow("rb-1"))
+
 		// First order has an explicit column, second defaults to "main".
 		mock.ExpectExec("INSERT INTO resume_section_orders").
 			WithArgs("rb-1", "experience", 0, true, "sidebar").
@@ -1099,6 +1101,7 @@ func TestSectionRepository_SectionOrder(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
+		mock.ExpectQuery(`SELECT id FROM resume_builders WHERE id = \$1 FOR UPDATE`).WithArgs("rb-1").WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow("rb-1"))
 		mock.ExpectExec("INSERT INTO resume_section_orders").
 			WithArgs("rb-1", "experience", 0, true, "main").
 			WillReturnError(errors.New("boom"))
@@ -1115,6 +1118,7 @@ func TestSectionRepository_SectionOrder(t *testing.T) {
 		defer mock.Close()
 
 		mock.ExpectBegin()
+		mock.ExpectQuery(`SELECT id FROM resume_builders WHERE id = \$1 FOR UPDATE`).WithArgs("rb-1").WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow("rb-1"))
 		mock.ExpectExec("INSERT INTO resume_section_orders").
 			WithArgs("rb-1", "experience", 0, true, "main").
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
@@ -1142,6 +1146,7 @@ func TestSectionRepository_SectionOrder(t *testing.T) {
 		defer mock.Close()
 
 		mock.ExpectBegin()
+		mock.ExpectQuery(`SELECT id FROM resume_builders WHERE id = \$1 FOR UPDATE`).WithArgs("rb-1").WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow("rb-1"))
 		mock.ExpectExec("INSERT INTO resume_section_orders").
 			WithArgs("rb-1", "experience", 0, true, "main").
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))

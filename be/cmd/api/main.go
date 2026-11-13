@@ -29,6 +29,7 @@ import (
 	"github.com/andreypavlenko/jobber/modules/admin"
 	"github.com/andreypavlenko/jobber/modules/contacts"
 	"github.com/andreypavlenko/jobber/modules/interviewprep"
+	mcpModule "github.com/andreypavlenko/jobber/modules/mcp"
 
 	authHandler "github.com/andreypavlenko/jobber/modules/auth/handler"
 	authRepo "github.com/andreypavlenko/jobber/modules/auth/repository"
@@ -84,6 +85,9 @@ import (
 	clRepo "github.com/andreypavlenko/jobber/modules/contentlibrary/repository"
 	clService "github.com/andreypavlenko/jobber/modules/contentlibrary/service"
 
+	patHandler "github.com/andreypavlenko/jobber/modules/apitokens/handler"
+	patRepo "github.com/andreypavlenko/jobber/modules/apitokens/repository"
+	patService "github.com/andreypavlenko/jobber/modules/apitokens/service"
 	cvHandler "github.com/andreypavlenko/jobber/modules/coverletters/handler"
 	cvRepo "github.com/andreypavlenko/jobber/modules/coverletters/repository"
 	cvService "github.com/andreypavlenko/jobber/modules/coverletters/service"
@@ -463,6 +467,12 @@ func main() {
 	contentLibrarySvc := clService.NewContentLibraryService(contentLibraryRepository)
 	contentLibraryHdl := clHandler.NewContentLibraryHandler(contentLibrarySvc)
 
+	// Initialize API token management (JWT routes only).
+	apiTokenRepository := patRepo.NewAPITokenRepository(pgClient.Pool)
+	apiTokenSvc := patService.NewAPITokenService(apiTokenRepository, subscriptionSvc, redisClient.Client, logger.Logger,
+		patService.WithActivityRepository(apiTokenRepository))
+	apiTokenHdl := patHandler.NewAPITokenHandler(apiTokenSvc)
+
 	// Initialize cover letter module
 	coverLetterRepository := cvRepo.NewCoverLetterRepository(pgClient.Pool)
 	coverLetterSvc := cvService.NewCoverLetterService(coverLetterRepository, subscriptionSvc)
@@ -502,6 +512,13 @@ func main() {
 	matchScoreCacheHdl.RegisterCacheRoutes(router.Group("/api/v1"), authMiddleware)
 
 	// Initialize AI client for job import, match scoring, and resume AI (optional — only if ANTHROPIC_API_KEY is set)
+	mcpAI := mcpModule.AIDependencies{Credits: subscriptionSvc, Builders: resumeBuilderSvc, Letters: coverLetterSvc, MatchCache: matchScoreCacheSvc}
+	if pdfSvc != nil {
+		mcpAI.PDF = pdfSvc
+	}
+	if s3Client != nil {
+		mcpAI.Storage = mcpModule.S3PDFStorage{Client: s3Client}
+	}
 	var importHdl *importHandler.ImportHandler
 	var matchScoreHdl *matchScoreHandler.MatchScoreHandler
 	var resumeAIHdl *rbHandler.AIHandler
@@ -520,9 +537,11 @@ func main() {
 		interviewAI = aiClient
 		importSvc := importService.NewImportService(aiClient, subscriptionSvc)
 		importHdl = importHandler.NewImportHandler(importSvc)
+		mcpAI.Parser = importSvc
 
 		matchScoreSvc := matchScoreService.NewMatchScoreService(aiClient, s3Client, jobRepository, resumeRepository, subscriptionSvc, matchScoreCacheRepo)
 		matchScoreHdl = matchScoreHandler.NewMatchScoreHandler(matchScoreSvc)
+		mcpAI.Matcher = matchScoreSvc
 
 		autofillProfileSvc := resumeService.NewAutofillProfileService(resumeRepository, autofillProfileRepository, s3Client, aiClient, subscriptionSvc)
 		autofillProfileHdl = resumeHandler.NewAutofillProfileHandler(autofillProfileSvc, logger.Logger)
@@ -536,6 +555,7 @@ func main() {
 
 		coverLetterAISvc := cvService.NewAIService(coverLetterRepository, resumeBuilderRepository, aiClient, subscriptionSvc)
 		coverLetterAIHdl = cvHandler.NewAIHandler(coverLetterAISvc, logger.Logger)
+		mcpAI.LetterAI = coverLetterAISvc
 
 		logger.Info("AI job import, match scoring, resume AI, and cover letter AI enabled")
 	} else {
@@ -552,6 +572,16 @@ func main() {
 	pdfTailoringSvc := rbService.NewPDFTailoringService(tailoringSvc, tailoringImport, resumeRepository, rbService.DownloadUploadedResume(s3Client))
 	tailoringHdl := rbHandler.NewTailoringHandler(pdfTailoringSvc)
 	pdfTailoringHdl := rbHandler.NewPDFTailoringHandler(pdfTailoringSvc)
+	mcpAI.Tailoring = pdfTailoringSvc
+	// MCP is a separate PAT-only surface, outside the JWT /api/v1 group.
+	resumeSnapshots := rbService.NewSnapshotService(rbRepo.NewSnapshotRepository(pgClient.Pool))
+	mcpAuditWriter := mcpModule.NewAuditWriter(mcpModule.NewAuditRepository(pgClient.Pool), logger.Logger)
+	mcpAuditWriter.Start(ctx)
+	mcpServer := mcpModule.NewServer(jobSvc, companySvc, subscriptionSvc, logger.Logger,
+		mcpModule.WithResumeTools(mcpModule.ResumeTools{Builder: resumeBuilderSvc, Uploaded: resumeSvc, Snapshots: resumeSnapshots}),
+		mcpModule.WithAITools(mcpAI),
+		mcpModule.WithAuditWriter(mcpAuditWriter), mcpModule.WithAuditTracing(sentryEnabled))
+	mcpModule.RegisterRoutes(router, mcpServer, apiTokenSvc, subscriptionSvc, redisClient.Client, logger.Logger, cfg.Server.AllowedOrigins)
 
 	// Rate limiting for auth endpoints (10 requests per minute per IP)
 	authRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
@@ -665,6 +695,7 @@ func main() {
 		resumeBuilderHdl.RegisterRoutes(v1, authMiddleware)
 		contentLibraryHdl.RegisterRoutes(v1, authMiddleware)
 		coverLetterHdl.RegisterRoutes(v1, authMiddleware)
+		apiTokenHdl.RegisterRoutes(v1, authMiddleware)
 		subscriptionHdl.RegisterRoutes(v1, authMiddleware, cfg.Features.PaymentsEnabled)
 		if !cfg.Features.PaymentsEnabled {
 			logger.Info("Checkout disabled via FEATURE_PAYMENTS_ENABLED=false, purchase and plan-management routes not registered")
@@ -763,7 +794,13 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.Fatal("Server forced to shutdown", zap.Error(err))
+		logger.Error("Server forced to shutdown", zap.Error(err))
+		if closeErr := srv.Close(); closeErr != nil {
+			logger.Error("Failed to close HTTP server", zap.Error(closeErr))
+		}
+	}
+	if err := mcpAuditWriter.Close(); err != nil {
+		logger.Warn("MCP audit writer stopped before draining", zap.Uint64("dropped", mcpAuditWriter.Dropped()))
 	}
 
 	logger.Info("Server exited")

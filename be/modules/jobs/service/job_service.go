@@ -219,7 +219,8 @@ func (s *JobService) buildJobDTO(ctx context.Context, userID string, job *model.
 	return dto, nil
 }
 
-// List retrieves enriched jobs for a user with pagination, filtering, and sorting
+// List retrieves enriched jobs for a user with pagination, filtering, and sorting.
+// The optional current Stage filter is forwarded alongside the existing filters.
 func (s *JobService) List(ctx context.Context, userID string, opts *ports.ListOptions) ([]*model.JobDTO, int, error) {
 	items, total, err := s.repo.List(ctx, userID, opts)
 	if err != nil {

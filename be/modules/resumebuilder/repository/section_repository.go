@@ -2,9 +2,12 @@ package repository
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/andreypavlenko/jobber/modules/resumebuilder/model"
+	"github.com/andreypavlenko/jobber/modules/resumebuilder/ports"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -696,6 +699,20 @@ func (r *ResumeBuilderRepository) GetCustomSectionByID(ctx context.Context, resu
 // --- Section Order ---
 
 func (r *ResumeBuilderRepository) UpsertSectionOrder(ctx context.Context, resumeBuilderID string, orders []*model.SectionOrder) error {
+	if _, inTransaction := r.q.(pgx.Tx); !inTransaction {
+		return r.RunInTransaction(ctx, func(tx ports.ResumeBuilderRepository) error {
+			return tx.UpsertSectionOrder(ctx, resumeBuilderID, orders)
+		})
+	}
+	// Serialize with snapshot/restore before acquiring any section-row locks.
+	var id string
+	err := r.q.QueryRow(ctx, `SELECT id FROM resume_builders WHERE id = $1 FOR UPDATE`, resumeBuilderID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return model.ErrResumeBuilderNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("lock resume before section reorder: %w", err)
+	}
 	query := `
 		INSERT INTO resume_section_orders (id, resume_builder_id, section_key, sort_order, is_visible, column_placement)
 		VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)

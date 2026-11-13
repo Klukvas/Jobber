@@ -5,17 +5,19 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"github.com/andreypavlenko/jobber/internal/platform/ai"
-	"github.com/andreypavlenko/jobber/internal/platform/auth"
-	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
-	"github.com/google/uuid"
 	"io"
 	"strings"
 	"time"
 
+	"github.com/andreypavlenko/jobber/internal/platform/ai"
+	"github.com/andreypavlenko/jobber/internal/platform/auth"
+	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/service"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
+
+const aiRequestTimeout = 90 * time.Second
 
 // AIRequestScope bounds legacy calls below their durable quota lease lifetime.
 // It must be installed before routes that can use the shared AI allowance.
@@ -28,7 +30,7 @@ func AIRequestScope(subscriptions *service.SubscriptionService) gin.HandlerFunc 
 			c.Next()
 			return
 		}
-		ctx, cancel := context.WithTimeout(c.Request.Context(), 90*time.Second)
+		ctx, cancel := context.WithTimeout(c.Request.Context(), aiRequestTimeout)
 		defer cancel()
 		key := c.GetHeader("Idempotency-Key")
 		if key != "" {
@@ -50,13 +52,31 @@ func AIRequestScope(subscriptions *service.SubscriptionService) gin.HandlerFunc 
 		}
 		c.Request.Body = io.NopCloser(bytes.NewReader(body))
 		sum := sha256.Sum256(append([]byte(c.Request.Method+":"+c.Request.URL.Path+":"), body...))
-		ctx = ai.CreditContext(service.AIRequestContext(ctx), func() string { owner, _ := auth.GetUserID(c); return owner }, key, kind)
-		ai.SetCreditFingerprint(ctx, hex.EncodeToString(sum[:]))
-		c.Request = c.Request.WithContext(ctx)
+		var finisher AIRequestFinisher
 		if subscriptions != nil {
-			defer subscriptions.FinishAIRequest(c.Request.Context())
+			finisher = subscriptions
 		}
+		ctx, finish := BeginAIRequestScope(ctx, func() string { owner, _ := auth.GetUserID(c); return owner }, key, kind, hex.EncodeToString(sum[:]), finisher)
+		defer finish()
+		c.Request = c.Request.WithContext(ctx)
 		c.Next()
+	}
+}
+
+// AIRequestFinisher releases unsuccessful reservations after a bounded AI call.
+type AIRequestFinisher interface{ FinishAIRequest(context.Context) }
+
+// BeginAIRequestScope is shared by HTTP routes and individual MCP tool calls.
+// The owner callback permits HTTP authentication to run after global middleware.
+func BeginAIRequestScope(parent context.Context, owner func() string, key, kind, fingerprint string, subscriptions AIRequestFinisher) (context.Context, func()) {
+	ctx, cancel := context.WithTimeout(parent, aiRequestTimeout)
+	ctx = ai.CreditContext(service.AIRequestContext(ctx), owner, key, kind)
+	ai.SetCreditFingerprint(ctx, fingerprint)
+	return ctx, func() {
+		defer cancel()
+		if subscriptions != nil {
+			subscriptions.FinishAIRequest(ctx)
+		}
 	}
 }
 

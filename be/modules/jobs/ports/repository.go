@@ -23,6 +23,9 @@ type ListOptions struct {
 	// CompanyID restricts the list to cards linked to one company. Empty means
 	// no company filter. Validated as a UUID by the handler.
 	CompanyID string
+	// StageTemplateID restricts Jobs to their current pipeline Stage. Empty leaves
+	// the existing web list behavior unchanged; callers validate UUIDs.
+	StageTemplateID string
 }
 
 // JobRepository defines the interface for job data access
