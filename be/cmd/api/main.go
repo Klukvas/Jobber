@@ -84,6 +84,9 @@ import (
 	clRepo "github.com/andreypavlenko/jobber/modules/contentlibrary/repository"
 	clService "github.com/andreypavlenko/jobber/modules/contentlibrary/service"
 
+	patHandler "github.com/andreypavlenko/jobber/modules/apitokens/handler"
+	patRepo "github.com/andreypavlenko/jobber/modules/apitokens/repository"
+	patService "github.com/andreypavlenko/jobber/modules/apitokens/service"
 	cvHandler "github.com/andreypavlenko/jobber/modules/coverletters/handler"
 	cvRepo "github.com/andreypavlenko/jobber/modules/coverletters/repository"
 	cvService "github.com/andreypavlenko/jobber/modules/coverletters/service"
@@ -463,6 +466,11 @@ func main() {
 	contentLibrarySvc := clService.NewContentLibraryService(contentLibraryRepository)
 	contentLibraryHdl := clHandler.NewContentLibraryHandler(contentLibrarySvc)
 
+	// Initialize API token management (JWT routes only).
+	apiTokenRepository := patRepo.NewAPITokenRepository(pgClient.Pool)
+	apiTokenSvc := patService.NewAPITokenService(apiTokenRepository, subscriptionSvc, redisClient.Client, logger.Logger)
+	apiTokenHdl := patHandler.NewAPITokenHandler(apiTokenSvc)
+
 	// Initialize cover letter module
 	coverLetterRepository := cvRepo.NewCoverLetterRepository(pgClient.Pool)
 	coverLetterSvc := cvService.NewCoverLetterService(coverLetterRepository, subscriptionSvc)
@@ -665,6 +673,7 @@ func main() {
 		resumeBuilderHdl.RegisterRoutes(v1, authMiddleware)
 		contentLibraryHdl.RegisterRoutes(v1, authMiddleware)
 		coverLetterHdl.RegisterRoutes(v1, authMiddleware)
+		apiTokenHdl.RegisterRoutes(v1, authMiddleware)
 		subscriptionHdl.RegisterRoutes(v1, authMiddleware, cfg.Features.PaymentsEnabled)
 		if !cfg.Features.PaymentsEnabled {
 			logger.Info("Checkout disabled via FEATURE_PAYMENTS_ENABLED=false, purchase and plan-management routes not registered")
