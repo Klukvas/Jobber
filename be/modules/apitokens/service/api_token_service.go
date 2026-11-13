@@ -107,21 +107,35 @@ func (s *APITokenService) Revoke(ctx context.Context, userID, tokenID string) er
 }
 
 func (s *APITokenService) Authenticate(ctx context.Context, plaintext string) (string, string, error) {
+	info, err := s.AuthenticateWithInfo(ctx, plaintext)
+	if err != nil {
+		return "", "", err
+	}
+	return info.UserID, info.TokenID, nil
+}
+
+// AuthenticateWithInfo performs the same single lookup as Authenticate and also
+// returns the verified expiration for transports that enforce token lifetimes.
+func (s *APITokenService) AuthenticateWithInfo(ctx context.Context, plaintext string) (*model.AuthenticationInfo, error) {
 	if !validToken(plaintext) {
-		return "", "", model.ErrInvalidToken
+		return nil, model.ErrInvalidToken
 	}
 	token, err := s.repo.GetByHash(ctx, hashToken(plaintext))
 	if errors.Is(err, model.ErrTokenNotFound) {
-		return "", "", model.ErrInvalidToken
+		return nil, model.ErrInvalidToken
 	}
 	if err != nil {
-		return "", "", fmt.Errorf("authenticate api token: %w", err)
+		return nil, fmt.Errorf("authenticate api token: %w", err)
 	}
 	if token.RevokedAt != nil || token.ExpiresAt != nil && !token.ExpiresAt.After(time.Now()) {
-		return "", "", model.ErrInvalidToken
+		return nil, model.ErrInvalidToken
 	}
 	s.recordUsage(ctx, token.ID)
-	return token.UserID, token.ID, nil
+	info := &model.AuthenticationInfo{UserID: token.UserID, TokenID: token.ID}
+	if token.ExpiresAt != nil {
+		info.ExpiresAt = *token.ExpiresAt
+	}
+	return info, nil
 }
 
 func (s *APITokenService) recordUsage(ctx context.Context, tokenID string) {
