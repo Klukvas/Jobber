@@ -27,6 +27,7 @@ import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { useOnboarding } from "@/features/onboarding/useOnboarding";
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { ProfileSection } from "@/features/settings/ProfileSection";
+import { AiAssistantsSection } from "@/features/settings/ai-assistants/AiAssistantsSection";
 import { PricingModal } from "@/features/subscription/components/PricingModal";
 import { ManageSubscriptionModal } from "@/features/subscription/components/ManageSubscriptionModal";
 import { CHOOSE_PLAN_PARAM } from "@/features/subscription/choosePlanLink";
@@ -146,6 +147,8 @@ export default function Settings() {
       <h1 className="text-3xl font-bold">{t("settings.title")}</h1>
 
       <ProfileSection />
+
+      <AiAssistantsSection />
 
       <Card>
         <CardHeader>
