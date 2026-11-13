@@ -472,9 +472,6 @@ func main() {
 	apiTokenSvc := patService.NewAPITokenService(apiTokenRepository, subscriptionSvc, redisClient.Client, logger.Logger)
 	apiTokenHdl := patHandler.NewAPITokenHandler(apiTokenSvc)
 
-	// MCP is a separate PAT-only surface, outside the JWT /api/v1 group.
-	mcpModule.RegisterRoutes(router, mcpModule.NewServer(jobSvc, companySvc, subscriptionSvc, logger.Logger), apiTokenSvc, subscriptionSvc, redisClient.Client, logger.Logger, cfg.Server.AllowedOrigins)
-
 	// Initialize cover letter module
 	coverLetterRepository := cvRepo.NewCoverLetterRepository(pgClient.Pool)
 	coverLetterSvc := cvService.NewCoverLetterService(coverLetterRepository, subscriptionSvc)
@@ -514,6 +511,13 @@ func main() {
 	matchScoreCacheHdl.RegisterCacheRoutes(router.Group("/api/v1"), authMiddleware)
 
 	// Initialize AI client for job import, match scoring, and resume AI (optional — only if ANTHROPIC_API_KEY is set)
+	mcpAI := mcpModule.AIDependencies{Credits: subscriptionSvc, Builders: resumeBuilderSvc, Letters: coverLetterSvc, MatchCache: matchScoreCacheSvc}
+	if pdfSvc != nil {
+		mcpAI.PDF = pdfSvc
+	}
+	if s3Client != nil {
+		mcpAI.Storage = mcpModule.S3PDFStorage{Client: s3Client}
+	}
 	var importHdl *importHandler.ImportHandler
 	var matchScoreHdl *matchScoreHandler.MatchScoreHandler
 	var resumeAIHdl *rbHandler.AIHandler
@@ -532,9 +536,11 @@ func main() {
 		interviewAI = aiClient
 		importSvc := importService.NewImportService(aiClient, subscriptionSvc)
 		importHdl = importHandler.NewImportHandler(importSvc)
+		mcpAI.Parser = importSvc
 
 		matchScoreSvc := matchScoreService.NewMatchScoreService(aiClient, s3Client, jobRepository, resumeRepository, subscriptionSvc, matchScoreCacheRepo)
 		matchScoreHdl = matchScoreHandler.NewMatchScoreHandler(matchScoreSvc)
+		mcpAI.Matcher = matchScoreSvc
 
 		autofillProfileSvc := resumeService.NewAutofillProfileService(resumeRepository, autofillProfileRepository, s3Client, aiClient, subscriptionSvc)
 		autofillProfileHdl = resumeHandler.NewAutofillProfileHandler(autofillProfileSvc, logger.Logger)
@@ -548,6 +554,7 @@ func main() {
 
 		coverLetterAISvc := cvService.NewAIService(coverLetterRepository, resumeBuilderRepository, aiClient, subscriptionSvc)
 		coverLetterAIHdl = cvHandler.NewAIHandler(coverLetterAISvc, logger.Logger)
+		mcpAI.LetterAI = coverLetterAISvc
 
 		logger.Info("AI job import, match scoring, resume AI, and cover letter AI enabled")
 	} else {
@@ -564,6 +571,13 @@ func main() {
 	pdfTailoringSvc := rbService.NewPDFTailoringService(tailoringSvc, tailoringImport, resumeRepository, rbService.DownloadUploadedResume(s3Client))
 	tailoringHdl := rbHandler.NewTailoringHandler(pdfTailoringSvc)
 	pdfTailoringHdl := rbHandler.NewPDFTailoringHandler(pdfTailoringSvc)
+	mcpAI.Tailoring = pdfTailoringSvc
+	// MCP is a separate PAT-only surface, outside the JWT /api/v1 group.
+	resumeSnapshots := rbService.NewSnapshotService(rbRepo.NewSnapshotRepository(pgClient.Pool))
+	mcpServer := mcpModule.NewServer(jobSvc, companySvc, subscriptionSvc, logger.Logger,
+		mcpModule.WithResumeTools(mcpModule.ResumeTools{Builder: resumeBuilderSvc, Uploaded: resumeSvc, Snapshots: resumeSnapshots}),
+		mcpModule.WithAITools(mcpAI))
+	mcpModule.RegisterRoutes(router, mcpServer, apiTokenSvc, subscriptionSvc, redisClient.Client, logger.Logger, cfg.Server.AllowedOrigins)
 
 	// Rate limiting for auth endpoints (10 requests per minute per IP)
 	authRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{
