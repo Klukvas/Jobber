@@ -8,6 +8,13 @@ import (
 
 const MaxActiveTokens = 10
 
+// AuthenticationInfo exposes only the verified identity and lifetime, never token material.
+type AuthenticationInfo struct {
+	UserID    string
+	TokenID   string
+	ExpiresAt time.Time
+}
+
 var (
 	ErrTokenNotFound = errors.New("api token not found")
 	ErrInvalidToken  = errors.New("invalid api token")

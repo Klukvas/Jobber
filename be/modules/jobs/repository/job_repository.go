@@ -183,6 +183,7 @@ func (r *JobRepository) List(ctx context.Context, userID string, opts *ports.Lis
 	filter := archivedFilter(opts.Status)
 	filter += searchFilter(opts.Search, &args)
 	filter += companyFilter(opts.CompanyID, &args)
+	filter += stageFilter(opts.StageTemplateID, &args)
 
 	sortDir := "DESC"
 	if strings.EqualFold(opts.SortDir, "asc") {

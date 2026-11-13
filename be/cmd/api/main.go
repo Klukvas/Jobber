@@ -29,6 +29,7 @@ import (
 	"github.com/andreypavlenko/jobber/modules/admin"
 	"github.com/andreypavlenko/jobber/modules/contacts"
 	"github.com/andreypavlenko/jobber/modules/interviewprep"
+	mcpModule "github.com/andreypavlenko/jobber/modules/mcp"
 
 	authHandler "github.com/andreypavlenko/jobber/modules/auth/handler"
 	authRepo "github.com/andreypavlenko/jobber/modules/auth/repository"
@@ -470,6 +471,9 @@ func main() {
 	apiTokenRepository := patRepo.NewAPITokenRepository(pgClient.Pool)
 	apiTokenSvc := patService.NewAPITokenService(apiTokenRepository, subscriptionSvc, redisClient.Client, logger.Logger)
 	apiTokenHdl := patHandler.NewAPITokenHandler(apiTokenSvc)
+
+	// MCP is a separate PAT-only surface, outside the JWT /api/v1 group.
+	mcpModule.RegisterRoutes(router, mcpModule.NewServer(jobSvc, companySvc, subscriptionSvc, logger.Logger), apiTokenSvc, subscriptionSvc, redisClient.Client, logger.Logger, cfg.Server.AllowedOrigins)
 
 	// Initialize cover letter module
 	coverLetterRepository := cvRepo.NewCoverLetterRepository(pgClient.Pool)
