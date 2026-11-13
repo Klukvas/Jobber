@@ -66,23 +66,57 @@ func decodeOutput[T any](t *testing.T, result *sdk.CallToolResult) T {
 }
 
 func TestToolsList(t *testing.T) {
-	client := toolClient(t, newFakeJobs(), userA)
+	store := newFakeResumeStore()
+	jobs := newFakeJobs()
+	server := NewServer(jobs, nil, jobs, nil,
+		WithResumeTools(ResumeTools{Builder: store, Uploaded: &fakeUploadedResumes{}, Snapshots: &fakeResumeSnapshots{store: store}}),
+		WithAITools(newFakeAITools().deps()))
+	client := toolClientForServer(t, server, userA)
 	listed, err := client.ListTools(t.Context(), nil)
 	require.NoError(t, err)
-	require.Len(t, listed.Tools, 6)
-	names := make([]string, 0, 6)
+	// Each pair specifies read-only and idempotent hints, respectively.
+	expected := map[string][2]bool{
+		"list_stages":             {true, true},
+		"list_jobs":               {true, true},
+		"get_job":                 {true, true},
+		"create_job":              {false, false},
+		"move_job":                {false, true},
+		"archive_job":             {false, true},
+		"list_resumes":            {true, true},
+		"get_resume":              {true, true},
+		"update_resume_section":   {false, false},
+		"list_resume_snapshots":   {true, true},
+		"restore_resume_snapshot": {false, false},
+		"parse_job_page":          {false, false},
+		"tailor_resume":           {false, false},
+		"apply_tailoring":         {false, true},
+		"generate_cover_letter":   {false, false},
+		"check_match":             {false, false},
+		"get_resume_pdf_link":     {false, true},
+	}
+	require.Len(t, listed.Tools, 17)
+	names := make([]string, 0, len(listed.Tools))
 	for _, tool := range listed.Tools {
 		names = append(names, tool.Name)
-		require.NotNil(t, tool.Annotations)
-		require.NotNil(t, tool.Annotations.DestructiveHint)
-		require.False(t, *tool.Annotations.DestructiveHint)
-		read := strings.HasPrefix(tool.Name, "list_") || tool.Name == "get_job"
-		require.Equal(t, read, tool.Annotations.ReadOnlyHint)
-		require.Equal(t, tool.Name != "create_job", tool.Annotations.IdempotentHint)
-		assertFieldDescriptions(t, tool.InputSchema)
-		assertFieldDescriptions(t, tool.OutputSchema)
+		hints, found := expected[tool.Name]
+		require.True(t, found, "unexpected tool %q", tool.Name)
+		require.NotNil(t, tool.Annotations, tool.Name)
+		require.NotNil(t, tool.Annotations.DestructiveHint, tool.Name)
+		require.False(t, *tool.Annotations.DestructiveHint, tool.Name)
+		require.NotNil(t, tool.Annotations.OpenWorldHint, tool.Name)
+		require.False(t, *tool.Annotations.OpenWorldHint, tool.Name)
+		require.Equal(t, hints[0], tool.Annotations.ReadOnlyHint, tool.Name)
+		require.Equal(t, hints[1], tool.Annotations.IdempotentHint, tool.Name)
+		if !isAITool(tool.Name) && !strings.Contains(tool.Name, "resume") {
+			assertFieldDescriptions(t, tool.InputSchema)
+			assertFieldDescriptions(t, tool.OutputSchema)
+		}
 	}
-	require.ElementsMatch(t, []string{"list_stages", "list_jobs", "get_job", "create_job", "move_job", "archive_job"}, names)
+	expectedNames := make([]string, 0, len(expected))
+	for name := range expected {
+		expectedNames = append(expectedNames, name)
+	}
+	require.ElementsMatch(t, expectedNames, names)
 }
 
 func assertFieldDescriptions(t *testing.T, schema any) {
