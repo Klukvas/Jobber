@@ -469,7 +469,8 @@ func main() {
 
 	// Initialize API token management (JWT routes only).
 	apiTokenRepository := patRepo.NewAPITokenRepository(pgClient.Pool)
-	apiTokenSvc := patService.NewAPITokenService(apiTokenRepository, subscriptionSvc, redisClient.Client, logger.Logger)
+	apiTokenSvc := patService.NewAPITokenService(apiTokenRepository, subscriptionSvc, redisClient.Client, logger.Logger,
+		patService.WithActivityRepository(apiTokenRepository))
 	apiTokenHdl := patHandler.NewAPITokenHandler(apiTokenSvc)
 
 	// Initialize cover letter module
@@ -574,9 +575,12 @@ func main() {
 	mcpAI.Tailoring = pdfTailoringSvc
 	// MCP is a separate PAT-only surface, outside the JWT /api/v1 group.
 	resumeSnapshots := rbService.NewSnapshotService(rbRepo.NewSnapshotRepository(pgClient.Pool))
+	mcpAuditWriter := mcpModule.NewAuditWriter(mcpModule.NewAuditRepository(pgClient.Pool), logger.Logger)
+	mcpAuditWriter.Start(ctx)
 	mcpServer := mcpModule.NewServer(jobSvc, companySvc, subscriptionSvc, logger.Logger,
 		mcpModule.WithResumeTools(mcpModule.ResumeTools{Builder: resumeBuilderSvc, Uploaded: resumeSvc, Snapshots: resumeSnapshots}),
-		mcpModule.WithAITools(mcpAI))
+		mcpModule.WithAITools(mcpAI),
+		mcpModule.WithAuditWriter(mcpAuditWriter), mcpModule.WithAuditTracing(sentryEnabled))
 	mcpModule.RegisterRoutes(router, mcpServer, apiTokenSvc, subscriptionSvc, redisClient.Client, logger.Logger, cfg.Server.AllowedOrigins)
 
 	// Rate limiting for auth endpoints (10 requests per minute per IP)
@@ -790,7 +794,13 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.Fatal("Server forced to shutdown", zap.Error(err))
+		logger.Error("Server forced to shutdown", zap.Error(err))
+		if closeErr := srv.Close(); closeErr != nil {
+			logger.Error("Failed to close HTTP server", zap.Error(closeErr))
+		}
+	}
+	if err := mcpAuditWriter.Close(); err != nil {
+		logger.Warn("MCP audit writer stopped before draining", zap.Uint64("dropped", mcpAuditWriter.Dropped()))
 	}
 
 	logger.Info("Server exited")

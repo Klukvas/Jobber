@@ -23,6 +23,7 @@ func (h *APITokenHandler) RegisterRoutes(router *gin.RouterGroup, authMiddleware
 	group := router.Group("/api-tokens", authMiddleware)
 	group.POST("", h.Create)
 	group.GET("", h.List)
+	group.GET("/activity", h.Activity)
 	group.DELETE("/:id", h.Revoke)
 }
 
@@ -101,7 +102,7 @@ func (h *APITokenHandler) handleError(c *gin.Context, err error) {
 		httpPlatform.RespondWithError(c, http.StatusForbidden, "API_TOKEN_LIMIT_REACHED", "You can have at most 10 active API tokens.")
 	case errors.Is(err, model.ErrTokenNotFound):
 		httpPlatform.RespondWithError(c, http.StatusNotFound, "API_TOKEN_NOT_FOUND", "API token not found")
-	case errors.Is(err, model.ErrInvalidName), errors.Is(err, model.ErrInvalidExpiry), errors.Is(err, model.ErrInvalidID):
+	case errors.Is(err, model.ErrInvalidName), errors.Is(err, model.ErrInvalidExpiry), errors.Is(err, model.ErrInvalidID), errors.Is(err, model.ErrInvalidActivityLimit):
 		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
 	default:
 		httpPlatform.RespondWithError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error")
