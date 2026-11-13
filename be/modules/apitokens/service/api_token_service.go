@@ -29,13 +29,18 @@ type APITokenService struct {
 	paid     PaidPlanChecker
 	debounce UsageDebouncer
 	logger   *zap.Logger
+	activity ports.ActivityRepository
 }
 
-func NewAPITokenService(repo ports.APITokenRepository, paid PaidPlanChecker, debounce UsageDebouncer, logger *zap.Logger) *APITokenService {
+func NewAPITokenService(repo ports.APITokenRepository, paid PaidPlanChecker, debounce UsageDebouncer, logger *zap.Logger, options ...ServiceOption) *APITokenService {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
-	return &APITokenService{repo: repo, paid: paid, debounce: debounce, logger: logger}
+	svc := &APITokenService{repo: repo, paid: paid, debounce: debounce, logger: logger}
+	for _, option := range options {
+		option(svc)
+	}
+	return svc
 }
 
 // Create returns the plaintext exactly once. nil expiry means no expiration;

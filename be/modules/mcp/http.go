@@ -56,7 +56,7 @@ func registerHTTP(router *gin.Engine, server *sdk.Server, tokens TokenAuthentica
 	transport := sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return server }, &sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
 	handler := auth.RequireBearerToken(cachedVerifier, &auth.RequireBearerTokenOptions{AllowMissingExpiration: true, Scopes: []string{"mcp"}})(transport)
 	for _, method := range []string{http.MethodPost, http.MethodGet, http.MethodDelete} {
-		router.Handle(method, "/api/mcp", bearerChallenge(), requireOrigin(config.allowedOrigins), config.ipLimiter, authenticatePAT(tokens), requirePaid(paid, logger), config.userLimiter, capBody(), gin.WrapH(handler))
+		router.Handle(method, "/api/mcp", redactAuditRequest, bearerChallenge(), requireOrigin(config.allowedOrigins), config.ipLimiter, authenticatePAT(tokens), requirePaid(paid, logger), config.userLimiter, capBody(), gin.WrapH(handler))
 	}
 }
 
