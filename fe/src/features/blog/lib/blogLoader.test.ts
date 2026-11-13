@@ -23,12 +23,17 @@ const LANGUAGES = ["en", "ua", "ru"] as const;
 
 describe("blogLoader — the shipped content", () => {
   it("loads every markdown file in each language directory", () => {
-    // These are counts of files on disk. A drop means the glob stopped
-    // matching; a mismatch after adding an article is this test asking to be
-    // updated, which is the point.
-    expect(getAllPosts("en")).toHaveLength(8);
-    expect(getAllPosts("ua")).toHaveLength(13);
-    expect(getAllPosts("ru")).toHaveLength(6);
+    // Compared with an independent listing of the files rather than fixed
+    // numbers: the scheduled blog routine adds posts on its own, and a
+    // hard-coded count would fail every one of them.
+    const filesOnDisk = Object.keys(import.meta.glob("/src/content/blog/*/*.md"));
+    for (const lang of LANGUAGES) {
+      const fileCount = filesOnDisk.filter((file) =>
+        file.startsWith(`/src/content/blog/${lang}/`),
+      ).length;
+      expect(fileCount, lang).toBeGreaterThan(0);
+      expect(getAllPosts(lang), lang).toHaveLength(fileCount);
+    }
   });
 
   it("treats 'uk' and 'ua' as the same content directory", () => {
