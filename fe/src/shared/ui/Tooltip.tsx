@@ -1,4 +1,4 @@
-import { useState, useRef, type ReactNode } from "react";
+import { useEffect, useState, useRef, type ReactNode } from "react";
 import { cn } from "@/shared/lib/utils";
 
 type TooltipSide = "top" | "right" | "bottom" | "left";
@@ -36,6 +36,15 @@ export function Tooltip({
 }: TooltipProps) {
   const [visible, setVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // A pending show timer must not fire after unmount: it would update state on
+  // an unmounted component (and, in tests, after the DOM is torn down).
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    [],
+  );
 
   const show = () => {
     timerRef.current = setTimeout(() => setVisible(true), delayMs);
