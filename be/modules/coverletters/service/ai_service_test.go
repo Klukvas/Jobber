@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/andreypavlenko/jobber/internal/platform/ai"
@@ -517,13 +518,12 @@ func TestAIService_Generate(t *testing.T) {
 
 		result, err := svc.Generate(ctx, userID, coverLetterID, "Software Engineer")
 		require.NoError(t, err)
-		assert.NotEmpty(t, capturedResumeCtx)
-		assert.Contains(t, capturedResumeCtx, "John Smith")
-		assert.Contains(t, capturedResumeCtx, "john@example.com")
-		assert.Contains(t, capturedResumeCtx, "Experienced developer")
-		assert.Contains(t, capturedResumeCtx, "Senior Dev at BigCo")
-		assert.Contains(t, capturedResumeCtx, "Go, TypeScript")
-		assert.Contains(t, capturedResumeCtx, "B.S., CS - MIT")
+		ctxResume := decodeResumeContext(t, capturedResumeCtx)
+		assert.Equal(t, "Experienced developer", ctxResume.Summary.Content)
+		require.Len(t, ctxResume.Experiences, 1)
+		assert.Equal(t, groundedExperience{Position: "Senior Dev", Company: "BigCo", Description: "Led team"}, ctxResume.Experiences[0])
+		assert.Equal(t, []groundedSkill{{Name: "Go"}, {Name: "TypeScript"}}, ctxResume.Skills)
+		assert.Equal(t, []groundedEducation{{Degree: "B.S.", FieldOfStudy: "CS", Institution: "MIT"}}, ctxResume.Educations)
 		assert.Equal(t, "Dear Jane Doe,", result.Greeting)
 	})
 
@@ -572,68 +572,75 @@ func TestAIService_Generate(t *testing.T) {
 
 // --- buildResumeContext Tests ---
 
+// The grounded generator in internal/platform/ai reads these JSON keys; a
+// regression to free-form text (the original production 500) fails to decode.
+type groundedExperience struct {
+	Position    string `json:"position"`
+	Company     string `json:"company"`
+	Description string `json:"description"`
+}
+
+type groundedSkill struct {
+	Name string `json:"name"`
+}
+
+type groundedEducation struct {
+	Degree       string `json:"degree"`
+	FieldOfStudy string `json:"field_of_study"`
+	Institution  string `json:"institution"`
+}
+
+type groundedResumeContext struct {
+	Summary *struct {
+		Content string `json:"content"`
+	} `json:"summary"`
+	Experiences []groundedExperience `json:"experiences"`
+	Skills      []groundedSkill      `json:"skills"`
+	Educations  []groundedEducation  `json:"educations"`
+}
+
+func decodeResumeContext(t *testing.T, raw string) groundedResumeContext {
+	t.Helper()
+	var decoded groundedResumeContext
+	require.NoError(t, json.Unmarshal([]byte(raw), &decoded), "resume context must be structured JSON, got %q", raw)
+	return decoded
+}
+
 func TestBuildResumeContext(t *testing.T) {
-	t.Run("assembles correct text from resume data", func(t *testing.T) {
+	t.Run("serializes typed sections the grounded generator reads", func(t *testing.T) {
 		resume := &rbModel.FullResumeDTO{
 			ResumeBuilderDTO: &rbModel.ResumeBuilderDTO{ID: "rb-1"},
-			Contact: &rbModel.ContactDTO{
-				FullName: "Alice Johnson",
-				Email:    "alice@example.com",
-			},
-			Summary: &rbModel.SummaryDTO{
-				Content: "Full-stack developer with 5 years of experience.",
-			},
+			Contact:          &rbModel.ContactDTO{FullName: "Alice Johnson"},
+			Summary:          &rbModel.SummaryDTO{Content: "Full-stack developer."},
 			Experiences: []*rbModel.ExperienceDTO{
 				{Position: "Backend Developer", Company: "TechCorp", Description: "Built microservices"},
 				{Position: "Frontend Developer", Company: "WebCo"},
 			},
-			Skills: []*rbModel.SkillDTO{
-				{Name: "Go"},
-				{Name: "React"},
-				{Name: "PostgreSQL"},
-			},
-			Educations: []*rbModel.EducationDTO{
-				{Degree: "M.S.", FieldOfStudy: "Computer Science", Institution: "Stanford"},
-			},
+			Skills:     []*rbModel.SkillDTO{{Name: "Go"}, {Name: "React"}},
+			Educations: []*rbModel.EducationDTO{{Degree: "M.S.", FieldOfStudy: "Computer Science", Institution: "Stanford"}},
 		}
 
-		result := buildResumeContext(resume)
+		raw, err := buildResumeContext(resume)
+		require.NoError(t, err)
 
-		assert.Contains(t, result, "Name: Alice Johnson")
-		assert.Contains(t, result, "Email: alice@example.com")
-		assert.Contains(t, result, "Summary: Full-stack developer with 5 years of experience.")
-		assert.Contains(t, result, "Experience:")
-		assert.Contains(t, result, "- Backend Developer at TechCorp: Built microservices")
-		assert.Contains(t, result, "- Frontend Developer at WebCo")
-		assert.NotContains(t, result, "Frontend Developer at WebCo:")
-		assert.Contains(t, result, "Skills: Go, React, PostgreSQL")
-		assert.Contains(t, result, "Education:")
-		assert.Contains(t, result, "- M.S., Computer Science - Stanford")
+		decoded := decodeResumeContext(t, raw)
+		assert.Equal(t, "Full-stack developer.", decoded.Summary.Content)
+		assert.Equal(t, []groundedExperience{
+			{Position: "Backend Developer", Company: "TechCorp", Description: "Built microservices"},
+			{Position: "Frontend Developer", Company: "WebCo"},
+		}, decoded.Experiences)
+		assert.Equal(t, []groundedSkill{{Name: "Go"}, {Name: "React"}}, decoded.Skills)
+		assert.Equal(t, []groundedEducation{{Degree: "M.S.", FieldOfStudy: "Computer Science", Institution: "Stanford"}}, decoded.Educations)
 	})
 
-	t.Run("returns empty string for empty resume", func(t *testing.T) {
-		resume := &rbModel.FullResumeDTO{
-			ResumeBuilderDTO: &rbModel.ResumeBuilderDTO{ID: "rb-1"},
-		}
+	t.Run("empty resume yields JSON with no candidate sections", func(t *testing.T) {
+		raw, err := buildResumeContext(&rbModel.FullResumeDTO{ResumeBuilderDTO: &rbModel.ResumeBuilderDTO{ID: "rb-1"}})
+		require.NoError(t, err)
 
-		result := buildResumeContext(resume)
-		assert.Empty(t, result)
-	})
-
-	t.Run("handles partial data gracefully", func(t *testing.T) {
-		resume := &rbModel.FullResumeDTO{
-			ResumeBuilderDTO: &rbModel.ResumeBuilderDTO{ID: "rb-1"},
-			Contact:          &rbModel.ContactDTO{FullName: "Bob"},
-			Skills: []*rbModel.SkillDTO{
-				{Name: "Python"},
-			},
-		}
-
-		result := buildResumeContext(resume)
-		assert.Contains(t, result, "Name: Bob")
-		assert.Contains(t, result, "Skills: Python")
-		assert.NotContains(t, result, "Summary:")
-		assert.NotContains(t, result, "Experience:")
-		assert.NotContains(t, result, "Education:")
+		decoded := decodeResumeContext(t, raw)
+		assert.Nil(t, decoded.Summary)
+		assert.Empty(t, decoded.Experiences)
+		assert.Empty(t, decoded.Skills)
+		assert.Empty(t, decoded.Educations)
 	})
 }

@@ -2,9 +2,9 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"github.com/andreypavlenko/jobber/modules/coverletters/ports"
@@ -61,8 +61,8 @@ func (s *AIService) Generate(ctx context.Context, userID, coverLetterID, jobDesc
 					"resume_builder_id", *cl.ResumeBuilderID,
 					"error", err,
 				)
-			} else {
-				resumeContext = buildResumeContext(resume)
+			} else if resumeContext, err = buildResumeContext(resume); err != nil {
+				return nil, err
 			}
 		}
 	}
@@ -78,47 +78,14 @@ func (s *AIService) Generate(ctx context.Context, userID, coverLetterID, jobDesc
 	return content, nil
 }
 
-func buildResumeContext(resume *rbModel.FullResumeDTO) string {
-	var parts []string
-
-	if resume.Contact != nil {
-		if resume.Contact.FullName != "" {
-			parts = append(parts, fmt.Sprintf("Name: %s", resume.Contact.FullName))
-		}
-		if resume.Contact.Email != "" {
-			parts = append(parts, fmt.Sprintf("Email: %s", resume.Contact.Email))
-		}
+// buildResumeContext serializes the linked Builder Resume as structured JSON.
+// The grounded cover letter generator only accepts typed experience units as
+// evidence and rejects free-form text, so a plain-text summary here makes every
+// resume-linked generation fail.
+func buildResumeContext(resume *rbModel.FullResumeDTO) (string, error) {
+	data, err := json.Marshal(resume)
+	if err != nil {
+		return "", fmt.Errorf("serialize resume context: %w", err)
 	}
-
-	if resume.Summary != nil && resume.Summary.Content != "" {
-		parts = append(parts, fmt.Sprintf("\nSummary: %s", resume.Summary.Content))
-	}
-
-	if len(resume.Experiences) > 0 {
-		parts = append(parts, "\nExperience:")
-		for _, exp := range resume.Experiences {
-			entry := fmt.Sprintf("- %s at %s", exp.Position, exp.Company)
-			if exp.Description != "" {
-				entry += ": " + exp.Description
-			}
-			parts = append(parts, entry)
-		}
-	}
-
-	if len(resume.Skills) > 0 {
-		skillNames := make([]string, 0, len(resume.Skills))
-		for _, skill := range resume.Skills {
-			skillNames = append(skillNames, skill.Name)
-		}
-		parts = append(parts, fmt.Sprintf("\nSkills: %s", strings.Join(skillNames, ", ")))
-	}
-
-	if len(resume.Educations) > 0 {
-		parts = append(parts, "\nEducation:")
-		for _, edu := range resume.Educations {
-			parts = append(parts, fmt.Sprintf("- %s, %s - %s", edu.Degree, edu.FieldOfStudy, edu.Institution))
-		}
-	}
-
-	return strings.Join(parts, "\n")
+	return string(data), nil
 }
