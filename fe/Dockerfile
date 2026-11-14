@@ -90,9 +90,13 @@ server { \
         proxy_set_header X-Real-IP $remote_addr; \
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
         proxy_set_header X-Forwarded-Proto $scheme; \
-        proxy_connect_timeout 30s; \
-        proxy_send_timeout 30s; \
-        proxy_read_timeout 30s; \
+        # AI routes may run for up to 90s (AIRequestScope). 95s lets the backend \
+        # answer with its own timeout error, not a proxy 504 while the provider call \
+        # keeps running; connect plus read stays under the 100s Cloudflare origin \
+        # timeout, and the backend sits on the same Docker network. \
+        proxy_connect_timeout 5s; \
+        proxy_send_timeout 95s; \
+        proxy_read_timeout 95s; \
     } \
     \
     # HTML — never cache (SPA entry point changes every deploy) \

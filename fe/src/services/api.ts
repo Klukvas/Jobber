@@ -19,6 +19,22 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const LONG_REQUEST_TIMEOUT_MS = 60_000;
 
 /**
+ * A credit-charging AI call may run for up to 90s on the backend
+ * (AIRequestScope); nginx waits 95s and Cloudflare 100s for it. The client
+ * waits longest — its clock also covers the upload, which the others don't
+ * count — so a slow call ends with a server answer, not with an abort that
+ * leaves a charged provider call running and invites a second, separately
+ * charged try. Raising the server-side limits past Cloudflare's 100s is moot.
+ */
+const AI_REQUEST_TIMEOUT_MS = 120_000;
+
+/** A caller's own budget may lengthen a charged AI call, never cut it short. */
+function aiAwareTimeout(operationKey: string | undefined, fallbackMs: number, requestedMs?: number): number {
+  if (!operationKey) return requestedMs ?? fallbackMs;
+  return Math.max(requestedMs ?? 0, AI_REQUEST_TIMEOUT_MS);
+}
+
+/**
  * Failure codes this client produces itself, for everything that never reached
  * the API. Anything the server answered carries the server's own `error_code`.
  */
@@ -314,7 +330,7 @@ class ApiClient {
     const operationKey = await confirmAIAction(url, consentSignal(options));
     try {
       return await this.client
-        .post(url, { json: data, ...requestOptions(REQUEST_TIMEOUT_MS, options),
+        .post(url, { json: data, ...requestOptions(aiAwareTimeout(operationKey, REQUEST_TIMEOUT_MS), options),
           ...(operationKey ? { headers: { "Idempotency-Key": operationKey }, retry: 0 } : {}),
         })
         .json<T>();
@@ -390,8 +406,8 @@ class ApiClient {
     timeout?: number,
     options?: RequestOptions,
   ): Promise<T> {
-    const timeoutMs = timeout ?? LONG_REQUEST_TIMEOUT_MS;
     const operationKey = await confirmAIAction(url, consentSignal(options));
+    const timeoutMs = aiAwareTimeout(operationKey, LONG_REQUEST_TIMEOUT_MS, timeout);
     try {
       return await this.client
         .post(url, { body: formData, ...requestOptions(timeoutMs, options),

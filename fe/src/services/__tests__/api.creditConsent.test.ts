@@ -9,10 +9,14 @@ it("sends nothing before consent and keeps the operation key through a 401 repla
     if (request.url.includes("auth/refresh")) return new Response("{}", { headers: { "Content-Type": "application/json" } });
     return new Response("{}", { status: requests.length === 1 ? 401 : 200, headers: { "Content-Type": "application/json" } });
   }));
+  const timeout = vi.spyOn(AbortSignal, "timeout");
   const request = apiClient.post("match-score", { job_id: "j", resume_id: "r" });
   expect(requests).toHaveLength(0);
   aiConsentStore.getSnapshot()?.finish(true);
   await request;
+  // The real route mapping, not a mocked consent, earns the AI time budget.
+  expect(timeout).toHaveBeenLastCalledWith(120_000);
+  timeout.mockRestore();
   expect(requests).toHaveLength(3);
   const key = requests[0].headers.get("Idempotency-Key");
   expect(key).toMatch(/^[0-9a-f-]{36}$/);
