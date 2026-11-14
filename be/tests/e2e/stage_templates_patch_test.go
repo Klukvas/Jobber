@@ -89,10 +89,12 @@ func TestIntegrationConcurrentStageTemplatePatchesKeepNameAndOrder(t *testing.T)
 	templateID := cols["Screening"]
 	_, _, seededKind := stageTemplateRow(t, templateID)
 
+	// A new order is a move within the pipeline (the columns renumber 0..n-1),
+	// so every target is a real position among the six seeded columns.
 	const rounds = 6
 	for round := 0; round < rounds; round++ {
 		renamed := fmt.Sprintf("Recruiter call %d", round)
-		wantOrder := 10 + round
+		wantOrder := (round + 3) % rounds
 
 		results := runConcurrentCalls(
 			httpCall{
