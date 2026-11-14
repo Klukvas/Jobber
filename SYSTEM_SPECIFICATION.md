@@ -4998,3 +4998,46 @@ the recent-activity list in Settings.
 `mcp-exports/{user}/{resume}.pdf` in object storage and returns a presigned link
 valid for 15 minutes.
 
+### MCP OAuth (November 14, 2026)
+
+MCP clients can also connect without a personal token, through OAuth 2.1
+(`modules/oauth`, migration `000058_oauth`). Cursopus is both the authorization
+server and the resource server; the resource (token audience) is
+`<origin>/api/mcp`.
+
+**Discovery:** an unauthenticated `POST /api/mcp` answers 401 with
+`WWW-Authenticate: Bearer resource_metadata=...`. Protected resource metadata
+(RFC 9728) is served at `/.well-known/oauth-protected-resource` and
+`/.well-known/oauth-protected-resource/api/mcp`; authorization server metadata
+(RFC 8414) at `/.well-known/oauth-authorization-server`. The frontend nginx
+proxies `/.well-known/oauth-*` to the backend.
+
+**Clients:** dynamic registration (`POST /api/oauth/register`, RFC 7591,
+10 per hour per IP, public clients only, `jbr_client_` ids) and client ID
+metadata documents (an `https` URL as `client_id`). Metadata documents are
+fetched with an SSRF-safe client (public addresses only, size and time caps,
+at most 4 fetches at once), cached for 24 hours, and expired unreferenced
+entries are pruned. Free users get 403 `PAID_FEATURE` before any fetch.
+
+**Authorization:** `authorization_endpoint` is the SPA page `/oauth/authorize`
+(never framed: `frame-ancestors 'none'`, `X-Frame-Options: DENY`,
+`Referrer-Policy: no-referrer`). It loads `GET /api/v1/oauth/authorize/preview`
+and submits `POST /api/v1/oauth/authorize` with `allow` or `deny`; both are
+limited to 30 requests per minute per user and 60 per IP and require a trusted
+Origin. Only the `code` response type with PKCE `S256` is accepted; the redirect
+carries `code`, `state` and `iss` (RFC 9207). Signed-out users sign in or
+register in a modal and return to the consent page; Free users can upgrade and
+come back to the same request after checkout.
+
+**Tokens:** `POST /api/oauth/token` exchanges a code (single use, 10 minutes;
+reuse revokes the grant) for an access token `jbr_oat_` (1 hour) and a refresh
+token `jbr_ort_` (30 days). Refresh tokens rotate; presenting an old one revokes
+the whole grant. `POST /api/oauth/revoke` (RFC 7009, `none` auth) revokes the
+grant by either token. Only SHA-256 hashes are stored.
+
+**Grants:** Settings → "AI assistants (MCP)" lists connected apps
+(`GET /api/v1/oauth/grants`) and disconnects them
+(`DELETE /api/v1/oauth/grants/:id`), which revokes all of their tokens at once.
+MCP requests with an OAuth token go through the same pipeline as personal
+tokens (plan check, limits, audit log); activity is attributed to the app.
+

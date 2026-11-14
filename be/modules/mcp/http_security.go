@@ -43,20 +43,30 @@ func originAllowed(origin string, allowed []string, allowAny bool) bool {
 	return false
 }
 
-type bearerChallengeWriter struct{ gin.ResponseWriter }
+type bearerChallengeWriter struct {
+	gin.ResponseWriter
+	challenge string
+}
 
 func (w bearerChallengeWriter) WriteHeader(status int) {
 	if status == http.StatusUnauthorized {
-		w.Header().Set("WWW-Authenticate", "Bearer")
+		w.Header().Set("WWW-Authenticate", w.challenge)
 	}
 	w.ResponseWriter.WriteHeader(status)
 }
 
 // The SDK can reject a token that expires after gin authentication. Intercept
 // its 401 too, before response headers are written.
-func bearerChallenge() gin.HandlerFunc {
+func bearerChallenge(issuer string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Writer = bearerChallengeWriter{ResponseWriter: c.Writer}
+		challenge := "Bearer"
+		if issuer != "" {
+			challenge += ` resource_metadata="` + issuer + `/.well-known/oauth-protected-resource/api/mcp", scope="mcp"`
+			if c.GetHeader("Authorization") != "" {
+				challenge += `, error="invalid_token"`
+			}
+		}
+		c.Writer = bearerChallengeWriter{ResponseWriter: c.Writer, challenge: challenge}
 		c.Next()
 	}
 }

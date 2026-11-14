@@ -11,8 +11,8 @@ import (
 )
 
 const auditInsertSQL = `INSERT INTO mcp_audit_log
- (id, user_id, api_token_id, tool, ok, error_code, duration_ms)
- VALUES ($1, $2, $3, $4, $5, $6, $7)`
+ (id, user_id, api_token_id, tool, ok, error_code, duration_ms, oauth_grant_id)
+ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
 const auditPruneSQL = `DELETE FROM mcp_audit_log WHERE user_id = $1 AND id IN
  (SELECT id FROM mcp_audit_log WHERE user_id = $1 ORDER BY created_at DESC, id DESC OFFSET $2)`
@@ -26,12 +26,16 @@ func auditMock(t *testing.T) pgxmock.PgxPoolIface {
 }
 
 func TestAuditRepositoryRecord(t *testing.T) {
-	for _, failed := range []bool{false, true} {
+	for _, mode := range []string{"success", "failed", "oauth"} {
 		name := "success with nullable token"
 		entry := AuditEntry{ID: jobA, UserID: userA, Tool: "get_job", OK: true, DurationMS: 23}
-		if failed {
+		if mode == "failed" {
 			name = "tool error with token"
 			entry.OK, entry.APITokenID, entry.ErrorCode = false, optionalText(tokenA), optionalText("not_found")
+		}
+		if mode == "oauth" {
+			name = "OAuth grant"
+			entry.OAuthGrantID = optionalText(tokenA)
 		}
 		t.Run(name, func(t *testing.T) {
 			mock := auditMock(t)
@@ -39,7 +43,7 @@ func TestAuditRepositoryRecord(t *testing.T) {
 			mock.ExpectQuery(`SELECT id FROM users WHERE id = \$1 FOR NO KEY UPDATE`).WithArgs(userA).
 				WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(userA))
 			// Exact columns and arguments also guard against storing input/output text.
-			mock.ExpectExec(regexp.QuoteMeta(auditInsertSQL)).WithArgs(entry.ID, userA, entry.APITokenID, entry.Tool, entry.OK, entry.ErrorCode, 23).
+			mock.ExpectExec(regexp.QuoteMeta(auditInsertSQL)).WithArgs(entry.ID, userA, entry.APITokenID, entry.Tool, entry.OK, entry.ErrorCode, 23, entry.OAuthGrantID).
 				WillReturnResult(pgxmock.NewResult("INSERT", 1))
 			mock.ExpectExec(regexp.QuoteMeta(auditPruneSQL)).WithArgs(userA, MaxAuditRowsPerUser).
 				WillReturnResult(pgxmock.NewResult("DELETE", 1))
@@ -63,7 +67,7 @@ func TestAuditRepositoryFailuresRollback(t *testing.T) {
 					lock.WillReturnError(failure)
 				} else {
 					lock.WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(userA))
-					insert := mock.ExpectExec(regexp.QuoteMeta(auditInsertSQL)).WithArgs("", userA, (*string)(nil), "", false, (*string)(nil), 0)
+					insert := mock.ExpectExec(regexp.QuoteMeta(auditInsertSQL)).WithArgs("", userA, (*string)(nil), "", false, (*string)(nil), 0, (*string)(nil))
 					if phase == "insert" {
 						insert.WillReturnError(failure)
 					} else {

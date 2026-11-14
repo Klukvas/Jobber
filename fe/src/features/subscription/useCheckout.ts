@@ -7,6 +7,7 @@ import {
   rememberPreCheckoutPlan,
 } from "@/features/subscription/checkoutSignals";
 import { safeBillingUrl } from "@/features/subscription/safeHttpsUrl";
+import { forgetCheckoutConsent, rememberCheckoutConsent } from "@/features/oauth/checkoutConsent";
 import { trackBeginCheckout } from "@/shared/lib/analytics";
 import { FEATURES } from "@/shared/lib/features";
 import type { SubscriptionPlan } from "@/shared/types/api";
@@ -69,6 +70,7 @@ export function useCheckout() {
       isStartingRef.current = true;
       setIsRedirecting(true);
       setError(null);
+      rememberCheckoutConsent(window.location.pathname + window.location.search);
 
       try {
         // Recorded before leaving: it is how the layout detects the upgrade
@@ -94,6 +96,7 @@ export function useCheckout() {
         isStartingRef.current = false;
         setIsRedirecting(false);
         forgetPreCheckoutPlan();
+        forgetCheckoutConsent();
         setError(cause instanceof Error ? cause : new Error(String(cause)));
       }
     },

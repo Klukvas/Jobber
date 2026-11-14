@@ -41,9 +41,9 @@ func (r *AuditRepository) Record(ctx context.Context, entry AuditEntry) (err err
 		return fmt.Errorf("lock mcp audit owner: %w", err)
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO mcp_audit_log
- (id, user_id, api_token_id, tool, ok, error_code, duration_ms)
- VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		entry.ID, entry.UserID, entry.APITokenID, entry.Tool, entry.OK, entry.ErrorCode, entry.DurationMS)
+ (id, user_id, api_token_id, tool, ok, error_code, duration_ms, oauth_grant_id)
+ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		entry.ID, entry.UserID, entry.APITokenID, entry.Tool, entry.OK, entry.ErrorCode, entry.DurationMS, entry.OAuthGrantID)
 	if err != nil {
 		return fmt.Errorf("insert mcp audit: %w", err)
 	}

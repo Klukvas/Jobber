@@ -8,6 +8,7 @@ import en from "@/shared/locales/en.json";
 import { ApiError } from "@/services/api";
 
 const features = vi.hoisted(() => ({ PAYMENTS: false }));
+vi.mock("./ConnectedApps", () => ({ ConnectedApps: () => null }));
 const subscription = vi.hoisted(() => ({ isPro: false, isLoading: false, plan: "free" }));
 const tokens = vi.hoisted(() => ({ list: vi.fn(), activity: vi.fn() }));
 const billing = vi.hoisted(() => ({

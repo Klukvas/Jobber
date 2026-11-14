@@ -6,6 +6,7 @@ import {
   useSearchParams,
   Link,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -26,6 +27,7 @@ import {
 import { trackConversion } from "@/shared/lib/analytics";
 import { resetConsent } from "@/shared/lib/consent";
 import { loginPathFor } from "@/shared/lib/loginReturn";
+import { takeCheckoutConsent } from "@/features/oauth/checkoutConsent";
 import { PoweredByFluxLab } from "@/shared/ui/PoweredByFluxLab";
 import { TAP_TARGET_INLINE } from "@/shared/ui/tapTarget";
 import type { SubscriptionPlan } from "@/shared/types/api";
@@ -69,6 +71,8 @@ export function AppLayout() {
   const isDrawerOpen = useIsSidebarDrawerOpen();
   const { shouldShow, complete, dismissForSession } = useOnboarding();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [isCheckoutSuccessReturn] = useState(() => searchParams.get("subscription") === "success");
   const queryClient = useQueryClient();
   const { plan, subscription } = useSubscription();
   const isManualGrant = subscription?.manual_access !== undefined;
@@ -131,6 +135,12 @@ export function AppLayout() {
       transactionId: checkoutId ?? crypto.randomUUID(),
     });
   }, [upgradedPlan, isManualGrant, checkoutId]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !isCheckoutSuccessReturn || upgradedPlan === null) return;
+    const consentPath = takeCheckoutConsent();
+    if (consentPath) void navigate(consentPath, { replace: true });
+  }, [isAuthenticated, isCheckoutSuccessReturn, upgradedPlan, navigate]);
 
   // Stops waiting and forgets the baseline, so nothing re-triggers on the next
   // page load. Used both by the overlay's own dismiss button and by the bfcache

@@ -50,7 +50,7 @@ export function ActivityList({ query }: { query: UseQueryResult<AssistantActivit
                   </span>
                 </div>
                 <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
-                  <span className="break-all">{call.token_name ?? t("settings.aiAssistants.deletedToken")}</span>
+                  <span className="break-all">{call.client_name ?? call.token_name ?? t("settings.aiAssistants.deletedToken")}</span>
                   <time dateTime={call.created_at} className="tabular-nums">
                     {formatDistance(new Date(call.created_at), now, { addSuffix: true, locale })}
                   </time>

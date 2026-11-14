@@ -10,9 +10,10 @@ const MaxActiveTokens = 10
 
 // AuthenticationInfo exposes only the verified identity and lifetime, never token material.
 type AuthenticationInfo struct {
-	UserID    string
-	TokenID   string
-	ExpiresAt time.Time
+	UserID       string
+	TokenID      string
+	OAuthGrantID string
+	ExpiresAt    time.Time
 }
 
 var (

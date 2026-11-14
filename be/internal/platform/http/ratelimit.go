@@ -20,6 +20,8 @@ type RateLimitConfig struct {
 	Window time.Duration
 	// KeyPrefix is prepended to the rate limit key (e.g., "auth", "api")
 	KeyPrefix string
+	// StandardErrorResponse uses the web API error envelope instead of the legacy format.
+	StandardErrorResponse bool
 }
 
 // redisCallTimeout bounds the limiter's one Redis round trip. It is generous for
@@ -116,13 +118,22 @@ func rateLimitByKey(rdb *redis.Client, cfg RateLimitConfig, logger *zap.Logger, 
 		}
 
 		if result > int64(cfg.MaxRequests) {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-				"code":    "RATE_LIMIT_EXCEEDED",
-				"message": "Too many requests, please try again later",
-			})
+			abortRateLimit(c, cfg)
 			return
 		}
 
 		c.Next()
 	}
+}
+
+func abortRateLimit(c *gin.Context, cfg RateLimitConfig) {
+	if cfg.StandardErrorResponse {
+		RespondWithError(c, http.StatusTooManyRequests, "RATE_LIMIT_EXCEEDED", "Too many requests, please try again later")
+		c.Abort()
+		return
+	}
+	c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+		"code":    "RATE_LIMIT_EXCEEDED",
+		"message": "Too many requests, please try again later",
+	})
 }
