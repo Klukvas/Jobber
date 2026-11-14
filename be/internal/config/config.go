@@ -65,6 +65,9 @@ type FeaturesConfig struct {
 type SentryConfig struct {
 	DSN     string
 	Release string
+	// TracesSampleRate is the share of requests traced, 0 to 1; 0 turns
+	// performance tracing off while keeping error reporting.
+	TracesSampleRate float64
 }
 
 // ResendConfig holds Resend email service configuration
@@ -272,6 +275,11 @@ func Load() (*Config, error) {
 	// the reset email. A value that is not an absolute http(s) URL produces a
 	// link that goes nowhere, and nothing downstream can tell that from a
 	// broken account — so it fails the boot instead.
+	rate, err := sentryTracesSampleRate()
+	if err != nil {
+		return nil, err
+	}
+	cfg.Sentry.TracesSampleRate = rate
 	if err := validatePublicBaseURL(cfg.Server.PublicBaseURL); err != nil {
 		return nil, fmt.Errorf("PUBLIC_BASE_URL must be an absolute http(s) URL: %w", err)
 	}
@@ -487,4 +495,18 @@ func loadAIBudgetConfig(path string) int64 {
 		return 0
 	}
 	return policy.Budget.Global
+}
+
+const defaultSentryTracesSampleRate = 0.2
+
+func sentryTracesSampleRate() (float64, error) {
+	value := os.Getenv("SENTRY_TRACES_SAMPLE_RATE")
+	if value == "" {
+		return defaultSentryTracesSampleRate, nil
+	}
+	rate, err := strconv.ParseFloat(value, 64)
+	if err != nil || rate < 0 || rate > 1 {
+		return 0, fmt.Errorf("SENTRY_TRACES_SAMPLE_RATE must be a number from 0 to 1, got %q", value)
+	}
+	return rate, nil
 }

@@ -173,7 +173,7 @@ func main() {
 	// Initialize Sentry (respects feature flag)
 	var sentryEnabled bool
 	if cfg.Features.SentryEnabled {
-		sentryEnabled = sentryPlatform.Init(cfg.Sentry.DSN, cfg.Server.Env, cfg.Sentry.Release, logger.Logger)
+		sentryEnabled = sentryPlatform.Init(cfg.Sentry.DSN, cfg.Server.Env, cfg.Sentry.Release, cfg.Sentry.TracesSampleRate, logger.Logger)
 		if sentryEnabled {
 			defer sentryPlatform.Flush()
 		}

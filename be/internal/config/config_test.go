@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -838,5 +839,32 @@ func TestLoad_TrustedProxies(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, []string{"172.18.0.0/16", "10.0.0.5"}, cfg.Server.TrustedProxies)
+	})
+}
+
+func TestLoad_SentryTracesSampleRate(t *testing.T) {
+	t.Run("defaults to 0.2", func(t *testing.T) {
+		setMinimalEnv(t)
+		cfg, err := Load()
+		require.NoError(t, err)
+		assert.InDelta(t, 0.2, cfg.Sentry.TracesSampleRate, 1e-9)
+	})
+	t.Run("reads the configured rate, including 0", func(t *testing.T) {
+		for _, value := range []string{"0", "0.05", "1"} {
+			setMinimalEnv(t)
+			t.Setenv("SENTRY_TRACES_SAMPLE_RATE", value)
+			cfg, err := Load()
+			require.NoError(t, err, value)
+			want, _ := strconv.ParseFloat(value, 64)
+			assert.InDelta(t, want, cfg.Sentry.TracesSampleRate, 1e-9, value)
+		}
+	})
+	t.Run("rejects values outside 0 to 1", func(t *testing.T) {
+		for _, value := range []string{"-0.1", "1.5", "abc"} {
+			setMinimalEnv(t)
+			t.Setenv("SENTRY_TRACES_SAMPLE_RATE", value)
+			_, err := Load()
+			require.ErrorContains(t, err, "SENTRY_TRACES_SAMPLE_RATE", value)
+		}
 	})
 }
