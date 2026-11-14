@@ -66,17 +66,41 @@ func listOptions(input ListJobsInput) (*jobPorts.ListOptions, error) {
 	if err := validateText(input.Query, "query", 255, false); err != nil {
 		return nil, err
 	}
-	stage := ""
-	if input.Stage != "" {
-		id, err := canonicalID(input.Stage, "stage")
-		if err != nil {
-			return nil, err
-		}
-		stage = id
+	stage, err := stageFilter(input)
+	if err != nil {
+		return nil, err
 	}
 	status := "active"
 	if input.Archived {
 		status = "archived"
 	}
 	return &jobPorts.ListOptions{Limit: limit, Offset: input.Offset, Search: input.Query, Status: status, StageTemplateID: stage, SortBy: "created_at", SortDir: "desc"}, nil
+}
+
+// stageFilter reads stage_id, falling back to the original "stage" name so
+// agents configured before the rename keep working. move_job already uses
+// stage_id, and an agent mixing the two must not get a silently wrong filter.
+func stageFilter(input ListJobsInput) (string, error) {
+	if input.StageID == "" && input.Stage == "" {
+		return "", nil
+	}
+	var stageID, alias string
+	var err error
+	if input.StageID != "" {
+		if stageID, err = canonicalID(input.StageID, "stage_id"); err != nil {
+			return "", err
+		}
+	}
+	if input.Stage != "" {
+		if alias, err = canonicalID(input.Stage, "stage"); err != nil {
+			return "", err
+		}
+	}
+	if stageID != "" && alias != "" && stageID != alias {
+		return "", validationError("stage_id and stage name different Stages; send only stage_id.")
+	}
+	if stageID != "" {
+		return stageID, nil
+	}
+	return alias, nil
 }

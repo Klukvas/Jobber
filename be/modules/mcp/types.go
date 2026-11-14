@@ -13,7 +13,8 @@ type ListStagesOutput struct {
 }
 
 type ListJobsInput struct {
-	Stage    string `json:"stage,omitempty" jsonschema:"Optional Stage UUID to filter Jobs"`
+	StageID  string `json:"stage_id,omitempty" jsonschema:"Optional Stage UUID from list_stages to filter Jobs"`
+	Stage    string `json:"stage,omitempty" jsonschema:"Deprecated alias of stage_id; use stage_id"`
 	Query    string `json:"query,omitempty" jsonschema:"Search Job title and company name; at most 255 characters"`
 	Archived bool   `json:"archived,omitempty" jsonschema:"Return archived Jobs when true; defaults to false"`
 	Limit    *int   `json:"limit,omitempty" jsonschema:"Page size from 1 to 100; defaults to 25"`
