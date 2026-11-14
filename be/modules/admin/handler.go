@@ -14,9 +14,9 @@ import (
 
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
+	"github.com/andreypavlenko/jobber/internal/platform/ids"
 	userModel "github.com/andreypavlenko/jobber/modules/users/model"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type IdentityReader interface {
@@ -121,13 +121,12 @@ func bind(c *gin.Context, value any) bool {
 	return true
 }
 func userID(c *gin.Context) (string, bool) {
-	id := c.Param("id")
-	parsed, err := uuid.Parse(id)
-	if err != nil {
+	id, ok := ids.CanonicalUUID(c.Param("id"))
+	if !ok {
 		fail(c, 400, "INVALID_REQUEST", "Invalid user ID")
 		return "", false
 	}
-	return parsed.String(), true
+	return id, true
 }
 func (h *Handler) respond(c *gin.Context, data any, err error) {
 	switch {
@@ -198,12 +197,12 @@ func (h *Handler) grant(c *gin.Context) {
 		return
 	}
 	p.Reason = strings.TrimSpace(p.Reason)
-	grantID, err := uuid.Parse(p.ID)
-	if err != nil || p.Days < 1 || p.Days > 31 || !validText(p.Reason, 3, 500) {
+	grantID, validID := ids.CanonicalUUID(p.ID)
+	if !validID || p.Days < 1 || p.Days > 31 || !validText(p.Reason, 3, 500) {
 		fail(c, 400, "INVALID_REQUEST", "Use a request UUID, 1–31 days and a reason of 3–500 characters")
 		return
 	}
-	p.ID = grantID.String()
+	p.ID = grantID
 	actor, _ := auth.GetUserID(c)
 	h.respond(c, gin.H{"saved": true}, h.store.Grant(c.Request.Context(), id, actor, p))
 }
@@ -212,9 +211,8 @@ func (h *Handler) revoke(c *gin.Context) {
 	if !ok {
 		return
 	}
-	grant := c.Param("grant")
-	parsedGrant, err := uuid.Parse(grant)
-	if err != nil {
+	grant, ok := ids.CanonicalUUID(c.Param("grant"))
+	if !ok {
 		fail(c, 400, "INVALID_REQUEST", "Invalid grant ID")
 		return
 	}
@@ -228,5 +226,5 @@ func (h *Handler) revoke(c *gin.Context) {
 		return
 	}
 	actor, _ := auth.GetUserID(c)
-	h.respond(c, gin.H{"saved": true}, h.store.Revoke(c.Request.Context(), id, parsedGrant.String(), actor, p.Reason))
+	h.respond(c, gin.H{"saved": true}, h.store.Revoke(c.Request.Context(), id, grant, actor, p.Reason))
 }

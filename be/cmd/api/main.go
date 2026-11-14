@@ -244,6 +244,7 @@ func main() {
 	router.Use(httpPlatform.RequestIDMiddleware())
 	router.Use(httpPlatform.LoggerMiddleware(logger))
 	router.Use(httpPlatform.CORSMiddleware(cfg.Server.AllowedOrigins))
+	router.Use(httpPlatform.CanonicalUUIDParams())
 
 	// Swagger documentation (available in development)
 	if cfg.Server.Env != "production" {
@@ -738,6 +739,9 @@ func main() {
 		if coverLetterAIHdl != nil {
 			coverLetterAIHdl.RegisterRoutes(v1, authMiddleware, coverLetterAIRateLimiter)
 		}
+	}
+	if unclassified := httpPlatform.UnclassifiedPathParams(router.Routes()); len(unclassified) > 0 {
+		logger.Fatal("Route path params must be UUID-named (:id, :…Id, :grant) or listed as non-UUID", zap.Strings("routes", unclassified))
 	}
 
 	// Start background job: clean up expired tokens every hour

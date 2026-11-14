@@ -6,11 +6,11 @@ import (
 
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
+	"github.com/andreypavlenko/jobber/internal/platform/ids"
 	"github.com/andreypavlenko/jobber/modules/coverletters/model"
 	"github.com/andreypavlenko/jobber/modules/coverletters/service"
 	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -52,18 +52,19 @@ func (h *AIHandler) Generate(c *gin.Context) {
 		return
 	}
 
-	if _, err := uuid.Parse(req.CoverLetterID); err != nil {
+	coverLetterID, ok := ids.CanonicalUUID(req.CoverLetterID)
+	if !ok {
 		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid cover_letter_id format")
 		return
 	}
 
-	result, err := h.aiService.Generate(c.Request.Context(), userID, req.CoverLetterID, req.JobDescription)
+	result, err := h.aiService.Generate(c.Request.Context(), userID, coverLetterID, req.JobDescription)
 	if err != nil {
 		if httpPlatform.RespondAIError(c, err) {
 			return
 		}
 		h.logger.Error("cover letter AI generation failed",
-			zap.String("cover_letter_id", req.CoverLetterID),
+			zap.String("cover_letter_id", coverLetterID),
 			zap.Error(err),
 		)
 		h.handleError(c, err)

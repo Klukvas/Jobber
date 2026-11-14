@@ -6,11 +6,11 @@ import (
 
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
+	"github.com/andreypavlenko/jobber/internal/platform/ids"
 	"github.com/andreypavlenko/jobber/modules/resumebuilder/model"
 	"github.com/andreypavlenko/jobber/modules/resumebuilder/service"
 	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 // AIHandler handles AI-powered resume suggestions.
@@ -84,12 +84,13 @@ func (h *AIHandler) SuggestSummary(c *gin.Context) {
 		return
 	}
 
-	if _, err := uuid.Parse(req.ResumeID); err != nil {
+	resumeID, ok := ids.CanonicalUUID(req.ResumeID)
+	if !ok {
 		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid resume_id format")
 		return
 	}
 
-	summary, err := h.aiService.SuggestSummary(c.Request.Context(), userID, req.ResumeID)
+	summary, err := h.aiService.SuggestSummary(c.Request.Context(), userID, resumeID)
 	if err != nil {
 		if httpPlatform.RespondAIError(c, err) {
 			return
@@ -144,8 +145,8 @@ func (h *AIHandler) ATSCheck(c *gin.Context) {
 		return
 	}
 
-	resumeID := c.Param("id")
-	if _, err := uuid.Parse(resumeID); err != nil {
+	resumeID, ok := ids.CanonicalUUID(c.Param("id"))
+	if !ok {
 		httpPlatform.RespondWithError(c, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid resume ID format")
 		return
 	}

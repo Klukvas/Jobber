@@ -7,12 +7,12 @@ import (
 
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
+	"github.com/andreypavlenko/jobber/internal/platform/ids"
 	"github.com/andreypavlenko/jobber/modules/jobs/model"
 	"github.com/andreypavlenko/jobber/modules/jobs/ports"
 	"github.com/andreypavlenko/jobber/modules/jobs/service"
 	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 // JobHandler handles job HTTP requests
@@ -196,11 +196,13 @@ func (h *JobHandler) List(c *gin.Context) {
 	// than a Postgres cast failure surfacing as a 500.
 	companyID := strings.TrimSpace(c.Query("company_id"))
 	if companyID != "" {
-		if _, err := uuid.Parse(companyID); err != nil {
+		canonical, ok := ids.CanonicalUUID(companyID)
+		if !ok {
 			httpPlatform.RespondWithError(c, http.StatusBadRequest,
 				string(model.CodeInvalidCompanyID), "Invalid company filter")
 			return
 		}
+		companyID = canonical
 	}
 
 	opts := &ports.ListOptions{

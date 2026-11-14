@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/andreypavlenko/jobber/internal/platform/ids"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/creem"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/model"
-	"github.com/google/uuid"
 )
 
 // WebhookResult describes what happened to one delivery, so the HTTP layer can
@@ -556,11 +556,7 @@ func userIDFromMetadata(metadata map[string]string) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	parsed, err := uuid.Parse(raw)
-	if err != nil {
-		return "", false
-	}
-	return parsed.String(), true
+	return ids.CanonicalUUID(raw)
 }
 
 // statusForSubscription maps a Creem subscription status onto an internal one.

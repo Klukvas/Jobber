@@ -13,6 +13,7 @@ import (
 	"time"
 
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
+	"github.com/andreypavlenko/jobber/internal/platform/ids"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
@@ -132,11 +133,16 @@ func TestServeBrowserFixture(t *testing.T) {
 		var body struct {
 			OperationID string `json:"operation_id"`
 		}
-		if json.NewDecoder(r.Body).Decode(&body) != nil || !uuidValid(body.OperationID) {
+		if json.NewDecoder(r.Body).Decode(&body) != nil {
 			w.WriteHeader(400)
 			return
 		}
-		if _, err := f.pool.Exec(r.Context(), `UPDATE interview_operations SET created_at=now()-interval '3 minutes' WHERE user_id=$1 AND job_id=$2 AND id=$3`, f.owner, f.job, body.OperationID); err != nil {
+		operationID, ok := ids.CanonicalUUID(body.OperationID)
+		if !ok {
+			w.WriteHeader(400)
+			return
+		}
+		if _, err := f.pool.Exec(r.Context(), `UPDATE interview_operations SET created_at=now()-interval '3 minutes' WHERE user_id=$1 AND job_id=$2 AND id=$3`, f.owner, f.job, operationID); err != nil {
 			w.WriteHeader(500)
 			return
 		}

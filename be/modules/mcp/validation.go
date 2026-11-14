@@ -5,15 +5,16 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/andreypavlenko/jobber/internal/platform/ids"
 	"github.com/google/uuid"
 )
 
 func canonicalID(value, field string) (string, error) {
-	id, err := uuid.Parse(value)
-	if err != nil || id == uuid.Nil {
+	id, ok := ids.CanonicalUUID(value)
+	if !ok || id == uuid.Nil.String() {
 		return "", validationError(field + " must be a valid UUID.")
 	}
-	return id.String(), nil
+	return id, nil
 }
 
 func validateText(value, field string, max int, required bool) error {

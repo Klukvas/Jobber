@@ -5,9 +5,9 @@ import (
 	"net/http"
 
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
+	"github.com/andreypavlenko/jobber/internal/platform/ids"
 	"github.com/andreypavlenko/jobber/modules/resumebuilder/model"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type PDFTailoringService interface {
@@ -26,7 +26,7 @@ func (h *PDFTailoringHandler) RegisterRoutes(router *gin.RouterGroup, auth, limi
 	router.POST("/jobs/:id/resume-tailoring/recognition", auth, limit, h.ConfirmRecognition)
 }
 func (h *PDFTailoringHandler) Import(c *gin.Context) {
-	user, ok := tailoringUser(c)
+	user, jobID, ok := tailoringUser(c)
 	if !ok {
 		return
 	}
@@ -36,7 +36,7 @@ func (h *PDFTailoringHandler) Import(c *gin.Context) {
 		tailoringError(c, model.ErrTailoringValidation)
 		return
 	}
-	result, err := h.service.Import(c.Request.Context(), user, c.Param("id"), &req)
+	result, err := h.service.Import(c.Request.Context(), user, jobID, &req)
 	if err != nil {
 		tailoringError(c, err)
 		return
@@ -44,7 +44,7 @@ func (h *PDFTailoringHandler) Import(c *gin.Context) {
 	httpPlatform.RespondWithData(c, http.StatusOK, result)
 }
 func (h *PDFTailoringHandler) ConfirmRecognition(c *gin.Context) {
-	user, ok := tailoringUser(c)
+	user, jobID, ok := tailoringUser(c)
 	if !ok {
 		return
 	}
@@ -57,7 +57,7 @@ func (h *PDFTailoringHandler) ConfirmRecognition(c *gin.Context) {
 		tailoringError(c, model.ErrTailoringValidation)
 		return
 	}
-	if err := h.service.ConfirmRecognition(c.Request.Context(), user, c.Param("id"), req.ImportID, req.SourceID); err != nil {
+	if err := h.service.ConfirmRecognition(c.Request.Context(), user, jobID, req.ImportID, req.SourceID); err != nil {
 		tailoringError(c, err)
 		return
 	}
@@ -65,15 +65,16 @@ func (h *PDFTailoringHandler) ConfirmRecognition(c *gin.Context) {
 }
 
 func (h *PDFTailoringHandler) SourceReview(c *gin.Context) {
-	user, ok := tailoringUser(c)
+	user, jobID, ok := tailoringUser(c)
 	if !ok {
 		return
 	}
-	if _, err := uuid.Parse(c.Param("sourceId")); err != nil {
+	sourceID, ok := ids.CanonicalUUID(c.Param("sourceId"))
+	if !ok {
 		tailoringError(c, model.ErrTailoringValidation)
 		return
 	}
-	importID, required, err := h.service.SourceReview(c.Request.Context(), user, c.Param("id"), c.Param("sourceId"))
+	importID, required, err := h.service.SourceReview(c.Request.Context(), user, jobID, sourceID)
 	if err != nil {
 		tailoringError(c, err)
 		return

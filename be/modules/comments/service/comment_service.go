@@ -4,21 +4,25 @@ import (
 	"context"
 	"strings"
 
+	"github.com/andreypavlenko/jobber/internal/platform/ids"
 	"github.com/andreypavlenko/jobber/modules/comments/model"
 	"github.com/andreypavlenko/jobber/modules/comments/ports"
-	"github.com/google/uuid"
 )
 
-// isNoSuchComment reports whether an id cannot name a comment at all.
+// commentIDFromPath returns the canonical form of a caller-supplied comment id,
+// or ErrCommentNotFound when the id cannot name a comment at all.
 //
 // The path parameter is caller-supplied text and `comments.id` is a uuid
 // column, so anything that is not a uuid reaches Postgres as a cast error and
 // comes back as a 500 — an internal failure blamed on us for what is plainly a
 // bad request. There is no such comment and there never could be, which is a
 // 404 like any other id that matches nothing.
-func isNoSuchComment(commentID string) bool {
-	_, err := uuid.Parse(commentID)
-	return err != nil
+func commentIDFromPath(commentID string) (string, error) {
+	canonical, ok := ids.CanonicalUUID(commentID)
+	if !ok {
+		return "", model.ErrCommentNotFound
+	}
+	return canonical, nil
 }
 
 type CommentService struct {
@@ -67,11 +71,12 @@ func (s *CommentService) Update(ctx context.Context, userID, commentID string, r
 	if content == "" {
 		return nil, model.ErrContentRequired
 	}
-	if isNoSuchComment(commentID) {
-		return nil, model.ErrCommentNotFound
+	id, err := commentIDFromPath(commentID)
+	if err != nil {
+		return nil, err
 	}
 
-	comment, err := s.repo.Update(ctx, userID, commentID, content)
+	comment, err := s.repo.Update(ctx, userID, id, content)
 	if err != nil {
 		return nil, err
 	}
@@ -79,8 +84,9 @@ func (s *CommentService) Update(ctx context.Context, userID, commentID string, r
 }
 
 func (s *CommentService) Delete(ctx context.Context, userID, commentID string) error {
-	if isNoSuchComment(commentID) {
-		return model.ErrCommentNotFound
+	id, err := commentIDFromPath(commentID)
+	if err != nil {
+		return err
 	}
-	return s.repo.Delete(ctx, userID, commentID)
+	return s.repo.Delete(ctx, userID, id)
 }
