@@ -245,7 +245,8 @@ jobs:
         working-directory: ./be
         run: |
           echo "🧪 Running integration tests against a real migrated Postgres + Redis..."
-          go test -race -tags integration -run Integration ./tests/e2e/...
+          # No -run filter: e2e tests are not all named *Integration* (OAuth, MCP audit).
+          go test -race -tags integration ./tests/e2e/...
 
       - name: Verify contacts against isolated PostgreSQL 15
         working-directory: ./be
