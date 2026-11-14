@@ -136,7 +136,7 @@ func TestHTTPPaidJSONWorkflow(t *testing.T) {
 				require.NotContains(t, response.Body.String(), `"error"`)
 				switch index {
 				case 0:
-					require.Contains(t, response.Body.String(), "courseopus")
+					require.Contains(t, response.Body.String(), "cursopus")
 					require.Contains(t, response.Body.String(), "untrusted")
 				case 1:
 					require.Contains(t, response.Body.String(), "list_stages")

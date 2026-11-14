@@ -33,7 +33,7 @@ func NewServer(jobs Jobs, companies Companies, limits JobLimitChecker, logger *z
 	for _, option := range options {
 		option(handlers)
 	}
-	server := sdk.NewServer(&sdk.Implementation{Name: "courseopus", Version: "1.0.0"}, &sdk.ServerOptions{
+	server := sdk.NewServer(&sdk.Implementation{Name: "cursopus", Version: "1.0.0"}, &sdk.ServerOptions{
 		Instructions: instructions,
 		// SDK diagnostic messages can contain protocol payloads. Application errors
 		// are logged explicitly with metadata only.

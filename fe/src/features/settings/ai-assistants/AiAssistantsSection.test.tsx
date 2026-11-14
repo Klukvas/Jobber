@@ -107,11 +107,11 @@ describe("AI assistants settings", () => {
     const copy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
     mount();
     await user.click(screen.getByRole("button", { name: "Copy Claude Code setup" }));
-    expect(copy).toHaveBeenLastCalledWith(`claude mcp add --transport http courseopus ${window.location.origin}/api/mcp --header "Authorization: Bearer <YOUR_TOKEN>"`);
+    expect(copy).toHaveBeenLastCalledWith(`claude mcp add --transport http cursopus ${window.location.origin}/api/mcp --header "Authorization: Bearer <YOUR_TOKEN>"`);
     await createToken(user);
     await screen.findByRole("region", { name: "Save your new token" });
     await user.click(screen.getByRole("button", { name: "Copy Cursor and other MCP clients setup" }));
-    expect(JSON.parse(copy.mock.calls.at(-1)?.[0] ?? "")).toEqual({ mcpServers: { courseopus: { url: `${window.location.origin}/api/mcp`, headers: { Authorization: `Bearer ${plaintext}` } } } });
+    expect(JSON.parse(copy.mock.calls.at(-1)?.[0] ?? "")).toEqual({ mcpServers: { cursopus: { url: `${window.location.origin}/api/mcp`, headers: { Authorization: `Bearer ${plaintext}` } } } });
   });
 
   it("supports never-expiring tokens and forgets plaintext on unmount", async () => {
