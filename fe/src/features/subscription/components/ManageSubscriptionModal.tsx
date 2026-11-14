@@ -236,7 +236,7 @@ export function ManageSubscriptionModal({
             {!confirmCancel ? (
               <button
                 type="button"
-                className="text-sm text-destructive hover:underline disabled:opacity-50"
+                className="inline-flex items-center text-sm text-destructive hover:underline disabled:opacity-50 max-sm:min-h-11"
                 onClick={() => setConfirmCancel(true)}
                 disabled={isLoading}
               >

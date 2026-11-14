@@ -1,6 +1,7 @@
 import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/stores/authStore";
 import { getAuthModalRoute } from "@/features/auth/authModalRoutes";
+import { readReturnTo } from "@/shared/lib/loginReturn";
 
 /**
  * Hosts the landing page and the three auth routes drawn on top of it.
@@ -24,8 +25,12 @@ export function LandingLayout() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const location = useLocation();
 
+  // Signing in flips this guard on while the login route is still showing, so
+  // it races the login form's own redirect. Both have to go to the same place
+  // — the page named in `?next=` — or whichever ran last won, and the visitor
+  // landed on /app/jobs instead of where they had been sent from.
   if (isAuthenticated && getAuthModalRoute(location.pathname)) {
-    return <Navigate to="/app" replace />;
+    return <Navigate to={readReturnTo(location.search) ?? "/app"} replace />;
   }
 
   return <Outlet />;

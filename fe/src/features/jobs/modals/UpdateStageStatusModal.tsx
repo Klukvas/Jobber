@@ -114,7 +114,7 @@ export function UpdateStageStatusModal({
                 onChange={(e) =>
                   setNewStatus(e.target.value as JobStageDTO["status"])
                 }
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 max-sm:h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 required
               >
                 {STAGE_STATUS_VALUES.map((value) => (

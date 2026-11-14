@@ -152,7 +152,7 @@ export function EditorToolbar({
         <Button
           variant="outline"
           size="sm"
-          className="shrink-0"
+          className="shrink-0 max-sm:min-w-11"
           onClick={undo}
           disabled={!canUndo}
           aria-label={t("resumeBuilder.toolbar.undo")}
@@ -164,7 +164,7 @@ export function EditorToolbar({
         <Button
           variant="outline"
           size="sm"
-          className="shrink-0"
+          className="shrink-0 max-sm:min-w-11"
           onClick={redo}
           disabled={!canRedo}
           aria-label={t("resumeBuilder.toolbar.redo")}
@@ -242,7 +242,7 @@ export function EditorToolbar({
         <Button
           variant={showAI ? "default" : "outline"}
           size="sm"
-          className="shrink-0"
+          className="shrink-0 max-sm:min-w-11"
           onClick={onToggleAI}
           aria-label={t("resumeBuilder.toolbar.aiAssistant")}
         >
@@ -258,7 +258,7 @@ export function EditorToolbar({
         <Button
           variant={showATS ? "default" : "outline"}
           size="sm"
-          className="shrink-0"
+          className="shrink-0 max-sm:min-w-11"
           onClick={onToggleATS}
           aria-label={t("resumeBuilder.toolbar.atsCheck")}
         >
@@ -277,7 +277,7 @@ export function EditorToolbar({
         <Button
           variant={showContentLibrary ? "default" : "outline"}
           size="sm"
-          className="shrink-0"
+          className="shrink-0 max-sm:min-w-11"
           onClick={onToggleContentLibrary}
           aria-label={t("resumeBuilder.toolbar.contentLibrary")}
         >

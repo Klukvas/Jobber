@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/shared/hooks/useSingleFlightMutation";
 import { looksLikePdf, resumesService } from "@/services/resumesService";
 import type { ResumeDTO } from "@/shared/types/api";
 import {
@@ -19,6 +20,7 @@ import {
   showSuccessNotification,
 } from "@/shared/lib/notifications";
 import { Loader2 } from "lucide-react";
+import { FIELD_LIMITS } from "@/shared/lib/fieldLimits";
 
 interface CreateResumeModalProps {
   open: boolean;
@@ -46,7 +48,7 @@ export function CreateResumeModal({
   const [uploadProgress, setUploadProgress] = useState(0);
 
   // Traditional URL-based resume creation
-  const createMutation = useMutation({
+  const createMutation = useSingleFlightMutation({
     mutationFn: resumesService.create,
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ["resumes"] });
@@ -62,7 +64,7 @@ export function CreateResumeModal({
 
   // File upload mutation. The server verifies the stored object and activates
   // the resume in one step, so a spoofed file never leaves a half-created row.
-  const uploadMutation = useMutation({
+  const uploadMutation = useSingleFlightMutation({
     mutationFn: (file: File) =>
       resumesService.uploadResume(
         file,
@@ -208,6 +210,7 @@ export function CreateResumeModal({
               </Label>
               <Input
                 id="title"
+                maxLength={FIELD_LIMITS.title}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder={t("resumes.titlePlaceholder")}
@@ -227,6 +230,7 @@ export function CreateResumeModal({
                 <Label htmlFor="fileUrl">{t("resumes.fileUrlLabel")}</Label>
                 <Input
                   id="fileUrl"
+                  maxLength={FIELD_LIMITS.url}
                   type="url"
                   value={fileUrl}
                   onChange={(e) => setFileUrl(e.target.value)}

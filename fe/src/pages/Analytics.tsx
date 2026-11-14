@@ -566,7 +566,7 @@ export default function Analytics() {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <BarChart3 className="h-8 w-8 text-primary" />
+          <BarChart3 className="h-8 w-8 text-primary-ink" />
           <h1 className="text-3xl font-bold">{t("analytics.title")}</h1>
         </div>
         <ErrorState
@@ -587,7 +587,7 @@ export default function Analytics() {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <BarChart3 className="h-8 w-8 text-primary" />
+          <BarChart3 className="h-8 w-8 text-primary-ink" />
           <h1 className="text-3xl font-bold">{t("analytics.title")}</h1>
         </div>
         <EmptyState
@@ -604,7 +604,7 @@ export default function Analytics() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <BarChart3 className="h-8 w-8 text-primary" />
+          <BarChart3 className="h-8 w-8 text-primary-ink" />
           <div>
             <h1 className="text-3xl font-bold">{t("analytics.title")}</h1>
             <p className="text-muted-foreground">

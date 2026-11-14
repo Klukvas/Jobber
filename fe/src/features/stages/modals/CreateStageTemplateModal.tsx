@@ -1,7 +1,8 @@
 import { useCurrentFormSession } from "@/shared/hooks/useCurrentFormSession";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/shared/hooks/useSingleFlightMutation";
 import { stageTemplatesService } from "@/services/stageTemplatesService";
 import {
   showSuccessNotification,
@@ -27,6 +28,7 @@ import {
   stageKindLabelKey,
 } from "@/features/stages/lib/stageKinds";
 import type { StageKind } from "@/shared/types/api";
+import { FIELD_LIMITS } from "@/shared/lib/fieldLimits";
 
 interface CreateStageTemplateModalProps {
   open: boolean;
@@ -48,7 +50,7 @@ function CreateStageForm({
   );
   // A stage the user invents means nothing to analytics until they say so.
   const [kind, setKind] = useState<StageKind>(DEFAULT_STAGE_KIND);
-  const createMutation = useMutation({
+  const createMutation = useSingleFlightMutation({
     mutationFn: stageTemplatesService.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stage-templates"] });
@@ -96,6 +98,7 @@ function CreateStageForm({
               <Label htmlFor="name">{`${t("stages.stageName")} *`}</Label>
               <Input
                 id="name"
+                maxLength={FIELD_LIMITS.name}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={t("stages.stageNamePlaceholder")}

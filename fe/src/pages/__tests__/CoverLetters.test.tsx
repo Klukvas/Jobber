@@ -190,7 +190,10 @@ describe("CoverLettersPage", () => {
     const duplicateBtn = screen.getByLabelText("common.duplicate");
     await user.click(duplicateBtn);
 
-    expect(mockDuplicateMutate).toHaveBeenCalledWith("cl-1");
+    expect(mockDuplicateMutate).toHaveBeenCalledWith(
+      "cl-1",
+      expect.any(Object),
+    );
   });
 
   it("delete confirmation dialog shows on delete click", async () => {

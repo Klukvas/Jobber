@@ -105,7 +105,7 @@ export function ATSCheckerPanel() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
-        <ShieldCheck className="h-5 w-5 text-primary" />
+        <ShieldCheck className="h-5 w-5 text-primary-ink" />
         <h2 className="text-lg font-semibold">
           {t("resumeBuilder.ats.title")}
         </h2>
@@ -266,7 +266,7 @@ export function ATSCheckerPanel() {
                   {result.keywords_found.map((keyword) => (
                     <span
                       key={keyword}
-                      className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
+                      className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary-ink"
                     >
                       {keyword}
                     </span>

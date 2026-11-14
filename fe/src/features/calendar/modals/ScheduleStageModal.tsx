@@ -190,7 +190,7 @@ function ModalContent({
               id="duration"
               value={durationMin}
               onChange={(e) => setDurationMin(Number(e.target.value))}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-10 max-sm:h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value={30}>
                 30 {t("jobs.schedule.minutes")}

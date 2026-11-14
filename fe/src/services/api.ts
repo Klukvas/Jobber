@@ -9,6 +9,7 @@ import ky, {
 } from "ky";
 import type { ErrorResponse } from "@/shared/types/api";
 import { endSession } from "@/shared/lib/session";
+import { loginPathFor } from "@/shared/lib/loginReturn";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
@@ -54,7 +55,8 @@ export interface RequestOptions {
 }
 
 /**
- * Sends a user whose session just ended to the login screen — but only when
+ * Sends a user whose session just ended to a login screen that brings them
+ * back to the page they were on — but only when
  * they are inside the authenticated app. A public page (landing, blog, the
  * login route itself) needs no redirect, which also rules out a loop: `/login`
  * is public, so it never redirects to itself.
@@ -62,7 +64,7 @@ export interface RequestOptions {
 function redirectToLogin(): void {
   const path = window.location.pathname ?? "";
   if (path === "/app" || path.startsWith("/app/")) {
-    window.location.href = "/login";
+    window.location.href = loginPathFor(path + (window.location.search ?? ""));
   }
 }
 

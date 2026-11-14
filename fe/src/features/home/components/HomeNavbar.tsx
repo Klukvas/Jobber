@@ -246,7 +246,7 @@ export function HomeNavbar({
                     onClick={() => setFeaturesOpen(false)}
                     className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   >
-                    <Icon className="h-4 w-4 shrink-0 text-primary" />
+                    <Icon className="h-4 w-4 shrink-0 text-primary-ink" />
                     {t(`home.features.${key}.title`)}
                   </Link>
                 ))}
@@ -394,7 +394,7 @@ export function HomeNavbar({
                     onClick={handleLinkClick}
                     className={`flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${TOUCH_ROW_HEIGHT}`}
                   >
-                    <Icon className="h-4 w-4 shrink-0 text-primary" />
+                    <Icon className="h-4 w-4 shrink-0 text-primary-ink" />
                     {t(`home.features.${key}.title`)}
                   </Link>
                 ))}

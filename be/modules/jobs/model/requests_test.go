@@ -54,3 +54,45 @@ func TestUpdateJobRequestTitleValidation(t *testing.T) {
 		assert.Error(t, validateBindingTags(t, UpdateJobRequest{Title: &title}))
 	})
 }
+
+// An over-long name used to pass binding and fail at the VARCHAR(255) column,
+// surfacing as a 500 instead of a validation error.
+func TestUpdateStageTemplateRequestNameLength(t *testing.T) {
+	atLimit := strings.Repeat("я", 255)
+	overLimit := strings.Repeat("a", 256)
+
+	assert.NoError(t, validateBindingTags(t, UpdateStageTemplateRequest{Name: &atLimit}))
+	assert.NoError(t, validateBindingTags(t, UpdateStageTemplateRequest{}))
+	assert.Error(t, validateBindingTags(t, UpdateStageTemplateRequest{Name: &overLimit}))
+}
+
+func TestJobRequestURLValidation(t *testing.T) {
+	str := func(s string) *string { return &s }
+	for _, tc := range []struct {
+		url   *string
+		valid bool
+	}{
+		{nil, true},
+		{str(""), true},
+		{str("https://example.com/jobs/123"), true},
+		{str("http://example.com"), true},
+		{str("not-a-url"), false},
+		{str("javascript:alert(1)"), false},
+		{str("ftp://example.com/file"), false},
+	} {
+		update := validateBindingTags(t, UpdateJobRequest{URL: tc.url})
+		title := "Engineer"
+		create := validateBindingTags(t, CreateJobRequest{Title: title, URL: tc.url})
+		label := "<nil>"
+		if tc.url != nil {
+			label = *tc.url
+		}
+		if tc.valid {
+			assert.NoError(t, update, "update %q", label)
+			assert.NoError(t, create, "create %q", label)
+		} else {
+			assert.Error(t, update, "update %q", label)
+			assert.Error(t, create, "create %q", label)
+		}
+	}
+}

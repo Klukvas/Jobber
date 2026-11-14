@@ -192,8 +192,9 @@ export function DesignPanel() {
               "margin_right",
             ] as const
           ).map((key) => (
-            <div key={key} className="space-y-1">
-              <span className="text-xs text-muted-foreground">
+            // Wrapping label: each number field is named by its side.
+            <label key={key} className="block space-y-1">
+              <span className="block text-xs text-muted-foreground">
                 {t(`resumeBuilder.design.${key}`)}
               </span>
               <Input
@@ -209,7 +210,7 @@ export function DesignPanel() {
                 }}
                 className="h-8"
               />
-            </div>
+            </label>
           ))}
         </div>
       </div>

@@ -121,7 +121,10 @@ export default function ResumeBuilderPrint() {
   return (
     <>
       <style>{`
-        @page { size: A4; margin: 0; }
+        @page {
+          size: A4;
+          margin: ${injectedResume.margin_top}px 0 ${injectedResume.margin_bottom}px 0;
+        }
         html, body { margin: 0; padding: 0; background: white; }
 
         /* Chrome's print engine cannot split flex containers across pages.
@@ -148,7 +151,11 @@ export default function ResumeBuilderPrint() {
         style={{
           width: "210mm",
           boxSizing: "border-box",
-          padding: `${injectedResume.margin_top}px ${injectedResume.margin_right}px ${injectedResume.margin_bottom}px ${injectedResume.margin_left}px`,
+          // Top and bottom margins belong to the page box, not to this
+          // wrapper: as padding they applied once, so page 2 onwards started
+          // at the very edge of the sheet. Left and right stay here, where
+          // they already repeat on every page.
+          padding: `0 ${injectedResume.margin_right}px 0 ${injectedResume.margin_left}px`,
         }}
       >
         <div

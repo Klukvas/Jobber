@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { companiesService } from "@/services/companiesService";
 import { jobsService, type ListJobsParams } from "@/services/jobsService";
 import { Button } from "@/shared/ui/Button";
+import { SortDirectionIndicator } from "@/shared/ui/SortDirectionIndicator";
 import { Input } from "@/shared/ui/Input";
 import {
   Dialog,
@@ -30,8 +31,6 @@ import {
   Briefcase,
   Calendar,
   Clock,
-  ArrowUp,
-  ArrowDown,
   LayoutGrid,
   Kanban,
   Chrome,
@@ -56,7 +55,7 @@ import { useJobsListReturnState } from "@/features/jobs/lib/jobsListReturn";
 import {
   TOUCH_ICON_TARGET,
   TOUCH_ROW_TARGET,
-} from "@/features/jobs/lib/touchTargets";
+} from "@/shared/lib/touchTargets";
 import type { JobDTO } from "@/shared/types/api";
 import type { ArchivedFilter } from "@/services/jobsService";
 
@@ -239,6 +238,13 @@ export default function JobsPage() {
     setPage(totalPages - 1, { replace: true });
   }, [isPageOutOfRange, totalPages, setPage]);
 
+  // Prev/Next sit under the list: without the scroll the next page opened at
+  // the footer with its first cards above the screen.
+  const goToPage = (nextPage: number) => {
+    setPage(nextPage);
+    window.scrollTo(0, 0);
+  };
+
   const handleQuickAction = (type: "comment" | "stage", job: JobDTO) => {
     setActiveQuickAction({ type, job });
     setOpenMenuId(null);
@@ -316,9 +322,14 @@ export default function JobsPage() {
         {/* Row 2 on mobile / inline on desktop: view toggle + create btn */}
         <div className="flex items-center justify-between sm:justify-end gap-2">
           {/* View Toggle */}
-          <div className="flex items-center rounded-lg border bg-muted p-0.5">
+          <div
+            role="group"
+            aria-label={t("common.viewMode")}
+            className="flex items-center rounded-lg border bg-muted p-0.5"
+          >
             <button
               onClick={() => setViewMode("list")}
+              aria-pressed={viewMode === "list"}
               className={`${TOUCH_ROW_TARGET} gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 viewMode === "list"
                   ? "bg-background text-foreground shadow-sm"
@@ -330,6 +341,7 @@ export default function JobsPage() {
             </button>
             <button
               onClick={() => setViewMode("kanban")}
+              aria-pressed={viewMode === "kanban"}
               className={`${TOUCH_ROW_TARGET} gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 viewMode === "kanban"
                   ? "bg-background text-foreground shadow-sm"
@@ -361,7 +373,7 @@ export default function JobsPage() {
             href="https://chromewebstore.google.com/detail/jobber-smart-job-saver/koegfmmcpedfgnjnohcaieecdoflmlab"
             target="_blank"
             rel="noopener noreferrer"
-            className={`${TOUCH_ROW_TARGET} shrink-0 rounded-md bg-cyan-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-cyan-700`}
+            className={`${TOUCH_ROW_TARGET} shrink-0 rounded-md bg-cyan-700 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-cyan-800`}
           >
             {t("jobs.installExtension")}
           </a>
@@ -414,7 +426,7 @@ export default function JobsPage() {
               <button
                 type="button"
                 onClick={clearCompanyFilter}
-                className={`${TOUCH_ROW_TARGET} gap-1 rounded-md px-2 py-1 text-sm font-medium text-primary transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+                className={`${TOUCH_ROW_TARGET} gap-1 rounded-md px-2 py-1 text-sm font-medium text-primary-ink transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
               >
                 <X className="h-3.5 w-3.5" />
                 {t("jobs.clearCompanyFilter")}
@@ -471,7 +483,11 @@ export default function JobsPage() {
               </select>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
+            <div
+              role="group"
+              aria-label={t("common.sortBy")}
+              className="flex items-center gap-2 flex-wrap"
+            >
               <span className="text-sm text-muted-foreground">
                 {t("jobs.sortBy")}
               </span>
@@ -479,18 +495,16 @@ export default function JobsPage() {
                 <Button
                   key={field}
                   variant={sortBy === field ? "default" : "outline"}
+                  aria-pressed={sortBy === field}
                   size="sm"
                   onClick={() => toggleSort(field)}
                 >
                   {icon === "clock" && <Clock className="h-3 w-3 mr-1" />}
                   {icon === "calendar" && <Calendar className="h-3 w-3 mr-1" />}
                   {t(labelKey)}
-                  {sortBy === field &&
-                    (sortDir === "desc" ? (
-                      <ArrowDown className="h-3 w-3 ml-1" />
-                    ) : (
-                      <ArrowUp className="h-3 w-3 ml-1" />
-                    ))}
+                  {sortBy === field && (
+                    <SortDirectionIndicator direction={sortDir} />
+                  )}
                 </Button>
               ))}
             </div>
@@ -590,7 +604,7 @@ export default function JobsPage() {
             <div className="flex justify-center gap-2">
               <Button
                 variant="outline"
-                onClick={() => setPage(page - 1)}
+                onClick={() => goToPage(page - 1)}
                 disabled={page === 0}
               >
                 {t("common.previous")}
@@ -603,7 +617,7 @@ export default function JobsPage() {
               </span>
               <Button
                 variant="outline"
-                onClick={() => setPage(page + 1)}
+                onClick={() => goToPage(page + 1)}
                 disabled={(page + 1) * PAGE_SIZE >= pagination.total}
               >
                 {t("common.next")}

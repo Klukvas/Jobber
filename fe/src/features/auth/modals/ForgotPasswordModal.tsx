@@ -226,7 +226,7 @@ function ModalContent({
           <button
             type="button"
             onClick={onBackToLogin}
-            className="w-full text-center text-sm font-medium text-primary hover:underline"
+            className="w-full text-center text-sm font-medium text-primary-ink hover:underline max-sm:min-h-11"
           >
             {t("auth.backToLogin")}
           </button>
@@ -248,7 +248,7 @@ function ModalContent({
           {t("auth.forgotPasswordDescription")}
         </DialogDescription>
       </DialogHeader>
-      <form onSubmit={handleEmailSubmit} className="mt-4">
+      <form noValidate onSubmit={handleEmailSubmit} className="mt-4">
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="forgot-email">{t("auth.email")}</Label>
@@ -284,7 +284,7 @@ function ModalContent({
           <button
             type="button"
             onClick={onBackToLogin}
-            className="text-center text-sm font-medium text-primary hover:underline"
+            className="text-center text-sm font-medium text-primary-ink hover:underline max-sm:min-h-11"
           >
             {t("auth.backToLogin")}
           </button>

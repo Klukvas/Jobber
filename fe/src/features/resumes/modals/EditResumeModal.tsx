@@ -21,6 +21,7 @@ import {
 } from "@/shared/lib/notifications";
 import { Loader2 } from "lucide-react";
 import type { ResumeDTO } from "@/shared/types/api";
+import { FIELD_LIMITS } from "@/shared/lib/fieldLimits";
 
 interface EditResumeModalProps {
   open: boolean;
@@ -91,6 +92,7 @@ function ModalContent({
             <Label htmlFor="edit-title">{t("resumes.titleLabel")} *</Label>
             <Input
               id="edit-title"
+              maxLength={FIELD_LIMITS.title}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t("resumes.titlePlaceholder")}
@@ -125,6 +127,7 @@ function ModalContent({
               <Label htmlFor="edit-fileUrl">{t("resumes.fileUrlEditLabel")} ({t("common.optional")})</Label>
               <Input
                 id="edit-fileUrl"
+                maxLength={FIELD_LIMITS.url}
                 type="url"
                 value={fileUrl}
                 onChange={(e) => setFileUrl(e.target.value)}

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 const STEPS = [
-  { key: "welcome", icon: Briefcase, color: "text-primary bg-primary/10" },
+  { key: "welcome", icon: Briefcase, color: "text-primary-ink bg-primary/10" },
   { key: "company", icon: Building2, color: "text-blue-500 bg-blue-500/10" },
   { key: "resume", icon: FileText, color: "text-green-500 bg-green-500/10" },
   { key: "job", icon: Target, color: "text-orange-500 bg-orange-500/10" },

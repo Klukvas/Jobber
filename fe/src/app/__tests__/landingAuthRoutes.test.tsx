@@ -108,4 +108,22 @@ describe("auth modal routes", () => {
     // /app then redirects on to the app's own landing route.
     expect(router.state.location.pathname).toMatch(/^\/app/);
   });
+
+  // Signing in turns this guard on while /login?next=… is still the route, so
+  // it races the login form's redirect. It used to send everyone to /app.
+  it("sends a signed-in visitor on to the page named in ?next=", async () => {
+    useAuthStore.setState({ isAuthenticated: true });
+
+    const router = renderRouter("/login?next=%2Fapp%2Fsettings");
+
+    expect(router.state.location.pathname).toBe("/app/settings");
+  });
+
+  it("ignores a ?next= that points outside the app", async () => {
+    useAuthStore.setState({ isAuthenticated: true });
+
+    const router = renderRouter("/login?next=https%3A%2F%2Fevil.example");
+
+    expect(router.state.location.pathname).toMatch(/^\/app/);
+  });
 });

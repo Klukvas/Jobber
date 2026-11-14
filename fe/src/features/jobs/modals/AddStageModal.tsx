@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/shared/hooks/useSingleFlightMutation";
 import { jobsService } from "@/services/jobsService";
 import {
   showSuccessNotification,
@@ -42,7 +43,7 @@ export function AddStageModal({
     enabled: open,
   });
 
-  const addStageMutation = useMutation({
+  const addStageMutation = useSingleFlightMutation({
     mutationFn: (data: { stage_template_id: string; comment?: string }) =>
       jobsService.addStage(jobId, data),
     onSuccess: () => {
@@ -92,7 +93,7 @@ export function AddStageModal({
                 id="stage"
                 value={stageTemplateId}
                 onChange={(e) => setStageTemplateId(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 max-sm:h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 required
               >
                 <option value="">{t("jobs.selectStageOption")}</option>

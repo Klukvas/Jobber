@@ -61,7 +61,7 @@ export default function SharedStats() {
         ) : (
           <>
             <div className="flex items-center gap-3">
-              <BarChart3 className="h-8 w-8 text-primary" />
+              <BarChart3 className="h-8 w-8 text-primary-ink" />
               <div>
                 <h1 className="text-3xl font-bold">
                   {t("sharing.public.title")}

@@ -213,7 +213,7 @@ export function ContentLibraryPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <BookOpen className="h-5 w-5 text-primary" />
+          <BookOpen className="h-5 w-5 text-primary-ink" />
           <h2 className="text-lg font-semibold">
             {t("contentLibrary.title")}
           </h2>
@@ -388,7 +388,7 @@ function SnippetCard({ entry, onEdit, onDelete, onInsert }: SnippetCardProps) {
             <span
               className={cn(
                 "mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium",
-                "bg-primary/10 text-primary",
+                "bg-primary/10 text-primary-ink",
               )}
             >
               {t(`contentLibrary.categories.${entry.category}`)}

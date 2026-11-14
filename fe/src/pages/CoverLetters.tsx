@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/shared/hooks/useSingleFlightMutation";
 import { useTranslation, getI18n } from "react-i18next";
 import { Plus, Trash2, FileText, Pencil, Mail, Copy } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
@@ -47,7 +48,7 @@ export default function CoverLettersPage() {
     queryFn: () => coverLetterService.list(),
   });
 
-  const createMutation = useMutation({
+  const createMutation = useSingleFlightMutation({
     mutationFn: () =>
       coverLetterService.create({
         title: t("coverLetter.untitled"),
@@ -84,7 +85,7 @@ export default function CoverLettersPage() {
     },
   });
 
-  const duplicateMutation = useMutation({
+  const duplicateMutation = useSingleFlightMutation({
     mutationFn: (id: string) => coverLetterService.duplicate(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
@@ -114,7 +115,7 @@ export default function CoverLettersPage() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">{t("coverLetter.title")}</h1>
+          <h1 className="text-3xl font-bold">{t("coverLetter.title")}</h1>
         </div>
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
@@ -127,8 +128,10 @@ export default function CoverLettersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t("coverLetter.title")}</h1>
+      {/* Same heading scale as the other list pages; stacked on a phone so
+          the larger title and the button do not crowd one row. */}
+      <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-3xl font-bold">{t("coverLetter.title")}</h1>
         <Button
           onClick={() => createMutation.mutate()}
           disabled={createMutation.isPending || limitReached}
@@ -158,11 +161,11 @@ export default function CoverLettersPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {coverLetters.map((letter) => (
             <Card
               key={letter.id}
-              className="group cursor-pointer transition-shadow hover:shadow-md"
+              className="group min-w-0 cursor-pointer transition-shadow hover:shadow-md"
               onClick={() => navigate(`/app/cover-letters/${letter.id}`)}
             >
               <CardContent className="p-4">
@@ -173,7 +176,7 @@ export default function CoverLettersPage() {
                   <div className="min-w-0 flex-1">
                     <h3 className="truncate font-medium">{letter.title}</h3>
                     {letter.company_name && (
-                      <p className="truncate text-xs text-primary">
+                      <p className="truncate text-xs text-primary-ink">
                         {letter.company_name}
                       </p>
                     )}
@@ -183,7 +186,7 @@ export default function CoverLettersPage() {
                       })}
                     </p>
                   </div>
-                  <div className="ml-2 flex gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+                  <div className="ml-2 flex shrink-0 gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
                     <Button
                       variant="ghost"
                       size="icon"

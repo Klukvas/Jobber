@@ -5,9 +5,14 @@ import { cn } from "@/shared/lib/utils";
 import { TEMPLATE_LIST } from "../../lib/templateRegistry";
 import { TemplateThumbnail } from "./TemplateThumbnail";
 import { X } from "lucide-react";
+import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
 
 /** Larger thumbnail width for the fullscreen modal */
 const MODAL_THUMB_WIDTH = 160;
+// Four 160px thumbnails in a phone-wide dialog overlapped their neighbours and
+// the dialog edge; two columns of 120px fit with room for the card padding.
+const PHONE_THUMB_WIDTH = 120;
+const PHONE_VIEWPORT = "(max-width: 639px)";
 
 interface TemplatePickerPopoverProps {
   readonly isOpen: boolean;
@@ -19,6 +24,7 @@ export function TemplatePickerPopover({
   onClose,
 }: TemplatePickerPopoverProps) {
   const { t } = useTranslation();
+  const isPhone = useMediaQuery(PHONE_VIEWPORT);
   const resume = useResumeBuilderStore((s) => s.resume);
   const updateDesign = useResumeBuilderStore((s) => s.updateDesign);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -63,8 +69,8 @@ export function TemplatePickerPopover({
         </div>
 
         {/* Template grid */}
-        <div className="overflow-y-auto p-6">
-          <div className="grid grid-cols-4 gap-5">
+        <div className="overflow-y-auto p-4 sm:p-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
             {TEMPLATE_LIST.map((tmpl) => (
               <button
                 key={tmpl.id}
@@ -73,7 +79,7 @@ export function TemplatePickerPopover({
                   onClose();
                 }}
                 className={cn(
-                  "flex flex-col items-center rounded-xl border-2 p-4 transition-all hover:shadow-md",
+                  "flex min-w-0 flex-col items-center rounded-xl border-2 p-3 transition-all hover:shadow-md sm:p-4",
                   resume?.template_id === tmpl.id
                     ? "border-primary bg-primary/5 shadow-md"
                     : "border-border hover:border-primary/50",
@@ -81,9 +87,9 @@ export function TemplatePickerPopover({
               >
                 <TemplateThumbnail
                   templateId={tmpl.id}
-                  width={MODAL_THUMB_WIDTH}
+                  width={isPhone ? PHONE_THUMB_WIDTH : MODAL_THUMB_WIDTH}
                 />
-                <span className="mt-3 text-sm font-medium">
+                <span className="mt-3 text-center text-sm font-medium">
                   {t(tmpl.nameKey)}
                 </span>
               </button>

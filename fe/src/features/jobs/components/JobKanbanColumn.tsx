@@ -51,7 +51,7 @@ export const JobKanbanColumn = memo(function JobKanbanColumn({
           <div
             className={`flex items-center justify-center rounded-md border border-dashed py-8 text-xs transition-colors ${
               isOver
-                ? "border-primary/50 bg-primary/5 text-primary"
+                ? "border-primary/50 bg-primary/5 text-primary-ink"
                 : "border-muted-foreground/25 text-muted-foreground"
             }`}
           >

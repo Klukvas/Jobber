@@ -7,7 +7,7 @@ export function BlogHeader() {
   return (
     <div className="mb-12 text-center">
       <div className="mb-4 inline-flex items-center justify-center rounded-full bg-primary/10 p-3">
-        <BookOpen className="h-6 w-6 text-primary" />
+        <BookOpen className="h-6 w-6 text-primary-ink" />
       </div>
       <h1 className="text-4xl font-bold tracking-tight">
         {t('blog.title')}

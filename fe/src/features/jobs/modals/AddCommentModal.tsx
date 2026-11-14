@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/shared/hooks/useSingleFlightMutation";
 import { commentsService } from "@/services/commentsService";
 import {
   showSuccessNotification,
@@ -37,7 +38,7 @@ export function AddCommentModal({
   const queryClient = useQueryClient();
   const [content, setContent] = useState("");
 
-  const createMutation = useMutation({
+  const createMutation = useSingleFlightMutation({
     mutationFn: commentsService.create,
     onSuccess: () => {
       // Invalidate job query to refresh embedded comments

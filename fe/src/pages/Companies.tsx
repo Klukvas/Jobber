@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { companiesService } from "@/services/companiesService";
 import { Button } from "@/shared/ui/Button";
+import { SortDirectionIndicator } from "@/shared/ui/SortDirectionIndicator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
 import { CompanyAvatar } from "@/shared/ui/CompanyAvatar";
 import { ListPageSkeleton } from "@/shared/ui/PageSkeleton";
@@ -23,8 +24,6 @@ import {
   Trash2,
   Briefcase,
   Clock,
-  ArrowUp,
-  ArrowDown,
   Heart,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -32,6 +31,7 @@ import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { CreateCompanyModal } from "@/features/companies/modals/CreateCompanyModal";
 import { DeleteCompanyDialog } from "@/features/companies/modals/DeleteCompanyDialog";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
+import { TOUCH_ICON_TARGET } from "@/shared/lib/touchTargets";
 import { showErrorNotification } from "@/shared/lib/notifications";
 import type { CompanyDTO } from "@/shared/types/api";
 
@@ -197,57 +197,55 @@ export default function Companies() {
       ) : (
         <>
           {/* Sorting Controls */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div
+            role="group"
+            aria-label={t("common.sortBy")}
+            className="flex items-center gap-2 flex-wrap"
+          >
             <span className="text-sm text-muted-foreground">
               {t("common.sortBy")}
             </span>
             <Button
               variant={sortBy === "name" ? "default" : "outline"}
+              aria-pressed={sortBy === "name"}
               size="sm"
               onClick={() => toggleSort("name")}
             >
               <Building2 className="h-3 w-3 mr-1" />
               {t("companies.sortName")}
-              {sortBy === "name" &&
-                (sortDir === "desc" ? (
-                  <ArrowDown className="h-3 w-3 ml-1" />
-                ) : (
-                  <ArrowUp className="h-3 w-3 ml-1" />
-                ))}
+              {sortBy === "name" && (
+                <SortDirectionIndicator direction={sortDir} />
+              )}
             </Button>
             <Button
               variant={sortBy === "last_activity" ? "default" : "outline"}
+              aria-pressed={sortBy === "last_activity"}
               size="sm"
               onClick={() => toggleSort("last_activity")}
             >
               <Clock className="h-3 w-3 mr-1" />
               {t("companies.sortLastActivity")}
-              {sortBy === "last_activity" &&
-                (sortDir === "desc" ? (
-                  <ArrowDown className="h-3 w-3 ml-1" />
-                ) : (
-                  <ArrowUp className="h-3 w-3 ml-1" />
-                ))}
+              {sortBy === "last_activity" && (
+                <SortDirectionIndicator direction={sortDir} />
+              )}
             </Button>
             <Button
               variant={sortBy === "applications_count" ? "default" : "outline"}
+              aria-pressed={sortBy === "applications_count"}
               size="sm"
               onClick={() => toggleSort("applications_count")}
             >
               <Briefcase className="h-3 w-3 mr-1" />
               {t("companies.sortApplications")}
-              {sortBy === "applications_count" &&
-                (sortDir === "desc" ? (
-                  <ArrowDown className="h-3 w-3 ml-1" />
-                ) : (
-                  <ArrowUp className="h-3 w-3 ml-1" />
-                ))}
+              {sortBy === "applications_count" && (
+                <SortDirectionIndicator direction={sortDir} />
+              )}
             </Button>
           </div>
 
           {/* Company Cards */}
           <div
-            className={`grid gap-4 md:grid-cols-2 lg:grid-cols-3 transition-opacity ${
+            className={`grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 transition-opacity ${
               isFetching ? "opacity-60" : ""
             }`}
           >
@@ -265,11 +263,11 @@ export default function Companies() {
                             name={company.name}
                             className="mt-0.5"
                           />
-                          <CardTitle className="text-xl font-bold leading-tight min-w-0">
+                          <CardTitle className="text-xl font-bold leading-tight min-w-0 wrap-anywhere">
                             {company.name}
                           </CardTitle>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex shrink-0 items-center gap-1">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -277,7 +275,7 @@ export default function Companies() {
                               toggleFavoriteMutation.mutate(company.id);
                             }}
                             disabled={toggleFavoriteMutation.isPending}
-                            className="p-1 rounded-md hover:bg-accent transition-colors disabled:opacity-50"
+                            className={`${TOUCH_ICON_TARGET} rounded-md hover:bg-accent transition-colors disabled:opacity-50`}
                             aria-label={
                               company.is_favorite
                                 ? t("common.removeFromFavorites")
@@ -300,7 +298,7 @@ export default function Companies() {
                                   openMenuId === company.id ? null : company.id,
                                 );
                               }}
-                              className="p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground"
+                              className={`${TOUCH_ICON_TARGET} rounded-md hover:bg-accent transition-colors text-muted-foreground`}
                               aria-label={t("companies.actionsMenu")}
                             >
                               <MoreVertical className="h-4 w-4" />

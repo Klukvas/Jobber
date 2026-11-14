@@ -26,7 +26,7 @@ export function EditableSelect({
   editable = true,
 }: EditableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const popoverRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLSpanElement>(null);
 
   const selectedLabel = options.find((o) => o.value.toLowerCase() === value.toLowerCase())?.label ?? value;
 
@@ -55,8 +55,10 @@ export function EditableSelect({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [isOpen]);
 
+  // Spans throughout, not divs: templates render this inside running text —
+  // a <p> in the Languages section — where a <div> is invalid nesting.
   return (
-    <div className="relative inline-block" style={style}>
+    <span className="relative inline-block" style={style}>
       <span
         data-select-trigger
         role={editable ? "button" : undefined}
@@ -78,10 +80,10 @@ export function EditableSelect({
       </span>
 
       {isOpen && (
-        <div
+        <span
           ref={popoverRef}
           onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); setIsOpen(false); } }}
-          className="absolute left-0 top-full z-50 mt-1 min-w-[120px] rounded-md border bg-white py-1 text-gray-700 shadow-lg"
+          className="absolute left-0 top-full z-50 mt-1 block min-w-[120px] rounded-md border bg-white py-1 text-gray-700 shadow-lg"
         >
           {options.map((option) => (
             <button
@@ -95,8 +97,8 @@ export function EditableSelect({
               {option.label}
             </button>
           ))}
-        </div>
+        </span>
       )}
-    </div>
+    </span>
   );
 }

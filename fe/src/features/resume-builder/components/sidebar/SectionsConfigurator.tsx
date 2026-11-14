@@ -178,7 +178,7 @@ export function SectionsConfigurator() {
               className={cn(
                 "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors",
                 visible
-                  ? "bg-primary/10 text-primary"
+                  ? "bg-primary/10 text-primary-ink"
                   : "bg-muted text-muted-foreground",
               )}
             >
@@ -206,7 +206,7 @@ export function SectionsConfigurator() {
               className={cn(
                 "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors",
                 visible
-                  ? "bg-primary/10 text-primary"
+                  ? "bg-primary/10 text-primary-ink"
                   : "bg-muted text-muted-foreground",
               )}
             >

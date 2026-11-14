@@ -87,19 +87,19 @@ export default function FeatureApplications() {
           <div className="mx-auto max-w-3xl px-4">
             <div className="grid grid-cols-1 divide-y text-center sm:grid-cols-3 sm:divide-x sm:divide-y-0">
               <div className="min-w-0 px-3 py-4 sm:px-6 sm:py-0">
-                <div className="break-words text-2xl font-bold text-primary sm:text-3xl">{t(`${NS}.stats.jobsValue`)}</div>
+                <div className="break-words text-2xl font-bold text-primary-ink sm:text-3xl">{t(`${NS}.stats.jobsValue`)}</div>
                 <div className="mt-1 text-sm text-muted-foreground">
                   {t(`${NS}.stats.users`)}
                 </div>
               </div>
               <div className="min-w-0 px-3 py-4 sm:px-6 sm:py-0">
-                <div className="break-words text-2xl font-bold text-primary sm:text-3xl">{t(`${NS}.stats.stagesValue`)}</div>
+                <div className="break-words text-2xl font-bold text-primary-ink sm:text-3xl">{t(`${NS}.stats.stagesValue`)}</div>
                 <div className="mt-1 text-sm text-muted-foreground">
                   {t(`${NS}.stats.responseRate`)}
                 </div>
               </div>
               <div className="min-w-0 px-3 py-4 sm:px-6 sm:py-0">
-                <div className="break-words text-2xl font-bold text-primary sm:text-3xl">{t(`${NS}.stats.analyticsValue`)}</div>
+                <div className="break-words text-2xl font-bold text-primary-ink sm:text-3xl">{t(`${NS}.stats.analyticsValue`)}</div>
                 <div className="mt-1 text-sm text-muted-foreground">
                   {t(`${NS}.stats.timeSaved`)}
                 </div>
@@ -118,7 +118,7 @@ export default function FeatureApplications() {
                 alt="Applications list view"
               />
               <div>
-                <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-primary">
+                <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-primary-ink">
                   {t(`${NS}.feature1.label`)}
                 </p>
                 <h2 className="mb-4 text-3xl font-bold leading-tight">
@@ -130,7 +130,7 @@ export default function FeatureApplications() {
                 <ul className="space-y-3">
                   {FEATURE1_POINTS.map((p) => (
                     <li key={p} className="flex items-start gap-3">
-                      <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                      <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary-ink" />
                       <span className="text-sm text-muted-foreground">
                         {t(`${NS}.feature1.${p}`)}
                       </span>
@@ -147,7 +147,7 @@ export default function FeatureApplications() {
           <div className="mx-auto max-w-6xl px-4">
             <div className="grid items-center gap-16 lg:grid-cols-2">
               <div>
-                <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-primary">
+                <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-primary-ink">
                   {t(`${NS}.feature2.label`)}
                 </p>
                 <h2 className="mb-4 text-3xl font-bold leading-tight">
@@ -159,7 +159,7 @@ export default function FeatureApplications() {
                 <ul className="space-y-3">
                   {FEATURE2_POINTS.map((p) => (
                     <li key={p} className="flex items-start gap-3">
-                      <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                      <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary-ink" />
                       <span className="text-sm text-muted-foreground">
                         {t(`${NS}.feature2.${p}`)}
                       </span>

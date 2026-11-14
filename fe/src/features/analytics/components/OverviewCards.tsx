@@ -48,7 +48,7 @@ export function OverviewCards({
       title: t("analytics.overview.activeApplications"),
       value: data.active_applications,
       icon: Activity,
-      color: "text-green-500 dark:text-green-400",
+      color: "text-green-700 dark:text-green-400",
     },
     {
       title: t("analytics.overview.closedApplications"),

@@ -27,10 +27,10 @@ export function BlogArticle({ content }: BlogArticleProps) {
         prose-h2:mt-10 prose-h2:mb-4 prose-h2:text-2xl prose-h2:border-b prose-h2:pb-2 prose-h2:border-border
         prose-h3:mt-8 prose-h3:mb-3
         prose-p:leading-relaxed
-        prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-a:font-medium
+        prose-a:text-primary-ink prose-a:no-underline hover:prose-a:underline prose-a:font-medium
         prose-strong:text-foreground
         prose-blockquote:border-l-primary prose-blockquote:bg-muted/50 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r-lg prose-blockquote:not-italic
-        prose-li:marker:text-primary
+        prose-li:marker:text-primary-ink
         prose-hr:border-border
         prose-code:rounded prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:text-sm prose-code:font-normal prose-code:before:content-none prose-code:after:content-none
         prose-pre:bg-muted prose-pre:border prose-pre:border-border prose-pre:rounded-lg

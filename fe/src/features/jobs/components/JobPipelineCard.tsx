@@ -108,7 +108,7 @@ export function JobPipelineCard({
             value={resumeSelectValue(job)}
             onChange={(e) => onChangeResume(e.target.value)}
             disabled={isChangingResume}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-10 max-sm:h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
           >
             <option value="">{t("jobs.selectResume")}</option>
             {uploadedResumes.length > 0 && (

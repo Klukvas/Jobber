@@ -19,6 +19,7 @@ vi.mock("@/services/authService", () => ({ authService: authApi }));
 
 vi.mock("react-router-dom", () => ({
   useNavigate: () => vi.fn(),
+  useLocation: () => ({ pathname: "/login", search: "" }),
 }));
 
 vi.mock("@/stores/authStore", () => ({

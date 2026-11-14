@@ -152,7 +152,7 @@ function ImportResumeForm({
             type="button"
             className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === "text"
-                ? "border-b-2 border-primary text-primary"
+                ? "border-b-2 border-primary text-primary-ink"
                 : "text-muted-foreground hover:text-foreground"
             }`}
             onClick={() => setActiveTab("text")}
@@ -164,7 +164,7 @@ function ImportResumeForm({
             type="button"
             className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === "pdf"
-                ? "border-b-2 border-primary text-primary"
+                ? "border-b-2 border-primary text-primary-ink"
                 : "text-muted-foreground hover:text-foreground"
             }`}
             onClick={() => setActiveTab("pdf")}
@@ -228,7 +228,7 @@ function ImportResumeForm({
             >
               {selectedFile ? (
                 <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-primary" />
+                  <FileText className="h-5 w-5 text-primary-ink" />
                   <span className="text-sm">{selectedFile.name}</span>
                   <button
                     type="button"

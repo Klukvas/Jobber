@@ -254,23 +254,48 @@ func TestStageTemplateRepository_Update(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("writes name, order and kind when all three are patched", func(t *testing.T) {
+	t.Run("a new order moves the column and renumbers the rest in one transaction", func(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
 
-		mock.ExpectQuery(`UPDATE stage_templates SET updated_at = \$3, name = \$4, "order" = \$5, kind = \$6`).
-			WithArgs("tpl-1", "user-123", pgxmock.AnyArg(), "Renamed", 2, string(model.StageKindInterview)).
-			WillReturnRows(updatedRow("Renamed", 2, "interview"))
+		mock.ExpectBegin()
+		mock.ExpectQuery(`SELECT id FROM stage_templates WHERE user_id = \$1 ORDER BY "order" ASC, created_at ASC FOR UPDATE`).
+			WithArgs("user-123").
+			WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow("wishlist").AddRow("applied").AddRow("tpl-1"))
+		for i, id := range []string{"tpl-1", "wishlist", "applied"} {
+			mock.ExpectExec(`UPDATE stage_templates SET "order" = \$3, updated_at = \$4 WHERE id = \$1 AND user_id = \$2`).
+				WithArgs(id, "user-123", i, pgxmock.AnyArg()).
+				WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+		}
+		mock.ExpectQuery(`UPDATE stage_templates SET updated_at = \$3, name = \$4, kind = \$5`).
+			WithArgs("tpl-1", "user-123", pgxmock.AnyArg(), "Renamed", string(model.StageKindInterview)).
+			WillReturnRows(updatedRow("Renamed", 0, "interview"))
+		mock.ExpectCommit()
 
 		tpl, err := repo.Update(context.Background(), "user-123", "tpl-1", &model.StageTemplatePatch{
 			Name:  strPtr("Renamed"),
-			Order: intPtr(2),
+			Order: intPtr(0),
 			Kind:  kindPtr(model.StageKindInterview),
 		})
 
 		require.NoError(t, err)
 		assert.Equal(t, "Renamed", tpl.Name)
-		assert.Equal(t, 2, tpl.Order)
+		assert.Equal(t, 0, tpl.Order)
 		assert.Equal(t, model.StageKindInterview, tpl.Kind)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("moving a column that is not the user's is not found", func(t *testing.T) {
+		repo, mock := newStageTemplateRepo(t)
+
+		mock.ExpectBegin()
+		mock.ExpectQuery(`SELECT id FROM stage_templates`).
+			WithArgs("user-123").
+			WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow("wishlist"))
+		mock.ExpectRollback()
+
+		_, err := repo.Update(context.Background(), "user-123", "tpl-1", &model.StageTemplatePatch{Order: intPtr(0)})
+
+		require.ErrorIs(t, err, model.ErrStageTemplateNotFound)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
@@ -507,4 +532,31 @@ func TestStageTemplateRepository_Delete(t *testing.T) {
 		assert.ErrorIs(t, err, errDB)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
+}
+
+func TestMoveToPosition(t *testing.T) {
+	ids := []string{"a", "b", "c", "d"}
+	cases := []struct {
+		name     string
+		id       string
+		position int
+		want     []string
+	}{
+		{"to the front", "c", 0, []string{"c", "a", "b", "d"}},
+		{"to the back", "a", 3, []string{"b", "c", "d", "a"}},
+		{"in place", "b", 1, ids},
+		{"past the end clamps", "a", 99, []string{"b", "c", "d", "a"}},
+		{"negative clamps", "d", -5, []string{"d", "a", "b", "c"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := moveToPosition(ids, tc.id, tc.position)
+			require.True(t, ok)
+			assert.Equal(t, tc.want, got)
+			assert.Equal(t, []string{"a", "b", "c", "d"}, ids, "input must not be mutated")
+		})
+	}
+
+	_, ok := moveToPosition(ids, "missing", 0)
+	assert.False(t, ok)
 }

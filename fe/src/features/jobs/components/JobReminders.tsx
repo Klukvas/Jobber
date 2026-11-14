@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/shared/hooks/useSingleFlightMutation";
 import { format } from "date-fns";
 import { Bell, BellPlus, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
@@ -15,6 +16,7 @@ import {
   showErrorNotification,
 } from "@/shared/lib/notifications";
 import type { ReminderDTO } from "@/shared/types/api";
+import { TOUCH_ICON_TARGET } from "@/shared/lib/touchTargets";
 
 interface JobRemindersProps {
   readonly jobId: string;
@@ -40,7 +42,7 @@ export function JobReminders({ jobId }: JobRemindersProps) {
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: remindersKey });
 
-  const addMutation = useMutation({
+  const addMutation = useSingleFlightMutation({
     mutationFn: () =>
       remindersService.create({
         job_id: jobId,
@@ -104,15 +106,20 @@ export function JobReminders({ jobId }: JobRemindersProps) {
                 key={reminder.id}
                 className="flex items-start gap-3 rounded-lg border bg-muted/50 p-3"
               >
-                <Checkbox
-                  checked={reminder.is_done}
-                  onCheckedChange={() => toggleMutation.mutate(reminder)}
-                  disabled={toggleMutation.isPending}
-                  className="mt-0.5"
-                />
+                {/* The label is the 44px target on a phone; the 16px box
+                    inside stays as drawn. */}
+                <label className="flex shrink-0 cursor-pointer justify-center pt-0.5 max-sm:h-11 max-sm:w-11 max-sm:items-center max-sm:pt-0">
+                  <Checkbox
+                    checked={reminder.is_done}
+                    onCheckedChange={() => toggleMutation.mutate(reminder)}
+                    disabled={toggleMutation.isPending}
+                    aria-labelledby={`reminder-${reminder.id}-message`}
+                  />
+                </label>
                 <div className="min-w-0 flex-1">
                   <p
-                    className={`text-sm whitespace-pre-wrap ${
+                    id={`reminder-${reminder.id}-message`}
+                    className={`text-sm whitespace-pre-wrap wrap-anywhere ${
                       reminder.is_done
                         ? "text-muted-foreground line-through"
                         : ""
@@ -131,7 +138,7 @@ export function JobReminders({ jobId }: JobRemindersProps) {
                   onClick={() => deleteMutation.mutate(reminder.id)}
                   disabled={deleteMutation.isPending}
                   aria-label={t("common.delete")}
-                  className="text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+                  className={`${TOUCH_ICON_TARGET} shrink-0 text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50`}
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

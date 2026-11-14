@@ -30,6 +30,7 @@
     "removeFromFavorites": "Remove from favorites",
     "changeLanguage": "Change language",
     "openMenu": "Open menu",
+    "navigation": "Navigation",
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",
     "closeSidebar": "Close sidebar",
@@ -37,7 +38,12 @@
     "accessDenied": "Access denied",
     "serverError": "Server error",
     "duplicate": "Duplicate",
-    "optional": "optional"
+    "optional": "optional",
+    "contentLanguageOnly": "This page is only available in {{language}}.",
+    "sortedAscending": "ascending",
+    "sortedDescending": "descending",
+    "viewMode": "View",
+    "filterBy": "Filter"
   },
   "auth": {
     "login": "Login",
@@ -250,6 +256,7 @@
     "quickAddCompanySuccess": "Company created",
     "quickAddCompanyError": "Failed to create company",
     "sourcePlaceholder": "e.g., LinkedIn, Indeed, Company Website",
+    "openUrl": "Open job posting",
     "description": "Description",
     "descriptionPlaceholder": "Job description with key requirements, responsibilities, technologies...",
     "extensionBanner": "Save jobs from any website with one click using our Chrome extension",
@@ -854,7 +861,9 @@
     "notFoundDescription": "The blog post you are looking for does not exist.",
     "tags": "Tags",
     "publishedOn": "Published on",
-    "noPosts": "No posts yet. Check back soon!"
+    "noPosts": "No posts yet. Check back soon!",
+    "readTranslation": "Read the English version",
+    "browseInYourLanguage": "Browse articles in English"
   },
   "errors": {
     "required": "This field is required",
@@ -868,7 +877,8 @@
     "unauthorized": "Unauthorized",
     "forbidden": "Forbidden",
     "passwordTooLong": "Password must be 72 bytes or fewer (about 72 Latin letters, fewer for other alphabets)",
-    "planLimitReached": "You've reached the limit of your current plan."
+    "planLimitReached": "You've reached the limit of your current plan.",
+    "invalidUrl": "Enter a full link starting with http:// or https://"
   },
   "notFound": {
     "title": "Page not found",
@@ -1128,6 +1138,25 @@
       "resourcesTitle": "Resources",
       "github": "GitHub",
       "status": "Status"
+    },
+    "showcase": {
+      "board": "cursopus — board",
+      "applied": "Applied",
+      "interview": "Interview",
+      "offer": "Offer",
+      "offerBadge": "🎉 Offer",
+      "match": "{{score}}% match",
+      "remote": "Remote",
+      "hybrid": "Hybrid",
+      "tomorrowAt": "Tomorrow {{time}}",
+      "tomorrowAtComma": "Tomorrow, {{time}}",
+      "matchScore": "AI Match Score",
+      "skills": "Skills",
+      "experience": "Experience",
+      "pipeline": "Pipeline · 30 days",
+      "responseRate": "Response rate",
+      "reminder": "Reminder",
+      "reminderTitle": "Linear — Interview"
     }
   },
   "onboarding": {

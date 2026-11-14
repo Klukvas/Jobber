@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { format } from "date-fns";
 import { useDateLocale } from "@/shared/lib/dateFnsLocale";
@@ -24,14 +24,13 @@ export function BuilderResumeCard({
   onRename,
 }: BuilderResumeCardProps) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const dateLocale = useDateLocale();
 
   return (
-    <Card
-      className="group cursor-pointer transition-shadow hover:shadow-md h-full"
-      onClick={() => navigate(`/app/resume-builder/${resume.id}`)}
-    >
+    // The title link is stretched over the whole card (its ::after), so the
+    // card opens the editor for mouse, keyboard and middle-click alike; the
+    // action buttons sit above that layer with `relative z-10`.
+    <Card className="group relative h-full cursor-pointer transition-shadow hover:shadow-md has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring has-[a:focus-visible]:ring-offset-2">
       <CardContent className="p-4">
         <div className="mb-3">
           <ResumeThumbnail
@@ -50,7 +49,14 @@ export function BuilderResumeCard({
 
         <div className="flex items-start justify-between">
           <div className="min-w-0 flex-1">
-            <h3 className="truncate font-medium">{resume.title}</h3>
+            <h3 className="truncate font-medium">
+              <Link
+                to={`/app/resume-builder/${resume.id}`}
+                className="after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none"
+              >
+                {resume.title}
+              </Link>
+            </h3>
             <p className="text-sm text-muted-foreground">
               {t("resumeBuilder.lastEdited", {
                 date: format(new Date(resume.updated_at), "PPP", {
@@ -59,7 +65,9 @@ export function BuilderResumeCard({
               })}
             </p>
           </div>
-          <div className="ml-2 flex gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+          {/* Hidden until hover on desktop — and until focus, or Tab would walk
+              through buttons nobody can see. */}
+          <div className="relative z-10 ml-2 flex gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
             {onRename && (
               <Button
                 variant="ghost"

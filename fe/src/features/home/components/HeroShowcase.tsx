@@ -1,11 +1,13 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Bell, Sparkles, TrendingUp } from "lucide-react";
 import { useScrollY } from "@/shared/hooks/useScrollY";
 
 // Decorative demo mirroring real platform widgets: JobKanbanBoard,
-// MatchScoreCard, FunnelVisualization and JobReminders. All content is
-// aria-hidden stage dressing, kept in English like a product screenshot.
+// MatchScoreCard, FunnelVisualization and JobReminders. It is aria-hidden,
+// but it is still read: its labels follow the page language, while company
+// names, roles and tech stay as they would in the real product.
 
 type BadgeVariant = "lime" | "sky" | "gray" | "teal" | "amber";
 
@@ -22,19 +24,19 @@ const RING_RADIUS = 30;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 const MATCH_CATEGORIES = [
-  { name: "Skills", score: 92, delaySec: 1.15 },
-  { name: "Experience", score: 81, delaySec: 1.3 },
+  { key: "skills", score: 92, delaySec: 1.15 },
+  { key: "experience", score: 81, delaySec: 1.3 },
 ] as const;
 
 const FUNNEL_ROWS = [
-  { name: "Applied", count: 12, widthPercent: 100, barClass: "bg-lime-400/80" },
+  { key: "applied", count: 12, widthPercent: 100, barClass: "bg-lime-400/80" },
   {
-    name: "Interview",
+    key: "interview",
     count: 6,
     widthPercent: 50,
     barClass: "bg-lime-400/50",
   },
-  { name: "Offer", count: 2, widthPercent: 17, barClass: "bg-teal-400/80" },
+  { key: "offer", count: 2, widthPercent: 17, barClass: "bg-teal-400/80" },
 ] as const;
 
 const prefersReducedMotion = () =>
@@ -143,13 +145,14 @@ function WidgetLabel({ icon, text }: { icon: ReactNode; text: string }) {
 }
 
 function MatchScoreWidget() {
+  const { t } = useTranslation();
   const score = useCountUp(MATCH_SCORE, 1300, 700);
 
   return (
     <div className="rounded-xl border border-white/[0.08] bg-card p-3.5 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.7)]">
       <WidgetLabel
         icon={<Sparkles className="h-3 w-3 text-lime-400" />}
-        text="AI Match Score"
+        text={t("home.showcase.matchScore")}
       />
       <div className="flex items-center gap-3">
         <div className="relative h-[68px] w-[68px] shrink-0">
@@ -186,9 +189,9 @@ function MatchScoreWidget() {
         </div>
         <div className="flex-1 space-y-2">
           {MATCH_CATEGORIES.map((category) => (
-            <div key={category.name}>
+            <div key={category.key}>
               <div className="mb-1 flex justify-between text-[10px] text-slate-400">
-                <span>{category.name}</span>
+                <span>{t(`home.showcase.${category.key}`)}</span>
                 <span className="text-lime-400">{category.score}%</span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-muted">
@@ -230,17 +233,18 @@ function MatchScoreWidget() {
 }
 
 function FunnelWidget() {
+  const { t } = useTranslation();
   return (
     <div className="rounded-xl border border-white/[0.08] bg-card p-3.5 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.7)]">
       <WidgetLabel
         icon={<TrendingUp className="h-3 w-3 text-lime-400" />}
-        text="Pipeline · 30 days"
+        text={t("home.showcase.pipeline")}
       />
       <div className="space-y-2">
         {FUNNEL_ROWS.map((row, index) => (
-          <div key={row.name}>
+          <div key={row.key}>
             <div className="mb-1 flex justify-between text-[10px] text-slate-400">
-              <span>{row.name}</span>
+              <span>{t(`home.showcase.${row.key}`)}</span>
               <span>{row.count}</span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-muted">
@@ -260,7 +264,9 @@ function FunnelWidget() {
         ))}
       </div>
       <div className="mt-2.5 flex justify-between border-t border-white/[0.06] pt-2 font-mono text-[10px]">
-        <span className="text-slate-500">Response rate</span>
+        <span className="text-slate-500">
+          {t("home.showcase.responseRate")}
+        </span>
         <span className="text-lime-400">42% ↑</span>
       </div>
     </div>
@@ -268,6 +274,7 @@ function FunnelWidget() {
 }
 
 function ReminderToast() {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-2.5 rounded-xl border border-amber-400/20 bg-card/95 p-3 shadow-[0_16px_40px_-16px_rgba(0,0,0,0.8)] backdrop-blur">
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-400/10 text-amber-400">
@@ -275,12 +282,14 @@ function ReminderToast() {
       </span>
       <div className="min-w-0">
         <div className="font-mono text-[9px] uppercase tracking-wider text-amber-400/90">
-          Reminder
+          {t("home.showcase.reminder")}
         </div>
         <div className="truncate text-[12px] font-semibold text-slate-100">
-          Linear — Interview
+          {t("home.showcase.reminderTitle")}
         </div>
-        <div className="text-[10px] text-slate-500">Tomorrow, 14:00</div>
+        <div className="text-[10px] text-slate-500">
+          {t("home.showcase.tomorrowAtComma", { time: "14:00" })}
+        </div>
       </div>
     </div>
   );
@@ -291,6 +300,11 @@ function ReminderToast() {
 const PARALLAX_SCROLL_RANGE = 900;
 
 export function HeroShowcase() {
+  const { t } = useTranslation();
+  const matchBadge = {
+    text: t("home.showcase.match", { score: MATCH_SCORE }),
+    variant: "lime",
+  } as const;
   const [reduceMotion] = useState(prefersReducedMotion);
   const scrollY = useScrollY(PARALLAX_SCROLL_RANGE);
   const drift = reduceMotion ? 0 : scrollY;
@@ -317,11 +331,15 @@ export function HeroShowcase() {
             <span className="h-2.5 w-2.5 rounded-full bg-white/[0.08]" />
           </div>
           <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600">
-            cursopus — board
+            {t("home.showcase.board")}
           </span>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <KanbanColumn title="Applied" restCount={3} movedCount={2}>
+          <KanbanColumn
+            title={t("home.showcase.applied")}
+            restCount={3}
+            movedCount={2}
+          >
             <div className="relative mb-2">
               {/* Drop placeholder revealed while the card is mid-flight */}
               <div className="absolute inset-0 rounded-lg border border-dashed border-white/10 bg-white/[0.02]" />
@@ -329,7 +347,7 @@ export function HeroShowcase() {
                 <KanbanDemoCard
                   company="Vercel"
                   role="Staff Engineer"
-                  badges={[{ text: "87% match", variant: "lime" }]}
+                  badges={[matchBadge]}
                   highlighted
                 />
               </div>
@@ -339,7 +357,7 @@ export function HeroShowcase() {
                 company="Stripe"
                 role="Senior Frontend Engineer"
                 badges={[
-                  { text: "Remote", variant: "sky" },
+                  { text: t("home.showcase.remote"), variant: "sky" },
                   { text: "$180k", variant: "gray" },
                 ]}
               />
@@ -347,30 +365,43 @@ export function HeroShowcase() {
             <KanbanDemoCard
               company="Notion"
               role="Full-Stack Engineer"
-              badges={[{ text: "Hybrid", variant: "sky" }]}
+              badges={[{ text: t("home.showcase.hybrid"), variant: "sky" }]}
             />
           </KanbanColumn>
-          <KanbanColumn title="Interview" restCount={1} movedCount={2}>
+          <KanbanColumn
+            title={t("home.showcase.interview")}
+            restCount={1}
+            movedCount={2}
+          >
             <div className="hero-card-arrive rounded-lg">
               <KanbanDemoCard
                 company="Vercel"
                 role="Staff Engineer"
-                badges={[{ text: "87% match", variant: "lime" }]}
+                badges={[matchBadge]}
                 highlighted
               />
             </div>
             <KanbanDemoCard
               company="Linear"
               role="Product Engineer"
-              badges={[{ text: "Tomorrow 14:00", variant: "amber" }]}
+              badges={[
+                {
+                  text: t("home.showcase.tomorrowAt", { time: "14:00" }),
+                  variant: "amber",
+                },
+              ]}
             />
           </KanbanColumn>
           <div className="hidden sm:block">
-            <KanbanColumn title="Offer" restCount={1} movedCount={1}>
+            <KanbanColumn
+              title={t("home.showcase.offer")}
+              restCount={1}
+              movedCount={1}
+            >
               <KanbanDemoCard
                 company="Railway"
                 role="Infrastructure Engineer"
-                badges={[{ text: "\u{1F389} Offer", variant: "teal" }]}
+                badges={[{ text: t("home.showcase.offerBadge"), variant: "teal" }]}
               />
             </KanbanColumn>
           </div>

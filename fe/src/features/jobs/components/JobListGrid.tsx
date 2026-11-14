@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
 import { CompanyAvatar } from "@/shared/ui/CompanyAvatar";
 import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { stageColor } from "@/features/jobs/lib/stageColors";
-import { TOUCH_ICON_TARGET } from "@/features/jobs/lib/touchTargets";
+import { TOUCH_ICON_TARGET } from "@/shared/lib/touchTargets";
 import type { JobsListReturnState } from "@/features/jobs/lib/jobsListReturn";
 import type { JobDTO } from "@/shared/types/api";
 
@@ -47,7 +47,7 @@ export function JobListGrid({
 
   return (
     <div
-      className={`grid gap-4 md:grid-cols-2 lg:grid-cols-3 transition-opacity ${
+      className={`grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 transition-opacity ${
         isFetching ? "opacity-60" : ""
       }`}
     >
@@ -61,11 +61,11 @@ export function JobListGrid({
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-xl font-bold leading-tight mb-2 flex-1">
+                    <CardTitle className="text-xl font-bold leading-tight mb-2 min-w-0 flex-1 wrap-anywhere">
                       {job.title}
                     </CardTitle>
                     <div
-                      className="relative"
+                      className="relative shrink-0"
                       onClick={(e) => e.preventDefault()}
                     >
                       <button

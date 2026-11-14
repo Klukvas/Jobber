@@ -133,7 +133,13 @@ export function Dialog({
 
   // Materialize the sheet upward each time it opens.
   React.useLayoutEffect(() => {
-    if (!open || !asSheet) return;
+    if (!open) return;
+    if (!asSheet) {
+      // Crossing into the centered layout mid-drag or mid-spring must not
+      // leave the box offset.
+      y.set(0);
+      return;
+    }
     y.set(window.innerHeight);
     const controls = animate(y, 0, {
       type: "spring",
@@ -150,61 +156,65 @@ export function Dialog({
     className,
   );
 
-  if (asSheet) {
-    const handleDragEnd = (
-      _event: MouseEvent | TouchEvent | PointerEvent,
-      info: PanInfo,
-    ) => {
-      const flungDown =
-        info.offset.y > SHEET_DISMISS_OFFSET ||
-        info.velocity.y > SHEET_DISMISS_VELOCITY;
-      if (flungDown) {
-        // Hand the finger's velocity off to the closing spring — no seam
-        // between the drag and the animation.
-        animate(y, window.innerHeight, {
-          type: "spring",
-          bounce: 0,
-          duration: 0.35,
-          velocity: info.velocity.y,
-        }).then(() => onOpenChange(false));
-      } else {
-        // Snap home, carrying velocity so a reversal has no brick wall.
-        animate(y, 0, {
-          type: "spring",
-          bounce: 0.15,
-          duration: 0.4,
-          velocity: info.velocity.y,
-        });
-      }
-    };
+  const handleDragEnd = (
+    _event: MouseEvent | TouchEvent | PointerEvent,
+    info: PanInfo,
+  ) => {
+    const flungDown =
+      info.offset.y > SHEET_DISMISS_OFFSET ||
+      info.velocity.y > SHEET_DISMISS_VELOCITY;
+    if (flungDown) {
+      // Hand the finger's velocity off to the closing spring — no seam
+      // between the drag and the animation.
+      animate(y, window.innerHeight, {
+        type: "spring",
+        bounce: 0,
+        duration: 0.35,
+        velocity: info.velocity.y,
+      }).then(() => onOpenChange(false));
+    } else {
+      // Snap home, carrying velocity so a reversal has no brick wall.
+      animate(y, 0, {
+        type: "spring",
+        bounce: 0.15,
+        duration: 0.4,
+        velocity: info.velocity.y,
+      });
+    }
+  };
 
-    return (
-      <DialogTitleContext.Provider value={registerTitle}>
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          onClick={() => onOpenChange(false)}
+  // One element tree for both presentations: the sheet differs from the
+  // centered dialog only in props. Two separate trees made React remount the
+  // children whenever the viewport crossed the breakpoint (rotating a phone,
+  // resizing a window), wiping everything typed into the form.
+  return (
+    <DialogTitleContext.Provider value={registerTitle}>
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center"
+        onClick={() => onOpenChange(false)}
+      >
+        <motion.div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+          style={{ opacity: overlayOpacity }}
+        />
+        <motion.div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={labelId}
+          tabIndex={-1}
+          className={boxClassName}
+          style={{ y }}
+          drag={asSheet ? "y" : false}
+          dragListener={false}
+          dragControls={dragControls}
+          dragConstraints={{ top: 0 }}
+          dragElastic={0.1}
+          onDragEnd={asSheet ? handleDragEnd : undefined}
+          onClick={(e) => e.stopPropagation()}
         >
-          <motion.div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-            style={{ opacity: overlayOpacity }}
-          />
-          <motion.div
-            ref={dialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={labelId}
-            tabIndex={-1}
-            className={boxClassName}
-            style={{ y }}
-            drag="y"
-            dragListener={false}
-            dragControls={dragControls}
-            dragConstraints={{ top: 0 }}
-            dragElastic={0.1}
-            onDragEnd={handleDragEnd}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Grabber: the only drag origin, so inputs stay tappable. */}
+          {/* Grabber: the only drag origin, so inputs stay tappable. */}
+          {asSheet && (
             <div
               aria-hidden
               onPointerDown={(e) => dragControls.start(e)}
@@ -212,31 +222,9 @@ export function Dialog({
             >
               <span className="block h-1.5 w-10 rounded-full bg-muted-foreground/30" />
             </div>
-            {children}
-          </motion.div>
-        </div>
-      </DialogTitleContext.Provider>
-    );
-  }
-
-  return (
-    <DialogTitleContext.Provider value={registerTitle}>
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center"
-        onClick={() => onOpenChange(false)}
-      >
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
-        <div
-          ref={dialogRef}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={labelId}
-          tabIndex={-1}
-          className={boxClassName}
-          onClick={(e) => e.stopPropagation()}
-        >
+          )}
           {children}
-        </div>
+        </motion.div>
       </div>
     </DialogTitleContext.Provider>
   );
@@ -321,7 +309,7 @@ export function DialogTitle({
     <h2
       id={titleId}
       className={cn(
-        "text-lg font-semibold leading-none tracking-tight",
+        "text-lg font-semibold leading-none tracking-tight break-words",
         className,
       )}
       {...props}
@@ -334,7 +322,12 @@ export function DialogDescription({
   ...props
 }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={cn("text-sm text-muted-foreground", className)} {...props} />
+    // Descriptions quote user data ("Delete <company>?"): one long unbroken
+    // name must wrap inside the dialog rather than run off its edge.
+    <p
+      className={cn("text-sm text-muted-foreground break-words", className)}
+      {...props}
+    />
   );
 }
 

@@ -7,7 +7,7 @@ type CreateResumeRequest struct {
 }
 
 type UpdateResumeRequest struct {
-	Title    *string `json:"title,omitempty"`
+	Title    *string `json:"title,omitempty" binding:"omitempty,max=255"`
 	FileURL  *string `json:"file_url,omitempty"`
 	IsActive *bool   `json:"is_active,omitempty"`
 }
