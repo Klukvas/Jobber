@@ -28,6 +28,7 @@ const (
 
 type httpConfig struct {
 	allowedOrigins string
+	issuer         string
 	ipLimiter      gin.HandlerFunc
 	userLimiter    gin.HandlerFunc
 }
@@ -38,8 +39,8 @@ type TokenAuthenticator interface {
 
 type verifiedPATKey struct{}
 
-// RegisterRoutes mounts the PAT-only surface separately from JWT API routes.
-func RegisterRoutes(router *gin.Engine, server *sdk.Server, tokens TokenAuthenticator, paid PaidPlanChecker, redisClient *redis.Client, logger *zap.Logger, allowedOrigins string) {
+// RegisterRoutes mounts the bearer-token surface separately from JWT API routes.
+func RegisterRoutes(router *gin.Engine, server *sdk.Server, tokens TokenAuthenticator, paid PaidPlanChecker, redisClient *redis.Client, logger *zap.Logger, allowedOrigins string, publicBaseURL ...string) {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -49,33 +50,43 @@ func RegisterRoutes(router *gin.Engine, server *sdk.Server, tokens TokenAuthenti
 	ipLimiter := httpPlatform.RateLimitMiddleware(redisClient, httpPlatform.RateLimitConfig{
 		MaxRequests: mcpIPRequestsPerMinute, Window: time.Minute, KeyPrefix: "mcp_ip",
 	}, logger)
-	registerHTTP(router, server, tokens, paid, httpConfig{allowedOrigins: allowedOrigins, ipLimiter: ipLimiter, userLimiter: limiter}, logger)
+	issuer := ""
+	if len(publicBaseURL) > 0 {
+		issuer = strings.TrimRight(publicBaseURL[0], "/")
+	}
+	registerHTTP(router, server, tokens, paid, httpConfig{allowedOrigins: allowedOrigins, issuer: issuer, ipLimiter: ipLimiter, userLimiter: limiter}, logger)
 }
 
 func registerHTTP(router *gin.Engine, server *sdk.Server, tokens TokenAuthenticator, paid PaidPlanChecker, config httpConfig, logger *zap.Logger) {
 	transport := sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return server }, &sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
 	handler := auth.RequireBearerToken(cachedVerifier, &auth.RequireBearerTokenOptions{AllowMissingExpiration: true, Scopes: []string{"mcp"}})(transport)
 	for _, method := range []string{http.MethodPost, http.MethodGet, http.MethodDelete} {
-		router.Handle(method, "/api/mcp", redactAuditRequest, bearerChallenge(), requireOrigin(config.allowedOrigins), config.ipLimiter, authenticatePAT(tokens), requirePaid(paid, logger), config.userLimiter, capBody(), gin.WrapH(handler))
+		router.Handle(method, "/api/mcp", redactAuditRequest, bearerChallenge(config.issuer), requireOrigin(config.allowedOrigins), config.ipLimiter, authenticatePAT(tokens), requirePaid(paid, logger), config.userLimiter, capBody(), gin.WrapH(handler))
 	}
 }
 
 func authenticatePAT(tokens TokenAuthenticator) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		fields := strings.Fields(c.GetHeader("Authorization"))
-		if len(fields) != 2 || !strings.EqualFold(fields[0], "Bearer") || !strings.HasPrefix(fields[1], patService.TokenPrefix) {
+		if len(fields) != 2 || !strings.EqualFold(fields[0], "Bearer") || !(strings.HasPrefix(fields[1], patService.TokenPrefix) || strings.HasPrefix(fields[1], "jbr_oat_")) {
 			rejectAuth(c)
 			return
 		}
 		info, err := tokens.AuthenticateWithInfo(c.Request.Context(), fields[1])
-		if err != nil || info == nil || info.UserID == "" || info.TokenID == "" || (!info.ExpiresAt.IsZero() && !info.ExpiresAt.After(time.Now())) {
+		if err != nil || info == nil || info.UserID == "" || (info.TokenID == "" && info.OAuthGrantID == "") || (!info.ExpiresAt.IsZero() && !info.ExpiresAt.After(time.Now())) {
 			rejectAuth(c)
 			return
 		}
 		c.Set("user_id", info.UserID)
+		extra := map[string]any{"api_token_id": info.TokenID}
 		c.Set("auth_via", "pat")
-		c.Set("api_token_id", info.TokenID)
-		tokenInfo := &auth.TokenInfo{UserID: info.UserID, Expiration: info.ExpiresAt, Scopes: []string{"mcp"}, Extra: map[string]any{"api_token_id": info.TokenID}}
+		if info.OAuthGrantID != "" {
+			extra = map[string]any{"oauth_grant_id": info.OAuthGrantID}
+			c.Set("auth_via", "oauth")
+		} else {
+			c.Set("api_token_id", info.TokenID)
+		}
+		tokenInfo := &auth.TokenInfo{UserID: info.UserID, Expiration: info.ExpiresAt, Scopes: []string{"mcp"}, Extra: extra}
 		ctx := context.WithValue(c.Request.Context(), verifiedPATKey{}, tokenInfo)
 		ctx = context.WithValue(ctx, requestIDKey{}, c.GetString("request_id"))
 		c.Request = c.Request.WithContext(ctx)
@@ -94,7 +105,6 @@ func cachedVerifier(ctx context.Context, _ string, _ *http.Request) (*auth.Token
 }
 
 func rejectAuth(c *gin.Context) {
-	c.Header("WWW-Authenticate", "Bearer")
 	httpPlatform.RespondWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid or expired token")
 	c.Abort()
 }

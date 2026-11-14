@@ -9,8 +9,10 @@ import (
 
 func (r *APITokenRepository) ListActivity(ctx context.Context, userID string, limit int) ([]*model.ActivityDTO, error) {
 	rows, err := r.pool.Query(ctx, `SELECT a.id, a.tool, a.ok, a.error_code, a.duration_ms,
- a.created_at, a.api_token_id, t.name
+ a.created_at, a.api_token_id, COALESCE(t.name, c.client_name)
  FROM mcp_audit_log a LEFT JOIN api_tokens t ON t.id = a.api_token_id AND t.user_id = a.user_id
+ LEFT JOIN oauth_grants g ON g.id = a.oauth_grant_id AND g.user_id = a.user_id
+ LEFT JOIN oauth_clients c ON c.client_id = g.client_id
  WHERE a.user_id = $1 ORDER BY a.created_at DESC, a.id DESC LIMIT $2`, userID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list mcp activity: %w", err)

@@ -30,6 +30,7 @@ import (
 	"github.com/andreypavlenko/jobber/modules/contacts"
 	"github.com/andreypavlenko/jobber/modules/interviewprep"
 	mcpModule "github.com/andreypavlenko/jobber/modules/mcp"
+	oauthModule "github.com/andreypavlenko/jobber/modules/oauth"
 
 	authHandler "github.com/andreypavlenko/jobber/modules/auth/handler"
 	authRepo "github.com/andreypavlenko/jobber/modules/auth/repository"
@@ -241,8 +242,10 @@ func main() {
 		}
 	}
 	router.Use(sentryPlatform.RecoveryMiddleware(sentryEnabled))
+	router.Use(oauthModule.Privacy())
 	router.Use(httpPlatform.RequestIDMiddleware())
 	router.Use(httpPlatform.LoggerMiddleware(logger))
+	router.Use(oauthModule.PublicCORS())
 	router.Use(httpPlatform.CORSMiddleware(cfg.Server.AllowedOrigins))
 	router.Use(httpPlatform.CanonicalUUIDParams())
 
@@ -474,6 +477,9 @@ func main() {
 		patService.WithActivityRepository(apiTokenRepository))
 	apiTokenHdl := patHandler.NewAPITokenHandler(apiTokenSvc)
 
+	oauthSvc := oauthModule.NewService(oauthModule.NewRepository(pgClient.Pool), subscriptionSvc, cfg.Server.PublicBaseURL, nil)
+	oauthModule.NewHandler(oauthSvc).RegisterRoutes(router, authMiddleware, redisClient.Client, logger.Logger, cfg.Server.AllowedOrigins)
+
 	// Initialize cover letter module
 	coverLetterRepository := cvRepo.NewCoverLetterRepository(pgClient.Pool)
 	coverLetterSvc := cvService.NewCoverLetterService(coverLetterRepository, subscriptionSvc)
@@ -574,7 +580,7 @@ func main() {
 	tailoringHdl := rbHandler.NewTailoringHandler(pdfTailoringSvc)
 	pdfTailoringHdl := rbHandler.NewPDFTailoringHandler(pdfTailoringSvc)
 	mcpAI.Tailoring = pdfTailoringSvc
-	// MCP is a separate PAT-only surface, outside the JWT /api/v1 group.
+	// MCP is a separate PAT/OAuth surface, outside the JWT /api/v1 group.
 	resumeSnapshots := rbService.NewSnapshotService(rbRepo.NewSnapshotRepository(pgClient.Pool))
 	mcpAuditWriter := mcpModule.NewAuditWriter(mcpModule.NewAuditRepository(pgClient.Pool), logger.Logger)
 	mcpAuditWriter.Start(ctx)
@@ -582,7 +588,7 @@ func main() {
 		mcpModule.WithResumeTools(mcpModule.ResumeTools{Builder: resumeBuilderSvc, Uploaded: resumeSvc, Snapshots: resumeSnapshots}),
 		mcpModule.WithAITools(mcpAI),
 		mcpModule.WithAuditWriter(mcpAuditWriter), mcpModule.WithAuditTracing(sentryEnabled))
-	mcpModule.RegisterRoutes(router, mcpServer, apiTokenSvc, subscriptionSvc, redisClient.Client, logger.Logger, cfg.Server.AllowedOrigins)
+	mcpModule.RegisterRoutes(router, mcpServer, mcpModule.NewTokenAuthenticator(apiTokenSvc, oauthSvc), subscriptionSvc, redisClient.Client, logger.Logger, cfg.Server.AllowedOrigins, cfg.Server.PublicBaseURL)
 
 	// Rate limiting for auth endpoints (10 requests per minute per IP)
 	authRateLimiter := httpPlatform.RateLimitMiddleware(redisClient.Client, httpPlatform.RateLimitConfig{

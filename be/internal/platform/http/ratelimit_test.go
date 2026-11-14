@@ -22,6 +22,27 @@ func setupRateLimitTest(t *testing.T) (*miniredis.Miniredis, *redis.Client) {
 	return mr, rdb
 }
 
+func TestAbortRateLimit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, test := range []struct {
+		name     string
+		standard bool
+		body     string
+	}{
+		{"standard", true, `{"error_code":"RATE_LIMIT_EXCEEDED","error_message":"Too many requests, please try again later"}`},
+		{"legacy", false, `{"code":"RATE_LIMIT_EXCEEDED","message":"Too many requests, please try again later"}`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(response)
+			abortRateLimit(ctx, RateLimitConfig{StandardErrorResponse: test.standard})
+			require.Equal(t, http.StatusTooManyRequests, response.Code)
+			require.JSONEq(t, test.body, response.Body.String())
+			require.True(t, ctx.IsAborted())
+		})
+	}
+}
+
 func TestRateLimitMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	logger := zap.NewNop()

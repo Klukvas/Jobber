@@ -49,6 +49,8 @@ func TestMCPAuditMigrationAndActivity(t *testing.T) {
 	require.Nil(t, table)
 	require.NoError(t, migrator.Migrate(57))
 
+	require.NoError(t, migrator.Migrate(58))
+
 	owner, other := seedAuditUser(t, db), seedAuditUser(t, db)
 	tokenID := uuid.NewString()
 	_, err := db.Exec(ctx, `INSERT INTO api_tokens (id, user_id, name, token_prefix, token_hash)

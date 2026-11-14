@@ -76,6 +76,10 @@ func CORSMiddleware(allowedOrigins string) gin.HandlerFunc {
 	origins := parseOrigins(allowedOrigins)
 
 	return func(c *gin.Context) {
+		if c.GetBool("public_cors") {
+			c.Next()
+			return
+		}
 		origin := c.GetHeader("Origin")
 
 		if allowedOrigins == "*" {

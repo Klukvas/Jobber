@@ -12,13 +12,14 @@ const unknownAuditTool = "unknown_tool"
 
 // AuditEntry deliberately has no fields for arguments, output, or error text.
 type AuditEntry struct {
-	ID         string
-	UserID     string
-	APITokenID *string
-	Tool       string
-	OK         bool
-	ErrorCode  *string
-	DurationMS int
+	ID           string
+	UserID       string
+	APITokenID   *string
+	OAuthGrantID *string
+	Tool         string
+	OK           bool
+	ErrorCode    *string
+	DurationMS   int
 }
 
 type AuditRecorder interface {
@@ -66,6 +67,9 @@ func (t *tools) auditMiddleware(next sdk.MethodHandler) sdk.MethodHandler {
 			}
 			if tokenID, ok := call.Extra.TokenInfo.Extra["api_token_id"].(string); ok && tokenID != "" {
 				entry.APITokenID = &tokenID
+			}
+			if grantID, ok := call.Extra.TokenInfo.Extra["oauth_grant_id"].(string); ok && grantID != "" {
+				entry.OAuthGrantID = &grantID
 			}
 			if outcome.code != "" {
 				code := outcome.code

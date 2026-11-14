@@ -166,12 +166,21 @@ emergency. CI never writes the server's `Caddyfile`, so a change goes out by han
 ### 🤖 Connect an AI assistant (MCP)
 
 Pro and Enterprise users can let Claude Code, Cursor or another MCP client work
-with their jobs, resumes and cover letters. Create a personal token in
-Settings → "AI assistants (MCP)", then for Claude Code:
+with their jobs, resumes and cover letters. Clients that support MCP OAuth (claude.ai
+connectors, Claude Code) need only the URL and open a consent page on first use:
+
+```bash
+claude mcp add --transport http cursopus https://cursopus.com/api/mcp
+```
+
+Clients without OAuth use a personal token from Settings → "AI assistants (MCP)":
 
 ```bash
 claude mcp add --transport http cursopus https://cursopus.com/api/mcp --header "Authorization: Bearer <TOKEN>"
 ```
+
+Connected OAuth apps are listed in the same Settings section and can be
+disconnected there.
 
 Tools, limits, credit charging and the audit log are described in
 [SYSTEM_SPECIFICATION.md](./SYSTEM_SPECIFICATION.md#ai-assistant-connection-over-mcp-november-13-2026).
