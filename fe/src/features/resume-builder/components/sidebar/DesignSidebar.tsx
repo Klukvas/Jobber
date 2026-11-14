@@ -87,7 +87,7 @@ export function DesignSidebar({ layout = "vertical" }: DesignSidebarProps) {
               className={cn(
                 "flex flex-col items-center gap-2 rounded-lg border p-4 transition-colors",
                 activePopover === key
-                  ? "border-primary bg-primary/10 text-primary"
+                  ? "border-primary bg-primary/10 text-primary-ink"
                   : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
@@ -142,7 +142,7 @@ export function DesignSidebar({ layout = "vertical" }: DesignSidebarProps) {
               className={cn(
                 "flex h-10 w-10 items-center justify-center rounded-lg transition-colors",
                 activePopover === key
-                  ? "bg-primary/10 text-primary"
+                  ? "bg-primary/10 text-primary-ink"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
               aria-label={t(tooltipKey)}

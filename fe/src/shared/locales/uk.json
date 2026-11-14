@@ -30,6 +30,7 @@
     "removeFromFavorites": "Прибрати з обраного",
     "changeLanguage": "Змінити мову",
     "openMenu": "Відкрити меню",
+    "navigation": "Навігація",
     "collapseSidebar": "Згорнути бічну панель",
     "expandSidebar": "Розгорнути бічну панель",
     "closeSidebar": "Закрити бічну панель",
@@ -37,7 +38,12 @@
     "accessDenied": "Доступ заборонено",
     "serverError": "Помилка сервера",
     "duplicate": "Дублювати",
-    "optional": "необов’язково"
+    "optional": "необов’язково",
+    "contentLanguageOnly": "Ця сторінка доступна лише в оригіналі ({{language}}).",
+    "sortedAscending": "за зростанням",
+    "sortedDescending": "за спаданням",
+    "viewMode": "Вигляд",
+    "filterBy": "Фільтр"
   },
   "auth": {
     "login": "Увійти",
@@ -254,6 +260,7 @@
     "quickAddCompanySuccess": "Компанію створено",
     "quickAddCompanyError": "Не вдалося створити компанію",
     "sourcePlaceholder": "напр., LinkedIn, Indeed, сайт компанії",
+    "openUrl": "Відкрити вакансію",
     "description": "Опис",
     "descriptionPlaceholder": "Опис вакансії з ключовими вимогами, обов'язками, технологіями...",
     "extensionBanner": "Зберігайте вакансії з будь-якого сайту одним кліком за допомогою нашого розширення Chrome",
@@ -938,7 +945,9 @@
     "notFoundDescription": "Публікація, яку ви шукаєте, не існує.",
     "tags": "Теги",
     "publishedOn": "Опубліковано",
-    "noPosts": "Публікацій поки немає. Повертайтесь незабаром!"
+    "noPosts": "Публікацій поки немає. Повертайтесь незабаром!",
+    "readTranslation": "Читати українську версію",
+    "browseInYourLanguage": "Статті українською"
   },
   "errors": {
     "required": "Це поле є обов'язковим",
@@ -952,7 +961,8 @@
     "unauthorized": "Неавторизований",
     "forbidden": "Заборонено",
     "passwordTooLong": "Пароль має бути не довшим за 72 байти (приблизно 72 латинські літери, менше для інших абеток)",
-    "planLimitReached": "Ви досягли ліміту вашого поточного плану."
+    "planLimitReached": "Ви досягли ліміту вашого поточного плану.",
+    "invalidUrl": "Введіть повне посилання, що починається з http:// або https://"
   },
   "notFound": {
     "title": "Сторінку не знайдено",
@@ -1154,6 +1164,25 @@
       "resourcesTitle": "Ресурси",
       "github": "GitHub",
       "status": "Статус"
+    },
+    "showcase": {
+      "board": "cursopus — дошка",
+      "applied": "Відгук",
+      "interview": "Інтерв'ю",
+      "offer": "Офер",
+      "offerBadge": "🎉 Офер",
+      "match": "{{score}}% збіг",
+      "remote": "Віддалено",
+      "hybrid": "Гібрид",
+      "tomorrowAt": "Завтра {{time}}",
+      "tomorrowAtComma": "Завтра, {{time}}",
+      "matchScore": "AI-оцінка збігу",
+      "skills": "Навички",
+      "experience": "Досвід",
+      "pipeline": "Воронка · 30 днів",
+      "responseRate": "Частка відповідей",
+      "reminder": "Нагадування",
+      "reminderTitle": "Linear — інтерв'ю"
     }
   },
   "onboarding": {

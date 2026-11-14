@@ -32,7 +32,7 @@ export function BlogPostCard({ post }: BlogPostCardProps) {
     <article className="group relative overflow-hidden rounded-xl border bg-card transition-all hover:shadow-lg hover:border-primary/30">
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary/60 to-primary/20 opacity-0 transition-opacity group-hover:opacity-100" />
       <div className="p-6">
-        <h2 className="text-xl font-semibold tracking-tight group-hover:text-primary transition-colors">
+        <h2 className="text-xl font-semibold tracking-tight group-hover:text-primary-ink transition-colors">
           <Link
             to={`/blog/${post.slug}`}
             // `after:` is what makes the card clickable: an absolutely
@@ -65,7 +65,7 @@ export function BlogPostCard({ post }: BlogPostCardProps) {
               </div>
             )}
           </div>
-          <span className="flex items-center gap-1 text-sm font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="flex items-center gap-1 text-sm font-medium text-primary-ink opacity-0 transition-opacity group-hover:opacity-100">
             {t("blog.readMore")}
             <ArrowRight className="h-3.5 w-3.5" />
           </span>

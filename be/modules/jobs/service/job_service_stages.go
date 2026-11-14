@@ -305,16 +305,18 @@ func (s *JobService) DeleteStage(ctx context.Context, userID, jobID, stageID str
 	}
 
 	// If this is the current stage, repoint the job first (the FK forbids
-	// deleting a row the job still points at).
+	// deleting a row the job still points at). The column moves with it: the
+	// card's stage name comes from current_stage_template_id, and leaving it
+	// behind kept the card on the deleted stage while its timeline had moved
+	// on. With no row left to fall back to the card keeps its column — the
+	// column is NOT NULL, as a new card also sits in one with no history.
 	if state.CurrentStageID != nil && *state.CurrentStageID == stageID {
 		replacement, err := s.replacementStage(ctx, tx, jobID, stageID)
 		if err != nil {
 			return err
 		}
-		// current_stage_template_id (the column the card is shown in) must follow
-		// current_stage_id, otherwise the header keeps showing the deleted stage.
 		if _, err := tx.Exec(ctx,
-			`UPDATE jobs SET current_stage_id = $2, current_stage_template_id = $3, updated_at = $4 WHERE id = $1`,
+			`UPDATE jobs SET current_stage_id = $2, current_stage_template_id = COALESCE($3, current_stage_template_id), updated_at = $4 WHERE id = $1`,
 			jobID, replacement.id, replacement.templateID, time.Now().UTC(),
 		); err != nil {
 			return fmt.Errorf("failed to update job current stage: %w", err)
@@ -365,6 +367,13 @@ func (s *JobService) replacementStage(ctx context.Context, tx pgx.Tx, jobID, del
 		return replacementStage{}, fmt.Errorf("failed to find replacement stage: %w", err)
 	}
 	return r, nil
+}
+
+// stagePointer is what a job points at for its current stage: the history row
+// and that row's template. Both nil means no history row is left.
+type stagePointer struct {
+	id         *string
+	templateID *string
 }
 
 // readStage loads one history row of a job inside the transaction.

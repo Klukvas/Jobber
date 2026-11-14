@@ -44,6 +44,12 @@ import {
   type EditableFields,
 } from "@/features/jobs/hooks/useJobDetailMutations";
 import type { MatchScoreResponse } from "@/shared/types/api";
+import { isSaveableJobUrl } from "@/features/jobs/lib/jobUrl";
+
+/** The detail form saves without a <form>, so it checks what type="url" would. */
+function canSaveFields(fields: EditableFields): boolean {
+  return fields.title.trim() !== "" && isSaveableJobUrl(fields.url);
+}
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -165,7 +171,12 @@ function JobDetailContent() {
   });
 
   const handleSave = () => {
-    if (!editableFields || !editableFields.title.trim() || updateMutation.isPending) return;
+    if (
+      !editableFields ||
+      !canSaveFields(editableFields) ||
+      updateMutation.isPending
+    )
+      return;
     updateMutation.mutate(editableFields);
   };
 
@@ -217,7 +228,7 @@ function JobDetailContent() {
       <JobDetailHeader
         job={job}
         isDirty={isDirty}
-        canSave={!!editableFields.title.trim()}
+        canSave={canSaveFields(editableFields)}
         isSaving={updateMutation.isPending}
         onBack={() => navigate(backToList)}
         onSave={handleSave}
@@ -335,7 +346,7 @@ function JobDetailContent() {
 
       {/* Timeline */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardHeader className="flex flex-col items-start gap-3 space-y-0 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>{t("jobs.timeline")}</CardTitle>
           <Button size="sm" onClick={() => setIsAddStageModalOpen(true)}>
             <Plus className="h-4 w-4" />

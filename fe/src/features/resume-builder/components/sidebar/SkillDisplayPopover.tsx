@@ -283,7 +283,7 @@ export function SkillDisplayPopover({
                 <span
                   className={cn(
                     "text-xs font-medium",
-                    isActive ? "text-primary" : "text-foreground",
+                    isActive ? "text-primary-ink" : "text-foreground",
                   )}
                 >
                   {t(`resumeBuilder.skillDisplay.${labelKey}`)}

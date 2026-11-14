@@ -145,7 +145,7 @@ function ModalContent({
           </DialogTitle>
         </DialogHeader>
         <div className="flex flex-col items-center gap-4 py-4 text-center">
-          <Mail className="h-12 w-12 text-primary" />
+          <Mail className="h-12 w-12 text-primary-ink" />
           <p className="text-muted-foreground">
             {t("auth.verificationCodeSent", { email: registeredEmail })}
           </p>
@@ -221,7 +221,7 @@ function ModalContent({
           <button
             type="button"
             onClick={onSwitchToLogin}
-            className="text-sm font-medium text-primary hover:underline"
+            className="inline-flex items-center max-sm:min-h-11 text-sm font-medium text-primary-ink hover:underline"
           >
             {t("auth.backToLogin")}
           </button>
@@ -241,7 +241,7 @@ function ModalContent({
         </DialogTitle>
         <DialogDescription>{t("auth.registerDescription")}</DialogDescription>
       </DialogHeader>
-      <form onSubmit={handleSubmit(onSubmit)} className="mt-4">
+      <form noValidate onSubmit={handleSubmit(onSubmit)} className="mt-4">
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="register-email">{t("auth.email")}</Label>
@@ -335,7 +335,7 @@ function ModalContent({
             <button
               type="button"
               onClick={onSwitchToLogin}
-              className="font-medium text-primary hover:underline"
+              className="inline-flex items-center justify-center max-sm:min-h-11 max-sm:min-w-11 max-sm:px-1 font-medium text-primary-ink hover:underline"
             >
               {t("auth.login")}
             </button>

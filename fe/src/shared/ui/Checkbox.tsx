@@ -7,6 +7,7 @@ export interface CheckboxProps {
   onCheckedChange?: (checked: boolean) => void;
   disabled?: boolean;
   className?: string;
+  "aria-labelledby"?: string;
 }
 
 const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -23,6 +23,7 @@ import {
 import { AUTH_DIALOG_TITLE_IDS } from "@/features/auth/modals/authDialogTitleIds";
 import { authErrorMessageKey } from "@/features/auth/authErrorMessage";
 import { ApiError } from "@/services/api";
+import { readReturnTo } from "@/shared/lib/loginReturn";
 import { Loader2, Mail } from "lucide-react";
 
 interface LoginModalProps {
@@ -39,6 +40,7 @@ function ModalContent({
 }: Omit<LoginModalProps, "open">) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const setAuth = useAuthStore((state) => state.setAuth);
   const [emailNotVerified, setEmailNotVerified] = useState(false);
   const [code, setCode] = useState("");
@@ -59,7 +61,7 @@ function ModalContent({
     onSuccess: (data) => {
       setAuth(data.user);
       onOpenChange(false);
-      navigate("/app");
+      navigate(readReturnTo(location.search) ?? "/app");
     },
     onError: (error: ApiError) => {
       if (error.code === "EMAIL_NOT_VERIFIED") {
@@ -203,7 +205,7 @@ function ModalContent({
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="mt-4">
+      <form noValidate onSubmit={handleSubmit(onSubmit)} className="mt-4">
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="login-email">{t("auth.email")}</Label>
@@ -235,7 +237,7 @@ function ModalContent({
                 <button
                   type="button"
                   onClick={onForgotPassword}
-                  className="text-xs font-medium text-primary hover:underline"
+                  className="inline-flex items-center max-sm:min-h-11 text-xs font-medium text-primary-ink hover:underline"
                 >
                   {t("auth.forgotPassword")}
                 </button>
@@ -281,7 +283,7 @@ function ModalContent({
             <button
               type="button"
               onClick={onSwitchToRegister}
-              className="font-medium text-primary hover:underline"
+              className="inline-flex items-center max-sm:min-h-11 font-medium text-primary-ink hover:underline"
             >
               {t("auth.register")}
             </button>

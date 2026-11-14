@@ -35,6 +35,7 @@ import {
 } from "@/features/cover-letter/components/CoverLetterPreview";
 import { CoverLetterSaveIndicator } from "@/features/cover-letter/components/CoverLetterSaveIndicator";
 import { CoverLetterAIPanel } from "@/features/cover-letter/components/CoverLetterAIPanel";
+import { useCoverLetterAIPanelState } from "@/features/cover-letter/hooks/useCoverLetterAIPanelState";
 import { CoverLetterTemplateThumbnail } from "@/features/cover-letter/components/CoverLetterTemplateThumbnail";
 import {
   CoverLetterTemplatePickerModal,
@@ -43,6 +44,7 @@ import {
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
 import { cn } from "@/shared/lib/utils";
+import { FIELD_LIMITS } from "@/shared/lib/fieldLimits";
 import {
   showSuccessNotification,
   showErrorNotification,
@@ -132,6 +134,9 @@ export default function CoverLetterEditorPage() {
   useTopmostEscape(showColorDropdown, colorDropdownRef, closeColorDropdown);
 
   const isDesktop = useMediaQuery("(min-width: 1024px)");
+  // Shared by the desktop column and the mobile sheet below, so crossing the
+  // breakpoint moves the panel without discarding an unapplied AI draft.
+  const aiPanelState = useCoverLetterAIPanelState(coverLetter?.id);
 
   usePageMeta({ titleKey: "coverLetter.editor", noindex: true });
   const { flush } = useAutoSaveCoverLetter();
@@ -324,6 +329,9 @@ export default function CoverLetterEditorPage() {
           <Input
             value={coverLetter.title}
             onChange={(e) => updateField("title", e.target.value)}
+            // The API rejects a longer title, and autosave then failed with
+            // nothing but "Save failed".
+            maxLength={FIELD_LIMITS.title}
             className="h-8 w-48 border-transparent bg-transparent text-lg font-semibold hover:border-input focus:border-input sm:w-64"
           />
         </div>
@@ -405,7 +413,7 @@ export default function CoverLetterEditorPage() {
               className={cn(
                 "border px-2.5 py-1 text-xs font-medium transition-colors first:rounded-l-md last:rounded-r-md",
                 (coverLetter.font_size ?? 12) === size.value
-                  ? "border-primary bg-primary/10 text-primary"
+                  ? "border-primary bg-primary/10 text-primary-ink"
                   : "border-input hover:bg-accent",
               )}
             >
@@ -569,7 +577,7 @@ export default function CoverLetterEditorPage() {
               </Button>
             </div>
             <div className="p-4">
-              <CoverLetterAIPanel key={coverLetter.id} />
+              <CoverLetterAIPanel key={coverLetter.id} state={aiPanelState} />
             </div>
           </div>
         )}
@@ -596,7 +604,7 @@ export default function CoverLetterEditorPage() {
           }}
           title={t("coverLetter.ai.title")}
         >
-          <CoverLetterAIPanel key={coverLetter.id} />
+          <CoverLetterAIPanel key={coverLetter.id} state={aiPanelState} />
         </Sheet>
       )}
     </div>

@@ -86,19 +86,19 @@ export default function FeatureCoverLetters() {
           <div className="mx-auto max-w-3xl px-4">
             <div className="grid grid-cols-1 divide-y text-center sm:grid-cols-3 sm:divide-x sm:divide-y-0">
               <div className="min-w-0 px-3 py-4 sm:px-6 sm:py-0">
-                <div className="break-words text-2xl font-bold text-primary sm:text-3xl">AI</div>
+                <div className="break-words text-2xl font-bold text-primary-ink sm:text-3xl">AI</div>
                 <div className="mt-1 text-sm text-muted-foreground">
                   {t(`${NS}.stats.generated`)}
                 </div>
               </div>
               <div className="min-w-0 px-3 py-4 sm:px-6 sm:py-0">
-                <div className="break-words text-2xl font-bold text-primary sm:text-3xl">{t(`${NS}.stats.editorValue`)}</div>
+                <div className="break-words text-2xl font-bold text-primary-ink sm:text-3xl">{t(`${NS}.stats.editorValue`)}</div>
                 <div className="mt-1 text-sm text-muted-foreground">
                   {t(`${NS}.stats.timeToWrite`)}
                 </div>
               </div>
               <div className="min-w-0 px-3 py-4 sm:px-6 sm:py-0">
-                <div className="break-words text-2xl font-bold text-primary sm:text-3xl">2</div>
+                <div className="break-words text-2xl font-bold text-primary-ink sm:text-3xl">2</div>
                 <div className="mt-1 text-sm text-muted-foreground">
                   {t(`${NS}.stats.formats`)}
                 </div>
@@ -112,7 +112,7 @@ export default function FeatureCoverLetters() {
           <div className="mx-auto max-w-6xl px-4">
             <div className="grid items-center gap-16 lg:grid-cols-2">
               <div>
-                <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-primary">
+                <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-primary-ink">
                   {t(`${NS}.feature1.label`)}
                 </p>
                 <h2 className="mb-4 text-3xl font-bold leading-tight">
@@ -124,7 +124,7 @@ export default function FeatureCoverLetters() {
                 <ul className="space-y-3">
                   {FEATURE1_POINTS.map((p) => (
                     <li key={p} className="flex items-start gap-3">
-                      <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                      <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary-ink" />
                       <span className="text-sm text-muted-foreground">
                         {t(`${NS}.feature1.${p}`)}
                       </span>
@@ -136,7 +136,7 @@ export default function FeatureCoverLetters() {
               <div className="rounded-xl border bg-card p-6 shadow-lg">
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-bold">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 text-primary-ink flex items-center justify-center text-sm font-bold">
                       AI
                     </div>
                     <div>
@@ -165,7 +165,7 @@ export default function FeatureCoverLetters() {
                   <div className="h-2.5 w-2/3 rounded bg-muted" />
                 </div>
                 <div className="mt-4 flex gap-2">
-                  <div className="rounded bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
+                  <div className="rounded bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary-ink">
                     {t(`${NS}.mockLetter.editBtn`)}
                   </div>
                   <div className="rounded bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground">
@@ -190,7 +190,7 @@ export default function FeatureCoverLetters() {
                 alt="Cover letters library"
               />
               <div>
-                <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-primary">
+                <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-primary-ink">
                   {t(`${NS}.feature2.label`)}
                 </p>
                 <h2 className="mb-4 text-3xl font-bold leading-tight">
@@ -202,7 +202,7 @@ export default function FeatureCoverLetters() {
                 <ul className="space-y-3">
                   {FEATURE2_POINTS.map((p) => (
                     <li key={p} className="flex items-start gap-3">
-                      <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                      <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary-ink" />
                       <span className="text-sm text-muted-foreground">
                         {t(`${NS}.feature2.${p}`)}
                       </span>

@@ -918,7 +918,7 @@ func TestJobService_DeleteStage(t *testing.T) {
 			q.WillReturnError(pgx.ErrNoRows)
 			return
 		}
-		// Handed back as a *string: the column is nullable, so that is what the
+		// Handed back as *string: the columns are nullable, so that is what the
 		// service scans into.
 		q.WillReturnRows(pgxmock.NewRows([]string{"id", "stage_template_id"}).AddRow(replacement, &replacementTmplID))
 	}
@@ -954,7 +954,7 @@ func TestJobService_DeleteStage(t *testing.T) {
 		expLockedJob(mock, nil, &stageID, nil)
 		expReadStage(mock, stageID, stagesTmplID, "active", 1)
 		expReplacement(mock, &replacement)
-		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, current_stage_template_id = \$3, updated_at = \$4 WHERE id = \$1`).WithArgs(
+		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, current_stage_template_id = COALESCE\(\$3, current_stage_template_id\), updated_at = \$4 WHERE id = \$1`).WithArgs(
 			stagesJobID, strPtrArg(replacement), strPtrArg(replacementTmplID), pgxmock.AnyArg(),
 		).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 		expDelete(mock)
@@ -967,13 +967,13 @@ func TestJobService_DeleteStage(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("sets current_stage_id and current_stage_template_id to NULL when no replacement remains", func(t *testing.T) {
+	t.Run("clears the stage pointer and keeps the column when no history row remains", func(t *testing.T) {
 		mock := newPool(t)
 		mock.ExpectBegin()
 		expLockedJob(mock, nil, &stageID, nil)
 		expReadStage(mock, stageID, stagesTmplID, "active", 0)
 		expReplacement(mock, nil)
-		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, current_stage_template_id = \$3, updated_at = \$4 WHERE id = \$1`).WithArgs(
+		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, current_stage_template_id = COALESCE\(\$3, current_stage_template_id\), updated_at = \$4 WHERE id = \$1`).WithArgs(
 			stagesJobID, nilStrPtrArg(), nilStrPtrArg(), pgxmock.AnyArg(),
 		).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 		expDelete(mock)
@@ -1074,7 +1074,7 @@ func TestJobService_DeleteStage(t *testing.T) {
 		expLockedJob(mock, nil, &stageID, nil)
 		expReadStage(mock, stageID, stagesTmplID, "active", 0)
 		expReplacement(mock, &replacement)
-		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, current_stage_template_id = \$3, updated_at = \$4 WHERE id = \$1`).WithArgs(
+		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, current_stage_template_id = COALESCE\(\$3, current_stage_template_id\), updated_at = \$4 WHERE id = \$1`).WithArgs(
 			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 		).WillReturnError(errors.New("update boom"))
 

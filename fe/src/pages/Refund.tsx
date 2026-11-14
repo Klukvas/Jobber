@@ -4,26 +4,31 @@ import { ArrowLeft } from "lucide-react";
 import { LogoMark } from "@/shared/ui/Logo";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "@/shared/lib/supportContact";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
+import { ContentLanguageNotice } from "@/shared/ui/ContentLanguageNotice";
 
 export default function Refund() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   usePageMeta({ title: "Refund Policy — Cursopus" });
 
+  // Legal text is published in English only; lang tells assistive technology
+  // and translators which language the body is in.
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 text-foreground">
-      <nav className="mb-8 flex items-center justify-between">
+    <div lang="en" className="mx-auto max-w-3xl px-4 py-12 text-foreground">
+      {/* The page is lang="en", but this row is in the interface language. */}
+      <nav lang={i18n.language} className="mb-8 flex items-center justify-between">
         <Link
           to="/"
-          className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground max-sm:min-h-11"
         >
           <ArrowLeft className="h-4 w-4" />
           {t("common.backToHome")}
         </Link>
-        <Link to="/" className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-2 max-sm:min-h-11">
           <LogoMark className="h-6 w-6" />
           <span className="font-bold">Cursopus</span>
         </Link>
       </nav>
+      <ContentLanguageNotice contentLanguage="en" />
       <h1 className="mb-8 text-3xl font-bold">Refund Policy</h1>
       <p className="mb-4 text-sm text-muted-foreground">
         Last updated: October 30, 2026
@@ -37,7 +42,7 @@ export default function Refund() {
             href="https://www.creem.io"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-primary underline"
+            className="text-primary-ink underline"
           >
             Creem
           </a>
@@ -67,7 +72,7 @@ export default function Refund() {
             Email us at{" "}
             <a
               href={SUPPORT_MAILTO}
-              className="text-primary underline"
+              className="text-primary-ink underline"
             >
               {SUPPORT_EMAIL}
             </a>{" "}
@@ -134,7 +139,7 @@ export default function Refund() {
           For any billing questions or refund requests, contact us at{" "}
           <a
             href={SUPPORT_MAILTO}
-            className="text-primary underline"
+            className="text-primary-ink underline"
           >
             {SUPPORT_EMAIL}
           </a>

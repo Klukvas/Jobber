@@ -9,6 +9,8 @@ import { useTranslation } from "react-i18next";
 import { ArrowLeft, Loader2, Palette, X } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { Sheet } from "@/shared/ui/Sheet";
+import { MovablePanel, MovablePanelOutlet } from "@/shared/ui/MovablePanel";
+import { useMovablePanelNode } from "@/shared/hooks/useMovablePanelNode";
 import { useStore } from "zustand";
 import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
 import { useAutoSave } from "@/features/resume-builder/hooks/useAutoSave";
@@ -54,6 +56,10 @@ export default function ResumeBuilderEditorPage() {
 
   const isDesktop = useMediaQuery("(min-width: 1024px)");
   const isTablet = useMediaQuery("(min-width: 768px)");
+  // The side panel shows as a column on desktop and as a sheet below it. It is
+  // rendered once and only moved between the two, so an AI or ATS result
+  // survives the viewport crossing the breakpoint.
+  const sidePanelNode = useMovablePanelNode();
 
   const isDirty = useResumeBuilderStore((s) => s.isDirty);
 
@@ -208,6 +214,7 @@ export default function ResumeBuilderEditorPage() {
 
   return (
     <div className="flex h-[calc(100vh-8rem)] min-w-0 flex-col">
+      <MovablePanel node={sidePanelNode}>{activePanelContent}</MovablePanel>
       {recognitionJob && recognitionId && <div className="shrink-0 space-y-2 border-b bg-muted/30 p-3 text-sm">
         <p className="font-medium">{t("jobs.tailoring.pdf.reviewTitle")}</p>
         <p>{t("jobs.tailoring.pdf.reviewHint")}</p>
@@ -244,7 +251,7 @@ export default function ResumeBuilderEditorPage() {
               <Button
                 variant={mobileDesignOpen ? "default" : "outline"}
                 size="sm"
-                className="shrink-0"
+                className="shrink-0 max-sm:min-w-11"
                 onClick={() => setMobileDesignOpen(true)}
                 aria-label={t("resumeBuilder.sections.design")}
                 aria-pressed={mobileDesignOpen}
@@ -304,7 +311,7 @@ export default function ResumeBuilderEditorPage() {
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <div className="p-4">{activePanelContent}</div>
+            <MovablePanelOutlet node={sidePanelNode} className="p-4" />
           </div>
         )}
       </div>
@@ -318,7 +325,7 @@ export default function ResumeBuilderEditorPage() {
           }}
           title={panelTitle}
         >
-          {activePanelContent}
+          <MovablePanelOutlet node={sidePanelNode} />
         </Sheet>
       )}
 

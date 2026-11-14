@@ -166,6 +166,10 @@ vi.mock("@/features/cover-letter/components/CoverLetterSaveIndicator", () => ({
   ),
 }));
 
+vi.mock("@/features/cover-letter/hooks/useCoverLetterAIPanelState", () => ({
+  useCoverLetterAIPanelState: () => ({}),
+}));
+
 vi.mock("@/features/cover-letter/components/CoverLetterAIPanel", () => ({
   CoverLetterAIPanel: () => <div data-testid="cover-letter-ai-panel" />,
 }));

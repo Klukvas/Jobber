@@ -1,10 +1,17 @@
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "@/shared/lib/supportContact";
 import { useCallback, useEffect, useState } from "react";
-import { Outlet, Navigate, useSearchParams, Link } from "react-router-dom";
+import {
+  Outlet,
+  Navigate,
+  useSearchParams,
+  Link,
+  useLocation,
+} from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
 import { Sidebar } from "@/widgets/Sidebar";
+import { useIsSidebarDrawerOpen } from "@/widgets/sidebarDrawer";
 import { Header } from "@/widgets/Header";
 import { useOnboarding } from "@/features/onboarding/useOnboarding";
 import { WelcomeWizard } from "@/features/onboarding/WelcomeWizard";
@@ -18,6 +25,7 @@ import {
 } from "@/features/subscription/checkoutSignals";
 import { trackConversion } from "@/shared/lib/analytics";
 import { resetConsent } from "@/shared/lib/consent";
+import { loginPathFor } from "@/shared/lib/loginReturn";
 import { PoweredByFluxLab } from "@/shared/ui/PoweredByFluxLab";
 import { TAP_TARGET_INLINE } from "@/shared/ui/tapTarget";
 import type { SubscriptionPlan } from "@/shared/types/api";
@@ -57,6 +65,8 @@ const FOOTER_LINK = `${TAP_TARGET_INLINE} transition-colors hover:text-foregroun
 export function AppLayout() {
   const { t } = useTranslation();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const location = useLocation();
+  const isDrawerOpen = useIsSidebarDrawerOpen();
   const { shouldShow, complete, dismissForSession } = useOnboarding();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -194,13 +204,18 @@ export function AppLayout() {
   }, [searchParams, setSearchParams]);
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return (
+      <Navigate
+        to={loginPathFor(location.pathname + location.search)}
+        replace
+      />
+    );
   }
 
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col" inert={isDrawerOpen}>
         <Header />
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <Outlet />

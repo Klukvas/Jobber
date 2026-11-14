@@ -106,11 +106,11 @@ export function FunnelVisualization({
                     </span>
                     {index > 0 && (
                       <>
-                        <span className="text-green-600">
+                        <span className="text-green-700 dark:text-green-400">
                           {stage.conversion_rate}%{" "}
                           {t("analytics.funnel.converted")}
                         </span>
-                        <span className="text-red-500">
+                        <span className="text-red-600 dark:text-red-400">
                           {stage.drop_off_rate}% {t("analytics.funnel.dropOff")}
                         </span>
                       </>

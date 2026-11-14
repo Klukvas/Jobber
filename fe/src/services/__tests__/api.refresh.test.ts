@@ -37,7 +37,11 @@ describe("apiClient 401 refresh-and-retry", () => {
     originalFetch = globalThis.fetch;
     originalLocation = window.location;
     Object.defineProperty(window, "location", {
-      value: { href: "http://app.test/app/jobs", pathname: "/app/jobs" },
+      value: {
+        href: "http://app.test/app/jobs?view=board",
+        pathname: "/app/jobs",
+        search: "?view=board",
+      },
       writable: true,
       configurable: true,
     });
@@ -221,16 +225,19 @@ describe("apiClient 401 refresh-and-retry", () => {
 
     expect(protectedCalls).toBe(1);
     expect(clearAuth).toHaveBeenCalledTimes(1);
-    expect(window.location.href).toBe("/login");
+    // A login form that returns to the page, not the bare landing page.
+    expect(window.location.href).toBe("/login?next=%2Fapp%2Fjobs%3Fview%3Dboard");
   });
 
-  it("does not redirect when the failed refresh happens on a public route", async () => {
+  it("stays put when the session ends on a public page", async () => {
     window.location.pathname = "/login";
+    window.location.search = "";
     window.location.href = "http://app.test/login";
-    installFetch((request) => {
-      if (request.url.endsWith("/auth/refresh")) return jsonResponse({}, 400);
-      return jsonResponse({ error_code: "UNAUTHORIZED" }, 401);
-    });
+    installFetch((request) =>
+      request.url.endsWith("/auth/refresh")
+        ? jsonResponse({}, 401)
+        : jsonResponse({ error_code: "UNAUTHORIZED" }, 401),
+    );
 
     await expect(api.apiClient.get("subscription")).rejects.toBeInstanceOf(
       api.ApiError,

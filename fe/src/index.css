@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  /* Breaks a word only when it cannot fit on its own line. Unlike
+     break-words it also shrinks the element's min-content width, so one
+     unbroken title cannot stretch a grid track or flex row off the screen.
+     For user-entered text only: on a fixed label that shares a flex row
+     with a button, the row squeezes the label and splits ordinary words. */
+  .wrap-anywhere {
+    overflow-wrap: anywhere;
+  }
+}
+
 @layer base {
   :root {
     /* The landing page's own background, named once so the wrapper below and
@@ -16,6 +27,9 @@
     --popover-foreground: 220 35% 7%;
     --primary: 83 78% 44%;
     --primary-foreground: 220 35% 7%;
+    /* Lime as text. --primary is a fill colour: as type on the light
+       background it measured 2:1, so text uses this darker step (5.2:1). */
+    --primary-ink: 83 78% 26%;
     --secondary: 220 14% 94%;
     --secondary-foreground: 220 35% 7%;
     --muted: 220 14% 94%;
@@ -39,14 +53,18 @@
     --popover-foreground: 210 40% 96%;
     --primary: 83 78% 55%;
     --primary-foreground: 220 35% 7%;
+    --primary-ink: 83 78% 55%;
     --secondary: 222 30% 16%;
     --secondary-foreground: 210 40% 96%;
     --muted: 222 30% 16%;
     --muted-foreground: 215 20% 65%;
     --accent: 222 30% 16%;
     --accent-foreground: 210 40% 96%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    /* The old 30% red read at 1.9:1 as error text on this background. At 62%
+       it is 5.3:1 as text, and the destructive button switches to dark type
+       (5.3:1) because white on a red this light would not pass. */
+    --destructive: 0 84% 62%;
+    --destructive-foreground: 220 35% 7%;
     --border: 220 15% 15%;
     --input: 222 30% 16%;
     --ring: 83 78% 55%;
@@ -101,6 +119,7 @@
   --popover-foreground: 210 40% 96%;
   --primary: 83 78% 55%;
   --primary-foreground: 220 35% 7%;
+  --primary-ink: 83 78% 55%;
   --secondary: 222 30% 16%;
   --secondary-foreground: 210 40% 96%;
   --muted: 222 30% 16%;
@@ -110,8 +129,8 @@
   --border: 220 15% 15%;
   --input: 222 30% 16%;
   --ring: 83 78% 55%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
+  --destructive: 0 84% 62%;
+  --destructive-foreground: 220 35% 7%;
 
   color-scheme: dark;
   font-family: 'DM Sans', system-ui, sans-serif;

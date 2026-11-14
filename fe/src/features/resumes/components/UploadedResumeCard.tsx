@@ -57,7 +57,7 @@ export function UploadedResumeCard({
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-lg font-bold leading-tight flex-1">
+          <CardTitle className="text-lg font-bold leading-tight min-w-0 flex-1 wrap-anywhere">
             {resume.title}
           </CardTitle>
           {/* Context Menu */}
@@ -68,7 +68,7 @@ export function UploadedResumeCard({
                 e.preventDefault();
                 onToggleMenu();
               }}
-              className="p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground"
+              className="flex shrink-0 items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent max-sm:h-11 max-sm:w-11"
               aria-label={t("resumes.actionsMenu")}
               aria-haspopup="menu"
               aria-expanded={isMenuOpen}
@@ -90,7 +90,7 @@ export function UploadedResumeCard({
                     e.stopPropagation();
                     onEdit(resume);
                   }}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left max-sm:min-h-11"
                 >
                   <Edit className="h-4 w-4" />
                   {t("common.edit")}
@@ -102,7 +102,7 @@ export function UploadedResumeCard({
                     e.stopPropagation();
                     onDelete(resume);
                   }}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left hover:bg-accent text-destructive"
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left max-sm:min-h-11 hover:bg-accent text-destructive"
                 >
                   <Trash2 className="h-4 w-4" />
                   {t("common.delete")}

@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
 import { SectionOrderPanel } from "../SectionOrderPanel";
@@ -18,6 +19,7 @@ export function LayoutPopover({
   const { t } = useTranslation();
   const resume = useResumeBuilderStore((s) => s.resume);
   const updateDesign = useResumeBuilderStore((s) => s.updateDesign);
+  const titleId = useId();
 
   return (
     <SidebarPopover
@@ -29,10 +31,14 @@ export function LayoutPopover({
       <div className="space-y-5">
         {/* Resume Title */}
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">
+          <label
+            htmlFor={titleId}
+            className="text-xs font-medium text-muted-foreground"
+          >
             {t("resumeBuilder.design.title")}
           </label>
           <input
+            id={titleId}
             value={resume?.title ?? ""}
             onChange={(e) => updateDesign({ title: e.target.value })}
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -44,9 +50,9 @@ export function LayoutPopover({
 
         {/* Margins */}
         <div className="space-y-2">
-          <label className="text-xs font-medium text-muted-foreground">
+          <p className="text-xs font-medium text-muted-foreground">
             {t("resumeBuilder.design.margins")}
-          </label>
+          </p>
           <div className="grid grid-cols-2 gap-2">
             {(
               [
@@ -56,8 +62,9 @@ export function LayoutPopover({
                 "margin_right",
               ] as const
             ).map((key) => (
-              <div key={key} className="space-y-0.5">
-                <span className="text-[10px] text-muted-foreground">
+              // Wrapping label: each number field is named by its side.
+              <label key={key} className="block space-y-0.5">
+                <span className="block text-[10px] text-muted-foreground">
                   {t(`resumeBuilder.design.${key}`)}
                 </span>
                 <input
@@ -73,7 +80,7 @@ export function LayoutPopover({
                   }}
                   className="w-full rounded border border-input bg-background px-2 py-1 text-sm"
                 />
-              </div>
+              </label>
             ))}
           </div>
         </div>

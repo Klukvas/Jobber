@@ -59,7 +59,7 @@ function ColorPaletteSection({
               {t(palette.nameKey)}
             </span>
             {palette.nameKey === recommendedKey && (
-              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary-ink">
                 {t("resumeBuilder.colors.recommended")}
               </span>
             )}

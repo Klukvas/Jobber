@@ -122,7 +122,7 @@ export const JobCardBase = memo(function JobCardBase({
           className="flex min-w-0 flex-1 items-center text-left max-sm:min-h-11"
           onClick={onTitleClick}
         >
-          <h4 className="text-sm font-medium leading-tight line-clamp-2">
+          <h4 className="min-w-0 text-sm font-medium leading-tight line-clamp-2 wrap-anywhere">
             {job.title}
           </h4>
         </button>

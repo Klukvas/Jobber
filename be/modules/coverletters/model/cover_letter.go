@@ -80,27 +80,31 @@ func (cl *CoverLetter) ToDTO() *CoverLetterDTO {
 }
 
 // CreateCoverLetterRequest is the request for creating a cover letter.
+//
+// Length limits mirror the VARCHAR columns, so an over-long value is a 400
+// instead of a database error surfacing as a 500.
 type CreateCoverLetterRequest struct {
-	Title           string  `json:"title"`
+	Title           string  `json:"title" binding:"max=255"`
 	ResumeBuilderID *string `json:"resume_builder_id"`
 	JobID           *string `json:"job_id"`
-	Template        string  `json:"template"`
+	Template        string  `json:"template" binding:"max=50"`
 }
 
 // UpdateCoverLetterRequest is the request for updating a cover letter.
+// Length limits mirror the VARCHAR columns (see CreateCoverLetterRequest).
 type UpdateCoverLetterRequest struct {
-	Title           *string   `json:"title"`
+	Title           *string   `json:"title" binding:"omitempty,max=255"`
 	ResumeBuilderID *string   `json:"resume_builder_id"`
 	JobID           *string   `json:"job_id"`
-	Template        *string   `json:"template"`
-	RecipientName   *string   `json:"recipient_name"`
-	RecipientTitle  *string   `json:"recipient_title"`
-	CompanyName     *string   `json:"company_name"`
-	CompanyAddress  *string   `json:"company_address"`
-	Greeting        *string   `json:"greeting"`
+	Template        *string   `json:"template" binding:"omitempty,max=50"`
+	RecipientName   *string   `json:"recipient_name" binding:"omitempty,max=255"`
+	RecipientTitle  *string   `json:"recipient_title" binding:"omitempty,max=255"`
+	CompanyName     *string   `json:"company_name" binding:"omitempty,max=255"`
+	CompanyAddress  *string   `json:"company_address" binding:"omitempty,max=500"`
+	Greeting        *string   `json:"greeting" binding:"omitempty,max=255"`
 	Paragraphs      *[]string `json:"paragraphs"`
-	Closing         *string   `json:"closing"`
-	FontFamily      *string   `json:"font_family"`
+	Closing         *string   `json:"closing" binding:"omitempty,max=255"`
+	FontFamily      *string   `json:"font_family" binding:"omitempty,max=100"`
 	FontSize        *int      `json:"font_size"`
-	PrimaryColor    *string   `json:"primary_color"`
+	PrimaryColor    *string   `json:"primary_color" binding:"omitempty,max=7"`
 }

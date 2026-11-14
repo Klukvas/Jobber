@@ -2,6 +2,7 @@ import { useAIConsentSignal } from "@/shared/hooks/useAIConsentSignal";
 import { isAIActionCancelled } from "@/shared/lib/aiCredits";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/shared/hooks/useSingleFlightMutation";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { jobsService } from "@/services/jobsService";
@@ -176,6 +177,9 @@ export function useJobDetailMutations({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["job", id] });
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      // A move closes the current stage and opens the new one: the Timeline
+      // below reads them from their own query and showed the old one active.
+      queryClient.invalidateQueries({ queryKey: ["job-stages", id] });
       showSuccessNotification(t("jobs.board.moveSuccess"));
     },
     onError: (err: Error) => {
@@ -239,7 +243,7 @@ export function useJobDetailMutations({
     },
   });
 
-  const addCommentMutation = useMutation({
+  const addCommentMutation = useSingleFlightMutation({
     mutationFn: (content: string) =>
       commentsService.create({
         job_id: id!,

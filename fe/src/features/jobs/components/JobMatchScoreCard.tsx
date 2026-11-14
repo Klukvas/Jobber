@@ -43,7 +43,7 @@ export function JobMatchScoreCard({
                 id="resume-select"
                 value={effectiveMatchResumeId}
                 onChange={(e) => onSelectResume(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 max-sm:h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="">{t("jobs.selectResume")}</option>
                 {uploadedResumes.map((resume) => (

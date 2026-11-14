@@ -6,7 +6,10 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Sparkles, Loader2, Check, X, Search } from "lucide-react";
 import { useCoverLetterStore } from "@/stores/coverLetterStore";
-import { useCoverLetterAI } from "../hooks/useCoverLetterAI";
+import {
+  useCoverLetterAIPanelState,
+  type CoverLetterAIPanelState,
+} from "../hooks/useCoverLetterAIPanelState";
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { UpgradeBanner } from "@/features/subscription/components/UpgradeBanner";
 import { jobsService } from "@/services/jobsService";
@@ -15,17 +18,30 @@ import { Textarea } from "@/shared/ui/Textarea";
 import { Label } from "@/shared/ui/Label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
 
-export function CoverLetterAIPanel() {
+interface CoverLetterAIPanelProps {
+  /**
+   * Panel state owned by the caller, so it outlives this mount point. Without
+   * it the panel keeps its own, which resets whenever the panel remounts.
+   */
+  readonly state?: CoverLetterAIPanelState;
+}
+
+export function CoverLetterAIPanel({ state }: CoverLetterAIPanelProps = {}) {
   const { t } = useTranslation();
   const { unavailable, isChecking, markUnavailable } = useAIAvailability();
   const coverLetter = useCoverLetterStore((s) => s.coverLetter);
   const updateFields = useCoverLetterStore((s) => s.updateFields);
-  const { generate } = useCoverLetterAI();
   const { canCreate } = useSubscription();
   const aiLimitReached = !canCreate("ai");
 
-  const [jobDescription, setJobDescription] = useState("");
-  const [jobSearch, setJobSearch] = useState("");
+  const ownState = useCoverLetterAIPanelState(coverLetter?.id);
+  const {
+    jobDescription,
+    setJobDescription,
+    jobSearch,
+    setJobSearch,
+    generate,
+  } = state ?? ownState;
   const [isJobDropdownOpen, setIsJobDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -85,7 +101,7 @@ export function CoverLetterAIPanel() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
-        <Sparkles className="h-5 w-5 text-primary" />
+        <Sparkles className="h-5 w-5 text-primary-ink" />
         <h2 className="text-lg font-semibold">{t("coverLetter.ai.title")}</h2>
       </div>
 
@@ -168,7 +184,7 @@ export function CoverLetterAIPanel() {
           <Card className="border-primary/20 bg-primary/5">
             <CardHeader className="p-4 pb-2">
               <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <Sparkles className="h-3.5 w-3.5 text-primary-ink" />
                 {t("coverLetter.ai.result")}
               </CardTitle>
             </CardHeader>

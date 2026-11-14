@@ -187,7 +187,7 @@ export function AIAssistantPanel() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
-        <Sparkles className="h-5 w-5 text-primary" />
+        <Sparkles className="h-5 w-5 text-primary-ink" />
         <h2 className="text-lg font-semibold">{t("resumeBuilder.ai.title")}</h2>
       </div>
 
@@ -297,7 +297,7 @@ export function AIAssistantPanel() {
             <Card className="border-primary/20 bg-primary/5">
               <CardHeader className="p-4 pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  <Sparkles className="h-3.5 w-3.5 text-primary-ink" />
                   {t("resumeBuilder.ai.result")}
                 </CardTitle>
               </CardHeader>
@@ -432,7 +432,7 @@ function SuggestionCard({
     <Card className="border-primary/20 bg-primary/5">
       <CardHeader className="p-4 pb-2">
         <CardTitle className="flex items-center gap-2 text-sm font-medium">
-          <Sparkles className="h-3.5 w-3.5 text-primary" />
+          <Sparkles className="h-3.5 w-3.5 text-primary-ink" />
           {title}
         </CardTitle>
       </CardHeader>

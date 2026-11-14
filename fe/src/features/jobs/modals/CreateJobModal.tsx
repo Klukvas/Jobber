@@ -1,7 +1,8 @@
 import { useCurrentFormSession } from "@/shared/hooks/useCurrentFormSession";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/shared/hooks/useSingleFlightMutation";
 import { jobsService } from "@/services/jobsService";
 import {
   showSuccessNotification,
@@ -34,6 +35,7 @@ import { CompanySelectWithQuickAdd } from "@/features/jobs/components/CompanySel
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { UpgradeBanner } from "@/features/subscription/components/UpgradeBanner";
 import { Loader2 } from "lucide-react";
+import { FIELD_LIMITS } from "@/shared/lib/fieldLimits";
 
 interface CreateJobModalProps {
   open: boolean;
@@ -109,7 +111,7 @@ function ModalContent({
     enabled: open && !isEditMode,
   });
 
-  const createMutation = useMutation({
+  const createMutation = useSingleFlightMutation({
     mutationFn: jobsService.create,
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ["jobs"] });
@@ -124,7 +126,7 @@ function ModalContent({
     },
   });
 
-  const updateMutation = useMutation({
+  const updateMutation = useSingleFlightMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateJobRequest }) =>
       jobsService.update(id, data),
     onSuccess: () => {
@@ -206,6 +208,7 @@ function ModalContent({
             <Label htmlFor="title">{t("jobs.title_field")} *</Label>
             <Input
               id="title"
+              maxLength={FIELD_LIMITS.title}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t("jobs.titlePlaceholder")}
@@ -226,6 +229,7 @@ function ModalContent({
             <Label htmlFor="url">{t("jobs.url")} ({t("common.optional")})</Label>
             <Input
               id="url"
+              maxLength={FIELD_LIMITS.url}
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
@@ -236,6 +240,7 @@ function ModalContent({
             <Label htmlFor="source">{t("jobs.source")} ({t("common.optional")})</Label>
             <Input
               id="source"
+              maxLength={FIELD_LIMITS.source}
               value={source}
               onChange={(e) => setSource(e.target.value)}
               placeholder={t("jobs.sourcePlaceholder")}
@@ -286,7 +291,7 @@ function ModalContent({
                       id="resume"
                       value={selectedResume}
                       onChange={(e) => setSelectedResume(e.target.value)}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex h-10 max-sm:h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <option value="">{t("jobs.selectResume")}</option>
                       {uploadedResumes.length > 0 && (

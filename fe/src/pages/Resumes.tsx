@@ -6,14 +6,13 @@ import {
   Plus,
   FileText,
   Calendar,
-  ArrowUp,
-  ArrowDown,
   Import,
   ChevronDown,
   Upload,
   PenTool,
 } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
+import { SortDirectionIndicator } from "@/shared/ui/SortDirectionIndicator";
 import { ListPageSkeleton } from "@/shared/ui/PageSkeleton";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { ErrorState } from "@/shared/ui/ErrorState";
@@ -282,11 +281,16 @@ export default function Resumes() {
           {/* Filter & Sort Controls */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             {/* Filter tabs */}
-            <div className="flex items-center gap-1">
+            <div
+              role="group"
+              aria-label={t("common.filterBy")}
+              className="flex items-center gap-1"
+            >
               {FILTER_OPTIONS.map((opt) => (
                 <Button
                   key={opt.value}
                   variant={kindFilter === opt.value ? "default" : "outline"}
+                  aria-pressed={kindFilter === opt.value}
                   size="sm"
                   onClick={() => setKindFilter(opt.value)}
                 >
@@ -296,7 +300,11 @@ export default function Resumes() {
             </div>
 
             {/* Sort buttons */}
-            <div className="flex items-center gap-2 flex-wrap">
+            <div
+              role="group"
+              aria-label={t("common.sortBy")}
+              className="flex items-center gap-2 flex-wrap"
+            >
               <span className="text-sm text-muted-foreground">
                 {t("common.sortBy")}
               </span>
@@ -304,6 +312,7 @@ export default function Resumes() {
                 <Button
                   key={opt.value}
                   variant={sortBy === opt.value ? "default" : "outline"}
+                  aria-pressed={sortBy === opt.value}
                   size="sm"
                   onClick={() => toggleSort(opt.value)}
                 >
@@ -314,12 +323,9 @@ export default function Resumes() {
                     <FileText className="h-3 w-3 mr-1" />
                   )}
                   {t(opt.labelKey)}
-                  {sortBy === opt.value &&
-                    (sortDir === "desc" ? (
-                      <ArrowDown className="h-3 w-3 ml-1" />
-                    ) : (
-                      <ArrowUp className="h-3 w-3 ml-1" />
-                    ))}
+                  {sortBy === opt.value && (
+                    <SortDirectionIndicator direction={sortDir} />
+                  )}
                 </Button>
               ))}
             </div>
@@ -333,7 +339,7 @@ export default function Resumes() {
               description={t("resumes.tryOtherFilter")}
             />
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {items.map((item) =>
                 item.kind === "uploaded" ? (
                   <UploadedResumeCard

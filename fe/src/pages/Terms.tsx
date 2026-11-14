@@ -4,26 +4,31 @@ import { ArrowLeft } from "lucide-react";
 import { LogoMark } from "@/shared/ui/Logo";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "@/shared/lib/supportContact";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
+import { ContentLanguageNotice } from "@/shared/ui/ContentLanguageNotice";
 
 export default function Terms() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   usePageMeta({ title: "Terms of Service — Cursopus" });
 
+  // Legal text is published in English only; lang tells assistive technology
+  // and translators which language the body is in.
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 text-foreground">
-      <nav className="mb-8 flex items-center justify-between">
+    <div lang="en" className="mx-auto max-w-3xl px-4 py-12 text-foreground">
+      {/* The page is lang="en", but this row is in the interface language. */}
+      <nav lang={i18n.language} className="mb-8 flex items-center justify-between">
         <Link
           to="/"
-          className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground max-sm:min-h-11"
         >
           <ArrowLeft className="h-4 w-4" />
           {t("common.backToHome")}
         </Link>
-        <Link to="/" className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-2 max-sm:min-h-11">
           <LogoMark className="h-6 w-6" />
           <span className="font-bold">Cursopus</span>
         </Link>
       </nav>
+      <ContentLanguageNotice contentLanguage="en" />
       <h1 className="mb-8 text-3xl font-bold">Terms of Service</h1>
       <p className="mb-4 text-sm text-muted-foreground">
         Last updated: October 25, 2026
@@ -89,7 +94,7 @@ export default function Terms() {
               href="https://www.creem.io"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary underline"
+              className="text-primary-ink underline"
             >
               Creem
             </a>
@@ -102,7 +107,7 @@ export default function Terms() {
               href="https://www.creem.io/buyer-terms"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary underline"
+              className="text-primary-ink underline"
             >
               Buyer Terms of Service
             </a>{" "}
@@ -111,7 +116,7 @@ export default function Terms() {
               href="https://www.creem.io/privacy"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary underline"
+              className="text-primary-ink underline"
             >
               Privacy Policy
             </a>
@@ -132,7 +137,7 @@ export default function Terms() {
             be unavailable even while credits remain.
           </li>
           <li>
-            Our <Link to="/refund" className="text-primary underline">Refund Policy</Link> provides
+            Our <Link to="/refund" className="text-primary-ink underline">Refund Policy</Link> provides
             a full refund on request within 14 days of the initial purchase, without a reason requirement.
             Mandatory consumer rights remain unaffected.
           </li>
@@ -194,7 +199,7 @@ export default function Terms() {
             these terms.
           </li>
           <li>
-            Data handling and deletion requests are described in our <Link to="/privacy" className="text-primary underline">Privacy Policy</Link>.
+            Data handling and deletion requests are described in our <Link to="/privacy" className="text-primary-ink underline">Privacy Policy</Link>.
           </li>
         </ul>
       </section>
@@ -232,7 +237,7 @@ export default function Terms() {
           If you have questions about these terms, contact us at{" "}
           <a
             href={SUPPORT_MAILTO}
-            className="text-primary underline"
+            className="text-primary-ink underline"
           >
             {SUPPORT_EMAIL}
           </a>

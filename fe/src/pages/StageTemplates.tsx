@@ -39,6 +39,7 @@ import {
   showErrorNotification,
   showSuccessNotification,
 } from "@/shared/lib/notifications";
+import { TOUCH_ICON_TARGET } from "@/shared/lib/touchTargets";
 import { ApiError } from "@/services/api";
 import {
   stageKindLabelKey,
@@ -201,7 +202,9 @@ export default function StageTemplates() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Title and action stack on a phone: side by side, the button and a
+          translated title fought for one row (as on Cover Letters). */}
+      <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">{t("stages.title")}</h1>
           <p className="text-muted-foreground mt-1">
@@ -217,9 +220,9 @@ export default function StageTemplates() {
       {/* Recommended Stages */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
+              <Sparkles className="h-5 w-5 text-primary-ink" />
               <CardTitle>{t("stages.recommended")}</CardTitle>
             </div>
             {!allRecommendedAdded && (
@@ -283,14 +286,14 @@ export default function StageTemplates() {
           {ordered.map((stage, index) => (
             <Card key={stage.id}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex flex-col">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <div className="flex shrink-0 flex-col">
                     <button
                       type="button"
                       onClick={() => move(index, -1)}
                       disabled={index === 0 || reorderMutation.isPending}
                       aria-label={t("stages.moveUp")}
-                      className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
+                      className={`${TOUCH_ICON_TARGET} rounded text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30`}
                     >
                       <ChevronUp className="h-4 w-4" />
                     </button>
@@ -301,16 +304,18 @@ export default function StageTemplates() {
                         index === ordered.length - 1 || reorderMutation.isPending
                       }
                       aria-label={t("stages.moveDown")}
-                      className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
+                      className={`${TOUCH_ICON_TARGET} rounded text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30`}
                     >
                       <ChevronDown className="h-4 w-4" />
                     </button>
                   </div>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary-ink">
                     {index + 1}
                   </div>
-                  <div className="flex flex-col">
-                    <CardTitle className="text-lg">{stage.name}</CardTitle>
+                  <div className="flex min-w-0 flex-col">
+                    <CardTitle className="text-lg wrap-anywhere">
+                      {stage.name}
+                    </CardTitle>
                     {/* What the column means to analytics. Visible because a
                         custom column starts as "Other" and counts towards
                         nothing — the user has to be able to see that and fix
@@ -320,7 +325,7 @@ export default function StageTemplates() {
                     </span>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex shrink-0 gap-2">
                   <Button
                     variant="ghost"
                     size="icon"

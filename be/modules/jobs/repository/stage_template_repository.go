@@ -115,9 +115,101 @@ func (r *StageTemplateRepository) List(ctx context.Context, userID string, limit
 // are three independent things — the user's label, the user's position and the
 // meaning every analytics rule reads — and each is written only when asked for.
 //
+// A new order is a move, not a raw write: the column takes that position and
+// the others close up behind it, all in one transaction. Writing the number
+// as given put "Position 1" (order 0) next to the existing first column, and
+// the tie left the moved column second.
+//
 // Column names come from compile-time literals; every value is a bound
 // parameter.
 func (r *StageTemplateRepository) Update(ctx context.Context, userID, templateID string, patch *model.StageTemplatePatch) (*model.StageTemplate, error) {
+	if patch.Order == nil {
+		return updateTemplateFields(ctx, r.pool, userID, templateID, patch)
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin stage move tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback is a no-op after commit
+
+	if err := moveTemplate(ctx, tx, userID, templateID, *patch.Order); err != nil {
+		return nil, err
+	}
+
+	fields := *patch
+	fields.Order = nil
+	template, err := updateTemplateFields(ctx, tx, userID, templateID, &fields)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit stage move: %w", err)
+	}
+	return template, nil
+}
+
+// moveTemplate renumbers the user's columns 0..n-1 with templateID at
+// position. The rows are locked first so two moves cannot interleave.
+func moveTemplate(ctx context.Context, tx pgx.Tx, userID, templateID string, position int) error {
+	rows, err := tx.Query(ctx,
+		`SELECT id FROM stage_templates WHERE user_id = $1 ORDER BY "order" ASC, created_at ASC FOR UPDATE`,
+		userID,
+	)
+	if err != nil {
+		return fmt.Errorf("lock stage templates: %w", err)
+	}
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return fmt.Errorf("read stage templates: %w", err)
+	}
+
+	ordered, ok := moveToPosition(ids, templateID, position)
+	if !ok {
+		return model.ErrStageTemplateNotFound
+	}
+
+	now := time.Now().UTC()
+	for i, id := range ordered {
+		if _, err := tx.Exec(ctx,
+			`UPDATE stage_templates SET "order" = $3, updated_at = $4 WHERE id = $1 AND user_id = $2`,
+			id, userID, i, now,
+		); err != nil {
+			return fmt.Errorf("renumber stage template: %w", err)
+		}
+	}
+	return nil
+}
+
+// moveToPosition returns ids with id moved to position, clamped to the list.
+// It reports false when id is not in the list.
+func moveToPosition(ids []string, id string, position int) ([]string, bool) {
+	rest := make([]string, 0, len(ids))
+	found := false
+	for _, candidate := range ids {
+		if candidate == id {
+			found = true
+			continue
+		}
+		rest = append(rest, candidate)
+	}
+	if !found {
+		return nil, false
+	}
+	position = max(0, min(position, len(rest)))
+	moved := make([]string, 0, len(ids))
+	moved = append(moved, rest[:position]...)
+	moved = append(moved, id)
+	moved = append(moved, rest[position:]...)
+	return moved, true
+}
+
+// rowQuerier is what a field update needs: the pool, or the move's transaction.
+type rowQuerier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func updateTemplateFields(ctx context.Context, db rowQuerier, userID, templateID string, patch *model.StageTemplatePatch) (*model.StageTemplate, error) {
 	// $1/$2 scope the row to its owner; updated_at is always written, so the
 	// SET list is never empty.
 	args := []any{templateID, userID, time.Now().UTC()}
@@ -152,7 +244,7 @@ func (r *StageTemplateRepository) Update(ctx context.Context, userID, templateID
 
 	template := &model.StageTemplate{}
 	var kind string
-	err := r.pool.QueryRow(ctx, query, args...).Scan(
+	err := db.QueryRow(ctx, query, args...).Scan(
 		&template.ID, &template.UserID, &template.Name, &template.Order, &kind, &template.CreatedAt, &template.UpdatedAt,
 	)
 	if err != nil {

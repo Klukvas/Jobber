@@ -135,7 +135,7 @@ export function LayoutConfigurator() {
                     onClick={() => toggleSectionColumn(entry.section_key)}
                     className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium transition-colors ${
                       entry.column === "sidebar"
-                        ? "bg-primary/10 text-primary"
+                        ? "bg-primary/10 text-primary-ink"
                         : "bg-muted text-muted-foreground"
                     }`}
                   >

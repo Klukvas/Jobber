@@ -14,6 +14,7 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("react-router-dom", () => ({
   useNavigate: () => vi.fn(),
+  useLocation: () => ({ pathname: "/login", search: "" }),
 }));
 
 vi.mock("@tanstack/react-query", () => ({

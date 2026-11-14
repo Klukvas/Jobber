@@ -87,7 +87,7 @@ export function EducationContent({
           ) : (
             <>
               <div className="flex items-start justify-between">
-                <div>
+                <div className="min-w-0 wrap-anywhere">
                   <div
                     className={`flex items-center gap-1 ${config.textSize} font-bold`}
                   >

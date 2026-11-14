@@ -76,6 +76,8 @@ export function Timeline({ stages, jobId, stageComments }: TimelineProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["job-stages", jobId] });
       queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+      // Deleting the current stage moves the card to another column.
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
       setConfirmDeleteStage(null);
     },
     onError: () => {

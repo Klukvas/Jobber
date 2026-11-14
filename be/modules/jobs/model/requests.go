@@ -13,7 +13,7 @@ type CreateJobRequest struct {
 	CompanyID       *string    `json:"company_id,omitempty"`
 	Title           string     `json:"title" binding:"required,min=1,max=255"`
 	Source          *string    `json:"source,omitempty" binding:"omitempty,max=100"`
-	URL             *string    `json:"url,omitempty" binding:"omitempty,max=2048"`
+	URL             *string    `json:"url,omitempty" binding:"omitempty,max=2048,len=0|http_url"`
 	Description     *string    `json:"description,omitempty" binding:"omitempty,max=20000"`
 	StageTemplateID *string    `json:"stage_template_id,omitempty"` // column to place into; default = first
 	AppliedAt       *time.Time `json:"applied_at,omitempty"`        // RFC3339; marks the card as already applied
@@ -28,7 +28,7 @@ type UpdateJobRequest struct {
 	CompanyID       *string `json:"company_id,omitempty"`
 	Title           *string `json:"title,omitempty" binding:"omitempty,max=255"`
 	Source          *string `json:"source,omitempty" binding:"omitempty,max=100"`
-	URL             *string `json:"url,omitempty" binding:"omitempty,max=2048"`
+	URL             *string `json:"url,omitempty" binding:"omitempty,max=2048,len=0|http_url"`
 	Description     *string `json:"description,omitempty" binding:"omitempty,max=20000"`
 	IsArchived      *bool   `json:"is_archived,omitempty"` // archive / unarchive
 	ResumeID        *string `json:"resume_id,omitempty"`
@@ -48,7 +48,7 @@ type CreateStageTemplateRequest struct {
 // Renaming or reordering leaves the kind alone — only an explicit kind changes
 // what the column means.
 type UpdateStageTemplateRequest struct {
-	Name  *string `json:"name,omitempty"`
+	Name  *string `json:"name,omitempty" binding:"omitempty,max=255"`
 	Order *int    `json:"order,omitempty"`
 	Kind  *string `json:"kind,omitempty" binding:"omitempty,oneof=saved applied response interview offer rejected other"`
 }

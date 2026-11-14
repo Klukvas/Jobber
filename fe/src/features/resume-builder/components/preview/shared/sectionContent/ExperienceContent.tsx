@@ -30,8 +30,10 @@ export function ExperienceContent({
         >
           {isMinimal ? (
             <>
+              {/* The text side wraps anywhere (the dates are shrink-0): one
+                  long unbroken word ran far past the edge of the sheet. */}
               <div className="flex items-baseline justify-between">
-                <p className="text-xs font-semibold">
+                <p className="min-w-0 text-xs font-semibold wrap-anywhere">
                   <EditableField
                     value={exp.position}
                     onChange={(v) =>
@@ -102,7 +104,7 @@ export function ExperienceContent({
           ) : (
             <>
               <div className="flex items-start justify-between">
-                <div>
+                <div className="min-w-0 wrap-anywhere">
                   <EditableField
                     value={exp.position}
                     onChange={(v) =>

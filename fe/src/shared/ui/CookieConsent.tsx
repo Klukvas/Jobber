@@ -121,7 +121,7 @@ export function CookieConsent() {
                   ? "cookieConsent.messageEssentialOnly"
                   : "cookieConsent.messageEssentialOnlyNoPayments",
               )}{" "}
-          <a href="/privacy" className="text-primary underline">
+          <a href="/privacy" className="text-primary-ink underline">
             {t("cookieConsent.privacyLink")}
           </a>
         </p>

@@ -928,6 +928,37 @@ function PageBreakIndicator() {
   );
 }
 
+interface ScaledA4Props {
+  readonly scale: number;
+  readonly className?: string;
+  readonly children: React.ReactNode;
+}
+
+/**
+ * An A4 page drawn at `scale`, taking up only its scaled width.
+ *
+ * A transform does not change layout: scaling a 793px page inside a 390px
+ * phone column left a 793px box that the column could not centre, so the
+ * shrunken page was painted from its own centre — half off the right edge.
+ * Sizing the outer box to the scaled width and scaling from the top-left
+ * keeps what is painted and what is laid out the same size.
+ */
+function ScaledA4({ scale, className, children }: ScaledA4Props) {
+  return (
+    <div className={className} style={{ width: A4_WIDTH_PX * scale }}>
+      <div
+        style={{
+          width: A4_WIDTH_PX,
+          transform: `scale(${scale})`,
+          transformOrigin: "top left",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function CoverLetterPreview({
   editable = false,
 }: CoverLetterPreviewProps) {
@@ -978,10 +1009,7 @@ export function CoverLetterPreview({
 
   return (
     <div ref={containerRef} className="flex justify-center p-6">
-      <div
-        className="origin-top"
-        style={{ transform: `scale(${scale})`, transformOrigin: "top center" }}
-      >
+      <ScaledA4 scale={scale}>
         <div className="relative">
           <div
             ref={pageRef}
@@ -992,7 +1020,7 @@ export function CoverLetterPreview({
           </div>
           {overflows && <PageBreakIndicator />}
         </div>
-      </div>
+      </ScaledA4>
     </div>
   );
 }
@@ -1083,18 +1111,11 @@ export function CoverLetterFullscreenPreview({
         className="relative z-10 flex-1 overflow-y-auto py-8"
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          className="mx-auto origin-top"
-          style={{
-            transform: `scale(${scale})`,
-            transformOrigin: "top center",
-            width: "210mm",
-          }}
-        >
+        <ScaledA4 scale={scale} className="mx-auto">
           <div className="bg-white text-black shadow-2xl" style={pageStyle}>
             <TemplateComponent />
           </div>
-        </div>
+        </ScaledA4>
       </div>
     </div>
   );

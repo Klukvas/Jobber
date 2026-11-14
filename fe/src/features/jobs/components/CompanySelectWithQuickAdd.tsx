@@ -85,8 +85,9 @@ export function CompanySelectWithQuickAdd({
             size="sm"
             onClick={handleSubmitQuickAdd}
             disabled={createMutation.isPending || !newName.trim()}
+            aria-label={t("companies.create")}
           >
-            <Check className="h-4 w-4" />
+            <Check className="h-4 w-4" aria-hidden="true" />
           </Button>
           <Button
             type="button"
@@ -94,8 +95,9 @@ export function CompanySelectWithQuickAdd({
             variant="ghost"
             onClick={handleCancel}
             disabled={createMutation.isPending}
+            aria-label={t("common.cancel")}
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
       ) : (
@@ -104,7 +106,7 @@ export function CompanySelectWithQuickAdd({
             id="company"
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-10 max-sm:h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="">{t("jobs.selectCompany")}</option>
             {companies.map((company) => (

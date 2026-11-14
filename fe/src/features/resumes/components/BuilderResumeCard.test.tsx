@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { BuilderResumeCard } from "./BuilderResumeCard";
 import type { ResumeBuilderDTO } from "@/shared/types/resume-builder";
 
@@ -39,6 +40,11 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("react-router-dom", () => ({
   useNavigate: () => mockNavigate,
+  Link: ({ to, children, ...rest }: { to: string; children: ReactNode }) => (
+    <a href={to} {...rest}>
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock("@/shared/lib/dateFnsLocale", () => ({
@@ -81,12 +87,14 @@ describe("BuilderResumeCard", () => {
     expect(screen.getByText(/resumeBuilder.lastEdited/)).toBeInTheDocument();
   });
 
-  it("navigates to editor when card is clicked", async () => {
-    const user = userEvent.setup();
+  // Regression: the card opened the editor only through a div's onClick, so
+  // keyboard users had no way in. The title is now a real link.
+  it("opens the editor through a link keyboard users can reach", () => {
     render(<BuilderResumeCard {...defaultProps} />);
 
-    await user.click(screen.getByText("My Builder Resume"));
-    expect(mockNavigate).toHaveBeenCalledWith("/app/resume-builder/b-1");
+    expect(
+      screen.getByRole("link", { name: "My Builder Resume" }),
+    ).toHaveAttribute("href", "/app/resume-builder/b-1");
   });
 
   it("calls onDuplicate when duplicate button clicked", async () => {

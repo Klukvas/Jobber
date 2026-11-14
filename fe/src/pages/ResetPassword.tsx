@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
 import { authService } from "@/services/authService";
 import { Button } from "@/shared/ui/Button";
+import { buttonVariants } from "@/shared/ui/buttonVariants";
 import { PasswordInput } from "@/shared/ui/PasswordInput";
 import { Label } from "@/shared/ui/Label";
 import { ApiError } from "@/services/api";
@@ -71,12 +72,12 @@ export default function ResetPassword() {
           {/* The way out, not just the way home: this is the same flow that
               issues the code, so a customer with a broken link can get a
               working one without hunting for it. */}
-          <Button asChild>
-            <Link to="/forgot-password">{t("auth.sendResetCode")}</Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link to="/">{t("common.backToHome")}</Link>
-          </Button>
+          <Link to="/forgot-password" className={buttonVariants()}>
+            {t("auth.sendResetCode")}
+          </Link>
+          <Link to="/" className={buttonVariants({ variant: "outline" })}>
+            {t("common.backToHome")}
+          </Link>
         </div>
       </div>
     );
@@ -91,9 +92,9 @@ export default function ResetPassword() {
           <p className="text-muted-foreground">
             {t("auth.passwordResetDoneDescription")}
           </p>
-          <Button asChild>
-            <Link to="/login">{t("auth.login")}</Link>
-          </Button>
+          <Link to="/login" className={buttonVariants()}>
+            {t("auth.login")}
+          </Link>
         </div>
       </div>
     );

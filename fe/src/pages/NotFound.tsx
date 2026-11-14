@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ArrowLeft, FileQuestion } from "lucide-react";
 import { LogoMark } from "@/shared/ui/Logo";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
-import { Button } from "@/shared/ui/Button";
+import { buttonVariants } from "@/shared/ui/buttonVariants";
 
 export default function NotFound() {
   const { t } = useTranslation();
@@ -30,7 +30,7 @@ export default function NotFound() {
           <FileQuestion className="h-10 w-10 text-muted-foreground" />
         </div>
 
-        <h1 className="mb-2 text-6xl font-bold tracking-tight text-primary">
+        <h1 className="mb-2 text-6xl font-bold tracking-tight text-primary-ink">
           404
         </h1>
 
@@ -41,12 +41,12 @@ export default function NotFound() {
         </p>
 
         <div className="flex gap-3">
-          <Button asChild>
-            <Link to="/">{t("common.backToHome")}</Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link to="/app/jobs">{t("notFound.goToApp")}</Link>
-          </Button>
+          <Link to="/" className={buttonVariants()}>
+            {t("common.backToHome")}
+          </Link>
+          <Link to="/app/jobs" className={buttonVariants({ variant: "outline" })}>
+            {t("notFound.goToApp")}
+          </Link>
         </div>
       </div>
     </div>

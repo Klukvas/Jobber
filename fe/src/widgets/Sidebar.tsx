@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { NavLink, Link, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
@@ -10,6 +10,10 @@ import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock";
 import { useDialogFocus } from "@/shared/hooks/useDialogFocus";
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
 import { useTopmostEscape } from "@/shared/hooks/useTopmostEscape";
+import {
+  MOBILE_VIEWPORT,
+  isSidebarDrawerOpen,
+} from "@/widgets/sidebarDrawer";
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { useAdminAccess } from "@/shared/hooks/useAdminAccess";
 import { authService } from "@/services/authService";
@@ -51,7 +55,7 @@ export const APP_SIDEBAR_ID = "app-sidebar";
  * visitor who widens the window with it open is not left with a trapped
  * keyboard and a frozen page next to a permanently docked sidebar.
  */
-const MOBILE_VIEWPORT = "(max-width: 767px)";
+
 
 const navItems = [
   { path: "/app/jobs", icon: Briefcase, labelKey: "nav.applications" },
@@ -91,15 +95,23 @@ function getPlanBadge(
 export function Sidebar() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { isExpanded, isMobileOpen, toggleExpanded, closeMobile } =
-    useSidebarStore();
+  const {
+    isExpanded: isDesktopExpanded,
+    isMobileOpen,
+    toggleExpanded,
+    closeMobile,
+  } = useSidebarStore();
   const panelRef = useRef<HTMLElement>(null);
   const isSlideOver = useMediaQuery(MOBILE_VIEWPORT);
+  // Collapsing is a desktop preference. The phone drawer has no collapse
+  // control, so it always shows labels — otherwise a window narrowed after
+  // collapsing left a 64px icon strip that could not be widened.
+  const isExpanded = isDesktopExpanded || isSlideOver;
   // The drawer covers the page it is navigating, so while it is up it is a
   // modal in everything but name: nothing behind it scrolls, Tab cannot walk
   // out into the page underneath, Escape dismisses it, and the hamburger that
   // opened it gets the keyboard back.
-  const isModal = isSlideOver && isMobileOpen;
+  const isModal = isSidebarDrawerOpen(isSlideOver, isMobileOpen);
   const location = useLocation();
   const highlightedPath = useOnboardingHighlight();
   const user = useAuthStore((state) => state.user);
@@ -114,6 +126,13 @@ export function Sidebar() {
   // drawer answers the keypress alone and the drawer stays put behind it.
   const closeDrawer = useCallback(() => closeMobile(), [closeMobile]);
   useTopmostEscape(isModal, panelRef, closeDrawer);
+
+  // Any navigation closes the drawer, not just the main rows: the profile row
+  // and the logo used to leave it open over the page they had opened, and the
+  // logo's trip to "/" brought it back open on the return to the app.
+  useEffect(() => {
+    closeMobile();
+  }, [location.pathname, closeMobile]);
 
   const logoutMutation = useMutation({
     mutationFn: authService.logout,
@@ -140,6 +159,11 @@ export function Sidebar() {
       <aside
         id={APP_SIDEBAR_ID}
         ref={panelRef}
+        // Announced as a modal only while it is one; on desktop it stays a
+        // plain landmark beside the page.
+        role={isModal ? "dialog" : undefined}
+        aria-modal={isModal || undefined}
+        aria-label={isModal ? t("common.navigation") : undefined}
         // Focusable only on purpose: the drawer takes the keyboard when it
         // opens so a screen reader announces the panel rather than one row out
         // of it. `-1` keeps it out of the tab order either way.
@@ -148,7 +172,11 @@ export function Sidebar() {
         // browser toolbars retracted, so the account/Settings footer sat
         // underneath the bottom toolbar and could not be reached.
         className={cn(
-          "fixed left-0 top-0 z-50 h-dvh border-r bg-card transition-all duration-300",
+          "fixed left-0 top-0 z-50 h-dvh border-r bg-card transition-all duration-300 motion-reduce:transition-none",
+          // The cookie banner is fixed over the bottom of the viewport and
+          // publishes its height; as a drawer this panel ends above it, or
+          // the profile and logout rows sat underneath until consent.
+          "max-md:pb-[var(--app-bottom-inset)]",
           "md:sticky md:top-0 md:z-0",
           {
             "w-64": isExpanded,
@@ -171,21 +199,26 @@ export function Sidebar() {
         <div className="flex h-full flex-col">
           {/* Logo / Brand */}
           <div className="flex h-16 items-center justify-between border-b px-4">
-            <Link
-              to="/"
-              className={cn(
-                "flex items-center gap-2 hover:opacity-80 transition-opacity",
-                // 32px of logo on a phone. The header row is a fixed h-16, so
-                // the taller target costs the layout nothing.
-                MOBILE_ROW,
-              )}
-            >
-              <LogoMark className="h-8 w-8" label="Cursopus" />
-              {/* The FluxLab attribution deliberately lives only in the app
+            {/* Collapsed, the expand button takes the whole header and this
+                link was squeezed to 0px wide — still a Tab stop, with nothing
+                visible to show where focus had gone. */}
+            {isExpanded && (
+              <Link
+                to="/"
+                className={cn(
+                  "flex items-center gap-2 hover:opacity-80 transition-opacity",
+                  // 32px of logo on a phone. The header row is a fixed h-16, so
+                  // the taller target costs the layout nothing.
+                  MOBILE_ROW,
+                )}
+              >
+                <LogoMark className="h-8 w-8" label="Cursopus" />
+                {/* The FluxLab attribution deliberately lives only in the app
                   footer: here it would have to sit inside this brand <Link>,
                   and an anchor cannot contain another anchor. */}
-              {isExpanded && <span className="text-xl font-bold">Cursopus</span>}
-            </Link>
+                <span className="text-xl font-bold">Cursopus</span>
+              </Link>
+            )}
             <button
               onClick={toggleExpanded}
               className="hidden rounded-md p-2 hover:bg-accent md:block"
@@ -251,7 +284,7 @@ export function Sidebar() {
                         "bg-accent text-accent-foreground": isActive,
                         "text-muted-foreground": !isActive,
                         "justify-center": !isExpanded,
-                        "bg-primary/10 text-primary ring-2 ring-primary/30 animate-onboarding-pulse":
+                        "bg-primary/10 text-primary-ink ring-2 ring-primary/30 animate-onboarding-pulse":
                           isHighlighted,
                       },
                     )
@@ -328,8 +361,11 @@ export function Sidebar() {
                   },
                 )}
                 title={user?.email}
+                // The visible "P" is the plan badge, not a name for the link.
+                aria-label={t("nav.settings")}
               >
                 <span
+                  aria-hidden="true"
                   className={cn(
                     "rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none",
                     badge.className,

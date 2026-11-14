@@ -7,13 +7,14 @@ export const buttonVariants = cva(
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
         destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+          // /90 over the dark dialog left the dark label at 4.46:1 on hover.
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90 dark:hover:bg-destructive/95",
         outline:
           "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
+        link: "text-primary-ink underline-offset-4 hover:underline",
       },
       size: {
         default: "h-10 px-4 py-2",
@@ -41,6 +42,10 @@ export const buttonVariants = cva(
       {
         variant: ["default", "destructive", "outline", "secondary", "ghost"],
         size: ["default", "sm"],
+        // No min-width here: an explicit min-width replaces flex's automatic
+        // one (the content width), and buttons sharing a row were squeezed
+        // below their own label — the plus icon collapsed to 0px. The few
+        // buttons that hide their label on a phone set max-sm:min-w-11 themselves.
         class: "max-sm:h-11",
       },
       {

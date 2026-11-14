@@ -1,7 +1,8 @@
 import { useCurrentFormSession } from "@/shared/hooks/useCurrentFormSession";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/shared/hooks/useSingleFlightMutation";
 import { companiesService } from "@/services/companiesService";
 import {
   showSuccessNotification,
@@ -20,6 +21,7 @@ import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { Label } from "@/shared/ui/Label";
 import { Loader2 } from "lucide-react";
+import { FIELD_LIMITS } from "@/shared/lib/fieldLimits";
 
 interface CreateCompanyModalProps {
   open: boolean;
@@ -42,7 +44,7 @@ function ModalContent({
 
   const isEditMode = !!company;
 
-  const createMutation = useMutation({
+  const createMutation = useSingleFlightMutation({
     mutationFn: companiesService.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["companies"] });
@@ -56,7 +58,7 @@ function ModalContent({
     },
   });
 
-  const updateMutation = useMutation({
+  const updateMutation = useSingleFlightMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateCompanyRequest }) =>
       companiesService.update(id, data),
     onSuccess: () => {
@@ -113,6 +115,7 @@ function ModalContent({
             <Label htmlFor="name">{t("companies.name")} *</Label>
             <Input
               id="name"
+              maxLength={FIELD_LIMITS.name}
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t("companies.namePlaceholder")}
@@ -123,6 +126,7 @@ function ModalContent({
             <Label htmlFor="location">{t("companies.location")}</Label>
             <Input
               id="location"
+              maxLength={FIELD_LIMITS.location}
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder={t("companies.locationPlaceholder")}

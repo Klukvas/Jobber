@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { authService } from "@/services/authService";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
-import { Button } from "@/shared/ui/Button";
+import { buttonVariants } from "@/shared/ui/buttonVariants";
 
 type Status = "loading" | "success" | "error";
 
@@ -32,7 +32,7 @@ export default function VerifyEmail() {
       <div className="w-full max-w-md text-center">
         {status === "loading" && (
           <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <Loader2 className="h-12 w-12 animate-spin text-primary-ink" />
             <p className="text-lg text-muted-foreground">
               {t("auth.verifyingEmail")}
             </p>
@@ -46,9 +46,9 @@ export default function VerifyEmail() {
             <p className="text-muted-foreground">
               {t("auth.emailVerifiedDescription")}
             </p>
-            <Button asChild>
-              <Link to="/login">{t("auth.login")}</Link>
-            </Button>
+            <Link to="/login" className={buttonVariants()}>
+              {t("auth.login")}
+            </Link>
           </div>
         )}
 
@@ -61,9 +61,9 @@ export default function VerifyEmail() {
             <p className="text-muted-foreground">
               {t("auth.verificationFailedDescription")}
             </p>
-            <Button variant="outline" asChild>
-              <Link to="/">{t("common.backToHome")}</Link>
-            </Button>
+            <Link to="/" className={buttonVariants({ variant: "outline" })}>
+              {t("common.backToHome")}
+            </Link>
           </div>
         )}
       </div>
