@@ -50,6 +50,7 @@ describe("FeaturesSection", () => {
     render(<FeaturesSection />);
     expect(screen.getByText("home.features.kanban.title")).toBeInTheDocument();
     expect(screen.getByText("home.features.aiMatch.title")).toBeInTheDocument();
+    expect(screen.getByText("home.features.aiAssistants.title")).toBeInTheDocument();
     expect(screen.getByText("home.features.resume.title")).toBeInTheDocument();
     expect(
       screen.getByText("home.features.jobImport.title"),

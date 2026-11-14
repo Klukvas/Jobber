@@ -6,8 +6,8 @@ export function SetupSnippets({ token }: { token: string | null }) {
   const url = `${window.location.origin}/api/mcp`;
   const secret = token ?? "<YOUR_TOKEN>";
   const snippets = [
-    { name: "Claude Code", value: `claude mcp add --transport http courseopus ${url} --header "Authorization: Bearer ${secret}"` },
-    { name: t("settings.aiAssistants.genericClient"), value: JSON.stringify({ mcpServers: { courseopus: { url, headers: { Authorization: `Bearer ${secret}` } } } }, null, 2) },
+    { name: "Claude Code", value: `claude mcp add --transport http cursopus ${url} --header "Authorization: Bearer ${secret}"` },
+    { name: t("settings.aiAssistants.genericClient"), value: JSON.stringify({ mcpServers: { cursopus: { url, headers: { Authorization: `Bearer ${secret}` } } } }, null, 2) },
   ];
   return (
     <div className="space-y-4">

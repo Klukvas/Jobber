@@ -785,6 +785,7 @@
         "proJobParses": "AI job parsing uses the shared credit balance",
         "proResumeBuilders": "10 resume builders",
         "proCoverLetters": "10 cover letters in total",
+        "proMcp": "Connect AI assistants via MCP (Claude Code, Cursor)",
         "switchPlan": "Switch to this plan",
         "downgradeViaCancel": "Cancel your subscription to return to Free.",
         "manualPlanNote": "Your plan was set up manually. Contact support to change it."
@@ -1020,6 +1021,10 @@
         "title": "Cover Letters",
         "description": "Generate personalized cover letters with AI, tailored to each job description"
       },
+      "aiAssistants": {
+        "title": "Connect your AI assistant (MCP)",
+        "description": "On Pro and Enterprise, connect Claude Code, Cursor or another MCP client with a personal token. Your assistant can add jobs, update resumes and draft cover letters in your workspace."
+      },
       "learnMore": "Learn more"
     },
     "howItWorks": {
@@ -1082,6 +1087,7 @@
       "proFeature5": "AI job parsing uses the shared credit balance",
       "proFeature6": "500 AI credits per paid billing period",
       "proFeature7": "10 cover letters in total",
+      "proFeature8": "Connect AI assistants via MCP (Claude Code, Cursor)",
       "proCta": "Choose Pro",
       "comparison": "AI use is subject to credit, input-size and safety spending limits. Requests may stop before all credits are used. Unused Pro credits do not roll over. AI costs vary by action; the exact credit cost is shown before you start. Pro renews monthly until cancelled in Settings > Subscription > Manage Subscription or the Creem customer portal. The final price and any taxes are shown at checkout. A full refund is available on request within 14 days of the initial purchase; mandatory consumer rights are unaffected."
     },

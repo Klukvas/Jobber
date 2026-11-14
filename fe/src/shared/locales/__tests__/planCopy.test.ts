@@ -16,6 +16,8 @@ it.each(Object.entries({ en, ru, uk }))("keeps pricing and policy truthful in %s
   expect(modal.freeAI).toBe(pricing.freeFeature6);
   expect(modal.proAI).toBe(pricing.proFeature6);
   expect(modal.proCoverLetters).toBe(pricing.proFeature7);
+  expect(pricing.proFeature8).toContain("MCP");
+  expect(modal.proMcp).toBe(pricing.proFeature8);
   expect(JSON.stringify(pricing)).not.toMatch(/unlimited|безлимитн|безлімітн/i);
   expect(copy.home.faq.items.free.a).toContain("30");
   expect(copy.home.faq.items.free.a).toContain("500");

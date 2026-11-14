@@ -32,6 +32,8 @@ func TestToolValidation(t *testing.T) {
 		{"url credentials", "create_job", map[string]any{"title": "Role", "url": "https://user:password@example.com/"}},
 		{"create stage uuid", "create_job", map[string]any{"title": "Role", "stage_id": "bad"}},
 		{"stage filter uuid", "list_jobs", map[string]any{"stage": "bad"}},
+		{"stage_id filter uuid", "list_jobs", map[string]any{"stage_id": "bad"}},
+		{"stage_id and alias disagree", "list_jobs", map[string]any{"stage_id": stageA, "stage": stageB}},
 		{"limit max", "list_jobs", map[string]any{"limit": 101}},
 		{"limit zero", "list_jobs", map[string]any{"limit": 0}},
 		{"limit negative", "list_jobs", map[string]any{"limit": -1}},
@@ -65,7 +67,7 @@ func TestListJobsStagePaginationAndArchived(t *testing.T) {
 	}
 	client := toolClient(t, jobs, userA)
 	before := jobs.listCalls.Load()
-	result := callTool(t, client, "list_jobs", map[string]any{"stage": "urn:uuid:" + stageA, "archived": true, "query": "Engineer", "limit": 3, "offset": 2})
+	result := callTool(t, client, "list_jobs", map[string]any{"stage_id": "urn:uuid:" + stageA, "archived": true, "query": "Engineer", "limit": 3, "offset": 2})
 	require.Equal(t, before+1, jobs.listCalls.Load())
 	require.Equal(t, stageA, jobs.lastOptions.StageTemplateID)
 	output := decodeOutput[ListJobsOutput](t, result)
@@ -78,12 +80,25 @@ func TestListJobsStagePaginationAndArchived(t *testing.T) {
 	}
 	require.NotContains(t, result.Content[0].(*sdk.TextContent).Text, "description")
 	// SQL filters and paginates; the adapter makes one service call for any size.
-	all := decodeOutput[ListJobsOutput](t, callTool(t, client, "list_jobs", map[string]any{"stage": stageA, "limit": 100}))
+	all := decodeOutput[ListJobsOutput](t, callTool(t, client, "list_jobs", map[string]any{"stage_id": stageA, "limit": 100}))
 	require.Equal(t, 111, all.Total)
 	require.Len(t, all.Jobs, 100)
 	empty := decodeOutput[ListJobsOutput](t, callTool(t, client, "list_jobs", map[string]any{"stage": stageA, "offset": 1000}))
 	require.Empty(t, empty.Jobs)
 	require.Equal(t, 111, empty.Total)
+}
+
+func TestListJobsStageAliasStillFilters(t *testing.T) {
+	jobs := newFakeJobs()
+	client := toolClient(t, jobs, userA)
+	for _, args := range []map[string]any{
+		{"stage": "urn:uuid:" + stageB},
+		{"stage_id": stageB, "stage": strings.ToUpper(stageB)},
+	} {
+		result := callTool(t, client, "list_jobs", args)
+		require.False(t, result.IsError, "%v", args)
+		require.Equal(t, stageB, jobs.lastOptions.StageTemplateID, "%v", args)
+	}
 }
 
 func TestCreateStageAndCompany(t *testing.T) {
