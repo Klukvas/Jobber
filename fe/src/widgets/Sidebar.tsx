@@ -144,8 +144,11 @@ export function Sidebar() {
         // opens so a screen reader announces the panel rather than one row out
         // of it. `-1` keeps it out of the tab order either way.
         tabIndex={-1}
+        // h-dvh, not h-screen: on a phone 100vh is the viewport with the
+        // browser toolbars retracted, so the account/Settings footer sat
+        // underneath the bottom toolbar and could not be reached.
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen border-r bg-card transition-all duration-300",
+          "fixed left-0 top-0 z-50 h-dvh border-r bg-card transition-all duration-300",
           "md:sticky md:top-0 md:z-0",
           {
             "w-64": isExpanded,
@@ -210,7 +213,7 @@ export function Sidebar() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-1 p-2">
+          <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
             {[
               ...navItems,
               ...(adminAccess.data?.allowed && !adminAccess.isError
@@ -263,7 +266,7 @@ export function Sidebar() {
           </nav>
 
           {/* User Footer */}
-          <div className="border-t p-2 space-y-1">
+          <div className="border-t p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] space-y-1">
             {/* Email + Plan Badge */}
             {isExpanded ? (
               <NavLink
