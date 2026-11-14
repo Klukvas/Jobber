@@ -487,6 +487,65 @@ describe("apiClient 401 refresh-and-retry", () => {
         restore();
       }
     });
+
+    /**
+     * A charged AI call may run 90s on the backend; at 30s the client aborted
+     * while the provider call kept running and its credits stayed charged.
+     * The consent dialog is mocked here, so this hands the next call the
+     * operation key a confirmed AI action would carry.
+     */
+    async function consentToNextAICall() {
+      const credits = await import("@/shared/lib/aiCredits");
+      vi.mocked(credits.confirmAIAction).mockResolvedValueOnce(
+        "00000000-0000-4000-8000-000000000000",
+      );
+    }
+
+    it("gives a charged AI call its full 120s on the replay", async () => {
+      const { timeouts, restore } = captureSignalTimeouts();
+      try {
+        installReplayFetch();
+        await consentToNextAICall();
+
+        await api.apiClient.post("match-score", { job_id: "j", resume_id: "r" });
+
+        expect(timeouts.at(-1)).toBe(120_000);
+      } finally {
+        restore();
+      }
+    });
+
+    it("gives a charged AI upload its full 120s on the replay", async () => {
+      const { timeouts, restore } = captureSignalTimeouts();
+      try {
+        installReplayFetch();
+        await consentToNextAICall();
+        const form = new FormData();
+        form.append("file", new Blob(["x"]), "cv.pdf");
+
+        await api.apiClient.postFormData("resume-builder/import/pdf", form);
+
+        expect(timeouts.at(-1)).toBe(120_000);
+      } finally {
+        restore();
+      }
+    });
+
+    it("never lets an explicit budget cut a charged AI call short", async () => {
+      const { timeouts, restore } = captureSignalTimeouts();
+      try {
+        installReplayFetch();
+        await consentToNextAICall();
+        const form = new FormData();
+        form.append("file", new Blob(["x"]), "cv.pdf");
+
+        await api.apiClient.postFormData("resume-builder/import/pdf", form, 60_000);
+
+        expect(timeouts.at(-1)).toBe(120_000);
+      } finally {
+        restore();
+      }
+    });
   });
 
   /**
