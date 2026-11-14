@@ -440,3 +440,15 @@
 .dark .powered-by__icon svg polygon { fill: white; opacity: .92; }
 .dark .powered-by__label { color: rgba(255, 255, 255, 0.35); }
 .dark .powered-by__brand { color: #ffffff; }
+
+/* iOS zooms the whole page when a focused field's text is under 16px, and the
+   form controls use text-sm (14px). Phones get 16px field text instead of a
+   viewport maximum-scale, which would also block pinch-zoom on Android.
+   Unlayered !important so it wins over the text-sm utility on each field. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
