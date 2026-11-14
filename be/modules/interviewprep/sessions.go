@@ -4,14 +4,20 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/andreypavlenko/jobber/internal/platform/ids"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
 func (s *Store) StartSession(ctx context.Context, owner, job, version, key string) (Session, error) {
-	if !uuidValid(version) || !uuidValid(key) {
+	// Forward only canonical ids: uuid.Parse accepts spellings such as
+	// `urn:uuid:…` that Postgres rejects, and a request key must name one
+	// receipt however it is spelled.
+	canonical, ok := ids.CanonicalUUIDs(version, key)
+	if !ok {
 		return Session{}, ErrValidation
 	}
+	version, key = canonical[0], canonical[1]
 	var id string
 	fingerprint := digest(job + ":" + version)
 	err := s.transaction(ctx, owner, job, func(tx pgx.Tx) error {
@@ -57,9 +63,13 @@ type SaveAnswer struct {
 }
 
 func (s *Store) SaveAnswer(ctx context.Context, owner, job, session string, request SaveAnswer) (Session, error) {
-	if !uuidValid(request.Key) || !validText(request.Text, 12000, !request.Skip) || request.Revision < 0 || (request.Skip && request.Text != "") {
+	key, ok := ids.CanonicalUUID(request.Key)
+	if !ok || !validText(request.Text, 12000, !request.Skip) || request.Revision < 0 || (request.Skip && request.Text != "") {
 		return Session{}, ErrValidation
 	}
+	// request is this call's own copy; canonicalising it here keeps the receipt
+	// key and the fingerprint below consistent for every spelling of the key.
+	request.Key = key
 	action := sessionAction("answer", job, session)
 	fingerprint := revisionFingerprint(request.Revision, request)
 	err := s.transaction(ctx, owner, job, func(tx pgx.Tx) error {
@@ -127,9 +137,12 @@ type SessionAction struct {
 }
 
 func (s *Store) Action(ctx context.Context, owner, job, session string, request SessionAction) (Session, error) {
-	if !uuidValid(request.Key) || request.Revision < 0 || (request.Action != "pause" && request.Action != "resume" && request.Action != "finish") {
+	key, ok := ids.CanonicalUUID(request.Key)
+	if !ok || request.Revision < 0 || (request.Action != "pause" && request.Action != "resume" && request.Action != "finish") {
 		return Session{}, ErrValidation
 	}
+	// request is this call's own copy; see SaveAnswer.
+	request.Key = key
 	action := sessionAction(request.Action, job, session)
 	fp := revisionFingerprint(request.Revision, request)
 	err := s.transaction(ctx, owner, job, func(tx pgx.Tx) error {

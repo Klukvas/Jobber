@@ -12,9 +12,9 @@ import (
 	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
+	"github.com/andreypavlenko/jobber/internal/platform/ids"
 	"github.com/andreypavlenko/jobber/modules/subscriptions/service"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 const aiRequestTimeout = 90 * time.Second
@@ -34,11 +34,20 @@ func AIRequestScope(subscriptions *service.SubscriptionService) gin.HandlerFunc 
 		defer cancel()
 		key := c.GetHeader("Idempotency-Key")
 		if key != "" {
-			if _, err := uuid.Parse(key); err != nil {
+			// Receipts are keyed by this value, so every spelling uuid.Parse
+			// accepts (`{K}`, `urn:uuid:K`, K) must map to the same key. The
+			// fingerprint below still hashes the raw path, so on header-keyed
+			// routes a retry that respells a path id is refused as
+			// AI_OPERATION_CONFLICT before anything is reserved — never a
+			// second charge. Workflow routes (tailoring, interview) dedupe on
+			// their own receipts.
+			canonical, ok := ids.CanonicalUUID(key)
+			if !ok {
 				httpPlatform.RespondWithError(c, 400, "BAD_REQUEST", "Invalid Idempotency-Key")
 				c.Abort()
 				return
 			}
+			key = canonical
 		}
 		var reader io.Reader = bytes.NewReader(nil)
 		if c.Request.Body != nil {

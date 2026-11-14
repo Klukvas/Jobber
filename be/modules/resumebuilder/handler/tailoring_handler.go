@@ -7,10 +7,10 @@ import (
 
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
+	"github.com/andreypavlenko/jobber/internal/platform/ids"
 	"github.com/andreypavlenko/jobber/modules/resumebuilder/model"
 	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type TailoringService interface {
@@ -30,7 +30,7 @@ func (h *TailoringHandler) RegisterRoutes(router *gin.RouterGroup, authMiddlewar
 }
 
 func (h *TailoringHandler) Generate(c *gin.Context) {
-	userID, ok := tailoringUser(c)
+	userID, jobID, ok := tailoringUser(c)
 	if !ok {
 		return
 	}
@@ -52,9 +52,9 @@ func (h *TailoringHandler) Generate(c *gin.Context) {
 	if durable, ok := h.service.(interface {
 		GenerateIdempotent(context.Context, string, string, string, string, string) (*model.TailoringProposalDTO, error)
 	}); ok && req.RequestKey != "" {
-		result, err = durable.GenerateIdempotent(c.Request.Context(), userID, c.Param("id"), req.ResumeBuilderID, req.Locale, req.RequestKey)
+		result, err = durable.GenerateIdempotent(c.Request.Context(), userID, jobID, req.ResumeBuilderID, req.Locale, req.RequestKey)
 	} else {
-		result, err = h.service.Generate(c.Request.Context(), userID, c.Param("id"), req.ResumeBuilderID, req.Locale)
+		result, err = h.service.Generate(c.Request.Context(), userID, jobID, req.ResumeBuilderID, req.Locale)
 	}
 	if err != nil {
 		tailoringError(c, err)
@@ -64,11 +64,12 @@ func (h *TailoringHandler) Generate(c *gin.Context) {
 }
 
 func (h *TailoringHandler) Apply(c *gin.Context) {
-	userID, ok := tailoringUser(c)
+	userID, jobID, ok := tailoringUser(c)
 	if !ok {
 		return
 	}
-	if _, err := uuid.Parse(c.Param("proposalId")); err != nil {
+	proposalID, ok := ids.CanonicalUUID(c.Param("proposalId"))
+	if !ok {
 		tailoringError(c, model.ErrTailoringValidation)
 		return
 	}
@@ -78,7 +79,7 @@ func (h *TailoringHandler) Apply(c *gin.Context) {
 		tailoringError(c, model.ErrTailoringValidation)
 		return
 	}
-	result, replayed, err := h.service.Apply(c.Request.Context(), userID, c.Param("id"), c.Param("proposalId"), &req)
+	result, replayed, err := h.service.Apply(c.Request.Context(), userID, jobID, proposalID, &req)
 	if err != nil {
 		tailoringError(c, err)
 		return
@@ -90,17 +91,20 @@ func (h *TailoringHandler) Apply(c *gin.Context) {
 	httpPlatform.RespondWithData(c, status, result)
 }
 
-func tailoringUser(c *gin.Context) (string, bool) {
-	userID, ok := auth.GetUserID(c)
+// tailoringUser returns the caller and the canonical job id from the `:id` path
+// parameter, answering the request itself when either is missing or invalid.
+func tailoringUser(c *gin.Context) (userID, jobID string, ok bool) {
+	userID, ok = auth.GetUserID(c)
 	if !ok {
 		httpPlatform.RespondWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Unauthorized")
-		return "", false
+		return "", "", false
 	}
-	if _, err := uuid.Parse(c.Param("id")); err != nil {
+	jobID, ok = ids.CanonicalUUID(c.Param("id"))
+	if !ok {
 		tailoringError(c, model.ErrTailoringValidation)
-		return "", false
+		return "", "", false
 	}
-	return userID, true
+	return userID, jobID, true
 }
 
 func tailoringError(c *gin.Context, err error) {

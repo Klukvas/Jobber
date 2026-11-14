@@ -7,6 +7,7 @@ import (
 	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"strconv"
 
+	"github.com/andreypavlenko/jobber/internal/platform/ids"
 	quota "github.com/andreypavlenko/jobber/modules/subscriptions/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -41,9 +42,11 @@ func scanOperation(row scanner) (Operation, error) {
 	return o, err
 }
 func (s *Service) Generate(ctx context.Context, owner, job, resume, locale, key string) (Operation, error) {
-	if !uuidValid(key) || !uuidValid(resume) || (locale != "en" && locale != "ru" && locale != "uk") {
+	canonical, ok := ids.CanonicalUUIDs(key, resume)
+	if !ok || (locale != "en" && locale != "ru" && locale != "uk") {
 		return Operation{}, ErrValidation
 	}
+	key, resume = canonical[0], canonical[1]
 	fp := digest(struct{ Job, Kind, Business string }{job, "plan", resume + ":" + locale})
 	if prior, found, err := s.operationReplay(ctx, owner, job, "plan", key, fp); found || err != nil {
 		return prior, err
@@ -59,8 +62,17 @@ func (s *Service) Generate(ctx context.Context, owner, job, resume, locale, key 
 	return s.enqueue(ctx, owner, job, "plan", key, job+":"+resume+":"+locale+":"+snap.Hash, AIInput{Snapshot: snap}, nil, nil, nil)
 }
 func (s *Service) Review(ctx context.Context, owner, job, session, answer, key string) (Operation, error) {
-	if !uuidValid(key) {
+	canonicalKey, ok := ids.CanonicalUUID(key)
+	if !ok {
 		return Operation{}, ErrValidation
+	}
+	key = canonicalKey
+	if answer != "" {
+		canonicalAnswer, ok := ids.CanonicalUUID(answer)
+		if !ok {
+			return Operation{}, ErrValidation
+		}
+		answer = canonicalAnswer
 	}
 	ss, err := s.store.Session(ctx, owner, job, session)
 	if err != nil {
@@ -69,9 +81,6 @@ func (s *Service) Review(ctx context.Context, owner, job, session, answer, key s
 	var selected *Answer
 	replayKind, replayBusiness := "summary", session
 	if answer != "" {
-		if !uuidValid(answer) {
-			return Operation{}, ErrValidation
-		}
 		for _, a := range ss.Answers {
 			if a.ID == answer {
 				copy := a
@@ -110,9 +119,6 @@ func (s *Service) Review(ctx context.Context, owner, job, session, answer, key s
 	kind, business := "summary", session
 	var answerID *string
 	if answer != "" {
-		if !uuidValid(answer) {
-			return Operation{}, ErrValidation
-		}
 		kind = "feedback"
 		business = answer
 		answerID = &answer

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -47,7 +46,6 @@ func saveReceipt(ctx context.Context, tx pgx.Tx, owner, action, key, fingerprint
 	_, err := tx.Exec(ctx, `INSERT INTO interview_receipts(user_id,action,request_key,fingerprint,object_id) VALUES($1,$2,$3,$4,$5)`, owner, action, key, fingerprint, id)
 	return err
 }
-func uuidValid(id string) bool { _, err := uuid.Parse(id); return err == nil }
 
 const versionSelect = `SELECT id::text,job_id::text,provenance_resume_id::text,snapshot,plan,studied,source_hash,created_at FROM interview_versions WHERE user_id=$1 AND job_id=$2`
 

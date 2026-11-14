@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andreypavlenko/jobber/internal/platform/ids"
 	"github.com/andreypavlenko/jobber/internal/platform/netsafe"
 	"github.com/andreypavlenko/jobber/internal/platform/storage"
 	"github.com/andreypavlenko/jobber/modules/resumes/model"
@@ -316,10 +317,14 @@ func (s *ResumeService) FinalizeUpload(ctx context.Context, userID, resumeID str
 	}
 
 	// The id becomes part of a storage path, so it must be exactly the opaque
-	// identifier we handed out — never a caller-chosen string.
-	if _, err := uuid.Parse(resumeID); err != nil {
+	// identifier we handed out — never a caller-chosen string. uuid.Parse also
+	// accepts spellings such as `urn:uuid:…`, so only the canonical form is used
+	// from here on, for the key and for every query.
+	canonicalID, ok := ids.CanonicalUUID(resumeID)
+	if !ok {
 		return nil, model.ErrResumeFileMissing
 	}
+	resumeID = canonicalID
 
 	storageKey := uploadStorageKey(userID, resumeID)
 

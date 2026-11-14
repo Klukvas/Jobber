@@ -9,6 +9,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/andreypavlenko/jobber/internal/platform/ids"
 	"github.com/andreypavlenko/jobber/modules/apitokens/model"
 	"github.com/andreypavlenko/jobber/modules/apitokens/ports"
 	"github.com/google/uuid"
@@ -101,11 +102,11 @@ func (s *APITokenService) List(ctx context.Context, userID string) ([]*model.API
 }
 
 func (s *APITokenService) Revoke(ctx context.Context, userID, tokenID string) error {
-	id, err := uuid.Parse(tokenID)
-	if err != nil {
+	id, ok := ids.CanonicalUUID(tokenID)
+	if !ok {
 		return model.ErrInvalidID
 	}
-	if err := s.repo.Revoke(ctx, userID, id.String()); err != nil {
+	if err := s.repo.Revoke(ctx, userID, id); err != nil {
 		return fmt.Errorf("revoke api token: %w", err)
 	}
 	return nil
