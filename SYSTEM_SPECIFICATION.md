@@ -4953,3 +4953,48 @@ cancel and remove protected statistics along with list/detail data. A test-flag
 write fences every earlier metric response, pauses metric reads until all current
 writes settle, and reloads all filter/range variants. Late success/denial from a
 previous account cannot repopulate or revoke the current account's cache.
+
+## AI assistant connection over MCP (November 13, 2026)
+
+Pro and Enterprise users can connect an MCP client (Claude Code, Cursor and
+others) to their workspace. The server lives in `modules/mcp` and uses the
+official Go SDK in stateless Streamable HTTP mode with JSON responses, mounted at
+`POST /api/mcp`. The server identifies itself as `cursopus`.
+
+**Personal access tokens** (`modules/apitokens`, migration `000055_api_tokens`)
+look like `jbr_pat_` plus 43 base62 characters. Only the SHA-256 hash is stored;
+the plaintext is shown once at creation. Users create, list and revoke tokens in
+Settings → "AI assistants (MCP)" (`GET/POST /api/v1/api-tokens`,
+`DELETE /api/v1/api-tokens/:id`). Free users see an upgrade prompt instead.
+
+**Request pipeline:** origin check → 120 requests/min per IP → token
+authentication → paid-plan check (403 `PAID_FEATURE`) → 60 requests/min per user
+→ 1 MiB body cap (413). The user id reaches tools only through the verified
+token, never through tool arguments.
+
+**Tools:** `list_stages`, `list_jobs` (filter by `stage_id`; the older `stage`
+name is still accepted), `get_job`, `create_job`, `move_job`, `archive_job`,
+`parse_job_page`, `list_resumes`, `get_resume`, `update_resume_section`,
+`list_resume_snapshots`, `restore_resume_snapshot`, `tailor_resume`,
+`apply_tailoring`, `check_match`, `generate_cover_letter` and
+`get_resume_pdf_link`. Nothing can be hard-deleted; Jobs are archived instead.
+Job descriptions are treated as untrusted data.
+
+**AI credits** are charged exactly as on the web (tailor 7, cover letter 5,
+match 5, job parsing 2) through the shared `BeginAIRequestScope`, with the same
+refund rule: refunded before the provider call, kept after a dispatched failure.
+
+**Resume snapshots** (migration `000056_resume_builder_snapshots`): an MCP
+resume edit snapshots the resume at most once per 30 minutes, keeping the last
+20. Restoring is transactional and itself creates a snapshot, so it can be undone.
+
+**Audit log** (migration `000057_mcp_audit_log`): one row per tool call (tool
+name, outcome, duration, token), written off the request path by a bounded
+queue and drained on shutdown; unknown tool names are stored as `unknown_tool`
+and each user keeps at most 500 rows. `GET /api/v1/api-tokens/activity` feeds
+the recent-activity list in Settings.
+
+**PDF export:** `get_resume_pdf_link` renders the Builder Resume, stores it at
+`mcp-exports/{user}/{resume}.pdf` in object storage and returns a presigned link
+valid for 15 minutes.
+

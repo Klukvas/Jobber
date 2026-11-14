@@ -49,6 +49,7 @@ describe("PricingSection", () => {
     render(<PricingSection {...defaultProps} />);
     expect(screen.getByText("home.pricing.freeFeature1")).toBeInTheDocument();
     expect(screen.getByText("home.pricing.proFeature1")).toBeInTheDocument();
+    expect(screen.getByText("home.pricing.proFeature8")).toBeInTheDocument();
     expect(screen.queryByText("home.pricing.enterpriseFeature1")).not.toBeInTheDocument();
   });
 

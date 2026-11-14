@@ -6,11 +6,18 @@ import {
   Link2,
   BarChart3,
   FilePenLine,
+  Bot,
   type LucideIcon,
 } from "lucide-react";
 import { Reveal } from "./Reveal";
 
-const FEATURES: readonly { readonly key: string; readonly Icon: LucideIcon }[] =
+// A seventh card would sit alone in the last row of the 2- and 3-column grids,
+// so the MCP card spans the full row on purpose.
+const FEATURES: readonly {
+  readonly key: string;
+  readonly Icon: LucideIcon;
+  readonly fullRow?: boolean;
+}[] =
   [
     { key: "kanban", Icon: Kanban },
     { key: "aiMatch", Icon: Sparkles },
@@ -18,6 +25,7 @@ const FEATURES: readonly { readonly key: string; readonly Icon: LucideIcon }[] =
     { key: "jobImport", Icon: Link2 },
     { key: "analyticsCard", Icon: BarChart3 },
     { key: "coverLetters", Icon: FilePenLine },
+    { key: "aiAssistants", Icon: Bot, fullRow: true },
   ];
 
 export function FeaturesSection() {
@@ -39,8 +47,12 @@ export function FeaturesSection() {
         </Reveal>
 
         <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map(({ key, Icon }, index) => (
-            <Reveal key={key} delayMs={index * 80} className="h-full">
+          {FEATURES.map(({ key, Icon, fullRow }, index) => (
+            <Reveal
+              key={key}
+              delayMs={index * 80}
+              className={fullRow ? "h-full sm:col-span-2 lg:col-span-3" : "h-full"}
+            >
               <div className="group h-full rounded-xl border border-white/[0.07] bg-card p-7 transition-all hover:-translate-y-1 hover:border-white/[0.14] hover:shadow-[0_0_0_1px_rgba(163,230,53,0.06),0_8px_32px_rgba(0,0,0,0.3)]">
                 <div
                   className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg border border-lime-400/20 bg-lime-400/[0.08] transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-110"

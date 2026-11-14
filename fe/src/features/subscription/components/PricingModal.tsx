@@ -170,6 +170,7 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
         included("proJobParses"),
         included("proResumeBuilders"),
         included("proCoverLetters"),
+        included("proMcp"),
       ],
       highlighted: true,
     },

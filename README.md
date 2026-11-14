@@ -163,6 +163,19 @@ emergency. CI never writes the server's `Caddyfile`, so a change goes out by han
 - **[terraform/README.md](./terraform/README.md)** - Terraform infrastructure documentation
 - **[Makefile](./Makefile)** - All available deployment and database commands
 
+### 🤖 Connect an AI assistant (MCP)
+
+Pro and Enterprise users can let Claude Code, Cursor or another MCP client work
+with their jobs, resumes and cover letters. Create a personal token in
+Settings → "AI assistants (MCP)", then for Claude Code:
+
+```bash
+claude mcp add --transport http cursopus https://cursopus.com/api/mcp --header "Authorization: Bearer <TOKEN>"
+```
+
+Tools, limits, credit charging and the audit log are described in
+[SYSTEM_SPECIFICATION.md](./SYSTEM_SPECIFICATION.md#ai-assistant-connection-over-mcp-november-13-2026).
+
 ---
 
 ## 🏗️ Architecture

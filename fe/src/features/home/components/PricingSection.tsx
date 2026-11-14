@@ -34,6 +34,7 @@ const PRO_FEATURES = [
   "proFeature5",
   "proFeature6",
   "proFeature7",
+  "proFeature8",
 ] as const;
 
 /**
