@@ -28,12 +28,14 @@ import { Loader2, Mail } from "lucide-react";
 
 interface LoginModalProps {
   open: boolean;
+  onAuthenticated?: () => void;
   onOpenChange: (open: boolean) => void;
   onSwitchToRegister: () => void;
   onForgotPassword?: () => void;
 }
 
 function ModalContent({
+  onAuthenticated,
   onOpenChange,
   onSwitchToRegister,
   onForgotPassword,
@@ -61,7 +63,8 @@ function ModalContent({
     onSuccess: (data) => {
       setAuth(data.user);
       onOpenChange(false);
-      navigate(readReturnTo(location.search) ?? "/app");
+      if (onAuthenticated) onAuthenticated();
+      else navigate(readReturnTo(location.search) ?? "/app");
     },
     onError: (error: ApiError) => {
       if (error.code === "EMAIL_NOT_VERIFIED") {
@@ -295,6 +298,7 @@ function ModalContent({
 }
 
 export function LoginModal({
+  onAuthenticated,
   open,
   onOpenChange,
   onSwitchToRegister,
@@ -313,6 +317,7 @@ export function LoginModal({
         className="max-sm:m-0 max-sm:h-full max-sm:max-h-none max-sm:max-w-none max-sm:rounded-none max-sm:border-0 max-sm:pt-[calc(1.5rem_+_env(safe-area-inset-top))] max-sm:pb-[calc(1.5rem_+_env(safe-area-inset-bottom))]"
       >
         <ModalContent
+          onAuthenticated={onAuthenticated}
           key={open ? "open" : "closed"}
           onOpenChange={onOpenChange}
           onSwitchToRegister={onSwitchToRegister}

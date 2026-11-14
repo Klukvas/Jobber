@@ -30,6 +30,11 @@ describe("apiTokensService", () => {
     expect(await apiTokensService.activity(options)).toEqual([activity]);
     expect(client.get).toHaveBeenCalledWith("api-tokens/activity?limit=20", options);
   });
+  it("preserves OAuth grant attribution in activity responses", async () => {
+    const activity = { id: "oauth-call", tool: "list_jobs", ok: true, error_code: null, duration_ms: 1, created_at: token.created_at, api_token_id: null, token_name: null, oauth_grant_id: "grant", client_name: "Assistant" };
+    client.get.mockResolvedValue([activity]);
+    expect(await apiTokensService.activity()).toEqual([activity]);
+  });
   it("rejects malformed responses without putting plaintext into the error", async () => {
     client.post.mockResolvedValue({ token: "test-only-secret" });
     await expect(apiTokensService.create({ name: "Laptop" })).rejects.toMatchObject({ code: "INVALID_RESPONSE", message: "" });

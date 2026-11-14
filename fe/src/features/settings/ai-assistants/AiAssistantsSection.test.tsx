@@ -9,6 +9,7 @@ import { ApiError } from "@/services/api";
 import type { ApiToken } from "@/services/apiTokensService";
 
 const service = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), revoke: vi.fn(), activity: vi.fn() }));
+vi.mock("./ConnectedApps", () => ({ ConnectedApps: () => null }));
 const subscription = vi.hoisted(() => ({ isPro: true, isLoading: false }));
 const account = vi.hoisted(() => ({ user: { id: "user-1" } }));
 vi.mock("@/services/apiTokensService", () => ({ apiTokensService: service }));
@@ -217,6 +218,13 @@ describe("AI assistants settings", () => {
     expect(screen.getByText("Error: Request could not be completed")).toBeInTheDocument();
     expect(screen.getByText("Deleted token")).toBeInTheDocument();
     expect(screen.getAllByText(/ago/)).toHaveLength(3);
+  });
+
+  it("labels OAuth activity with its connected app name", async () => {
+    service.activity.mockResolvedValue([{ id: "oauth-call", tool: "list_jobs", ok: true, error_code: null, duration_ms: 1, created_at: new Date().toISOString(), api_token_id: null, token_name: null, oauth_grant_id: "grant", client_name: "Web assistant" }]);
+    mount();
+    expect(await screen.findByText("Web assistant")).toBeInTheDocument();
+    expect(screen.queryByText("Deleted token")).not.toBeInTheDocument();
   });
 
   it("shows loading states and retries each failed list independently", async () => {

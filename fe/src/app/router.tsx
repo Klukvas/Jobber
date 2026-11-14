@@ -23,6 +23,8 @@ import FeatureCoverLettersPage from "@/pages/FeatureCoverLetters";
 // Print page (no auth, no layout — used by headless Chrome for PDF export)
 const ResumeBuilderPrintPage = lazy(() => import("@/pages/ResumeBuilderPrint"));
 
+const OAuthAuthorizePage = lazy(() => import("@/pages/OAuthAuthorize"));
+
 // Protected pages — kept lazy
 const SettingsPage = lazy(() => import("@/pages/Settings"));
 const ResumesPage = lazy(() => import("@/pages/Resumes"));
@@ -93,6 +95,7 @@ export const routes: RouteObject[] = [
           },
         ],
       },
+      { path: "oauth/authorize", caseSensitive: true, element: <OAuthAuthorizePage /> },
       {
         path: "verify-email",
         element: <Navigate to="/" replace />,

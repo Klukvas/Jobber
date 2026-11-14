@@ -21,6 +21,8 @@ const activitySchema = z.object({
   created_at: timestamp,
   api_token_id: z.string().nullable(),
   token_name: z.string().nullable(),
+  oauth_grant_id: z.string().nullable().optional(),
+  client_name: z.string().nullable().optional(),
 });
 
 export type ApiToken = z.infer<typeof tokenSchema>;

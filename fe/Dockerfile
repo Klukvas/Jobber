@@ -64,6 +64,9 @@ server { \
     # trailing slash (the redirect chain went through plain http and made \
     # every sitemap/canonical URL a redirect for crawlers). \
     absolute_redirect off; \
+    # OAuth consent URLs carry a client callback (up to 2 KiB) plus a state that \
+    # percent-encodes to ~6 KiB; the 8 KiB default would 414 before consent loads. \
+    large_client_header_buffers 4 32k; \
     \
     # Security headers \
     add_header X-Frame-Options "SAMEORIGIN" always; \
@@ -97,6 +100,30 @@ server { \
         proxy_connect_timeout 5s; \
         proxy_send_timeout 95s; \
         proxy_read_timeout 95s; \
+    } \
+    \
+    location ^~ /.well-known/oauth- { \
+        proxy_pass http://backend:8080; \
+        proxy_http_version 1.1; \
+        proxy_set_header Host $host; \
+        proxy_set_header X-Real-IP $remote_addr; \
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+        proxy_set_header X-Forwarded-Proto $scheme; \
+        proxy_connect_timeout 5s; \
+        proxy_send_timeout 95s; \
+        proxy_read_timeout 95s; \
+    } \
+    \
+    location ^~ /oauth/authorize { \
+        try_files /index.html =404; \
+        add_header X-Frame-Options "DENY" always; \
+        add_header Content-Security-Policy "frame-ancestors '\''none'\''" always; \
+        add_header X-Content-Type-Options "nosniff" always; \
+        add_header X-XSS-Protection "1; mode=block" always; \
+        add_header Referrer-Policy "no-referrer" always; \
+        add_header Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=()" always; \
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always; \
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always; \
     } \
     \
     # HTML — never cache (SPA entry point changes every deploy) \
