@@ -868,3 +868,30 @@ func TestLoad_SentryTracesSampleRate(t *testing.T) {
 		}
 	})
 }
+
+func TestLoad_SentryRelease(t *testing.T) {
+	t.Run("falls back to the image's build revision", func(t *testing.T) {
+		setMinimalEnv(t)
+		t.Setenv("SENTRY_RELEASE", "")
+		t.Setenv("BUILD_REVISION", "5fdd754abc")
+		cfg, err := Load()
+		require.NoError(t, err)
+		assert.Equal(t, "5fdd754abc", cfg.Sentry.Release)
+	})
+	t.Run("an explicit SENTRY_RELEASE wins", func(t *testing.T) {
+		setMinimalEnv(t)
+		t.Setenv("SENTRY_RELEASE", "manual-1")
+		t.Setenv("BUILD_REVISION", "5fdd754abc")
+		cfg, err := Load()
+		require.NoError(t, err)
+		assert.Equal(t, "manual-1", cfg.Sentry.Release)
+	})
+	t.Run("stays empty without either", func(t *testing.T) {
+		setMinimalEnv(t)
+		t.Setenv("SENTRY_RELEASE", "")
+		t.Setenv("BUILD_REVISION", "")
+		cfg, err := Load()
+		require.NoError(t, err)
+		assert.Empty(t, cfg.Sentry.Release)
+	})
+}
