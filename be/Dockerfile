@@ -45,4 +45,10 @@ USER appuser
 
 EXPOSE 8080
 
+# Commit the image was built from. Sentry falls back to it when SENTRY_RELEASE is
+# empty, so events always name the code that is actually running (rollbacks too).
+# Declared last so a new commit does not invalidate the cached layers above.
+ARG BUILD_REVISION=
+ENV BUILD_REVISION=$BUILD_REVISION
+
 CMD ["./jobber-api"]

@@ -242,8 +242,10 @@ func Load() (*Config, error) {
 			EnterpriseProductID: getEnv("CREEM_ENTERPRISE_PRODUCT_ID", ""),
 		},
 		Sentry: SentryConfig{
-			DSN:     getEnv("SENTRY_DSN", ""),
-			Release: getEnv("SENTRY_RELEASE", ""),
+			DSN: getEnv("SENTRY_DSN", ""),
+			// The image's commit matches the frontend's VITE_SENTRY_RELEASE,
+			// so both halves of a deploy report under one Sentry release.
+			Release: getEnv("SENTRY_RELEASE", getEnv("BUILD_REVISION", "")),
 		},
 		Resend: ResendConfig{
 			APIKey:      getEnv("RESEND_API_KEY", ""),
