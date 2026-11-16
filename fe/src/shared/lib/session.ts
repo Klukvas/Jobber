@@ -1,6 +1,6 @@
 import { useAuthStore } from "@/stores/authStore";
 import { getQueryClient } from "@/shared/lib/queryClient";
-import { onSessionReplaced } from "@/shared/lib/sessionGeneration";
+import { onSessionReplaced, setTabAccountSource } from "@/shared/lib/sessionGeneration";
 
 /**
  * Ends the signed-in session in this tab: the one place that does.
@@ -27,7 +27,9 @@ export function endSession(): void {
   getQueryClient().clear();
 }
 
-// Another tab logged out or signed in: everything this tab holds belongs to a
-// session that is over. It is signed out rather than switched to the new
-// account, which it may not even know yet (the other tab saves it later).
+// Another tab logged out or signed in a different account: everything this tab
+// holds belongs to a session that is over. It is signed out rather than
+// switched to the new account, which it may not even know yet (the other tab
+// saves it later). The same account signing in again keeps this tab as it is.
+setTabAccountSource(() => useAuthStore.getState().user?.id ?? null);
 onSessionReplaced(endSession);
