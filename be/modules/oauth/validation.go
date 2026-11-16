@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"math/big"
 	"net/url"
 	"strconv"
@@ -139,22 +140,25 @@ func ValidateClient(input Client) (Client, error) {
 
 func validateClient(input Client, maxRedirects int) (Client, error) {
 	if !utf8.ValidString(input.Name) || utf8.RuneCountInString(input.Name) > 100 || strings.ContainsFunc(input.Name, unicode.IsControl) {
-		return Client{}, ErrInvalidClientMetadata
+		return Client{}, fmt.Errorf("%w: client_name", ErrInvalidClientMetadata)
 	}
 	if input.AuthMethod != "" && input.AuthMethod != "none" {
-		return Client{}, ErrInvalidClientMetadata
+		return Client{}, fmt.Errorf("%w: token_endpoint_auth_method %q", ErrInvalidClientMetadata, input.AuthMethod)
 	}
 	if len(input.RedirectURIs) < 1 || len(input.RedirectURIs) > maxRedirects {
-		return Client{}, ErrInvalidRedirectURI
+		return Client{}, fmt.Errorf("%w: %d redirect_uris", ErrInvalidRedirectURI, len(input.RedirectURIs))
 	}
-	for _, uri := range input.RedirectURIs {
+	for index, uri := range input.RedirectURIs {
 		if err := ValidateRedirectURI(uri); err != nil {
-			return Client{}, ErrInvalidRedirectURI
+			return Client{}, fmt.Errorf("%w: redirect_uris[%d]", ErrInvalidRedirectURI, index)
 		}
 	}
 	grants, ok := supportedGrants(input.GrantTypes)
-	if !ok || !subset(input.ResponseTypes, "code") {
-		return Client{}, ErrInvalidClientMetadata
+	if !ok {
+		return Client{}, fmt.Errorf("%w: grant_types", ErrInvalidClientMetadata)
+	}
+	if !subset(input.ResponseTypes, "code") {
+		return Client{}, fmt.Errorf("%w: response_types", ErrInvalidClientMetadata)
 	}
 	output := input
 	output.RedirectURIs = append([]string(nil), input.RedirectURIs...)

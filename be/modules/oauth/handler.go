@@ -3,6 +3,7 @@ package oauth
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -62,16 +63,16 @@ func (h *Handler) RegisterRoutes(router *gin.Engine, auth gin.HandlerFunc, redis
 func decodeJSON(c *gin.Context, value any) error {
 	content, _, err := mime.ParseMediaType(c.GetHeader("Content-Type"))
 	if err != nil || content != "application/json" {
-		return ErrInvalidRequest
+		return fmt.Errorf("%w: content type %q", ErrInvalidRequest, truncate(c.GetHeader("Content-Type"), 100))
 	}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 64<<10)
 	decoder := json.NewDecoder(c.Request.Body)
 	if err := decoder.Decode(value); err != nil {
-		return ErrInvalidRequest
+		return fmt.Errorf("%w: %s", ErrInvalidRequest, truncate(err.Error(), 200))
 	}
 	var extra any
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
-		return ErrInvalidRequest
+		return fmt.Errorf("%w: trailing data after JSON body", ErrInvalidRequest)
 	}
 	return nil
 }
@@ -79,11 +80,13 @@ func decodeJSON(c *gin.Context, value any) error {
 func (h *Handler) Register(c *gin.Context) {
 	var request Client
 	if err := decodeJSON(c, &request); err != nil {
+		h.logRegistrationReject(c, request, err)
 		registrationError(c, ErrInvalidRequest)
 		return
 	}
 	client, err := h.service.Register(c.Request.Context(), request)
 	if err != nil {
+		h.logRegistrationReject(c, request, err)
 		registrationError(c, err)
 		return
 	}
