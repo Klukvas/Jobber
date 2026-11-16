@@ -15,6 +15,8 @@ import (
 	"github.com/andreypavlenko/jobber/modules/resumebuilder/repository"
 	resumeModel "github.com/andreypavlenko/jobber/modules/resumes/model"
 	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
+	subRepo "github.com/andreypavlenko/jobber/modules/subscriptions/repository"
+	subService "github.com/andreypavlenko/jobber/modules/subscriptions/service"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,13 +30,35 @@ func (r workflowUploadReader) GetByID(_ context.Context, user, id string) (*resu
 	}
 	return &resumeModel.Resume{ID: id, UserID: user, Title: "Original PDF"}, nil
 }
-func pdfWorkflow(t *testing.T, f *tailoringIntegrationFixture, parse func(context.Context, string) (*ai.ParsedResume, error)) (*PDFTailoringService, *tailoringTestAI, string) {
+
+// Each call gets the credit scope supplied by HTTP/MCP in production. In
+// particular, concurrent calls and replays must never share mutable scope state.
+type creditPDFWorkflow struct {
+	*PDFTailoringService
+	credits *subService.SubscriptionService
+}
+
+func (s *creditPDFWorkflow) Import(ctx context.Context, user, job string, req *model.PDFImportRequest) (*model.PDFImportResult, error) {
+	ctx = ai.CreditContext(ctx, func() string { return user }, "", "resume_import")
+	defer s.credits.FinishAIRequest(ctx)
+	return s.PDFTailoringService.Import(ctx, user, job, req)
+}
+
+func (s *creditPDFWorkflow) GenerateIdempotent(ctx context.Context, user, job, source, locale, key string) (*model.TailoringProposalDTO, error) {
+	ctx = ai.CreditContext(ctx, func() string { return user }, "", "tailor")
+	defer s.credits.FinishAIRequest(ctx)
+	return s.PDFTailoringService.GenerateIdempotent(ctx, user, job, source, locale, key)
+}
+
+func pdfWorkflow(t *testing.T, f *tailoringIntegrationFixture, parse func(context.Context, string) (*ai.ParsedResume, error)) (*creditPDFWorkflow, *tailoringTestAI, string) {
 	t.Helper()
 	uploaded := uuid.NewString()
 	importer := NewImportServiceWithDeps(f.repo, &MockResumeTextParser{ParseResumeTextFunc: parse}, f.limits, func([]byte) (string, error) { return "Synthetic PDF resume text", nil })
 	client := &tailoringTestAI{result: &ai.ResumeTailoringSuggestions{Summary: &ai.TailoringTextSuggestion{After: "Engineer building reliable Go services.", Reason: "Emphasize engineering", Evidence: []ai.TailoringEvidence{{Section: "summary", Quote: "Built reliable Go services."}}}}}
 	tailoring := NewTailoringService(f.repo, f.repo, client, repository.NewPostgresTailoringProposalStore(f.repo), f.limits)
-	return NewPDFTailoringService(tailoring, importer, workflowUploadReader{f.userID, uploaded}, func(context.Context, *resumeModel.Resume) ([]byte, error) { return []byte("%PDF-synthetic"), nil }), client, uploaded
+	credits := subService.NewSubscriptionService(subRepo.NewSubscriptionRepository(f.pool), nil, subService.BillingConfig{})
+	workflow := NewPDFTailoringService(tailoring, importer, workflowUploadReader{f.userID, uploaded}, func(context.Context, *resumeModel.Resume) ([]byte, error) { return []byte("%PDF-synthetic"), nil })
+	return &creditPDFWorkflow{PDFTailoringService: workflow, credits: credits}, client, uploaded
 }
 func parsedPDF(context.Context, string) (*ai.ParsedResume, error) {
 	return &ai.ParsedResume{FullName: "Recognized Example", Summary: "Built reliable Go services.", Skills: []ai.ParsedSkill{{Name: "Go", Level: "expert"}}}, nil
@@ -42,8 +66,26 @@ func parsedPDF(context.Context, string) (*ai.ParsedResume, error) {
 func workflowUsage(t *testing.T, f *tailoringIntegrationFixture) int {
 	t.Helper()
 	var count int
-	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT count(*) FROM ai_usage WHERE user_id=$1`, f.userID).Scan(&count))
+	// Failed operations keep their receipt even after user credits are refunded.
+	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT count(*) FROM ai_credit_operations WHERE user_id=$1`, f.userID).Scan(&count))
 	return count
+}
+
+func workflowCharges(t *testing.T, f *tailoringIntegrationFixture, charged, reserved, released int) {
+	t.Helper()
+	var actualCharged, actualReserved, actualReleased, usedCredits, legacyUsage int
+	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT
+		count(*) FILTER (WHERE charge_state='charged'),
+		count(*) FILTER (WHERE charge_state='reserved'),
+		count(*) FILTER (WHERE charge_state='released'),
+		COALESCE(sum(credits) FILTER (WHERE charge_state<>'released'),0)
+		FROM ai_credit_operations WHERE user_id=$1 AND kind IN ('resume_import','tailor')`, f.userID).Scan(&actualCharged, &actualReserved, &actualReleased, &usedCredits))
+	assert.Equal(t, charged, actualCharged, "usable results are charged exactly once")
+	assert.Equal(t, reserved, actualReserved, "only in-flight work holds credits")
+	assert.Equal(t, released, actualReleased, "rejected results refund their reservation")
+	assert.Equal(t, (charged+reserved)*7, usedCredits)
+	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT count(*) FROM ai_usage WHERE user_id=$1`, f.userID).Scan(&legacyUsage))
+	assert.Zero(t, legacyUsage, "credit-scoped PDF workflows must not use legacy usage")
 }
 
 func TestPDFWorkflowRecognitionCopyAndDurableReplay(t *testing.T) {
@@ -114,6 +156,7 @@ func TestPDFWorkflowRecognitionCopyAndDurableReplay(t *testing.T) {
 	_, err = s.Import(t.Context(), f.userID, f.jobID, request)
 	require.ErrorIs(t, err, model.ErrOperationDeleted)
 	assert.Equal(t, 2, workflowUsage(t, f))
+	workflowCharges(t, f, 2, 0, 0)
 }
 
 func TestPDFWorkflowPendingUnreadableOwnershipAndLimits(t *testing.T) {
@@ -155,6 +198,7 @@ func TestPDFWorkflowPendingUnreadableOwnershipAndLimits(t *testing.T) {
 	_, err = s.Import(t.Context(), f.userID, f.jobID, &foreign)
 	require.ErrorIs(t, err, subModel.ErrLimitReached)
 	assert.Equal(t, int32(1), calls.Load())
+	workflowCharges(t, f, 1, 0, 0)
 }
 
 func TestPDFWorkflowFailureAndInterruptedRequestsDoNotRerun(t *testing.T) {
@@ -176,6 +220,7 @@ func TestPDFWorkflowFailureAndInterruptedRequestsDoNotRerun(t *testing.T) {
 	_, err = s.Import(t.Context(), f.userID, f.jobID, req)
 	require.ErrorIs(t, err, model.ErrOperationInterrupted)
 	assert.Equal(t, int32(1), calls.Load())
+	workflowCharges(t, f, 0, 0, 1)
 }
 
 func TestPDFWorkflowRecognitionCanMoveAcrossJobs(t *testing.T) {
@@ -206,15 +251,15 @@ func TestWorkflowObjectIDsAreOwnerAndActionScoped(t *testing.T) {
 	assert.Contains(t, string(payload), "alice")
 }
 
-type workflowLimits struct{ documents, ai int }
-
-func (l workflowLimits) CheckLimit(context.Context, string, string) error { return nil }
-func (l workflowLimits) RecordAIUsage(context.Context, string) error      { return nil }
-func (l workflowLimits) ResourceLimit(_ context.Context, _ string, resource string) (int, error) {
-	if resource == "ai" {
-		return l.ai, nil
-	}
-	return l.documents, nil
+func reserveWorkflowCredit(t *testing.T, f *tailoringIntegrationFixture, kind string) subModel.CreditOperation {
+	t.Helper()
+	op := subModel.CreditOperation{UserID: f.userID, Key: uuid.NewString(), Kind: kind, Fingerprint: "other-feature", Credits: ai.OperationCosts[kind]}
+	tx, err := f.pool.Begin(t.Context())
+	require.NoError(t, err)
+	defer tx.Rollback(context.Background())
+	require.NoError(t, subRepo.ReserveCreditOperationInTransaction(t.Context(), tx, op))
+	require.NoError(t, tx.Commit(t.Context()))
+	return op
 }
 
 func TestPDFWorkflowSharedAIQuotaAndCancellationRetention(t *testing.T) {
@@ -228,19 +273,29 @@ func TestPDFWorkflowSharedAIQuotaAndCancellationRetention(t *testing.T) {
 		<-release
 		return parsedPDF(ctx, text)
 	})
-	s.tailoring.limits = workflowLimits{documents: 100, ai: 1}
+	// One weighted operation fits. Pending reservations share the same grant
+	// across imports and tailoring, regardless of the old request-count limit.
+	ledger := subRepo.NewSubscriptionRepository(f.pool)
+	for _, kind := range []string{"interview_plan", "cover_letter", "match", "interview_summary"} {
+		require.NoError(t, ledger.CompleteCreditOperation(t.Context(), reserveWorkflowCredit(t, f, kind)))
+	}
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	done := make(chan *model.PDFImportResult, 1)
 	fail := make(chan error, 1)
+	req := &model.PDFImportRequest{RequestKey: uuid.NewString(), ResumeID: uploaded}
 	go func() {
-		result, err := s.Import(ctx, f.userID, f.jobID, &model.PDFImportRequest{RequestKey: uuid.NewString(), ResumeID: uploaded})
+		result, err := s.Import(ctx, f.userID, f.jobID, req)
 		done <- result
 		fail <- err
 	}()
 	<-entered
+	workflowCharges(t, f, 0, 1, 0)
 	// A different request cannot exceed the same AI allowance while slots remain.
 	_, err := s.Import(t.Context(), f.userID, f.jobID, &model.PDFImportRequest{RequestKey: uuid.NewString(), ResumeID: uploaded})
-	require.ErrorIs(t, err, subModel.ErrLimitReached)
+	require.ErrorIs(t, err, subModel.ErrCreditUnavailable)
+	_, err = s.GenerateIdempotent(t.Context(), f.userID, f.jobID, f.sourceID, "en", uuid.NewString())
+	require.ErrorIs(t, err, subModel.ErrCreditUnavailable)
 	cancel()
 	close(release)
 	result := <-done
@@ -250,14 +305,17 @@ func TestPDFWorkflowSharedAIQuotaAndCancellationRetention(t *testing.T) {
 	_, err = f.repo.GetByID(t.Context(), f.userID, result.ResumeBuilder.ID)
 	require.NoError(t, err, "cancelling never deletes the imported copy")
 	var receipts int
-	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT count(*) FROM resume_tailoring_operations o JOIN ai_usage a ON a.id=o.ai_receipt_id AND a.user_id=o.user_id WHERE o.user_id=$1`, f.userID).Scan(&receipts))
+	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT count(*) FROM resume_tailoring_operations o JOIN ai_credit_operations a ON a.operation_key=o.ai_receipt_id::text AND a.user_id=o.user_id WHERE o.user_id=$1 AND a.charge_state='charged' AND a.kind='resume_import' AND a.credits=7`, f.userID).Scan(&receipts))
 	assert.Equal(t, 1, receipts)
-	// Legacy reservations participate in this same allowance.
-	s.tailoring.limits = workflowLimits{documents: 100, ai: 2}
-	_, err = f.pool.Exec(t.Context(), `INSERT INTO ai_quota_reservations(id,user_id,expires_at) VALUES($1,$2,now()+interval '1 minute')`, uuid.NewString(), f.userID)
-	require.NoError(t, err)
+	workflowCharges(t, f, 1, 0, 0)
+	replayed, err := s.Import(t.Context(), f.userID, f.jobID, req)
+	require.NoError(t, err, "a completed result is recoverable even with zero remaining credits")
+	assert.Equal(t, result, replayed)
+	// A new import is still blocked after the pending charge is finalized.
 	_, err = s.Import(t.Context(), f.userID, f.jobID, &model.PDFImportRequest{RequestKey: uuid.NewString(), ResumeID: uploaded})
-	require.ErrorIs(t, err, subModel.ErrLimitReached)
+	require.ErrorIs(t, err, subModel.ErrCreditUnavailable)
+	assert.Equal(t, int32(1), calls.Load())
+	workflowCharges(t, f, 1, 0, 0)
 }
 
 func TestPDFWorkflowSameClientKeysAcrossOwners(t *testing.T) {
@@ -282,6 +340,8 @@ func TestPDFWorkflowSameClientKeysAcrossOwners(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, 2, workflowUsage(t, first))
 	assert.Equal(t, 2, workflowUsage(t, second))
+	workflowCharges(t, first, 2, 0, 0)
+	workflowCharges(t, second, 2, 0, 0)
 }
 
 func TestPDFWorkflowEmptyAndExtractionErrorsHaveManualFallback(t *testing.T) {
@@ -304,6 +364,7 @@ func TestPDFWorkflowEmptyAndExtractionErrorsHaveManualFallback(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEmpty(t, imported.ResumeBuilder.ID)
 			assert.Equal(t, 1, workflowUsage(t, f))
+			workflowCharges(t, f, 1, 0, 0)
 		})
 	}
 }
@@ -325,15 +386,17 @@ func TestPDFWorkflowGenerationFailureKeepsConfirmedCopy(t *testing.T) {
 	require.ErrorIs(t, err, model.ErrAITimeout)
 	assert.Equal(t, 1, client.calls)
 	assert.Equal(t, 2, workflowUsage(t, f))
+	workflowCharges(t, f, 1, 0, 1)
 	after, err := f.repo.GetFullResume(t.Context(), f.userID, source)
 	require.NoError(t, err)
 	assert.Equal(t, before, after)
 	_, required, err := s.SourceReview(t.Context(), f.userID, f.jobID, source)
 	require.NoError(t, err)
 	assert.False(t, required)
-	s.tailoring.limits = workflowLimits{documents: 100, ai: 2}
+	// A failed result refunds its credits; a new logical request may succeed.
 	client.err = nil
 	_, err = s.GenerateIdempotent(t.Context(), f.userID, f.jobID, source, "en", uuid.NewString())
-	require.ErrorIs(t, err, subModel.ErrLimitReached)
-	assert.Equal(t, 1, client.calls)
+	require.NoError(t, err)
+	assert.Equal(t, 2, client.calls)
+	workflowCharges(t, f, 2, 0, 1)
 }

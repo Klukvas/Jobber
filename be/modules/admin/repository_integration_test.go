@@ -51,6 +51,12 @@ func isolatedPool(t *testing.T) *pgxpool.Pool {
 	applyMigration(t, pool, "000052_subscription_credits.up.sql")
 	applyMigration(t, pool, "000053_manual_admin_access.up.sql")
 	applyMigration(t, pool, "000054_test_accounts.up.sql")
+	// The result-charge migration reconciles durable workflow receipts. These
+	// tables stay empty here; admin tests exercise the real current credit ledger.
+	_, err = pool.Exec(t.Context(), `CREATE TABLE interview_operations(id uuid,user_id uuid,status text,charge_released bool);
+		CREATE TABLE resume_tailoring_operations(user_id uuid,ai_receipt_id uuid,status text)`)
+	require.NoError(t, err)
+	applyMigration(t, pool, "000059_ai_result_charges.up.sql")
 	return pool
 }
 func migration(t *testing.T, name string) string {
