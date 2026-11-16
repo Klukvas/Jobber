@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { EditableField } from "../../../inline/EditableField";
 import { EditableTextarea } from "../../../inline/EditableTextarea";
 import { EditableDateRange } from "../../../inline/EditableDateRange";
@@ -11,6 +12,7 @@ export function ExperienceContent({
   sectionColor,
   inputClassName,
 }: SectionContentProps) {
+  const { t } = useTranslation();
   const { resume, updateExperience, experienceSection } = setup;
   const effectiveColor = sectionColor ?? setup.color;
   const inputClass = inputClassName ?? "";
@@ -39,7 +41,7 @@ export function ExperienceContent({
                     onChange={(v) =>
                       updateExperience(exp.id, { position: v })
                     }
-                    placeholder="Position"
+                    placeholder={t("resumeBuilder.placeholders.position")}
                     inputClassName={inputClass}
                     editable={editable}
                   />
@@ -51,7 +53,7 @@ export function ExperienceContent({
                         onChange={(v) =>
                           updateExperience(exp.id, { company: v })
                         }
-                        placeholder="Company"
+                        placeholder={t("resumeBuilder.placeholders.company")}
                         inputClassName={inputClass}
                         editable={editable}
                       />
@@ -62,6 +64,7 @@ export function ExperienceContent({
                   startDate={exp.start_date}
                   endDate={exp.end_date}
                   isCurrent={exp.is_current}
+                  onRangeChange={(range) => updateExperience(exp.id, range)}
                   onStartDateChange={(v) =>
                     updateExperience(exp.id, { start_date: v })
                   }
@@ -82,7 +85,7 @@ export function ExperienceContent({
                 <EditableField
                   value={exp.location}
                   onChange={(v) => updateExperience(exp.id, { location: v })}
-                  placeholder="Location"
+                  placeholder={t("resumeBuilder.placeholders.location")}
                   as="p"
                   className="text-xs text-gray-500"
                   inputClassName={inputClass}
@@ -95,7 +98,7 @@ export function ExperienceContent({
                   onChange={(v) =>
                     updateExperience(exp.id, { description: v })
                   }
-                  placeholder="Describe responsibilities..."
+                  placeholder={t("resumeBuilder.placeholders.responsibilities")}
                   className={`mt-1 ${config.textSize} ${config.leadingClass} text-gray-600`}
                   editable={editable}
                 />
@@ -110,7 +113,7 @@ export function ExperienceContent({
                     onChange={(v) =>
                       updateExperience(exp.id, { position: v })
                     }
-                    placeholder="Position"
+                    placeholder={t("resumeBuilder.placeholders.position")}
                     as="p"
                     className={`${config.textSize} font-bold`}
                     inputClassName={inputClass}
@@ -126,7 +129,7 @@ export function ExperienceContent({
                         onChange={(v) =>
                           updateExperience(exp.id, { company: v })
                         }
-                        placeholder="Company"
+                        placeholder={t("resumeBuilder.placeholders.company")}
                         inputClassName={inputClass}
                         editable={editable}
                       />
@@ -138,7 +141,7 @@ export function ExperienceContent({
                             onChange={(v) =>
                               updateExperience(exp.id, { location: v })
                             }
-                            placeholder="Location"
+                            placeholder={t("resumeBuilder.placeholders.location")}
                             inputClassName={inputClass}
                             editable={editable}
                           />
@@ -154,7 +157,7 @@ export function ExperienceContent({
                         onChange={(v) =>
                           updateExperience(exp.id, { company: v })
                         }
-                        placeholder="Company"
+                        placeholder={t("resumeBuilder.placeholders.company")}
                         inputClassName={inputClass}
                         editable={editable}
                       />
@@ -168,7 +171,7 @@ export function ExperienceContent({
                             onChange={(v) =>
                               updateExperience(exp.id, { location: v })
                             }
-                            placeholder="Location"
+                            placeholder={t("resumeBuilder.placeholders.location")}
                             inputClassName={inputClass}
                             editable={editable}
                           />
@@ -181,6 +184,7 @@ export function ExperienceContent({
                   startDate={exp.start_date}
                   endDate={exp.end_date}
                   isCurrent={exp.is_current}
+                  onRangeChange={(range) => updateExperience(exp.id, range)}
                   onStartDateChange={(v) =>
                     updateExperience(exp.id, { start_date: v })
                   }
@@ -203,7 +207,7 @@ export function ExperienceContent({
                   onChange={(v) =>
                     updateExperience(exp.id, { description: v })
                   }
-                  placeholder="Describe your responsibilities and achievements..."
+                  placeholder={t("resumeBuilder.placeholders.responsibilities")}
                   className={`mt-1 ${config.textSize} ${config.leadingClass} text-gray-700`}
                   editable={editable}
                 />

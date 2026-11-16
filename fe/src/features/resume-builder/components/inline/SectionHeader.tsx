@@ -93,7 +93,7 @@ export function SectionHeader({
           {onMoveUp && (
             <button
               onClick={onMoveUp}
-              className="flex h-5 w-5 items-center justify-center text-gray-400 transition-colors hover:text-gray-700"
+              className="flex h-5 w-5 items-center justify-center text-gray-600 transition-colors hover:text-gray-700"
               aria-label={t("resumeBuilder.inline.moveUp")}
             >
               <ArrowUp className="h-3 w-3" />
@@ -102,7 +102,7 @@ export function SectionHeader({
           {onMoveDown && (
             <button
               onClick={onMoveDown}
-              className="flex h-5 w-5 items-center justify-center text-gray-400 transition-colors hover:text-gray-700"
+              className="flex h-5 w-5 items-center justify-center text-gray-600 transition-colors hover:text-gray-700"
               aria-label={t("resumeBuilder.inline.moveDown")}
             >
               <ArrowDown className="h-3 w-3" />
@@ -111,7 +111,7 @@ export function SectionHeader({
           {onRemoveSection && (
             <button
               onClick={onRemoveSection}
-              className="flex h-5 w-5 items-center justify-center text-gray-400 transition-colors hover:text-red-500"
+              className="flex h-5 w-5 items-center justify-center text-gray-600 transition-colors hover:text-red-500"
               aria-label={t("resumeBuilder.inline.removeSection", { section: title })}
             >
               <X className="h-3 w-3" />
@@ -156,11 +156,11 @@ export function SectionHeader({
       {isEmpty && editable && onAdd && (
         <button
           onClick={onAdd}
-          className="mt-1 flex items-center gap-1 text-xs italic text-gray-400 hover:text-gray-600 transition-colors"
-          aria-label={emptyPlaceholder ?? `Add ${title.toLowerCase()}`}
+          className="mt-1 flex items-center gap-1 text-xs italic text-gray-600 hover:text-gray-600 transition-colors"
+          aria-label={emptyPlaceholder ?? t("resumeBuilder.inline.addEntry", { section: title })}
         >
           <Plus className="h-3 w-3" />
-          {emptyPlaceholder ?? `Add ${title.toLowerCase()}`}
+          {emptyPlaceholder ?? t("resumeBuilder.inline.addEntry", { section: title })}
         </button>
       )}
     </div>

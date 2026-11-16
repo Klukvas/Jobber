@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/anthropics/anthropic-sdk-go"
 )
@@ -24,10 +25,10 @@ type tailoringPlan struct {
 
 func resolveTailoringPlan(c groundingCatalog, p tailoringPlan) (*ResumeTailoringSuggestions, error) {
 	result := &ResumeTailoringSuggestions{Experiences: []TailoringTextSuggestion{}}
-	convert := func(s tailoringSelection, section, entry string) (TailoringTextSuggestion, error) {
+	convert := func(s tailoringSelection, section, entry, path string) (TailoringTextSuggestion, error) {
 		facts, err := resolveFacts(c, s.FactIDs, section, entry)
 		if err != nil {
-			return TailoringTextSuggestion{}, err
+			return TailoringTextSuggestion{}, invalidTailoringResponse("resolve", "unknown_duplicate_or_mismatched_fact", path+".fact_ids")
 		}
 		suggestion := TailoringTextSuggestion{Reason: "Emphasize existing source evidence relevant to this job.", ExperienceID: entry, Evidence: []TailoringEvidence{}}
 		text := make([]groundedFact, 0, len(facts))
@@ -43,22 +44,25 @@ func resolveTailoringPlan(c groundingCatalog, p tailoringPlan) (*ResumeTailoring
 	}
 	if p.Summary != nil {
 		if p.Summary.ExperienceID != "" || p.Summary.After != "" {
-			return nil, fmt.Errorf("summary contains experience ID")
+			return nil, invalidTailoringResponse("resolve", "unexpected_field", "$.summary")
 		}
-		s, err := convert(*p.Summary, "", "")
+		s, err := convert(*p.Summary, "", "", "$.summary")
 		if err != nil {
 			return nil, err
+		}
+		if utf8.RuneCountInString(s.After) > 5000 {
+			return nil, invalidTailoringResponse("resolve", "text", "$.summary.after")
 		}
 		result.Summary = &s
 	}
 	seen := map[string]bool{}
-	for _, edit := range p.Experiences {
+	for i, edit := range p.Experiences {
 		id, ok := c.Experiences[edit.ExperienceID]
 		if !ok || seen[id] {
-			return nil, fmt.Errorf("invalid experience selection")
+			return nil, invalidTailoringResponse("resolve", "unknown_or_duplicate_id", fmt.Sprintf("$.experiences[%d].experience_id", i))
 		}
 		seen[id] = true
-		s, err := convert(edit, "experience", id)
+		s, err := convert(edit, "experience", id, fmt.Sprintf("$.experiences[%d]", i))
 		if err != nil {
 			return nil, err
 		}
@@ -76,12 +80,12 @@ func resolveTailoringPlan(c groundingCatalog, p tailoringPlan) (*ResumeTailoring
 		}
 		seen := map[string]bool{}
 		if len(p.SkillOrder.SkillIDs) == 0 {
-			return nil, fmt.Errorf("empty skill ranking")
+			return nil, invalidTailoringResponse("resolve", "count", "$.skill_order.skill_ids")
 		}
-		for _, id := range p.SkillOrder.SkillIDs {
+		for i, id := range p.SkillOrder.SkillIDs {
 			f, ok := byID[id]
 			if !ok || seen[f.EntryID] {
-				return nil, fmt.Errorf("unknown or duplicate skill")
+				return nil, invalidTailoringResponse("resolve", "unknown_or_duplicate_id", fmt.Sprintf("$.skill_order.skill_ids[%d]", i))
 			}
 			seen[f.EntryID] = true
 			order.SkillIDs = append(order.SkillIDs, f.EntryID)
@@ -135,7 +139,7 @@ func (c *AnthropicClient) verifyTailoringRewrites(ctx context.Context, catalog g
 		After   string `json:"after"`
 	}
 	rewrites := []rewrite{}
-	for _, edit := range result.Experiences {
+	for i, edit := range result.Experiences {
 		source := ""
 		for _, f := range catalog.Facts {
 			if f.Section == "experience" && f.EntryID == edit.ExperienceID {
@@ -149,7 +153,7 @@ func (c *AnthropicClient) verifyTailoringRewrites(ctx context.Context, catalog g
 		}
 		for _, n := range groundingNumbers.FindAllString(edit.After, -1) {
 			if !allowed[n] {
-				return ErrInvalidTailoringResponse
+				return invalidTailoringResponse("claims", "unsupported_number", fmt.Sprintf("$.experiences[%d].after", i))
 			}
 		}
 		pairs := map[string]bool{}
@@ -158,7 +162,7 @@ func (c *AnthropicClient) verifyTailoringRewrites(ctx context.Context, catalog g
 		}
 		for _, pair := range groundedMetricPairs.FindAllString(edit.After, -1) {
 			if !pairs[normalizeGroundedMetric(pair)] {
-				return ErrInvalidTailoringResponse
+				return invalidTailoringResponse("claims", "unsupported_metric", fmt.Sprintf("$.experiences[%d].after", i))
 			}
 		}
 	}
@@ -196,10 +200,10 @@ Inspect all prose, including assertions without explicit citations. Do not repai
 	}
 	var verdict coverLetterVerdict
 	if err = decodeGroundedResponse(response, &verdict); err != nil {
-		return err
+		return invalidTailoringResponse("claims", "verdict_schema", "$")
 	}
 	if verdict.Supported == nil || !*verdict.Supported || verdict.UnsupportedClaims == nil || len(verdict.UnsupportedClaims) != 0 {
-		return ErrInvalidTailoringResponse
+		return invalidTailoringResponse("claims", "unsupported_assertion", "$.experiences")
 	}
 	return nil
 }

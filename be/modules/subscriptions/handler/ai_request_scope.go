@@ -68,7 +68,30 @@ func AIRequestScope(subscriptions *service.SubscriptionService) gin.HandlerFunc 
 		ctx, finish := BeginAIRequestScope(ctx, func() string { owner, _ := auth.GetUserID(c); return owner }, key, kind, hex.EncodeToString(sum[:]), finisher)
 		defer finish()
 		c.Request = c.Request.WithContext(ctx)
+		response := newAIResponse(c.Writer)
+		defer func() { c.Writer = response.ResponseWriter }()
+		c.Writer = response
 		c.Next()
+		if c.Writer.Status() >= 200 && c.Writer.Status() < 300 && ctx.Err() == nil {
+			ai.MarkCreditResult(ctx)
+			if subscriptions != nil {
+				if err := subscriptions.CompleteAIRequest(ctx); err != nil {
+					ai.RejectCreditResult(ctx)
+					response.body.Reset()
+					response.size = -1
+					httpPlatform.RespondWithError(c, 503, "AI_RESULT_SAVE_FAILED", "AI result could not be saved. Please try again.")
+				}
+			}
+		} else {
+			ai.RejectCreditResult(ctx)
+			if ctx.Err() != nil && response.status >= 200 && response.status < 300 {
+				response.body.Reset()
+				response.size = -1
+				httpPlatform.RespondWithError(c, 503, "AI_RESULT_SAVE_FAILED", "AI request was interrupted. Please try again.")
+			}
+		}
+		c.Writer = response.ResponseWriter
+		response.commit()
 	}
 }
 

@@ -4,7 +4,7 @@ import { Plus, X } from "lucide-react";
 import { EditableField } from "@/features/resume-builder/components/inline/EditableField";
 import { EditableTextarea } from "@/features/resume-builder/components/inline/EditableTextarea";
 import { useCoverLetterStore } from "@/stores/coverLetterStore";
-import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock";
+import { Dialog, DialogTitle } from "@/shared/ui/Dialog";
 
 const A4_WIDTH_PX = 793; // 210mm at 96dpi
 const A4_HEIGHT_PX = 1122; // 297mm at 96dpi
@@ -80,6 +80,7 @@ function CLTextArea({
 function CoverLetterParagraphs({ editable }: { readonly editable: boolean }) {
   const { t } = useTranslation();
   const coverLetter = useCoverLetterStore((s) => s.coverLetter);
+  const paragraphIds = useCoverLetterStore((s) => s.paragraphIds);
   const updateParagraph = useCoverLetterStore((s) => s.updateParagraph);
   const addParagraph = useCoverLetterStore((s) => s.addParagraph);
   const removeParagraph = useCoverLetterStore((s) => s.removeParagraph);
@@ -89,7 +90,7 @@ function CoverLetterParagraphs({ editable }: { readonly editable: boolean }) {
   return (
     <>
       {coverLetter.paragraphs.map((paragraph, index) => {
-        const key = `${index}-${paragraph.slice(0, 20)}`;
+        const key = paragraphIds[index];
         return editable ? (
           <div key={key} className="group/para relative mb-3">
             <EditableTextarea
@@ -103,12 +104,9 @@ function CoverLetterParagraphs({ editable }: { readonly editable: boolean }) {
             />
             {coverLetter.paragraphs.length > 1 && (
               <button
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  removeParagraph(index);
-                }}
-                className="absolute right-0 top-0 hidden rounded p-0.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 group-hover/para:block"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => removeParagraph(index)}
+                className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded text-red-700 transition-colors hover:bg-red-50 hover:text-red-600 sm:opacity-0 sm:group-hover/para:opacity-100 focus-visible:opacity-100"
                 aria-label={t("coverLetter.removeParagraph")}
               >
                 <X className="h-3.5 w-3.5" />
@@ -126,11 +124,9 @@ function CoverLetterParagraphs({ editable }: { readonly editable: boolean }) {
       })}
       {editable && (
         <button
-          onMouseDown={(e) => {
-            e.preventDefault();
-            addParagraph();
-          }}
-          className="mt-1 flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={addParagraph}
+          className="mt-1 flex min-h-11 items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-600"
         >
           <Plus className="h-3 w-3" />
           {t("coverLetter.addParagraph")}
@@ -1038,7 +1034,7 @@ function CloseButton({ onClose }: { readonly onClose: () => void }) {
         onClose();
       }}
       aria-label={t("common.close")}
-      className="fixed right-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70"
+      className="absolute right-[max(0.5rem,env(safe-area-inset-right))] top-[max(0.5rem,env(safe-area-inset-top))] z-50 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70"
     >
       <X className="h-5 w-5" />
     </button>
@@ -1074,19 +1070,6 @@ export function CoverLetterFullscreenPreview({
     return () => observer.disconnect();
   }, [open]);
 
-  useBodyScrollLock(open);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handleKey);
-
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [open, onClose]);
-
   if (!open || !coverLetter) return null;
 
   const TemplateComponent =
@@ -1103,12 +1086,12 @@ export function CoverLetterFullscreenPreview({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col" onClick={onClose}>
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
+    <Dialog open={open} onOpenChange={(value) => { if (!value) onClose(); }} className="flex h-[100dvh] max-w-none flex-col">
+      <DialogTitle className="sr-only"><PreviewTitle /></DialogTitle>
       <CloseButton onClose={onClose} />
       <div
         ref={containerRef}
-        className="relative z-10 flex-1 overflow-y-auto py-8"
+        className="relative z-10 flex-1 overflow-y-auto py-16"
         onClick={(e) => e.stopPropagation()}
       >
         <ScaledA4 scale={scale} className="mx-auto">
@@ -1117,6 +1100,11 @@ export function CoverLetterFullscreenPreview({
           </div>
         </ScaledA4>
       </div>
-    </div>
+    </Dialog>
   );
+}
+
+function PreviewTitle() {
+  const { t } = useTranslation();
+  return t("coverLetter.preview");
 }

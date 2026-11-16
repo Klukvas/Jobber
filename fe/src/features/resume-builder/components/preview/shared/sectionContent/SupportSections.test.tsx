@@ -107,10 +107,10 @@ describe("CertificationsContent", () => {
           editable={false}
         />,
       );
-      expect(screen.getByTestId("field-Certification")).toHaveTextContent(
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.certification")).toHaveTextContent(
         "AWS Solutions Architect",
       );
-      const issuerField = screen.getByTestId("field-Issuer");
+      const issuerField = screen.getByTestId("field-resumeBuilder.placeholders.issuer");
       expect(issuerField.className).toContain("opacity-70");
     });
 
@@ -123,7 +123,7 @@ describe("CertificationsContent", () => {
           editable={false}
         />,
       );
-      expect(screen.queryByTestId("field-Issuer")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("field-resumeBuilder.placeholders.issuer")).not.toBeInTheDocument();
     });
   });
 
@@ -137,10 +137,10 @@ describe("CertificationsContent", () => {
           editable={false}
         />,
       );
-      expect(screen.getByTestId("field-Certification")).toHaveTextContent(
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.certification")).toHaveTextContent(
         "AWS Solutions Architect",
       );
-      expect(screen.getByTestId("field-Issuer")).toHaveTextContent("Amazon");
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.issuer")).toHaveTextContent("Amazon");
       expect(screen.getByText(/\u2014/)).toBeInTheDocument();
     });
   });
@@ -157,10 +157,10 @@ describe("CertificationsContent", () => {
       );
       const nameRow = container.querySelector(".font-bold");
       expect(nameRow).toBeTruthy();
-      expect(screen.getByTestId("field-Certification name")).toHaveTextContent(
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.certification")).toHaveTextContent(
         "AWS Solutions Architect",
       );
-      expect(screen.getByTestId("field-Issue date")).toHaveTextContent(
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.issueDate")).toHaveTextContent(
         "2023-01",
       );
     });
@@ -174,7 +174,7 @@ describe("CertificationsContent", () => {
           editable={false}
         />,
       );
-      expect(screen.queryByTestId("field-Issue date")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("field-resumeBuilder.placeholders.issueDate")).not.toBeInTheDocument();
     });
 
     it("shows issue_date when empty but editable", () => {
@@ -186,7 +186,7 @@ describe("CertificationsContent", () => {
           editable={true}
         />,
       );
-      expect(screen.getByTestId("field-Issue date")).toBeInTheDocument();
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.issueDate")).toBeInTheDocument();
     });
   });
 });
@@ -220,7 +220,7 @@ describe("ProjectsContent", () => {
         editable={false}
       />,
     );
-    const name = screen.getByTestId("field-Project name");
+    const name = screen.getByTestId("field-resumeBuilder.placeholders.projectName");
     expect(name.className).toContain("font-bold");
   });
 
@@ -233,7 +233,7 @@ describe("ProjectsContent", () => {
         editable={false}
       />,
     );
-    const name = screen.getByTestId("field-Project name");
+    const name = screen.getByTestId("field-resumeBuilder.placeholders.projectName");
     expect(name.className).toContain("font-semibold");
   });
 
@@ -293,9 +293,9 @@ describe("VolunteeringContent", () => {
           editable={false}
         />,
       );
-      const role = screen.getByTestId("field-Role");
+      const role = screen.getByTestId("field-resumeBuilder.placeholders.role");
       expect(role.className).toContain("font-bold");
-      const org = screen.getByTestId("field-Organization");
+      const org = screen.getByTestId("field-resumeBuilder.placeholders.organization");
       expect(org.style.color).toBe("rgb(225, 29, 72)");
     });
 
@@ -309,7 +309,7 @@ describe("VolunteeringContent", () => {
           sectionColor="#3b82f6"
         />,
       );
-      const org = screen.getByTestId("field-Organization");
+      const org = screen.getByTestId("field-resumeBuilder.placeholders.organization");
       expect(org.style.color).toBe("rgb(59, 130, 246)");
     });
   });
@@ -324,8 +324,8 @@ describe("VolunteeringContent", () => {
           editable={false}
         />,
       );
-      expect(screen.getByTestId("field-Role")).toHaveTextContent("Mentor");
-      expect(screen.getByTestId("field-Organization")).toHaveTextContent(
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.role")).toHaveTextContent("Mentor");
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.organization")).toHaveTextContent(
         "Code.org",
       );
       expect(screen.getByText(/at/)).toBeInTheDocument();
@@ -341,7 +341,7 @@ describe("VolunteeringContent", () => {
         />,
       );
       expect(
-        screen.queryByTestId("field-Organization"),
+        screen.queryByTestId("field-resumeBuilder.placeholders.organization"),
       ).not.toBeInTheDocument();
     });
 
@@ -380,7 +380,7 @@ describe("VolunteeringContent", () => {
           editable={false}
         />,
       );
-      const org = screen.getByTestId("field-Organization");
+      const org = screen.getByTestId("field-resumeBuilder.placeholders.organization");
       expect(org.className).toContain("font-normal");
       expect(org.className).toContain("text-gray-500");
     });
@@ -420,7 +420,7 @@ describe("CustomSectionsContent", () => {
         editable={false}
       />,
     );
-    const title = screen.getByTestId("field-Section title");
+    const title = screen.getByTestId("field-resumeBuilder.placeholders.sectionTitle");
     expect(title.className).toContain("font-bold");
   });
 
@@ -433,7 +433,7 @@ describe("CustomSectionsContent", () => {
         editable={false}
       />,
     );
-    const title = screen.getByTestId("field-Section title");
+    const title = screen.getByTestId("field-resumeBuilder.placeholders.sectionTitle");
     expect(title.className).toContain("font-medium");
   });
 

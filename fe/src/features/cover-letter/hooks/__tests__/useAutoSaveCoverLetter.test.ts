@@ -169,6 +169,7 @@ describe("useAutoSaveCoverLetter", () => {
       font_size: 14,
       primary_color: "#ff0000",
       job_id: "job-7",
+      resume_builder_id: "resume-7",
     });
     mockStore.coverLetter = letter;
     mockStore.isDirty = true;
@@ -193,6 +194,7 @@ describe("useAutoSaveCoverLetter", () => {
       font_size: 14,
       primary_color: "#ff0000",
       job_id: "job-7",
+      resume_builder_id: "resume-7",
     });
   });
 

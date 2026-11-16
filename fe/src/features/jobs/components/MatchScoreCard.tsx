@@ -7,7 +7,7 @@ interface MatchScoreCardProps {
 }
 
 function getScoreColor(score: number): string {
-  if (score >= 70) return "text-green-600";
+  if (score >= 70) return "text-green-700 dark:text-green-400";
   if (score >= 40) return "text-yellow-600";
   return "text-red-600";
 }

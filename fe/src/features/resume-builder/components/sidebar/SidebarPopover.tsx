@@ -1,4 +1,8 @@
-import { useRef, useEffect, type ReactNode } from "react";
+import { useRef, useEffect, useId, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import { useDialogFocus } from "@/shared/hooks/useDialogFocus";
+import { useTopmostEscape } from "@/shared/hooks/useTopmostEscape";
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock";
 import { X } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 
@@ -18,20 +22,19 @@ export function SidebarPopover({
   children,
   fullscreen = false,
 }: SidebarPopoverProps) {
+  const { t } = useTranslation();
+  const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
+
+  useDialogFocus(panelRef, { open: isOpen && fullscreen });
+  useTopmostEscape(isOpen, panelRef, onClose);
+  useBodyScrollLock(isOpen && fullscreen);
 
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handleKey);
-
-    if (fullscreen) {
-      return () => document.removeEventListener("keydown", handleKey);
-    }
+    if (fullscreen) return;
 
     function handleClick(e: MouseEvent) {
       const target = e.target as Element | null;
@@ -48,7 +51,6 @@ export function SidebarPopover({
     }, 0);
     return () => {
       clearTimeout(timer);
-      document.removeEventListener("keydown", handleKey);
       document.removeEventListener("mousedown", handleClick);
     };
   }, [isOpen, onClose, fullscreen]);
@@ -68,14 +70,16 @@ export function SidebarPopover({
           ref={panelRef}
           role="dialog"
           aria-modal="true"
+          aria-labelledby={titleId}
+          tabIndex={-1}
           className="relative mx-4 flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-background shadow-2xl"
         >
           <div className="flex items-center justify-between border-b px-6 py-4">
-            <h3 className="text-lg font-semibold">{title}</h3>
+            <h3 id={titleId} className="text-lg font-semibold">{title}</h3>
             <button
               onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-muted"
-              aria-label="Close"
+              className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-muted"
+              aria-label={t("common.close")}
             >
               <X className="h-4 w-4" />
             </button>
@@ -99,7 +103,7 @@ export function SidebarPopover({
         <button
           onClick={onClose}
           className="flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
-          aria-label="Close"
+          aria-label={t("common.close")}
         >
           <X className="h-3.5 w-3.5" />
         </button>

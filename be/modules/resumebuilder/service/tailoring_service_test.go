@@ -163,6 +163,9 @@ func TestTailoringServiceGenerate(t *testing.T) {
 		calls int
 	}{
 		{name: "success", calls: 1},
+		{name: "no usable changes", setup: func(_ *TailoringService, r *tailoringTestRepo, _ *tailoringTestStore, c *tailoringTestAI, _ *MockLimitChecker) {
+			c.result.Summary.After = r.source.Summary.Content
+		}, want: model.ErrAINoChanges, calls: 1},
 		{name: "foreign job", setup: func(s *TailoringService, r *tailoringTestRepo, _ *tailoringTestStore, _ *tailoringTestAI, _ *MockLimitChecker) {
 			r.job.ID = "foreign"
 		}, want: model.ErrTailoringNotFound},
@@ -198,6 +201,9 @@ func TestTailoringServiceGenerate(t *testing.T) {
 			result, err := s.Generate(t.Context(), "user", "job", r.source.ID, "en")
 			if test.want != nil {
 				require.ErrorIs(t, err, test.want)
+				if test.name == "no usable changes" {
+					require.Nil(t, store.proposal)
+				}
 			} else {
 				require.NoError(t, err)
 				require.Len(t, result.Changes, 1)
@@ -207,6 +213,12 @@ func TestTailoringServiceGenerate(t *testing.T) {
 			assert.Equal(t, test.calls, c.calls)
 		})
 	}
+}
+
+func TestNoChangesFailureKeepsIdempotentReplayCode(t *testing.T) {
+	code := operationCode(model.ErrAINoChanges)
+	require.Equal(t, "AI_NO_CHANGES", code)
+	require.ErrorIs(t, operationState(&model.WorkflowOperation{Fingerprint: "same", Status: "failed", ErrorCode: code}, "same"), model.ErrAINoChanges)
 }
 
 func TestTailoringServiceApply(t *testing.T) {

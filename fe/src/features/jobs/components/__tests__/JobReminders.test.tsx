@@ -90,7 +90,7 @@ describe("JobReminders", () => {
     render(<JobReminders jobId="job-1" />);
     expect(screen.getByText("Follow up")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByText("Follow up"));
     expect(mockRemindersService.update).toHaveBeenCalledWith("r1", {
       is_done: true,
     });

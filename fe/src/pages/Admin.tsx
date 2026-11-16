@@ -1,3 +1,4 @@
+import { usePageMeta } from "@/shared/lib/usePageMeta";
 import { useTranslation } from "react-i18next";
 import { useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -11,6 +12,7 @@ import { Input } from "@/shared/ui/Input";
 import { adminKeys } from "@/shared/lib/adminCapability";
 
 export default function AdminPage() {
+  usePageMeta({ titleKey: "admin.title", noindex: true });
   const { t } = useTranslation();
   const access = useAdminAccess();
   const scope = useAdminScope();
@@ -219,7 +221,7 @@ function AdminUsers() {
             <p className="text-sm tabular-nums text-muted-foreground">
               {t("admin.page", { page })}
               {users.data
-                ? ` · ${t("admin.total", { total: users.data.total })}`
+                ? ` · ${t("admin.total", { count: users.data.total })}`
                 : ""}
             </p>
             <div className="flex gap-2">

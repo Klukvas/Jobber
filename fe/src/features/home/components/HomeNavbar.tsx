@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -92,7 +92,13 @@ export function HomeNavbar({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [featuresOpen, setFeaturesOpen] = useState(false);
   const featuresRef = useRef<HTMLDivElement>(null);
+  const featuresTrigger = useRef<HTMLButtonElement>(null);
+  const initialFeatureIndex = useRef(0);
   const navBarRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (featuresOpen) featuresRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]')[initialFeatureIndex.current]?.focus();
+  }, [featuresOpen]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -212,11 +218,33 @@ export function HomeNavbar({
 
         <div className="hidden items-center gap-6 md:flex">
           {/* Features dropdown */}
-          <div ref={featuresRef} className="relative">
+          <div ref={featuresRef} className="relative"
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) setFeaturesOpen(false);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault(); setFeaturesOpen(false); featuresTrigger.current?.focus(); return;
+              }
+              if (event.target === featuresTrigger.current) return;
+              const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+              const index = items.indexOf(document.activeElement as HTMLElement);
+              const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : event.key === "ArrowDown" ? (index + 1) % items.length : event.key === "ArrowUp" ? (index - 1 + items.length) % items.length : null;
+              if (next !== null) { event.preventDefault(); items[next]?.focus(); }
+            }}
+          >
             <button
               type="button"
-              onClick={() => setFeaturesOpen((prev) => !prev)}
-              onKeyDown={(e) => e.key === "Escape" && setFeaturesOpen(false)}
+              ref={featuresTrigger}
+              onClick={() => { initialFeatureIndex.current = 0; setFeaturesOpen((prev) => !prev); }}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                  event.preventDefault();
+                  initialFeatureIndex.current = event.key === "ArrowUp" ? FEATURE_LINKS.length - 1 : 0;
+                  if (featuresOpen) featuresRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]')[initialFeatureIndex.current]?.focus();
+                  else setFeaturesOpen(true);
+                }
+              }}
               aria-expanded={featuresOpen}
               aria-haspopup="menu"
               aria-controls={FEATURES_MENU_ID}
@@ -243,6 +271,7 @@ export function HomeNavbar({
                     key={key}
                     to={to}
                     role="menuitem"
+                    tabIndex={-1}
                     onClick={() => setFeaturesOpen(false)}
                     className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   >

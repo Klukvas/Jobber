@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { EditableField } from "../../../inline/EditableField";
 import { EditableSelect } from "../../../inline/EditableSelect";
 import { EntryWrapper } from "../../../inline/EntryWrapper";
@@ -10,6 +11,7 @@ export function LanguagesContent({
   editable,
   inputClassName,
 }: SectionContentProps) {
+  const { t } = useTranslation();
   const { resume, updateLanguage, languagesSection } = setup;
   const inputClass = inputClassName ?? "";
 
@@ -29,7 +31,7 @@ export function LanguagesContent({
                 <EditableField
                   value={l.name}
                   onChange={(v) => updateLanguage(l.id, { name: v })}
-                  placeholder="Language"
+                  placeholder={t("resumeBuilder.placeholders.language")}
                   inputClassName={inputClass}
                   editable={editable}
                 />
@@ -39,8 +41,8 @@ export function LanguagesContent({
                     <EditableSelect
                       value={l.proficiency}
                       onChange={(v) => updateLanguage(l.id, { proficiency: v })}
-                      options={PROFICIENCY_OPTIONS}
-                      placeholder="Proficiency"
+                      options={PROFICIENCY_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) }))}
+                      placeholder={t("resumeBuilder.placeholders.proficiency")}
                       className="text-xs"
                       editable={editable}
                     />
@@ -60,8 +62,9 @@ export function LanguagesContent({
           .map((language) => {
             const proficiency = PROFICIENCY_OPTIONS.find(
               (option) => option.value.toLowerCase() === language.proficiency.toLowerCase(),
-            )?.label ?? language.proficiency;
-            return `${language.name}${proficiency ? ` (${proficiency})` : ""}`;
+            )?.labelKey;
+            const localized = proficiency ? t(proficiency) : language.proficiency;
+            return `${language.name}${localized ? ` (${localized})` : ""}`;
           })
           .join(" \u00B7 ")}
       </p>
@@ -83,7 +86,7 @@ export function LanguagesContent({
               <EditableField
                 value={lang.name}
                 onChange={(v) => updateLanguage(lang.id, { name: v })}
-                placeholder="Language"
+                placeholder={t("resumeBuilder.placeholders.language")}
                 inputClassName={inputClass}
                 editable={editable}
               />
@@ -95,8 +98,8 @@ export function LanguagesContent({
                     onChange={(v) =>
                       updateLanguage(lang.id, { proficiency: v })
                     }
-                    options={PROFICIENCY_OPTIONS}
-                    placeholder="Proficiency"
+                    options={PROFICIENCY_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) }))}
+                    placeholder={t("resumeBuilder.placeholders.proficiency")}
                     className="text-xs"
                     editable={editable}
                   />
@@ -123,7 +126,7 @@ export function LanguagesContent({
             <EditableField
               value={lang.name}
               onChange={(v) => updateLanguage(lang.id, { name: v })}
-              placeholder="Language"
+              placeholder={t("resumeBuilder.placeholders.language")}
               inputClassName={inputClass}
               editable={editable}
             />
@@ -135,8 +138,8 @@ export function LanguagesContent({
                   onChange={(v) =>
                     updateLanguage(lang.id, { proficiency: v })
                   }
-                  options={PROFICIENCY_OPTIONS}
-                  placeholder="Proficiency"
+                  options={PROFICIENCY_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) }))}
+                  placeholder={t("resumeBuilder.placeholders.proficiency")}
                   className={config.textSize}
                   editable={editable}
                 />

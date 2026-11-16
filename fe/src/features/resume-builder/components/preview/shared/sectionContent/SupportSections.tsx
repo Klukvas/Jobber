@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { EditableField } from "../../../inline/EditableField";
 import { EditableTextarea } from "../../../inline/EditableTextarea";
 import { EntryWrapper } from "../../../inline/EntryWrapper";
@@ -13,6 +14,7 @@ export function CertificationsContent({
   editable,
   inputClassName,
 }: SectionContentProps) {
+  const { t } = useTranslation();
   const { resume, updateCertification, certificationsSection } = setup;
   const inputClass = inputClassName ?? "";
   const spacing = config.entrySpacing?.certification ?? "mb-1";
@@ -34,7 +36,7 @@ export function CertificationsContent({
               <EditableField
                 value={cert.name}
                 onChange={(v) => updateCertification(cert.id, { name: v })}
-                placeholder="Certification"
+                placeholder={t("resumeBuilder.placeholders.certification")}
                 as="p"
                 className="text-xs font-medium"
                 inputClassName={inputClass}
@@ -46,7 +48,7 @@ export function CertificationsContent({
                   onChange={(v) =>
                     updateCertification(cert.id, { issuer: v })
                   }
-                  placeholder="Issuer"
+                  placeholder={t("resumeBuilder.placeholders.issuer")}
                   as="p"
                   className="text-xs opacity-70"
                   inputClassName={inputClass}
@@ -59,7 +61,7 @@ export function CertificationsContent({
               <EditableField
                 value={cert.name}
                 onChange={(v) => updateCertification(cert.id, { name: v })}
-                placeholder="Certification"
+                placeholder={t("resumeBuilder.placeholders.certification")}
                 inputClassName={inputClass}
                 editable={editable}
               />
@@ -71,7 +73,7 @@ export function CertificationsContent({
                     onChange={(v) =>
                       updateCertification(cert.id, { issuer: v })
                     }
-                    placeholder="Issuer"
+                    placeholder={t("resumeBuilder.placeholders.issuer")}
                     inputClassName={inputClass}
                     editable={editable}
                   />
@@ -86,7 +88,7 @@ export function CertificationsContent({
                 <EditableField
                   value={cert.name}
                   onChange={(v) => updateCertification(cert.id, { name: v })}
-                  placeholder="Certification name"
+                  placeholder={t("resumeBuilder.placeholders.certification")}
                   inputClassName={inputClass}
                   editable={editable}
                 />
@@ -98,7 +100,7 @@ export function CertificationsContent({
                       onChange={(v) =>
                         updateCertification(cert.id, { issuer: v })
                       }
-                      placeholder="Issuer"
+                      placeholder={t("resumeBuilder.placeholders.issuer")}
                       className="font-normal"
                       inputClassName={inputClass}
                       editable={editable}
@@ -112,7 +114,7 @@ export function CertificationsContent({
             <EditableField
               value={cert.issue_date}
               onChange={(v) => updateCertification(cert.id, { issue_date: v })}
-              placeholder="Issue date"
+              placeholder={t("resumeBuilder.placeholders.issueDate")}
               type="date"
               as="p"
               className={`${config.textSize} ${isModern ? "opacity-70" : "text-gray-500"}`}
@@ -136,6 +138,7 @@ export function ProjectsContent({
   editable,
   inputClassName,
 }: SectionContentProps) {
+  const { t } = useTranslation();
   const { resume, updateProject, projectsSection } = setup;
   const inputClass = inputClassName ?? "";
   const spacing = config.entrySpacing?.project ?? "mb-2";
@@ -154,7 +157,7 @@ export function ProjectsContent({
           <EditableField
             value={proj.name}
             onChange={(v) => updateProject(proj.id, { name: v })}
-            placeholder="Project name"
+            placeholder={t("resumeBuilder.placeholders.projectName")}
             as="p"
             className={`${config.textSize} ${isMinimal ? "font-semibold" : "font-bold"}`}
             inputClassName={inputClass}
@@ -164,7 +167,7 @@ export function ProjectsContent({
             <EditableTextarea
               value={proj.description}
               onChange={(v) => updateProject(proj.id, { description: v })}
-              placeholder="Project description..."
+              placeholder={t("resumeBuilder.placeholders.projectDescription")}
               className={`${config.textSize} ${config.variant === "compact" ? "leading-snug" : ""} text-gray-700`}
               editable={editable}
             />
@@ -186,6 +189,7 @@ export function VolunteeringContent({
   sectionColor,
   inputClassName,
 }: SectionContentProps) {
+  const { t } = useTranslation();
   const { resume, updateVolunteering, volunteeringSection } = setup;
   const effectiveColor = sectionColor ?? setup.color;
   const inputClass = inputClassName ?? "";
@@ -208,7 +212,7 @@ export function VolunteeringContent({
               <EditableField
                 value={vol.role}
                 onChange={(v) => updateVolunteering(vol.id, { role: v })}
-                placeholder="Role"
+                placeholder={t("resumeBuilder.placeholders.role")}
                 as="p"
                 className="text-xs font-bold"
                 inputClassName={inputClass}
@@ -219,7 +223,7 @@ export function VolunteeringContent({
                 onChange={(v) =>
                   updateVolunteering(vol.id, { organization: v })
                 }
-                placeholder="Organization"
+                placeholder={t("resumeBuilder.placeholders.organization")}
                 as="p"
                 className="text-xs"
                 style={{ color: effectiveColor }}
@@ -232,7 +236,7 @@ export function VolunteeringContent({
                   onChange={(v) =>
                     updateVolunteering(vol.id, { description: v })
                   }
-                  placeholder="Describe your volunteering..."
+                  placeholder={t("resumeBuilder.placeholders.volunteeringDescription")}
                   className={`mt-1 ${config.textSize} ${config.leadingClass} ${sectionColor ? "[&:is(textarea)]:text-gray-700" : "text-gray-700"}`}
                   editable={editable}
                 />
@@ -246,7 +250,7 @@ export function VolunteeringContent({
                 <EditableField
                   value={vol.role}
                   onChange={(v) => updateVolunteering(vol.id, { role: v })}
-                  placeholder="Role"
+                  placeholder={t("resumeBuilder.placeholders.role")}
                   inputClassName={inputClass}
                   editable={editable}
                 />
@@ -260,7 +264,7 @@ export function VolunteeringContent({
                       onChange={(v) =>
                         updateVolunteering(vol.id, { organization: v })
                       }
-                      placeholder="Organization"
+                      placeholder={t("resumeBuilder.placeholders.organization")}
                       className={isMinimal ? "font-normal text-gray-500" : "font-normal"}
                       inputClassName={inputClass}
                       editable={editable}
@@ -274,7 +278,7 @@ export function VolunteeringContent({
                   onChange={(v) =>
                     updateVolunteering(vol.id, { description: v })
                   }
-                  placeholder="Describe your volunteering..."
+                  placeholder={t("resumeBuilder.placeholders.volunteeringDescription")}
                   className={`${config.textSize} ${config.variant === "compact" ? "leading-snug" : ""} text-gray-700`}
                   editable={editable}
                 />
@@ -297,6 +301,7 @@ export function CustomSectionsContent({
   editable,
   inputClassName,
 }: SectionContentProps) {
+  const { t } = useTranslation();
   const { resume, updateCustomSection, customSectionsSection } = setup;
   const inputClass = inputClassName ?? "";
   const spacing = config.entrySpacing?.customSection ?? "mb-2";
@@ -315,7 +320,7 @@ export function CustomSectionsContent({
           <EditableField
             value={cs.title}
             onChange={(v) => updateCustomSection(cs.id, { title: v })}
-            placeholder="Section title"
+            placeholder={t("resumeBuilder.placeholders.sectionTitle")}
             as="p"
             className={`${config.textSize} ${isMinimal ? "font-medium" : "font-bold"}`}
             inputClassName={inputClass}
@@ -324,7 +329,7 @@ export function CustomSectionsContent({
           <EditableTextarea
             value={cs.content}
             onChange={(v) => updateCustomSection(cs.id, { content: v })}
-            placeholder="Section content..."
+            placeholder={t("resumeBuilder.placeholders.sectionContent")}
             className={`${config.textSize} ${config.variant === "compact" ? "leading-snug" : ""} ${isMinimal ? "text-gray-600" : "text-gray-700"}`}
             editable={editable}
           />

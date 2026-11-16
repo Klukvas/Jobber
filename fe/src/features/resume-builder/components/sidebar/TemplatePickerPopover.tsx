@@ -1,9 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
 import { cn } from "@/shared/lib/utils";
 import { TEMPLATE_LIST } from "../../lib/templateRegistry";
 import { TemplateThumbnail } from "./TemplateThumbnail";
+import { useDialogFocus } from "@/shared/hooks/useDialogFocus";
+import { useTopmostEscape } from "@/shared/hooks/useTopmostEscape";
+import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock";
 import { X } from "lucide-react";
 import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
 
@@ -29,14 +32,10 @@ export function TemplatePickerPopover({
   const updateDesign = useResumeBuilderStore((s) => s.updateDesign);
   const backdropRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [isOpen, onClose]);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(panelRef, { open: isOpen });
+  useTopmostEscape(isOpen, panelRef, onClose);
+  useBodyScrollLock(isOpen);
 
   if (!isOpen) return null;
 
@@ -49,6 +48,8 @@ export function TemplatePickerPopover({
       }}
     >
       <div
+        ref={panelRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="template-picker-heading"
@@ -61,7 +62,7 @@ export function TemplatePickerPopover({
           </h2>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-muted"
+            className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-muted"
             aria-label={t("common.close")}
           >
             <X className="h-4 w-4" />
@@ -70,10 +71,11 @@ export function TemplatePickerPopover({
 
         {/* Template grid */}
         <div className="overflow-y-auto p-4 sm:p-6">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
+          <div role="group" aria-label={t("resumeBuilder.design.template")} className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
             {TEMPLATE_LIST.map((tmpl) => (
               <button
                 key={tmpl.id}
+                aria-pressed={resume?.template_id === tmpl.id}
                 onClick={() => {
                   updateDesign({ template_id: tmpl.id });
                   onClose();

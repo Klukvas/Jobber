@@ -954,7 +954,7 @@ func TestJobService_DeleteStage(t *testing.T) {
 		expLockedJob(mock, nil, &stageID, nil)
 		expReadStage(mock, stageID, stagesTmplID, "active", 1)
 		expReplacement(mock, &replacement)
-		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, current_stage_template_id = COALESCE\(\$3, current_stage_template_id\), updated_at = \$4 WHERE id = \$1`).WithArgs(
+		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, current_stage_template_id = \$3, updated_at = \$4 WHERE id = \$1`).WithArgs(
 			stagesJobID, strPtrArg(replacement), strPtrArg(replacementTmplID), pgxmock.AnyArg(),
 		).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 		expDelete(mock)
@@ -967,14 +967,15 @@ func TestJobService_DeleteStage(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("clears the stage pointer and keeps the column when no history row remains", func(t *testing.T) {
+	t.Run("clears the stage pointer and returns to wishlist when no history row remains", func(t *testing.T) {
 		mock := newPool(t)
 		mock.ExpectBegin()
 		expLockedJob(mock, nil, &stageID, nil)
 		expReadStage(mock, stageID, stagesTmplID, "active", 0)
 		expReplacement(mock, nil)
-		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, current_stage_template_id = COALESCE\(\$3, current_stage_template_id\), updated_at = \$4 WHERE id = \$1`).WithArgs(
-			stagesJobID, nilStrPtrArg(), nilStrPtrArg(), pgxmock.AnyArg(),
+		mock.ExpectQuery(`SELECT id FROM stage_templates WHERE user_id`).WithArgs(stagesUserID).WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow("wishlist"))
+		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, current_stage_template_id = \$3, updated_at = \$4 WHERE id = \$1`).WithArgs(
+			stagesJobID, nilStrPtrArg(), strPtrArg("wishlist"), pgxmock.AnyArg(),
 		).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 		expDelete(mock)
 		mock.ExpectCommit()
@@ -1074,7 +1075,7 @@ func TestJobService_DeleteStage(t *testing.T) {
 		expLockedJob(mock, nil, &stageID, nil)
 		expReadStage(mock, stageID, stagesTmplID, "active", 0)
 		expReplacement(mock, &replacement)
-		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, current_stage_template_id = COALESCE\(\$3, current_stage_template_id\), updated_at = \$4 WHERE id = \$1`).WithArgs(
+		mock.ExpectExec(`UPDATE jobs SET current_stage_id = \$2, current_stage_template_id = \$3, updated_at = \$4 WHERE id = \$1`).WithArgs(
 			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 		).WillReturnError(errors.New("update boom"))
 
@@ -1114,4 +1115,27 @@ func TestJobService_DeleteStage(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to commit transaction")
 	})
+}
+
+func TestApplyStageStatusUpdateRepeatedCompletion(t *testing.T) {
+	original := time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC)
+	later := original.Add(time.Hour)
+	completed := "completed"
+	tests := []struct {
+		name string
+		req  model.UpdateStageRequest
+		want time.Time
+	}{
+		{"status only", model.UpdateStageRequest{Status: &completed}, original},
+		{"repeated completion with timestamp", model.UpdateStageRequest{Status: &completed, CompletedAt: &later}, original},
+		{"explicit timestamp correction", model.UpdateStageRequest{CompletedAt: &later}, later},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stage := &model.JobStage{Status: "completed", CompletedAt: &original}
+			applyStageStatusUpdate(stage, &tt.req, later)
+			require.NotNil(t, stage.CompletedAt)
+			assert.Equal(t, tt.want, *stage.CompletedAt)
+		})
+	}
 }

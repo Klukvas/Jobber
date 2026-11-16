@@ -35,8 +35,7 @@ func NewAnalyticsRepositoryWithPool(pool DBPool) *AnalyticsRepository {
 //
 // A card "reached" a stage template X when it currently sits in X
 // (current_stage_template_id = X) OR it recorded a job_stages row for X — so
-// progress still counts even after the card later moved on. Archived cards
-// (is_archived = true) are hidden from every metric.
+// progress still counts after the card moves on or is archived.
 //
 // What a column MEANS comes from stage_templates.kind, never from its label or
 // its position. The label is the user's: renaming "Technical Interview" to
@@ -106,9 +105,8 @@ const interviewPredicate = `(
 // a card with no column at all belonged to neither bucket, so Total could read
 // 23 next to Active 23 and Closed 3.
 //
-//   - rejected = non-archived cards sitting in a column of kind 'rejected'
-//   - response_rate = share of ACTIVE cards that reached a response-kind
-//     column. Archived cards are excluded from every rate, as everywhere else.
+//   - rejected = cards sitting in a column of kind 'rejected'
+//   - response_rate = share of all cards that reached a response-kind column.
 //   - avg_days_to_first_response = avg days from the application (applied_at,
 //     falling back to card creation for a card that was never applied to) to
 //     the first job_stages row in a response-kind column
@@ -122,7 +120,6 @@ func (r *AnalyticsRepository) GetOverview(ctx context.Context, userID string) (*
 		cards AS (
 			SELECT id, created_at, applied_at, current_stage_template_id
 			FROM all_cards
-			WHERE is_archived = false
 		),
 		card_stats AS (
 			SELECT
@@ -168,8 +165,8 @@ func (r *AnalyticsRepository) GetOverview(ctx context.Context, userID string) (*
 			COALESCE(card_stats.closed, 0) AS closed_applications,
 			COALESCE(rejected_stats.rejected, 0) AS rejected_applications,
 			CASE
-				WHEN card_stats.active > 0 THEN
-					ROUND((response_stats.apps_with_response::numeric / card_stats.active) * 100, 2)
+				WHEN card_stats.active + card_stats.closed > 0 THEN
+					ROUND((response_stats.apps_with_response::numeric / (card_stats.active + card_stats.closed)) * 100, 2)
 				ELSE 0
 			END AS response_rate,
 			COALESCE(ROUND(first_response_time.avg_days::numeric, 2), 0) AS avg_days_to_first_response
@@ -202,7 +199,7 @@ func (r *AnalyticsRepository) GetOverview(ctx context.Context, userID string) (*
 // GetFunnel returns the positional STAGE funnel.
 //
 // Buckets are the user's own stage_templates in "order". A bucket counts every
-// non-archived card that got AT LEAST that far — i.e. whose furthest reached
+// card that got AT LEAST that far — i.e. whose furthest reached
 // column is that one or a later one. A card "reaches" a template when it
 // currently sits in that column or recorded a job_stages row for it; cards are
 // counted once, by their furthest column.
@@ -213,7 +210,7 @@ func (r *AnalyticsRepository) GetOverview(ctx context.Context, userID string) (*
 // card created straight into "Applied" never touched "Wishlist" — which is how
 // the funnel came to report "17 applications, 340% converted, -240% drop-off".
 //
-// Archived cards are excluded. Conversion/drop-off are relative to the previous
+// Archived cards are included. Conversion/drop-off are relative to the previous
 // column (buildStageFunnel).
 func (r *AnalyticsRepository) GetFunnel(ctx context.Context, userID string) (*model.FunnelAnalytics, error) {
 	const stageQuery = `
@@ -232,7 +229,7 @@ func (r *AnalyticsRepository) GetFunnel(ctx context.Context, userID string) (*mo
 					SELECT 1 FROM job_stages js
 					WHERE js.job_id = j.id AND js.stage_template_id = t.id
 				)
-			WHERE j.user_id = $1 AND j.is_archived = false
+			WHERE j.user_id = $1
 		),
 		furthest AS (
 			SELECT job_id, MAX(stage_order) AS max_order
@@ -333,7 +330,7 @@ func clampPercent(v float64) float64 {
 
 // GetStageTime returns timing metrics per stage template. Time-in-stage is the
 // span from job_stages.started_at to completed_at (or now, if still in the
-// column). Archived cards are excluded.
+// column). Archived cards are included.
 func (r *AnalyticsRepository) GetStageTime(ctx context.Context, userID string) (*model.StageTimeAnalytics, error) {
 	query := `
 		WITH stage_durations AS (
@@ -349,7 +346,7 @@ func (r *AnalyticsRepository) GetStageTime(ctx context.Context, userID string) (
 			FROM job_stages js
 			JOIN stage_templates st ON st.id = js.stage_template_id
 			JOIN jobs j ON j.id = js.job_id
-			WHERE j.user_id = $1 AND j.is_archived = false
+			WHERE j.user_id = $1
 		)
 		SELECT
 			stage_name,
@@ -396,7 +393,7 @@ func (r *AnalyticsRepository) GetStageTime(ctx context.Context, userID string) (
 //
 // A "response" is respondedPredicate — the same rule the overview response
 // rate uses, so the per-resume rates and the headline rate describe the same
-// event. "Interviews" is interviewPredicate. Archived cards are excluded.
+// event. "Interviews" is interviewPredicate. Archived cards are included.
 func (r *AnalyticsRepository) GetResumeEffectiveness(ctx context.Context, userID string) (*model.ResumeAnalytics, error) {
 	query := `
 		WITH resume_stats AS (
@@ -407,7 +404,7 @@ func (r *AnalyticsRepository) GetResumeEffectiveness(ctx context.Context, userID
 				COUNT(DISTINCT j.id) FILTER (WHERE ` + respondedPredicate + `) AS responses_count,
 				COUNT(DISTINCT j.id) FILTER (WHERE ` + interviewPredicate + `) AS interviews_count
 			FROM resumes r
-			LEFT JOIN jobs j ON j.resume_id = r.id AND j.user_id = $1 AND j.is_archived = false
+			LEFT JOIN jobs j ON j.resume_id = r.id AND j.user_id = $1
 			WHERE r.user_id = $1
 			GROUP BY r.id, r.title
 		)
@@ -458,7 +455,7 @@ func (r *AnalyticsRepository) GetResumeEffectiveness(ctx context.Context, userID
 // GetSourceAnalytics returns metrics grouped by job source.
 //
 // A "response" is respondedPredicate — the same rule as the overview and
-// resume-effectiveness rates. Archived cards are excluded.
+// resume-effectiveness rates. Archived cards are included.
 func (r *AnalyticsRepository) GetSourceAnalytics(ctx context.Context, userID string) (*model.SourceAnalytics, error) {
 	query := `
 		WITH source_stats AS (
@@ -467,7 +464,7 @@ func (r *AnalyticsRepository) GetSourceAnalytics(ctx context.Context, userID str
 				COUNT(DISTINCT j.id) AS applications_count,
 				COUNT(DISTINCT j.id) FILTER (WHERE ` + respondedPredicate + `) AS responses_count
 			FROM jobs j
-			WHERE j.user_id = $1 AND j.is_archived = false
+			WHERE j.user_id = $1
 			GROUP BY COALESCE(NULLIF(j.source, ''), 'Unknown')
 		)
 		SELECT

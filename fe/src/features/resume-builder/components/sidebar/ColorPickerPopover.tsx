@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
 import { cn } from "@/shared/lib/utils";
@@ -47,8 +47,9 @@ function ColorPaletteSection({
   recommendedKey,
   t,
 }: ColorPaletteSectionProps) {
+  const prefix = useId();
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" role="group" aria-label={label}>
       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </h3>
@@ -68,9 +69,10 @@ function ColorPaletteSection({
             {palette.colors.map((color) => (
               <button
                 key={color}
+                aria-pressed={selectedColor === color}
                 onClick={() => onSelect(color)}
                 className={cn(
-                  "h-7 w-7 rounded-full border-2 transition-transform hover:scale-110",
+                  "h-11 w-11 rounded-full border-2 transition-transform hover:scale-110",
                   selectedColor === color
                     ? "border-foreground ring-2 ring-primary ring-offset-2"
                     : "border-transparent",
@@ -85,17 +87,19 @@ function ColorPaletteSection({
 
       {/* Custom color input */}
       <div>
-        <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
-          {t("resumeBuilder.colors.custom")}
-        </span>
+        <label htmlFor={`${prefix}-color`} className="mb-1.5 block text-xs font-medium text-muted-foreground">
+          {label}: {t("resumeBuilder.colors.custom")}
+        </label>
         <div className="flex items-center gap-2">
           <input
+            id={`${prefix}-color`}
             type="color"
             value={selectedColor}
             onChange={(e) => onSelect(e.target.value)}
-            className="h-8 w-12 cursor-pointer rounded border p-0"
+            className="h-11 w-12 cursor-pointer rounded border p-0"
           />
           <input
+            aria-label={`${label}: ${t("resumeBuilder.colors.hex")}`}
             value={selectedColor}
             onChange={(e) => {
               const val = e.target.value;
@@ -149,7 +153,7 @@ export function ColorPickerPopover({
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t("resumeBuilder.themes.title")}
           </h3>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div role="group" aria-label={t("resumeBuilder.themes.title")} className="mt-2 flex flex-wrap gap-2">
             {COLOR_THEMES.map((theme) => {
               const isActive =
                 resume?.primary_color === theme.primary &&
@@ -157,6 +161,7 @@ export function ColorPickerPopover({
               return (
                 <button
                   key={theme.nameKey}
+                  aria-pressed={isActive}
                   title={t(theme.nameKey)}
                   onClick={() =>
                     updateDesign({
@@ -165,7 +170,7 @@ export function ColorPickerPopover({
                     })
                   }
                   className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-full border-2 transition-transform hover:scale-110",
+                    "flex h-11 w-11 items-center justify-center rounded-full border-2 transition-transform hover:scale-110",
                     isActive
                       ? "border-foreground ring-2 ring-primary ring-offset-2"
                       : "border-transparent",

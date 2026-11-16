@@ -79,7 +79,11 @@
     "sortedAscending": "ascending",
     "sortedDescending": "descending",
     "viewMode": "View",
-    "filterBy": "Filter"
+    "filterBy": "Filter",
+    "aiErrors": {
+      "noChanges": "AI proposed no usable changes. Your credits were returned.",
+      "resultSaveFailed": "The AI result could not be saved. Please try again."
+    }
   },
   "auth": {
     "login": "Login",
@@ -254,7 +258,8 @@
     "updateError": "Failed to update company",
     "namePlaceholder": "e.g., Google, Microsoft, Startup Inc.",
     "locationPlaceholder": "e.g., San Francisco, CA",
-    "notesPlaceholder": "Any additional notes about the company..."
+    "notesPlaceholder": "Any additional notes about the company...",
+    "nameTooLong": "Company name must be {{max}} characters or fewer."
   },
   "jobs": {
     "title": "Applications",
@@ -543,7 +548,7 @@
       "intro": "Prepare for this Job with a personal plan and saved practice sessions.",
       "open": "Open interview preparation",
       "assumptions": "Questions are AI assumptions. Advice and STAR prompts are hypothetical: use only your real experience. No score predicts hiring success.",
-      "quota": "Each plan, answer feedback and final review uses one existing AI request. Retrying the same operation does not use another request (up to 3 attempts).",
+      "quota": "A usable plan, answer review or summary costs the credits shown before generation. Failed operations return their reserved credits. Retry keeps the same operation and its limit of 3 attempts.",
       "source": "Builder Resume",
       "chooseResume": "Choose Builder Resume",
       "language": "Preparation language",
@@ -618,7 +623,7 @@
       "failed": "Operation failed; saved work is preserved",
       "interrupted": "Interrupted; saved work is preserved",
       "retry": "Retry",
-      "retrySafe": "Retry same operation · no new charge",
+      "retrySafe": "Retry same operation",
       "unavailable": "AI is unavailable. Saved preparation, sessions and answers remain available.",
       "stale": "Source data changed or the Builder Resume was deleted. Saved work is preserved. Generate a new version and start a session from it for new AI feedback; newly hidden content is never resent.",
       "errors": {
@@ -631,10 +636,10 @@
         "VALIDATION_ERROR": "Check the saved Job description, Builder Resume and answer length.",
         "NOT_FOUND": "This saved item is no longer available.",
         "AI_UNAVAILABLE": "AI is unavailable. Your saved work is preserved.",
-        "AI_TIMEOUT": "AI took too long. Retry the same operation without a new charge.",
+        "AI_TIMEOUT": "AI did not respond in time. Reserved credits were returned; retry the same operation.",
         "AI_INVALID_RESPONSE": "AI returned an unsupported result. Retry the same operation.",
         "AI_FAILED": "AI could not complete this operation. Retry the same operation.",
-        "INTERRUPTED": "The server interrupted this operation. You can retry without a new charge.",
+        "INTERRUPTED": "The operation was interrupted. Reserved credits were returned; retry the same operation.",
         "SAVE_FAILED": "Could not save the result. Wait for interrupted status, then retry.",
         "SOURCE_CHANGED": "Source data changed. Generate a new preparation version; old work is preserved.",
         "ANSWER_TOO_LONG": "The answer limit is 12,000 characters. Your previous draft was preserved; shorten the pasted text before trying again.",
@@ -649,7 +654,11 @@
       "exhaustedReview": "Three attempts were used. Start a new practice session for another AI review; these answers remain saved.",
       "capacity": "Remaining session capacity: {{bytes}} serialized bytes. Long answers use more capacity; your draft is preserved if the limit is reached."
     },
-    "titleRequired": "Enter a job title, not just spaces."
+    "titleRequired": "Enter a job title, not just spaces.",
+    "invalidJobId": "This job link is invalid. Open a job from your applications.",
+    "loadUnauthorized": "Sign in again to view this job.",
+    "loadForbidden": "You do not have access to this job.",
+    "loadError": "Could not load this job. Please try again."
   },
   "settings": {
     "aiAssistants": {
@@ -750,7 +759,7 @@
       "freePlan": "Free",
       "proPlan": "Pro",
       "enterprisePlan": "Enterprise",
-      "paymentsDisabled": "Payments are temporarily disabled. All users currently have access to the Free plan features.",
+      "paymentsDisabled": "Payments are temporarily unavailable. Your current plan and its limits still apply.",
       "upgradeSuccess": {
         "title": "You're all set!",
         "description": "Welcome to the {{plan}} plan. Enjoy your new features!",
@@ -978,7 +987,8 @@
       "offer": "Offer",
       "rejected": "Rejected",
       "other": "Other — not counted"
-    }
+    },
+    "nameTooLong": "Stage name must be {{max}} characters or fewer."
   },
   "home": {
     "nav": {
@@ -1134,7 +1144,7 @@
       "items": {
         "free": {
           "q": "Is Cursopus free?",
-          "a": "Yes. Free includes 25 tracked applications, 1 uploaded resume, 2 resume builders, 1 cover letter and 30 shared AI credits once per account. Pro ($24/month) includes 100 applications, 10 resumes, 10 builders, 10 cover letters in total and 500 AI credits per confirmed paid period. Credits do not roll over. AI use is subject to credit, input and safety spending limits; requests may stop before all credits are used. Costs vary by action and are shown before you start. Credits are charged once AI starts, including on later errors; failures before AI starts release the reservation. New operations need new credits; cached results are free."
+          "a": "Yes. Free includes 25 tracked applications, 1 uploaded resume, 2 resume builders, 1 cover letter and 30 shared AI credits once per account. Pro ($24/month) includes 100 applications, 10 resumes, 10 builders, 10 cover letters in total and 500 AI credits per confirmed paid period. Credits do not roll over. AI use is subject to credit, input and safety spending limits; requests may stop before all credits are used. Costs vary by action and are shown before you start. Credits are reserved before processing and charged only for a usable result; failed operations return their reserved credits. New operations need new credits; cached results are free."
         },
         "what": {
           "q": "What is Cursopus and who is it for?",
@@ -1252,7 +1262,7 @@
   },
   "analytics": {
     "title": "Analytics",
-    "description": "Insights and statistics about your job search",
+    "description": "Historical metrics include all applications, including archived jobs. Active and closed applications are shown separately.",
     "noData": "No data yet",
     "noDataDescription": "Add your first application to see analytics",
     "error": "Failed to load analytics",
@@ -1568,7 +1578,8 @@
       "nature": "Nature",
       "warm": "Warm",
       "recommended": "Recommended",
-      "custom": "Custom"
+      "custom": "Custom",
+      "hex": "HEX color"
     },
     "templates": {
       "professional": "Professional",
@@ -1600,7 +1611,14 @@
       "dismiss": "Dismiss",
       "generating": "Generating...",
       "result": "AI Suggestion",
-      "selectExperience": "Select an experience..."
+      "selectExperience": "Select an experience...",
+      "target": "Destination",
+      "freeText": "Free text (copy or use in input)",
+      "useInInput": "Use in input",
+      "copy": "Copy",
+      "applySaveError": "Could not save the result. Retry Apply or copy the text.",
+      "staleResult": "The document changed. Generate again or copy this result.",
+      "copyFailed": "Could not copy. Select the result text and copy it manually."
     },
     "ats": {
       "title": "ATS Checker",
@@ -1729,7 +1747,65 @@
       "startDate": "Start date",
       "endDate": "End date",
       "currentlyHere": "Currently here",
-      "addDates": "Add dates"
+      "addDates": "Add dates",
+      "addExperience": "Add work experience",
+      "addEducation": "Add education",
+      "addSkill": "Add a skill",
+      "addLanguage": "Add a language",
+      "addCertification": "Add a certification",
+      "addProject": "Add a project",
+      "addVolunteering": "Add volunteering",
+      "addCustomSection": "Add a custom section",
+      "invalidDateRange": "End date must be on or after start date.",
+      "present": "Present"
+    },
+    "errors": {
+      "invalidDateRange": "Enter valid dates with the end on or after the start."
+    },
+    "placeholders": {
+      "fullName": "Your Name",
+      "email": "email@example.com",
+      "phone": "+1 (555) 123-4567",
+      "location": "City, Country",
+      "website": "website.com",
+      "linkedin": "linkedin.com/in/you",
+      "github": "github.com/you",
+      "skillLevel": "Level",
+      "skill": "Skill",
+      "language": "Language",
+      "proficiency": "Proficiency",
+      "certification": "Certification",
+      "issuer": "Issuer",
+      "issueDate": "Issue date",
+      "projectName": "Project name",
+      "projectDescription": "Project description...",
+      "role": "Role",
+      "organization": "Organization",
+      "volunteeringDescription": "Describe your volunteering...",
+      "sectionTitle": "Section title",
+      "sectionContent": "Section content...",
+      "position": "Position",
+      "company": "Company",
+      "responsibilities": "Describe responsibilities...",
+      "degree": "Degree",
+      "institution": "Institution",
+      "summary": "Write a brief summary of your professional background...",
+      "gpa": "GPA",
+      "fieldOfStudy": "Field of Study"
+    },
+    "skillLevels": {
+      "beginner": "Beginner",
+      "intermediate": "Intermediate",
+      "advanced": "Advanced",
+      "expert": "Expert",
+      "master": "Master"
+    },
+    "proficiencyLevels": {
+      "elementary": "Elementary",
+      "limited_working": "Limited Working",
+      "professional_working": "Professional Working",
+      "full_professional": "Full Professional",
+      "native": "Native"
     }
   },
   "coverLetter": {
@@ -1820,8 +1896,14 @@
       "error": "Failed to generate. Please try again.",
       "selectJob": "Select from your jobs",
       "selectJobPlaceholder": "Choose a job...",
-      "orEnterManually": "or enter manually below"
-    }
+      "orEnterManually": "or enter manually below",
+      "jobDescriptionRequired": "Enter a job description.",
+      "resumeRequired": "Select a resume with candidate information before generating a personalized letter.",
+      "sourceUnavailable": "Could not load the linked resume. Try again.",
+      "resume": "Resume",
+      "selectResume": "Select a resume"
+    },
+    "editText": "Edit text"
   },
   "contentLibrary": {
     "title": "Content Library",
@@ -2079,7 +2161,8 @@
   },
   "ai": {
     "unavailable": "AI is currently unavailable. You can keep editing and try again later.",
-    "requestFailed": "AI could not complete this request. Your input is kept. Please try again."
+    "requestFailed": "AI could not complete this request. Your input is kept. Please try again.",
+    "invalidResponse": "AI returned a result that could not be verified. Your credits were returned. Please try again."
   },
   "credits": {
     "allowance": "AI use is subject to credit, input-size and safety spending limits. Requests may stop before all credits are used. Unused Pro credits do not roll over.",
@@ -2089,7 +2172,7 @@
     "confirmTitle": "Use AI credits?",
     "cost": "Cost: {{cost}} credits · Available: {{remaining}}",
     "confirm": "Use {{cost}} credits",
-    "chargePolicy": "Credits are reserved before processing and charged once AI starts. Errors after AI starts still use credits; checks before AI starts return them. A new AI operation uses a new credit charge. Repeated delivery of the same submitted request is not charged twice. Retrying an existing interview operation is included in its original credit charge (up to 3 attempts); each attempt remains subject to safety spending limits.",
+    "chargePolicy": "Credits are reserved before processing and charged only for a usable result. Failed operations return the reserved credits. Retrying an existing interview operation reserves the same cost again and keeps its original limit of 3 attempts. A successful operation is charged once; provider spending limits apply to every attempt.",
     "balanceUnavailable": "Could not verify the credit cost and balance. Close and try again.",
     "exhausted": "Not enough AI credits for this action. Check your balance in Settings. Free credits are granted once; Pro credits renew only after confirmed payment.",
     "budgetReached": "AI is paused by a safety spending limit. Credits may remain available. Try again later or contact support.",
@@ -2131,7 +2214,6 @@
     "until": "Pro until {{date}}",
     "loadingUsers": "Loading users",
     "page": "Page {{page}}",
-    "total": "{{total}} users",
     "previous": "Previous",
     "next": "Next",
     "loadingDetail": "Loading user details",
@@ -2206,6 +2288,8 @@
     "testDescription": "Exclude this account from statistics by default. This does not change sign-in, plan, billing or access.",
     "markTest": "Mark as test account",
     "unmarkTest": "Remove test account mark",
-    "testSaved": "Test account setting saved."
+    "testSaved": "Test account setting saved.",
+    "total_one": "{{count}} user",
+    "total_other": "{{count}} users"
   }
 }

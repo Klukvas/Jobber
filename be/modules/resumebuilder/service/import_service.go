@@ -102,23 +102,27 @@ func (s *ImportService) createFromParsed(ctx context.Context, userID string, par
 	}
 	title = strings.TrimSpace(title)
 
-	var resumeID string
+	var result *model.FullResumeDTO
 
 	txErr := runResumeCreation(ctx, s.repo, s.limitChecker, userID, func(txRepo ports.ResumeBuilderRepository) error {
-		var err error
-		resumeID, err = writeParsedResume(ctx, txRepo, userID, parsed, title, "")
+		resumeID, err := writeParsedResume(ctx, txRepo, userID, parsed, title, "")
 		if err != nil {
 			return err
 		}
+		result, err = txRepo.GetFullResume(ctx, userID, resumeID)
+		if err != nil {
+			return fmt.Errorf("load imported resume: %w", err)
+		}
+		ai.MarkCreditResult(ctx)
 		return nil
 	})
 
 	if txErr != nil {
+		ai.RejectCreditResult(ctx)
 		return nil, txErr
 	}
 
-	// Return full resume (outside transaction — read from committed data)
-	return s.repo.GetFullResume(ctx, userID, resumeID)
+	return result, nil
 }
 
 func writeParsedResume(ctx context.Context, txRepo ports.ResumeBuilderRepository, userID string, parsed *ai.ParsedResume, title, id string) (string, error) {

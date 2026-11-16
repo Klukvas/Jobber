@@ -35,6 +35,7 @@ import { CompanySelectWithQuickAdd } from "@/features/jobs/components/CompanySel
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { UpgradeBanner } from "@/features/subscription/components/UpgradeBanner";
 import { Loader2 } from "lucide-react";
+import { isSaveableJobUrl } from "@/features/jobs/lib/jobUrl";
 import { FIELD_LIMITS } from "@/shared/lib/fieldLimits";
 
 interface CreateJobModalProps {
@@ -87,6 +88,7 @@ function ModalContent({
   const [title, setTitle] = useState(job?.title || "");
   const [companyId, setCompanyId] = useState(job?.company_id || "");
   const [url, setUrl] = useState(job?.url || "");
+  const isUrlValid = isSaveableJobUrl(url);
   const [source, setSource] = useState(job?.source || "");
   const [description, setDescription] = useState(job?.description || "");
   const [alreadyApplied, setAlreadyApplied] = useState(false);
@@ -143,7 +145,7 @@ function ModalContent({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || isPending || showLimitBanner) return;
+    if (!title.trim() || !isUrlValid || isPending || showLimitBanner) return;
 
     if (isEditMode && job) {
       // Empty strings stay empty strings: the form holds every field, so a
@@ -234,7 +236,12 @@ function ModalContent({
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://example.com/jobs/123"
+              aria-invalid={!isUrlValid}
+              aria-describedby={!isUrlValid ? "job-url-error" : undefined}
             />
+            {!isUrlValid && (
+              <p id="job-url-error" role="alert" className="text-sm text-destructive">{t("errors.invalidUrl")}</p>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="source">{t("jobs.source")} ({t("common.optional")})</Label>
@@ -346,7 +353,7 @@ function ModalContent({
           </Button>
           <Button
             type="submit"
-            disabled={isPending || !title.trim() || showLimitBanner}
+            disabled={isPending || !title.trim() || !isUrlValid || showLimitBanner}
           >
             {isPending ? (
               <>

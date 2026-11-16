@@ -5,7 +5,7 @@ package model
 // In the single-axis stage model there is no status, so the buckets are:
 //   - ActiveApplications  = cards that are not archived
 //   - ClosedApplications  = archived cards
-//   - RejectedApplications = non-archived cards sitting in a column whose kind
+//   - RejectedApplications = cards sitting in a column whose kind
 //     is "rejected" (the column's kind, not its name — a renamed column still
 //     counts)
 type OverviewAnalytics struct {
@@ -19,7 +19,7 @@ type OverviewAnalytics struct {
 
 // FunnelStage represents one bucket of the stage funnel — one of the user's own
 // pipeline columns (stage_templates), in "order". StageName is the column name,
-// Count the number of non-archived cards that reached it.
+// Count the number of cards, including archived cards, that reached it.
 //
 // SubStages is retained for JSON/DTO stability but is no longer populated: the
 // single-axis model has no phase drill-down.

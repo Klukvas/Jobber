@@ -52,6 +52,14 @@ func (s *Service) claim(ctx context.Context) (Operation, error) {
 	if _, err := tx.Exec(ctx, `UPDATE interview_operations SET status='interrupted',error_code='INTERRUPTED',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE status='running' AND lease_until<now()`); err != nil {
 		return Operation{}, err
 	}
+	if managed, ok := s.limits.(interface{ CreditLedgerEnabled() bool }); ok && managed.CreditLedgerEnabled() {
+		if _, err := tx.Exec(ctx, `UPDATE ai_credit_operations c SET charge_state='released',charge_reason='interrupted',charge_finished_at=now() FROM interview_operations o WHERE o.user_id=c.user_id AND o.id::text=c.operation_key AND o.status='interrupted' AND c.charge_state='reserved'`); err != nil {
+			return Operation{}, err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE interview_operations SET charge_released=true WHERE status='interrupted'`); err != nil {
+			return Operation{}, err
+		}
+	}
 	var running int
 	if err := tx.QueryRow(ctx, `SELECT count(*) FROM interview_operations WHERE status='running'`).Scan(&running); err != nil {
 		return Operation{}, err
@@ -139,7 +147,14 @@ func (s *Service) RunOnce(ctx context.Context) error {
 			o.ProviderStarted = priorStarted
 		}
 		if err != nil {
+			var diagnostic *ai.ResponseValidationError
+			if errors.As(err, &diagnostic) {
+				slog.Warn("interview adapter response rejected", "operation_id", o.ID, "stage", diagnostic.Stage, "rule", diagnostic.Rule, "path", diagnostic.Path)
+			}
 			switch {
+			case errors.As(err, &diagnostic):
+				code = "AI_INVALID_RESPONSE"
+
 			case errors.Is(err, ErrSourceChanged):
 				code = "SOURCE_CHANGED"
 			case errors.Is(err, ai.ErrInterviewPreparationFailed):
@@ -174,19 +189,16 @@ func (s *Service) RunOnce(ctx context.Context) error {
 		}
 		if err != nil {
 			code = "AI_INVALID_RESPONSE"
+			var diagnostic *ai.ResponseValidationError
+			if errors.As(err, &diagnostic) {
+				slog.Warn("interview response rejected", "operation_id", o.ID, "attempt", o.Attempts, "stage", diagnostic.Stage, "rule", diagnostic.Rule, "path", diagnostic.Path, "response_bytes", len(output), "schema_version", 1)
+			}
 		}
 	}
 	// A cancelled application context still gets a bounded attempt to persist the
 	// interrupted status. A crash leaves a lease that becomes interrupted on restart.
 	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	if code != "" {
-		if _, ok := s.limits.(interface{ CreditLedgerEnabled() bool }); ok {
-			if finishErr := quota.NewSubscriptionRepository(s.store.pool).FinishCreditOperation(saveCtx, o.Owner, o.ID); finishErr != nil {
-				return finishErr
-			}
-		}
-	}
 	outcome, err := s.complete(saveCtx, o, input, plan, review, code)
 	if outcome == "" {
 		outcome = "succeeded"
@@ -196,6 +208,12 @@ func (s *Service) RunOnce(ctx context.Context) error {
 		err = nil
 	} else if err != nil {
 		outcome = "save_failed"
+		// The result transaction rolled back. Refund only while this worker
+		// still owns its lease; a fenced worker cannot undo a newer success.
+		if managed, ok := s.limits.(interface{ CreditLedgerEnabled() bool }); ok && managed.CreditLedgerEnabled() {
+			_, cleanupErr := s.complete(saveCtx, o, input, Plan{}, Review{}, "SAVE_FAILED")
+			err = errors.Join(err, cleanupErr)
+		}
 	}
 	slog.Info("interview AI operation", "operation_id", o.ID, "kind", o.Kind, "attempt", o.Attempts, "duration_ms", time.Since(started).Milliseconds(), "outcome", outcome)
 	return err
@@ -234,6 +252,12 @@ func (s *Service) complete(ctx context.Context, o Operation, input AIInput, plan
 			}
 		}
 		released := code != "" && !o.ProviderStarted
+		if managed, ok := s.limits.(interface{ CreditLedgerEnabled() bool }); ok && managed.CreditLedgerEnabled() {
+			if err := quota.FinalizeCreditResultInTransaction(ctx, tx, o.Owner, o.ID, code == "", code); err != nil {
+				return err
+			}
+			released = code != ""
+		}
 		status := "succeeded"
 		if code != "" {
 			status = "failed"

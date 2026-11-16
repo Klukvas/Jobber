@@ -28,7 +28,7 @@ export function SummaryContent({
           maxLength={maxLength}
           aria-describedby={helpId}
           onChange={(content) => setup.updateSummary({ content })}
-          placeholder="Write a brief summary of your professional background..."
+          placeholder={t("resumeBuilder.placeholders.summary")}
           className={`${config.textSize} ${config.leadingClass} text-gray-700`}
         />
         <p

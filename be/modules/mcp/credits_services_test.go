@@ -25,6 +25,7 @@ import (
 type stagedCreditCase struct {
 	name                   string
 	rejectStage, failStage int
+	invalidStage           int
 	insufficient           bool
 	calls, attempts        int
 	refunded               bool
@@ -35,9 +36,11 @@ func stagedCreditCases() []stagedCreditCase {
 		{name: "two stages charge once", calls: 2, attempts: 2},
 		{name: "insufficient credits", insufficient: true, refunded: true},
 		{name: "first dispatch rejected refunds", rejectStage: 1, refunded: true},
-		{name: "first provider fails keeps charge", failStage: 1, calls: 1, attempts: 1},
-		{name: "second dispatch rejected keeps first charge", rejectStage: 2, calls: 1, attempts: 1},
-		{name: "second provider fails keeps charge", failStage: 2, calls: 2, attempts: 2},
+		{name: "first provider fails refunds user", failStage: 1, calls: 1, attempts: 1, refunded: true},
+		{name: "second dispatch rejected refunds user", rejectStage: 2, calls: 1, attempts: 1, refunded: true},
+		{name: "second provider fails refunds user", failStage: 2, calls: 2, attempts: 2, refunded: true},
+		{name: "invalid generated response refunds user", invalidStage: 1, calls: 1, attempts: 1, refunded: true},
+		{name: "invalid verification response refunds user", invalidStage: 2, calls: 2, attempts: 2, refunded: true},
 	}
 }
 
@@ -60,11 +63,12 @@ func newStagedCreditFixture(t *testing.T, kind string, tc stagedCreditCase) *sta
 		fake.ledger.balance[userA]--
 	}
 	ledger := &guardedLedger{aiLedger: fake.ledger, attempts: map[string]*guardedAttempt{}, rejectStage: tc.rejectStage}
+	useGuardedCredits(fake, ledger)
 	fixture := &stagedCreditFixture{fake: fake, ledger: ledger, workflow: newCreditWorkflow(ledger), letters: &creditLetterRepository{letters: map[string]*cvModel.CoverLetter{}}}
 	previous := http.DefaultTransport
 	http.DefaultTransport = creditTransport(func(request *http.Request) (*http.Response, error) {
 		fixture.calls++
-		return stagedProviderResponse(t, request, kind, fixture.calls, tc.failStage), nil
+		return stagedProviderResponse(t, request, kind, fixture.calls, tc.failStage, tc.invalidStage), nil
 	})
 	t.Cleanup(func() { http.DefaultTransport = previous })
 	provider := ai.NewAnthropicClient("fake-test-key")
@@ -80,7 +84,7 @@ func newStagedCreditFixture(t *testing.T, kind string, tc stagedCreditCase) *sta
 	return fixture
 }
 
-func stagedProviderResponse(t *testing.T, request *http.Request, kind string, stage, failStage int) *http.Response {
+func stagedProviderResponse(t *testing.T, request *http.Request, kind string, stage, failStage, invalidStage int) *http.Response {
 	t.Helper()
 	require.Equal(t, "/v1/messages", request.URL.Path)
 	var params struct {
@@ -98,10 +102,41 @@ func stagedProviderResponse(t *testing.T, request *http.Request, kind string, st
 		return providerResponse(t, request, true)
 	}
 	text := stagedProviderText(kind, stage)
+	if stage == invalidStage {
+		text = `{"unexpected":true}`
+	}
 	payload := map[string]any{"id": "msg_staged", "type": "message", "role": "assistant", "model": params.Model, "stop_reason": "end_turn", "usage": map[string]int{"input_tokens": 10, "output_tokens": 20}, "content": []map[string]string{{"type": "text", "text": text}}}
 	encoded, err := json.Marshal(payload)
 	require.NoError(t, err)
 	return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(string(encoded))), Request: request}
+}
+
+func TestCreditScopeMCPFailedLetterSaveRefundsUser(t *testing.T) {
+	tc := stagedCreditCase{name: "save failed", calls: 2, attempts: 2, refunded: true}
+	fixture := newStagedCreditFixture(t, "cover_letter", tc)
+	fixture.letters.failSave = true
+	fixture.callMCP(t, "cover_letter", tc)
+	fixture.assertAccounting(t, "cover_letter", tc)
+	letter, err := fixture.letters.GetByID(t.Context(), userA, proposalA)
+	require.NoError(t, err)
+	require.Empty(t, letter.Paragraphs, "failed save must not expose a saved result")
+	for _, attempt := range fixture.ledger.attempts {
+		require.True(t, attempt.settled, "provider cost remains recorded despite user refund")
+	}
+}
+
+func TestCreditScopeMCPMissingCandidateSourceNeverCallsProvider(t *testing.T) {
+	fixture := newStagedCreditFixture(t, "cover_letter", stagedCreditCase{})
+	jobs := newFakeJobs()
+	client := toolClientForServer(t, NewServer(jobs, nil, jobs, nil, WithAITools(fixture.deps)), userA)
+	result := callTool(t, client, "generate_cover_letter", GenerateCoverLetterInput{JobID: jobA})
+	require.True(t, result.IsError)
+	require.Zero(t, fixture.calls)
+	require.Empty(t, fixture.ledger.attempts)
+	require.Empty(t, fixture.ledger.operations)
+	require.Empty(t, fixture.ledger.reserved)
+	require.Empty(t, fixture.ledger.resultOutcomes)
+	require.Equal(t, ai.OperationCosts["cover_letter"], fixture.ledger.balance[userA])
 }
 func stagedProviderText(kind string, stage int) string {
 	if kind == "tailor" {
@@ -110,12 +145,10 @@ func stagedProviderText(kind string, stage int) string {
 		}
 		return `{"supported":true,"unsupported_claims":[]}`
 	}
-	// No resume_id is valid: the real web AI service has no candidate facts and
-	// generates only future-facing interest, still using its independent verifier.
 	if stage == 1 {
-		return `{"paragraphs":[[{"kind":"interest","text":"I would like to apply for this role."}],[{"kind":"interest","text":"I would welcome the opportunity to discuss your team."}],[{"kind":"interest","text":"Thank you for considering this application."}]]}`
+		return `{"paragraphs":[[{"kind":"interest","text":"I would like to apply for this role."}],[{"kind":"source_anchor","unit_id":"f0"}],[{"kind":"interest","text":"Thank you for considering this application."}]]}`
 	}
-	return `{"sentences":[{"id":0,"kind":"interest","supported":true},{"id":1,"kind":"interest","supported":true},{"id":2,"kind":"interest","supported":true}],"issues":[]}`
+	return `{"sentences":[{"id":0,"kind":"interest","supported":true},{"id":1,"kind":"candidate_fact","supported":true},{"id":2,"kind":"interest","supported":true}],"issues":[]}`
 }
 
 func TestCreditScopeRealMultiStageServicesWebParity(t *testing.T) {
@@ -147,7 +180,7 @@ func (f *stagedCreditFixture) callMCP(t *testing.T, kind string, tc stagedCredit
 	var input any = TailorResumeInput{JobID: jobA, ResumeID: builderA}
 	if kind == "cover_letter" {
 		name = "generate_cover_letter"
-		input = GenerateCoverLetterInput{JobID: jobA}
+		input = GenerateCoverLetterInput{JobID: jobA, ResumeID: builderA}
 	}
 	result := callTool(t, client, name, input)
 	require.Equal(t, tc.name != "two stages charge once", result.IsError, "%v", result.Content)
@@ -176,7 +209,7 @@ func (f *stagedCreditFixture) callWeb(t *testing.T, kind string, tc stagedCredit
 		handler := rbHandler.NewTailoringHandler(f.tailoring)
 		router.POST("/api/v1/jobs/:id/resume-tailoring", func(c *gin.Context) { c.Set("user_id", userA); handler.Generate(c) })
 	} else {
-		_, err := f.deps.Letters.Create(t.Context(), userA, &cvModel.CreateCoverLetterRequest{JobID: ptr(jobA)})
+		_, err := f.deps.Letters.Create(t.Context(), userA, &cvModel.CreateCoverLetterRequest{JobID: ptr(jobA), ResumeBuilderID: ptr(builderA)})
 		require.NoError(t, err)
 		handler := cvHandler.NewAIHandler(f.letterAI, zap.NewNop())
 		path = "/api/v1/cover-letters/ai/generate"
@@ -205,9 +238,15 @@ func (f *stagedCreditFixture) assertAccounting(t *testing.T, kind string, tc sta
 	}
 	require.Equal(t, balance, f.ledger.balance[userA])
 	require.Equal(t, 100, f.ledger.balance[userB])
+	if tc.insufficient {
+		require.Zero(t, f.ledger.finished, "no admitted operation to finalize")
+		require.Empty(t, f.ledger.operations)
+		return
+	}
 	require.Equal(t, 1, f.ledger.finished)
 	require.Len(t, f.ledger.finishedOperations, 1)
 	finished := f.ledger.finishedOperations[0]
+	require.Equal(t, !tc.refunded, f.ledger.resultOutcomes[finished.Key])
 	require.Equal(t, userA, finished.UserID)
 	require.Equal(t, kind, finished.Kind)
 	require.Equal(t, cost, finished.Credits)
@@ -219,6 +258,10 @@ func (f *stagedCreditFixture) assertAccounting(t *testing.T, kind string, tc sta
 	for _, attempt := range f.ledger.attempts {
 		require.Equal(t, finished, attempt.operation)
 		require.True(t, attempt.dispatched)
+		require.Positive(t, attempt.reservedNanodollars, "provider liability is retained independently from the user's charge")
+		if attempt.settled {
+			require.Positive(t, attempt.actualNanodollars, "settled provider cost survives refunds")
+		}
 	}
 	if kind == "tailor" {
 		require.NotEmpty(t, f.workflow.originalReceipt)

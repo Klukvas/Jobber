@@ -1,3 +1,4 @@
+import { useAuthStore } from "@/stores/authStore";
 import { useQuery } from "@tanstack/react-query";
 import { subscriptionService } from "@/services/subscriptionService";
 import type {
@@ -7,9 +8,12 @@ import type {
 } from "@/shared/types/api";
 
 export function useSubscription() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const userId = useAuthStore((state) => state.user?.id);
   const { data: subscription, ...query } = useQuery({
-    queryKey: ["subscription"],
-    queryFn: subscriptionService.getSubscription,
+    queryKey: ["subscription", userId],
+    queryFn: ({ signal }) => subscriptionService.getSubscription({ signal }),
+    enabled: isAuthenticated && !!userId,
     staleTime: 60_000,
   });
 

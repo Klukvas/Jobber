@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { EditableField } from "../inline/EditableField";
 import { EMPTY_CONTACT } from "../inline/constants";
 import { useTemplateSetup } from "./shared/useTemplateSetup";
@@ -11,6 +12,7 @@ interface ExecutiveTemplateProps {
 export function ExecutiveTemplate({
   editable = false,
 }: ExecutiveTemplateProps) {
+  const { t } = useTranslation();
   const setup = useTemplateSetup();
   if (!setup) return null;
 
@@ -25,7 +27,7 @@ export function ExecutiveTemplate({
           onChange={(v) =>
             updateContact({ ...(contact ?? EMPTY_CONTACT), full_name: v })
           }
-          placeholder="Your Name"
+          placeholder={t("resumeBuilder.placeholders.fullName")}
           as="h1"
           className="text-xl font-bold tracking-wide text-white"
           inputClassName="text-white placeholder:text-white/60"
@@ -38,7 +40,7 @@ export function ExecutiveTemplate({
               onChange={(v) =>
                 updateContact({ ...(contact ?? EMPTY_CONTACT), email: v })
               }
-              placeholder="email@example.com"
+              placeholder={t("resumeBuilder.placeholders.email")}
               type="email"
               inputClassName="text-white placeholder:text-white/60"
               editable={editable}
@@ -50,7 +52,7 @@ export function ExecutiveTemplate({
               onChange={(v) =>
                 updateContact({ ...(contact ?? EMPTY_CONTACT), phone: v })
               }
-              placeholder="+1 (555) 123-4567"
+              placeholder={t("resumeBuilder.placeholders.phone")}
               type="tel"
               inputClassName="text-white placeholder:text-white/60"
               editable={editable}
@@ -62,7 +64,7 @@ export function ExecutiveTemplate({
               onChange={(v) =>
                 updateContact({ ...(contact ?? EMPTY_CONTACT), location: v })
               }
-              placeholder="City, Country"
+              placeholder={t("resumeBuilder.placeholders.location")}
               inputClassName="text-white placeholder:text-white/60"
               editable={editable}
             />
@@ -73,7 +75,7 @@ export function ExecutiveTemplate({
               onChange={(v) =>
                 updateContact({ ...(contact ?? EMPTY_CONTACT), website: v })
               }
-              placeholder="website.com"
+              placeholder={t("resumeBuilder.placeholders.website")}
               type="url"
               inputClassName="text-white placeholder:text-white/60"
               editable={editable}
@@ -85,7 +87,7 @@ export function ExecutiveTemplate({
               onChange={(v) =>
                 updateContact({ ...(contact ?? EMPTY_CONTACT), linkedin: v })
               }
-              placeholder="linkedin.com/in/you"
+              placeholder={t("resumeBuilder.placeholders.linkedin")}
               inputClassName="text-white placeholder:text-white/60"
               editable={editable}
             />
@@ -96,7 +98,7 @@ export function ExecutiveTemplate({
               onChange={(v) =>
                 updateContact({ ...(contact ?? EMPTY_CONTACT), github: v })
               }
-              placeholder="github.com/you"
+              placeholder={t("resumeBuilder.placeholders.github")}
               inputClassName="text-white placeholder:text-white/60"
               editable={editable}
             />

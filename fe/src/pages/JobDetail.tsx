@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
+import { jobDetailErrorKey } from "@/features/jobs/lib/jobDetailError";
 import { jobsService } from "@/services/jobsService";
 import { resumesService } from "@/services/resumesService";
 import { resumeBuilderService } from "@/services/resumeBuilderService";
@@ -215,7 +216,7 @@ function JobDetailContent() {
           {t("jobs.backToJobs")}
         </Button>
         <ErrorState
-          message={error?.message || t("jobs.notFound")}
+          message={t(error ? jobDetailErrorKey(error) : "jobs.notFound")}
           onRetry={() => refetch()}
         />
       </div>
@@ -254,6 +255,7 @@ function JobDetailContent() {
       {/* Pipeline */}
       <JobPipelineCard
         job={job}
+        stages={stages ?? []}
         templates={templatesData?.items ?? []}
         uploadedResumes={uploadedResumes}
         builderResumes={builderResumesList}

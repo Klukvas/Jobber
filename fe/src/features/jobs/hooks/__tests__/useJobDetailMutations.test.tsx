@@ -386,7 +386,7 @@ describe("useJobDetailMutations", () => {
 
     it("delete navigates to jobs list on success", async () => {
       mockJobsService.delete.mockResolvedValue(undefined);
-      const { result } = renderMutations(makeSetters());
+      const { result, invalidateSpy } = renderMutations(makeSetters());
 
       await act(async () => {
         result.current.deleteMutation.mutate();
@@ -395,6 +395,7 @@ describe("useJobDetailMutations", () => {
         expect(result.current.deleteMutation.isSuccess).toBe(true),
       );
       expect(mockNavigate).toHaveBeenCalledWith("/app/jobs");
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["subscription"] });
     });
 
     it("archive surfaces a fixed error message on failure", async () => {
@@ -415,7 +416,7 @@ describe("useJobDetailMutations", () => {
   });
 
   describe("completeCurrentStageMutation", () => {
-    it("marks the stage completed with an ISO completed_at timestamp", async () => {
+    it("completes by status only so the server preserves its original timestamp", async () => {
       mockJobsService.updateStage.mockResolvedValue({});
       const { result } = renderMutations(makeSetters());
 
@@ -434,10 +435,7 @@ describe("useJobDetailMutations", () => {
       expect(jobId).toBe("job-1");
       expect(stageId).toBe("stage-7");
       expect(payload.status).toBe("completed");
-      // completed_at is generated via new Date().toISOString()
-      expect(payload.completed_at).toMatch(
-        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/,
-      );
+      expect(payload).toEqual({ status: "completed" });
       expect(mockNotifications.showSuccessNotification).toHaveBeenCalledWith(
         "jobs.stageCompletedSuccess",
       );
@@ -629,4 +627,22 @@ it.each(["job", "resume", "unmount"])("a delayed cache lookup cannot update a de
   expect(setters.setMatchScore).not.toHaveBeenCalled();
   expect(setters.setMatchScoreError).not.toHaveBeenCalled();
   expect(setters.setIsPricingModalOpen).not.toHaveBeenCalled();
+});
+
+
+it("deletion refreshes cached subscription usage from 100 to 99 and unlocks creation", async () => {
+  const { useQuery } = await import("@tanstack/react-query");
+  const { Wrapper, queryClient } = createWrapper();
+  queryClient.setQueryData(["subscription"], { usage: { jobs: 100 }, limits: { max_jobs: 100 } });
+  let serverUsage = 100;
+  mockJobsService.delete.mockImplementation(async () => { serverUsage = 99; });
+  const { result } = renderHook(() => {
+    const subscription = useQuery({ queryKey: ["subscription"], queryFn: async () => ({ usage: { jobs: serverUsage }, limits: { max_jobs: 100 } }), staleTime: Infinity });
+    const mutations = useJobDetailMutations({ id: "job-1", effectiveMatchResumeId: "", ...makeSetters() });
+    return { canCreate: (subscription.data?.usage.jobs ?? 100) < 100, mutations };
+  }, { wrapper: Wrapper });
+  expect(result.current.canCreate).toBe(false);
+  act(() => result.current.mutations.deleteMutation.mutate());
+  await waitFor(() => expect(result.current.canCreate).toBe(true));
+  expect(queryClient.getQueryData(["subscription"])).toMatchObject({ usage: { jobs: 99 } });
 });

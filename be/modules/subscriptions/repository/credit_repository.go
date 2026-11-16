@@ -30,7 +30,7 @@ func ensureFreeCredits(ctx context.Context, tx pgx.Tx, user string) error {
 // activeGrant selects a paid period only after money was confirmed; lifecycle
 // rows by themselves cannot manufacture a paid allowance. Free never refreshes.
 const activeGrant = `SELECT g.id::text,g.kind,g.credits,g.period_end,
- COALESCE((SELECT sum(o.credits) FROM ai_credit_operations o WHERE o.grant_id=g.id AND o.state<>'released'),0)::integer
+ COALESCE((SELECT sum(o.credits) FROM ai_credit_operations o WHERE o.grant_id=g.id AND o.charge_state<>'released'),0)::integer
  FROM credit_grants g WHERE g.user_id=$1 AND g.revoked_at IS NULL AND
  (g.kind='free_once' OR (g.kind='manual_pro' AND g.period_start<=now() AND g.period_end>now() AND EXISTS(SELECT 1 FROM manual_access_grants m WHERE m.grant_id=g.id)) OR (g.kind='pro' AND g.period_start<=now() AND g.period_end>now()
  AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.user_id=g.user_id AND s.external_subscription_id=g.subscription_id AND s.status='active')))
@@ -122,7 +122,7 @@ func (r *SubscriptionRepository) ReserveCreditAttempt(ctx context.Context, reque
 	}
 	var operationID, fingerprint, existingKind, state, operationGrant string
 	var credits int
-	err = tx.QueryRow(ctx, `SELECT id::text,fingerprint,kind,credits,state,grant_id::text FROM ai_credit_operations WHERE user_id=$1 AND operation_key=$2 FOR UPDATE`, op.UserID, op.Key).Scan(&operationID, &fingerprint, &existingKind, &credits, &state, &operationGrant)
+	err = tx.QueryRow(ctx, `SELECT id::text,fingerprint,kind,credits,charge_state,grant_id::text FROM ai_credit_operations WHERE user_id=$1 AND operation_key=$2 FOR UPDATE`, op.UserID, op.Key).Scan(&operationID, &fingerprint, &existingKind, &credits, &state, &operationGrant)
 	if errors.Is(err, pgx.ErrNoRows) {
 		if granted-used < op.Credits {
 			return "", model.ErrCreditUnavailable
@@ -133,13 +133,17 @@ func (r *SubscriptionRepository) ReserveCreditAttempt(ctx context.Context, reque
 		if fingerprint != op.Fingerprint || existingKind != op.Kind || credits != op.Credits {
 			return "", model.ErrAIOperationConflict
 		}
+		if state == "charged" || state == "legacy" {
+			return "", model.ErrAIOperationConflict
+		}
+		if operationGrant != grant {
+			return "", model.ErrAIOperationConflict
+		}
 		if state == "released" {
 			if granted-used < op.Credits {
 				return "", model.ErrCreditUnavailable
 			}
-			_, err = tx.Exec(ctx, `UPDATE ai_credit_operations SET state='reserved',grant_id=$2,created_at=now() WHERE id=$1`, operationID, grant)
-		} else if operationGrant != grant {
-			return "", model.ErrAIOperationConflict
+			_, err = tx.Exec(ctx, `UPDATE ai_credit_operations SET state=CASE WHEN state='released' THEN 'reserved' ELSE state END,charge_state='reserved',charge_reason='',charge_finished_at=NULL,created_at=now() WHERE id=$1`, operationID)
 		}
 	}
 	if err != nil {
@@ -210,7 +214,7 @@ func (r *SubscriptionRepository) DispatchCreditAttempt(ctx context.Context, id s
 	if err != nil {
 		return err
 	}
-	tag, err := tx.Exec(ctx, `UPDATE ai_credit_operations SET state='dispatched' WHERE id=$1 AND state<>'released'`, operation)
+	tag, err := tx.Exec(ctx, `UPDATE ai_credit_operations SET state='dispatched' WHERE id=$1 AND state<>'released' AND charge_state='reserved'`, operation)
 	if err != nil {
 		return err
 	}
@@ -292,7 +296,7 @@ func (r *SubscriptionRepository) ReleaseCreditAttempt(ctx context.Context, id st
 	if _, err := tx.Exec(ctx, `UPDATE ai_provider_budget SET allocated_nanodollars=allocated_nanodollars-$1 WHERE provider='anthropic'`, reserved); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `UPDATE ai_credit_operations SET state='released' WHERE id=$1 AND NOT EXISTS(SELECT 1 FROM ai_credit_attempts WHERE operation_id=$1 AND state IN ('reserved','dispatched','settled'))`, operation); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE ai_credit_operations SET state='released',charge_state='released',charge_reason='not_dispatched',charge_finished_at=now() WHERE id=$1 AND NOT EXISTS(SELECT 1 FROM ai_credit_attempts WHERE operation_id=$1 AND state IN ('reserved','dispatched','settled'))`, operation); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

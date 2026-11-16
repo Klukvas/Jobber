@@ -189,6 +189,22 @@ describe("Job resume tailoring", () => {
     expect(screen.getByText("jobs.tailoring.noChanges")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "jobs.tailoring.saveCopy" })).not.toBeInTheDocument();
   });
+  it("localizes AI_NO_CHANGES and starts a distinct operation only on an explicit new attempt", async () => {
+    mocks.generate.mockRejectedValueOnce(new ApiError("unsupported backend text", "AI_NO_CHANGES", 422));
+    const { user, client } = setup();
+    const invalidation = vi.spyOn(client, "invalidateQueries");
+    await waitFor(() => expect(screen.getByRole("button", { name: "jobs.tailoring.generate" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "jobs.tailoring.generate" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("common.aiErrors.noChanges");
+    expect(screen.queryByText("unsupported backend text")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "jobs.tailoring.saveCopy" })).not.toBeInTheDocument();
+    expect(mocks.generate).toHaveBeenCalledOnce();
+    expect(invalidation).toHaveBeenCalledWith({ queryKey: ["subscription"] });
+    await user.click(screen.getByRole("button", { name: "jobs.tailoring.newAttempt" }));
+    await screen.findByText("jobs.tailoring.review");
+    expect(mocks.generate).toHaveBeenCalledTimes(2);
+    expect(mocks.generate.mock.calls[1][3].requestKey).not.toBe(mocks.generate.mock.calls[0][3].requestKey);
+  });
   it("guides users without Builder Resumes to the existing Resumes page", () => {
     setup(<Harness resumes={[]} />);
     expect(screen.getByText("jobs.tailoring.empty")).toBeInTheDocument();

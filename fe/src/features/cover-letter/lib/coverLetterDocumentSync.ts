@@ -108,6 +108,7 @@ async function persistCoverLetter(snapshot: CoverLetterSnapshot) {
     font_size: letter.font_size,
     primary_color: letter.primary_color,
     job_id: letter.job_id,
+    resume_builder_id: letter.resume_builder_id,
   });
   persistedTitles.recordPersisted(letter.id, letter.title);
   markStoredLetterStale(letter.id);

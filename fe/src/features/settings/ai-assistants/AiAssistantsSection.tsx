@@ -68,11 +68,11 @@ export function AiAssistantsSection() {
       </CardHeader>
       <CardContent className="min-w-0 space-y-6">
         <ConnectorUrl />
-        {userId && <ConnectedApps key={userId} userId={userId} />}
+        {userId && <ConnectedApps key={`connected:${userId}`} userId={userId} />}
         {isLoading ? (
           <Skeleton className="h-24 w-full" />
         ) : isPro && userId ? (
-          <PaidAssistants key={userId} userId={userId} />
+          <PaidAssistants key={`paid:${userId}`} userId={userId} />
         ) : <UpgradeState />}
       </CardContent>
     </Card>

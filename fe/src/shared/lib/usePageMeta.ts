@@ -63,8 +63,8 @@ export function usePageMeta(options: PageMetaOptions = {}) {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    const title =
-      literalTitle ?? (titleKey ? t(titleKey) : t("seo.defaultTitle"));
+    const pageTitle = literalTitle ?? (titleKey ? t(titleKey) : t("seo.defaultTitle"));
+    const title = /\bCursopus\b/i.test(pageTitle) ? pageTitle : `${pageTitle} — Cursopus`;
     const description =
       literalDescription ??
       (descriptionKey ? t(descriptionKey) : t("seo.defaultDescription"));

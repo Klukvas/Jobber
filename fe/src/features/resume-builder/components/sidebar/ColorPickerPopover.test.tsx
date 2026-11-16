@@ -141,7 +141,7 @@ describe("ColorPickerPopover", () => {
 
   it("renders custom color section for both panel and text", () => {
     render(<ColorPickerPopover {...defaultProps} />);
-    expect(screen.getAllByText("resumeBuilder.colors.custom")).toHaveLength(2);
+    expect(screen.getAllByText(/resumeBuilder.colors.custom/)).toHaveLength(2);
   });
 
   it("renders color inputs with current colors", () => {

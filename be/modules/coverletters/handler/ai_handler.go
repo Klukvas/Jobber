@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"github.com/andreypavlenko/jobber/internal/platform/auth"
 	httpPlatform "github.com/andreypavlenko/jobber/internal/platform/http"
 	"github.com/andreypavlenko/jobber/internal/platform/ids"
@@ -76,6 +77,12 @@ func (h *AIHandler) Generate(c *gin.Context) {
 
 func (h *AIHandler) handleError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, model.ErrAIJobDescriptionRequired):
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, "AI_JOB_DESCRIPTION_REQUIRED", "Enter a job description before generating a cover letter")
+	case errors.Is(err, model.ErrAICandidateSourceRequired):
+		httpPlatform.RespondWithError(c, http.StatusBadRequest, "AI_CANDIDATE_SOURCE_REQUIRED", "Link a resume with candidate information before generating a cover letter")
+	case errors.Is(err, ai.ErrInvalidCoverLetterResponse):
+		httpPlatform.RespondWithError(c, http.StatusUnprocessableEntity, "AI_INVALID_RESPONSE", "The AI response could not be used. Please try again.")
 	case errors.Is(err, subModel.ErrLimitReached):
 		httpPlatform.RespondWithError(c, http.StatusForbidden, "PLAN_LIMIT_REACHED", "You have reached the AI usage limit for your current plan.")
 	case errors.Is(err, model.ErrNotAuthorized):

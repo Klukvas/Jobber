@@ -3,9 +3,11 @@ package model
 import "errors"
 
 var (
+	ErrAINoChanges           = errors.New("AI proposed no usable changes")
 	ErrResumeBuilderNotFound = errors.New("resume builder not found")
 	ErrNotOwner              = errors.New("not the owner of this resume")
 	ErrSectionEntryNotFound  = errors.New("section entry not found")
+	ErrInvalidDateRange      = errors.New("invalid date range")
 	ErrInvalidTemplate       = errors.New("invalid template")
 	ErrInvalidSpacing        = errors.New("spacing must be between 50 and 150")
 	ErrInvalidColor          = errors.New("invalid color format")
@@ -26,6 +28,7 @@ const (
 	CodeResumeBuilderNotFound ErrorCode = "RESUME_BUILDER_NOT_FOUND"
 	CodeNotOwner              ErrorCode = "NOT_OWNER"
 	CodeSectionEntryNotFound  ErrorCode = "SECTION_ENTRY_NOT_FOUND"
+	CodeInvalidDateRange      ErrorCode = "INVALID_DATE_RANGE"
 	CodeInvalidTemplate       ErrorCode = "INVALID_TEMPLATE"
 	CodeInvalidSpacing        ErrorCode = "INVALID_SPACING"
 	CodeInvalidColor          ErrorCode = "INVALID_COLOR"
@@ -49,6 +52,8 @@ func GetErrorCode(err error) ErrorCode {
 		return CodeNotOwner
 	case errors.Is(err, ErrSectionEntryNotFound):
 		return CodeSectionEntryNotFound
+	case errors.Is(err, ErrInvalidDateRange):
+		return CodeInvalidDateRange
 	case errors.Is(err, ErrInvalidTemplate):
 		return CodeInvalidTemplate
 	case errors.Is(err, ErrInvalidSpacing):
@@ -85,6 +90,8 @@ func GetErrorMessage(err error) string {
 		return "You don't have access to this resume"
 	case errors.Is(err, ErrSectionEntryNotFound):
 		return "Section entry not found"
+	case errors.Is(err, ErrInvalidDateRange):
+		return "Enter valid dates with the end on or after the start"
 	case errors.Is(err, ErrInvalidTemplate):
 		return "Invalid template selected"
 	case errors.Is(err, ErrInvalidSpacing):

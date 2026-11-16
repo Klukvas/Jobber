@@ -1,3 +1,4 @@
+import { useAuthStore } from "@/stores/authStore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -20,7 +21,7 @@ function mount(remaining = 0, cached: Response = Response.json(score)) {
 }
 const miss = () => Response.json({ error_code: "MATCH_SCORE_NOT_READY", error_message: "No saved analysis" }, { status: 404 });
 const paid = () => requests.filter((request) => request.method === "POST");
-beforeEach(() => { requests = []; });
+beforeEach(() => { requests = []; useAuthStore.getState().setAuth({ id: "match-user", name: "Test", email: "test@example.com", locale: "en", created_at: "" }); });
 afterEach(() => { aiConsentStore.getSnapshot()?.finish(false); cleanup(); vi.unstubAllGlobals(); });
 
 describe("cache-first match score through the real API and credit confirmation", () => {

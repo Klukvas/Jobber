@@ -7,6 +7,7 @@ import (
 
 	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"github.com/andreypavlenko/jobber/modules/resumebuilder/model"
+	"github.com/andreypavlenko/jobber/modules/resumebuilder/ports"
 	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1094,6 +1095,56 @@ func TestCreateFromParsed_TitleResolution(t *testing.T) {
 			_, err := svc.ImportFromText(ctx, "user-1", "text", tt.inputTitle)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedTitle, createdTitle)
+		})
+	}
+}
+
+func TestImportFromTextReadsResultBeforeCommit(t *testing.T) {
+	for _, scenario := range []string{"success", "read failure", "commit failure"} {
+		t.Run(scenario, func(t *testing.T) {
+			inTransaction, committed, rolledBack := false, false, false
+			ctx := ai.CreditContext(context.Background(), func() string { return "user-1" }, "import-1", "resume_import")
+			repo := &MockResumeBuilderRepository{}
+			repo.CreateFunc = func(_ context.Context, rb *model.ResumeBuilder) error {
+				require.True(t, inTransaction)
+				rb.ID = "new"
+				return nil
+			}
+			repo.GetFullResumeFunc = func(_ context.Context, id string) (*model.FullResumeDTO, error) {
+				require.True(t, inTransaction, "read must share save transaction")
+				if scenario == "read failure" {
+					return nil, assert.AnError
+				}
+				return sampleFullResumeDTO(), nil
+			}
+			repo.RunInTransactionFunc = func(ctx context.Context, fn func(ports.ResumeBuilderRepository) error) error {
+				inTransaction = true
+				defer func() { inTransaction = false }()
+				if err := fn(repo); err != nil {
+					rolledBack = true
+					return err
+				}
+				if scenario == "commit failure" {
+					rolledBack = true
+					return assert.AnError
+				}
+				committed = true
+				return nil
+			}
+			svc := NewImportServiceWithDeps(repo, &MockResumeTextParser{}, nil, nil)
+			got, err := svc.ImportFromText(ctx, "user-1", "text", "Title")
+			if scenario != "success" {
+				require.Error(t, err)
+				assert.Nil(t, got)
+				assert.False(t, committed)
+				assert.True(t, rolledBack)
+				assert.False(t, ai.CreditResultReady(ctx), "deferred cleanup must not charge a rolled-back import")
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, got)
+				assert.True(t, committed)
+				assert.True(t, ai.CreditResultReady(ctx))
+			}
 		})
 	}
 }

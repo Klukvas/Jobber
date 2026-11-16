@@ -94,7 +94,7 @@ export function ResumeTailoringModal({ job, builderResumes, uploadedResumes = []
           {tailoring.isGenerating && <p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" />{t("jobs.tailoring.generating")}</p>}
           {(tailoring.errorKey || sourceChanged) && (
             <div role="alert" className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
-              <p>{t(`jobs.tailoring.errors.${sourceChanged ? "stale" : tailoring.errorKey}`)}</p>
+              <p>{t(!sourceChanged && tailoring.errorKey === "noChanges" ? "common.aiErrors.noChanges" : `jobs.tailoring.errors.${sourceChanged ? "stale" : tailoring.errorKey}`)}</p>
               {tailoring.errorKey === "sourceUnsaved" && source && <Link className="inline-flex min-h-11 items-center text-foreground underline" to={`/app/resume-builder/${source.id}`}>{t("jobs.tailoring.openSource")}</Link>}
             </div>
           )}

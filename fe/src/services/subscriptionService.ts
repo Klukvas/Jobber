@@ -1,4 +1,4 @@
-import { apiClient } from "./api";
+import { apiClient, type RequestOptions } from "./api";
 import type {
   SubscriptionDTO,
   CheckoutConfigDTO,
@@ -8,8 +8,8 @@ import type {
 } from "@/shared/types/api";
 
 export const subscriptionService = {
-  async getSubscription(): Promise<SubscriptionDTO> {
-    return apiClient.get<SubscriptionDTO>("subscription");
+  async getSubscription(options?: RequestOptions): Promise<SubscriptionDTO> {
+    return apiClient.get<SubscriptionDTO>("subscription", ...(options ? [options] as const : []));
   },
 
   async getCheckoutConfig(): Promise<CheckoutConfigDTO> {

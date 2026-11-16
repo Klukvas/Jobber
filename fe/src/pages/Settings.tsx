@@ -2,9 +2,8 @@ import { useTranslation } from "react-i18next";
 import { format } from "date-fns";
 import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { useThemeStore } from "@/stores/themeStore";
-import { endSession } from "@/shared/lib/session";
+import { useLogout } from "@/shared/hooks/useLogout";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { authService } from "@/services/authService";
 import { calendarService } from "@/services/calendarService";
 import { FEATURES } from "@/shared/lib/features";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -58,16 +57,7 @@ export default function Settings() {
   const [manageOpen, setManageOpen] = useState(false);
   const { isCancelPending, watchCancellation } = useCancellationWatch();
 
-  const logoutMutation = useMutation({
-    mutationFn: authService.logout,
-    onSettled: () => {
-      // Not just the auth store: every cached query belongs to the account
-      // that is leaving, and the next sign-in on this tab would otherwise be
-      // served the previous one's rows.
-      endSession();
-      navigate("/");
-    },
-  });
+  const logoutMutation = useLogout();
 
   const { data: calendarStatus } = useQuery({
     queryKey: ["calendar-status"],

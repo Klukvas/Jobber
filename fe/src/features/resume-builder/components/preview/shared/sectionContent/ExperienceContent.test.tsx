@@ -123,10 +123,10 @@ describe("ExperienceContent", () => {
           editable={false}
         />,
       );
-      expect(screen.getByTestId("field-Position")).toHaveTextContent(
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.position")).toHaveTextContent(
         "Software Engineer",
       );
-      expect(screen.getByTestId("field-Company")).toHaveTextContent("Acme Inc");
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.company")).toHaveTextContent("Acme Inc");
       expect(screen.getByText(/at/)).toBeInTheDocument();
     });
 
@@ -139,7 +139,7 @@ describe("ExperienceContent", () => {
           editable={false}
         />,
       );
-      expect(screen.queryByTestId("field-Company")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("field-resumeBuilder.placeholders.company")).not.toBeInTheDocument();
     });
 
     it("shows company when empty but editable", () => {
@@ -151,7 +151,7 @@ describe("ExperienceContent", () => {
           editable={true}
         />,
       );
-      expect(screen.getByTestId("field-Company")).toBeInTheDocument();
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.company")).toBeInTheDocument();
     });
 
     it("renders description when present", () => {
@@ -209,7 +209,7 @@ describe("ExperienceContent", () => {
           editable={false}
         />,
       );
-      const companyContainer = screen.getByTestId("field-Company").closest("p");
+      const companyContainer = screen.getByTestId("field-resumeBuilder.placeholders.company").closest("p");
       expect(companyContainer).toBeTruthy();
       expect(companyContainer!.style.color).toBe("rgb(225, 29, 72)");
     });
@@ -224,7 +224,7 @@ describe("ExperienceContent", () => {
           sectionColor="#3b82f6"
         />,
       );
-      const companyContainer = screen.getByTestId("field-Company").closest("p");
+      const companyContainer = screen.getByTestId("field-resumeBuilder.placeholders.company").closest("p");
       expect(companyContainer!.style.color).toBe("rgb(59, 130, 246)");
     });
 
@@ -237,8 +237,8 @@ describe("ExperienceContent", () => {
           editable={false}
         />,
       );
-      expect(screen.getByTestId("field-Location")).toHaveTextContent("NYC");
-      const companyContainer = screen.getByTestId("field-Company").closest("p");
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.location")).toHaveTextContent("NYC");
+      const companyContainer = screen.getByTestId("field-resumeBuilder.placeholders.company").closest("p");
       expect(companyContainer!.textContent).toContain(", ");
     });
 
@@ -251,7 +251,7 @@ describe("ExperienceContent", () => {
           editable={false}
         />,
       );
-      expect(screen.queryByTestId("field-Location")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("field-resumeBuilder.placeholders.location")).not.toBeInTheDocument();
     });
   });
 
@@ -269,8 +269,8 @@ describe("ExperienceContent", () => {
           editable={false}
         />,
       );
-      expect(screen.getByTestId("field-Company")).toHaveTextContent("Acme Inc");
-      expect(screen.getByTestId("field-Location")).toHaveTextContent("NYC");
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.company")).toHaveTextContent("Acme Inc");
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.location")).toHaveTextContent("NYC");
       expect(screen.getByText(/\u2014/)).toBeInTheDocument();
     });
 
@@ -283,7 +283,7 @@ describe("ExperienceContent", () => {
           editable={false}
         />,
       );
-      const positionField = screen.getByTestId("field-Position");
+      const positionField = screen.getByTestId("field-resumeBuilder.placeholders.position");
       expect(positionField.className).toContain("font-bold");
     });
 
@@ -309,7 +309,7 @@ describe("ExperienceContent", () => {
           editable={false}
         />,
       );
-      expect(screen.queryByTestId("field-Location")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("field-resumeBuilder.placeholders.location")).not.toBeInTheDocument();
     });
   });
 

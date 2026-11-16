@@ -1,3 +1,4 @@
+import { useAuthStore } from "@/stores/authStore";
 import { useLayoutEffect } from "react";
 import { MemoryRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { useAIConsentSignal } from "@/shared/hooks/useAIConsentSignal";
@@ -13,6 +14,7 @@ import "@/shared/lib/i18n";
 vi.mock("@/services/subscriptionService", () => ({ subscriptionService: { getSubscription: vi.fn() } }));
 afterEach(() => { aiConsentStore.getSnapshot()?.finish(false); cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 function mount(remaining = 30, cost = 7) {
+  useAuthStore.getState().setAuth({ id: "credits-user", email: "test@example.com", name: "Test", locale: "en", created_at: "" });
   vi.mocked(subscriptionService.getSubscription).mockResolvedValue({ plan: "free", status: "free", credits: { granted: 30, used: 30 - remaining, remaining, kind: "free_once", spend_limit_nanodollars: 3_000_000_000, spend_allocated_nanodollars: 0 }, credit_costs: { resume_import: cost }, limits: { max_jobs:25,max_resumes:1,max_resume_builders:2,max_cover_letters:1,max_job_parses:0,max_ai_requests:30 }, usage: {jobs:0,resumes:0,resume_builders:0,cover_letters:0,job_parses:0,ai_requests:0} });
   return render(<QueryClientProvider client={new QueryClient()}><AICreditConfirmation /></QueryClientProvider>);
 }
@@ -21,8 +23,8 @@ it("waits for acceptance and shows the authoritative cost and failure policy", a
   let request: Promise<string | undefined> = Promise.resolve(undefined);
   act(() => { request = confirmAIAction("resume-builder/import/pdf"); });
   expect(await screen.findByText("Cost: 9 credits · Available: 30")).toBeVisible();
-  expect(screen.getByText(/Errors after AI starts still use credits/)).toBeVisible();
-  expect(screen.getByText(/Retrying an existing interview operation is included.*3 attempts/)).toBeVisible();
+  expect(screen.getByText(/charged only for a usable result/)).toBeVisible();
+  expect(screen.getByText(/Retrying an existing interview operation.*3 attempts/)).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Use 9 credits" }));
   expect(await request).toMatch(/^[0-9a-f-]{36}$/);
 });

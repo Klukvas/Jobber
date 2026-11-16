@@ -1,3 +1,4 @@
+import { authPathFor, readAuthCloseReturn } from "@/shared/lib/loginReturn";
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/stores/authStore";
@@ -52,12 +53,12 @@ export default function Home() {
 
   const activeModal = getAuthModalRoute(location.pathname);
 
-  const openLogin = () => navigate("/login");
-  const openRegister = () => navigate("/register");
-  const closeModal = () => navigate("/");
-  const switchToRegister = () => navigate("/register");
-  const switchToLogin = () => navigate("/login");
-  const openForgotPassword = () => navigate("/forgot-password");
+  const openLogin = () => navigate(authPathFor("/login", location.search));
+  const openRegister = () => navigate(authPathFor("/register", location.search));
+  const closeModal = () => navigate(readAuthCloseReturn(location.search));
+  const switchToRegister = () => navigate(authPathFor("/register", location.search));
+  const switchToLogin = () => navigate(authPathFor("/login", location.search));
+  const openForgotPassword = () => navigate(authPathFor("/forgot-password", location.search));
   const goPlatform = () => navigate("/app/jobs");
   const choosePlan = () => navigate(CHOOSE_PLAN_PATH);
 

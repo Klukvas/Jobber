@@ -1,6 +1,7 @@
 import { useAIConsentSignal } from "@/shared/hooks/useAIConsentSignal";
 import { isAIActionCancelled } from "@/shared/lib/aiCredits";
 import { usePrepOperationRecovery } from "./usePrepOperationRecovery";
+import { InterviewOperationNotices } from "./InterviewOperationNotices";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -382,53 +383,15 @@ export function InterviewPrepDialog({
               ? t("jobs.interview.regenerate")
               : t("jobs.interview.generate")}
           </Button>
-          {operations
-            .filter(
-              (op) =>
-                pending(op) ||
-                op.status === "failed" ||
-                op.status === "interrupted",
-            )
-            .map((op) => (
-              <div
-                key={op.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm"
-              >
-                <p>
-                  <strong>{t(`jobs.interview.${op.kind}`)}: </strong>
-                  {t(`jobs.interview.${op.status}`)}
-                  {op.error_code && (
-                    <>
-                      {" "}
-                      ·{" "}
-                      {t(`jobs.interview.errors.${op.error_code}`, {
-                        defaultValue: t("jobs.interview.errors.generic"),
-                      })}
-                    </>
-                  )}
-                  {!pending(op) && op.attempts >= 3 && (
-                    <span className="mt-2 block">
-                      {t(
-                        op.kind === "plan"
-                          ? "jobs.interview.exhaustedPlan"
-                          : "jobs.interview.exhaustedReview",
-                      )}
-                    </span>
-                  )}
-                </p>
-                {!pending(op) &&
-                  op.error_code !== "SOURCE_CHANGED" &&
-                  op.attempts < 3 && (
-                    <Button
-                      variant="outline"
-                      disabled={!aiAvailable || mutation.isPending}
-                      onClick={() => retry(op)}
-                    >
-                      {t("jobs.interview.retrySafe")}
-                    </Button>
-                  )}
-              </div>
-            ))}
+          <InterviewOperationNotices
+            operations={operations}
+            latestVersionCreatedAt={history.data?.versions[0]?.created_at}
+            isHistoryPage={offset > 0}
+            session={tab === "practice" ? session : undefined}
+            aiAvailable={aiAvailable}
+            busy={mutation.isPending}
+            onRetry={retry}
+          />
           <div className="space-y-2">
             <Label htmlFor="interview-history">
               {t("jobs.interview.history")}

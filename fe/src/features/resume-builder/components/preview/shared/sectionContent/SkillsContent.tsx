@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { EditableField } from "../../../inline/EditableField";
 import { EditableSelect } from "../../../inline/EditableSelect";
 import { EntryWrapper } from "../../../inline/EntryWrapper";
@@ -16,6 +17,7 @@ export function SkillsContent({
   sectionColor,
   inputClassName,
 }: SectionContentProps) {
+  const { t } = useTranslation();
   const { resume, color, updateSkill, skillsSection } = setup;
   const effectiveColor = sectionColor ?? color;
   const inputClass = inputClassName ?? "";
@@ -35,7 +37,7 @@ export function SkillsContent({
                 <EditableField
                   value={skill.name}
                   onChange={(v) => updateSkill(skill.id, { name: v })}
-                  placeholder="Skill name"
+                  placeholder={t("resumeBuilder.placeholders.skill")}
                   inputClassName={inputClass}
                   editable={editable}
                 />
@@ -45,8 +47,8 @@ export function SkillsContent({
                     <EditableSelect
                       value={skill.level}
                       onChange={(v) => updateSkill(skill.id, { level: v })}
-                      options={SKILL_LEVEL_OPTIONS}
-                      placeholder="Level"
+                      options={SKILL_LEVEL_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) }))}
+                      placeholder={t("resumeBuilder.placeholders.skillLevel")}
                       className={config.textSize}
                       editable={editable}
                     />
@@ -76,7 +78,7 @@ export function SkillsContent({
                 <EditableField
                   value={skill.name}
                   onChange={(v) => updateSkill(skill.id, { name: v })}
-                  placeholder="Skill"
+                  placeholder={t("resumeBuilder.placeholders.skill")}
                   inputClassName="text-white placeholder:text-white/60"
                   editable={editable}
                 />
@@ -86,8 +88,8 @@ export function SkillsContent({
                     <EditableSelect
                       value={skill.level}
                       onChange={(v) => updateSkill(skill.id, { level: v })}
-                      options={SKILL_LEVEL_OPTIONS}
-                      placeholder="Level"
+                      options={SKILL_LEVEL_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) }))}
+                      placeholder={t("resumeBuilder.placeholders.skillLevel")}
                       className="text-xs text-white"
                       editable={editable}
                     />
@@ -114,7 +116,7 @@ export function SkillsContent({
                 <EditableField
                   value={skill.name}
                   onChange={(v) => updateSkill(skill.id, { name: v })}
-                  placeholder="Skill"
+                  placeholder={t("resumeBuilder.placeholders.skill")}
                   inputClassName={inputClass}
                   editable={editable}
                 />
@@ -124,8 +126,8 @@ export function SkillsContent({
                     <EditableSelect
                       value={skill.level}
                       onChange={(v) => updateSkill(skill.id, { level: v })}
-                      options={SKILL_LEVEL_OPTIONS}
-                      placeholder="Level"
+                      options={SKILL_LEVEL_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) }))}
+                      placeholder={t("resumeBuilder.placeholders.skillLevel")}
                       className={config.textSize}
                       editable={editable}
                     />
@@ -152,7 +154,7 @@ export function SkillsContent({
                 <EditableField
                   value={skill.name}
                   onChange={(v) => updateSkill(skill.id, { name: v })}
-                  placeholder="Skill name"
+                  placeholder={t("resumeBuilder.placeholders.skill")}
                   as="p"
                   className="text-xs font-medium"
                   inputClassName={inputClass}
@@ -162,8 +164,8 @@ export function SkillsContent({
                   <EditableSelect
                     value={skill.level}
                     onChange={(v) => updateSkill(skill.id, { level: v })}
-                    options={SKILL_LEVEL_OPTIONS}
-                    placeholder="Level"
+                    options={SKILL_LEVEL_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) }))}
+                    placeholder={t("resumeBuilder.placeholders.skillLevel")}
                     className="text-xs opacity-70"
                     editable={editable}
                   />
@@ -190,7 +192,7 @@ export function SkillsContent({
                   <EditableField
                     value={skill.name}
                     onChange={(v) => updateSkill(skill.id, { name: v })}
-                    placeholder="Skill name"
+                    placeholder={t("resumeBuilder.placeholders.skill")}
                     className={`${config.textSize} font-medium text-gray-700`}
                     inputClassName={inputClass}
                     editable={editable}
@@ -213,8 +215,8 @@ export function SkillsContent({
                   <EditableSelect
                     value={skill.level}
                     onChange={(v) => updateSkill(skill.id, { level: v })}
-                    options={SKILL_LEVEL_OPTIONS}
-                    placeholder="Level"
+                    options={SKILL_LEVEL_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) }))}
+                    placeholder={t("resumeBuilder.placeholders.skillLevel")}
                     className="text-[10px] opacity-60"
                     editable={editable}
                   />
@@ -242,7 +244,7 @@ export function SkillsContent({
                   <EditableField
                     value={skill.name}
                     onChange={(v) => updateSkill(skill.id, { name: v })}
-                    placeholder="Skill name"
+                    placeholder={t("resumeBuilder.placeholders.skill")}
                     className={`${config.textSize} min-w-[80px] font-medium text-gray-700`}
                     inputClassName={inputClass}
                     editable={editable}
@@ -261,8 +263,8 @@ export function SkillsContent({
                   <EditableSelect
                     value={skill.level}
                     onChange={(v) => updateSkill(skill.id, { level: v })}
-                    options={SKILL_LEVEL_OPTIONS}
-                    placeholder="Level"
+                    options={SKILL_LEVEL_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) }))}
+                    placeholder={t("resumeBuilder.placeholders.skillLevel")}
                     className="text-[10px] opacity-60"
                     editable={editable}
                   />
@@ -288,7 +290,7 @@ export function SkillsContent({
                   <EditableField
                     value={s.name}
                     onChange={(v) => updateSkill(s.id, { name: v })}
-                    placeholder="Skill"
+                    placeholder={t("resumeBuilder.placeholders.skill")}
                     inputClassName={inputClass}
                     editable={editable}
                   />
@@ -321,7 +323,7 @@ export function SkillsContent({
                   <EditableField
                     value={skill.name}
                     onChange={(v) => updateSkill(skill.id, { name: v })}
-                    placeholder="Skill name"
+                    placeholder={t("resumeBuilder.placeholders.skill")}
                     className={`${config.textSize} font-medium text-gray-700`}
                     inputClassName={inputClass}
                     editable={editable}
@@ -344,8 +346,8 @@ export function SkillsContent({
                   <EditableSelect
                     value={skill.level}
                     onChange={(v) => updateSkill(skill.id, { level: v })}
-                    options={SKILL_LEVEL_OPTIONS}
-                    placeholder="Level"
+                    options={SKILL_LEVEL_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) }))}
+                    placeholder={t("resumeBuilder.placeholders.skillLevel")}
                     className="text-[10px] opacity-60"
                     editable={editable}
                   />
@@ -372,7 +374,7 @@ export function SkillsContent({
                   <EditableField
                     value={skill.name}
                     onChange={(v) => updateSkill(skill.id, { name: v })}
-                    placeholder="Skill name"
+                    placeholder={t("resumeBuilder.placeholders.skill")}
                     className={`${config.textSize} font-medium text-gray-700`}
                     inputClassName={inputClass}
                     editable={editable}
@@ -395,8 +397,8 @@ export function SkillsContent({
                   <EditableSelect
                     value={skill.level}
                     onChange={(v) => updateSkill(skill.id, { level: v })}
-                    options={SKILL_LEVEL_OPTIONS}
-                    placeholder="Level"
+                    options={SKILL_LEVEL_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) }))}
+                    placeholder={t("resumeBuilder.placeholders.skillLevel")}
                     className="text-[10px] opacity-60"
                     editable={editable}
                   />
@@ -458,7 +460,7 @@ export function SkillsContent({
                   <EditableField
                     value={skill.name}
                     onChange={(v) => updateSkill(skill.id, { name: v })}
-                    placeholder="Skill"
+                    placeholder={t("resumeBuilder.placeholders.skill")}
                     className="text-center text-[10px] font-medium text-gray-700"
                     inputClassName={inputClass}
                     editable={editable}
@@ -467,8 +469,8 @@ export function SkillsContent({
                     <EditableSelect
                       value={skill.level}
                       onChange={(v) => updateSkill(skill.id, { level: v })}
-                      options={SKILL_LEVEL_OPTIONS}
-                      placeholder="Level"
+                      options={SKILL_LEVEL_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) }))}
+                      placeholder={t("resumeBuilder.placeholders.skillLevel")}
                       className="text-[10px] opacity-60"
                       editable={editable}
                     />
@@ -496,7 +498,7 @@ export function SkillsContent({
                   <EditableField
                     value={skill.name}
                     onChange={(v) => updateSkill(skill.id, { name: v })}
-                    placeholder="Skill name"
+                    placeholder={t("resumeBuilder.placeholders.skill")}
                     className={`${config.textSize} min-w-[80px] font-medium text-gray-700`}
                     inputClassName={inputClass}
                     editable={editable}
@@ -519,8 +521,8 @@ export function SkillsContent({
                   <EditableSelect
                     value={skill.level}
                     onChange={(v) => updateSkill(skill.id, { level: v })}
-                    options={SKILL_LEVEL_OPTIONS}
-                    placeholder="Level"
+                    options={SKILL_LEVEL_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) }))}
+                    placeholder={t("resumeBuilder.placeholders.skillLevel")}
                     className="text-[10px] opacity-60"
                     editable={editable}
                   />
@@ -556,7 +558,7 @@ export function SkillsContent({
                   <EditableField
                     value={skill.name}
                     onChange={(v) => updateSkill(skill.id, { name: v })}
-                    placeholder="Skill"
+                    placeholder={t("resumeBuilder.placeholders.skill")}
                     inputClassName={inputClass}
                     editable={editable}
                   />
@@ -566,8 +568,8 @@ export function SkillsContent({
                       <EditableSelect
                         value={skill.level}
                         onChange={(v) => updateSkill(skill.id, { level: v })}
-                        options={SKILL_LEVEL_OPTIONS}
-                        placeholder="Lvl"
+                        options={SKILL_LEVEL_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) }))}
+                        placeholder={t("resumeBuilder.placeholders.skillLevel")}
                         className="text-[10px]"
                         editable={editable}
                       />

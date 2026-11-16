@@ -11,7 +11,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { JobDTO } from "@/shared/types/api";
 import type { ResumeBuilderDTO } from "@/shared/types/resume-builder";
-import type { PrepSession, PrepVersion } from "@/services/interviewPrepService";
+import type { PrepOperation, PrepSession, PrepVersion } from "@/services/interviewPrepService";
 import { ApiError } from "@/services/api";
 import { InterviewPrepDialog } from "./InterviewPrepDialog";
 const mocks = vi.hoisted(() => ({
@@ -171,6 +171,56 @@ describe("saved interview preparation", () => {
     const advice = await screen.findByText(question.advice);
     expect(advice.closest(".ph-no-capture")).not.toBeNull();
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+  it.each(["failed", "interrupted"] as const)("keeps an old %s plan only in history after a newer success", async (status) => {
+    const failed: PrepOperation = {
+      id: "old-plan", kind: "plan", status, error_code: "AI_INVALID_RESPONSE",
+      attempts: 1, created_at: "2026-10-21T00:00:00Z",
+      version_id: null, session_id: null, answer_id: null,
+    };
+    mocks.history.mockResolvedValue({
+      versions: [version], sessions: [session], ai_available: true,
+      operations: [
+        { ...failed, id: "successful-plan", status: "succeeded", error_code: "", version_id: version.id, created_at: version.created_at },
+        failed,
+      ],
+    });
+    const { user } = setup();
+    await screen.findByText("Clarify actual experience");
+    const error = screen.getByText(/jobs\.interview\.errors\.AI_INVALID_RESPONSE/);
+    expect(error).not.toBeVisible();
+    expect(screen.queryByRole("button", { name: "jobs.interview.retrySafe" })).not.toBeInTheDocument();
+    await user.click(screen.getByText("jobs.interview.history", { selector: "summary" }));
+    expect(error).toBeVisible();
+    expect(mocks.retry).not.toHaveBeenCalled();
+  });
+  it("uses the saved version date when its successful operation is outside the history page", async () => {
+    mocks.history.mockResolvedValue({
+      versions: [version], sessions: [], ai_available: true,
+      operations: [{
+        id: "old-plan", kind: "plan", status: "failed", error_code: "AI_INVALID_RESPONSE",
+        attempts: 1, created_at: "2026-10-21T00:00:00Z",
+        version_id: null, session_id: null, answer_id: null,
+      }],
+    });
+    setup();
+    await screen.findByText("Clarify actual experience");
+    expect(screen.getByText(/jobs\.interview\.errors\.AI_INVALID_RESPONSE/)).not.toBeVisible();
+    expect(screen.queryByRole("button", { name: "jobs.interview.retrySafe" })).not.toBeInTheDocument();
+  });
+  it.each(["failed", "running"] as const)("keeps the latest %s operation visible beside an older version", async (status) => {
+    mocks.history.mockResolvedValue({
+      versions: [version], sessions: [], ai_available: true,
+      operations: [{
+        id: "current-plan", kind: "plan", status, error_code: status === "failed" ? "AI_INVALID_RESPONSE" : "",
+        attempts: 1, created_at: "2026-10-23T00:00:00Z",
+        version_id: null, session_id: null, answer_id: null,
+      }],
+    });
+    setup();
+    await screen.findByText("Clarify actual experience");
+    expect(screen.getByText(new RegExp(`jobs\\.interview\\.${status}`))).toBeVisible();
+    if (status === "failed") expect(screen.getByRole("button", { name: "jobs.interview.retrySafe" })).toBeEnabled();
   });
   it("keeps saved preparation readable when AI is unavailable or quota fails", async () => {
     mocks.generate.mockRejectedValue(

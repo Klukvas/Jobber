@@ -93,10 +93,10 @@ function Nav() {
 }
 function setup() {
   return render(
-    <QueryClientProvider client={client}>
+    <MemoryRouter><QueryClientProvider client={client}>
       <Nav />
       <AdminPage />
-    </QueryClientProvider>,
+    </QueryClientProvider></MemoryRouter>,
   );
 }
 beforeEach(async () => {

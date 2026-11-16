@@ -22,6 +22,7 @@ let searchString = "?email=user@test.com&code=123456";
 vi.mock("react-router-dom", () => ({
   useSearchParams: () => [new URLSearchParams(searchString), vi.fn()],
   useNavigate: () => vi.fn(),
+  useLocation: () => ({ search: searchString }),
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),

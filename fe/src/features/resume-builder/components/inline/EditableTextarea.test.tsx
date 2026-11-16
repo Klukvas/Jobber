@@ -99,7 +99,7 @@ describe("EditableTextarea", () => {
     render(<EditableTextarea {...defaultProps} value="" />);
     const element = screen.getByText("Enter summary");
     expect(element.className).toContain("italic");
-    expect(element.className).toContain("text-gray-400");
+    expect(element.className).toContain("text-gray-600");
   });
 
   it("renders as a p element in display mode", () => {

@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/shared/hooks/useSingleFlightMutation";
+import { useCurrentFormSession } from "@/shared/hooks/useCurrentFormSession";
+import { FIELD_LIMITS } from "@/shared/lib/fieldLimits";
 import { companiesService } from "@/services/companiesService";
 import {
   showSuccessNotification,
@@ -9,7 +12,7 @@ import {
 import { Label } from "@/shared/ui/Label";
 import { Input } from "@/shared/ui/Input";
 import { Button } from "@/shared/ui/Button";
-import { Plus, Check, X } from "lucide-react";
+import { Plus, Check, X, Loader2 } from "lucide-react";
 import type { CompanyDTO } from "@/shared/types/api";
 
 interface CompanySelectWithQuickAddProps {
@@ -28,19 +31,24 @@ export function CompanySelectWithQuickAdd({
 }: CompanySelectWithQuickAddProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const fieldId = useId();
+  const isCurrentSession = useCurrentFormSession();
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState("");
 
-  const createMutation = useMutation({
+  const isNameTooLong = Array.from(newName.trim()).length > FIELD_LIMITS.name;
+  const createMutation = useSingleFlightMutation({
     mutationFn: (name: string) => companiesService.create({ name }),
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ["companies"] });
+      if (!isCurrentSession()) return;
       showSuccessNotification(t("jobs.quickAddCompanySuccess"));
       onChange(created.id);
       setIsAdding(false);
       setNewName("");
     },
     onError: (error: Error) => {
+      if (!isCurrentSession()) return;
       showErrorNotification(
         error.message || t("jobs.quickAddCompanyError"),
       );
@@ -49,22 +57,28 @@ export function CompanySelectWithQuickAdd({
 
   const handleSubmitQuickAdd = () => {
     const trimmed = newName.trim();
-    if (!trimmed) return;
+    if (!trimmed || isNameTooLong || createMutation.isPending) return;
     createMutation.mutate(trimmed);
   };
 
   const handleCancel = () => {
+    if (createMutation.isPending) return;
     setIsAdding(false);
     setNewName("");
   };
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="company">{t("jobs.company")}</Label>
+      <Label htmlFor={fieldId}>{isAdding ? t("companies.name") : t("jobs.company")}</Label>
 
       {isAdding ? (
         <div className="flex items-center gap-2">
           <Input
+            id={fieldId}
+            // HTML counts UTF-16 units; the API limit counts Unicode code points.
+            maxLength={FIELD_LIMITS.name * 2}
+            aria-invalid={isNameTooLong}
+            aria-describedby={isNameTooLong ? `${fieldId}-error` : undefined}
             autoFocus
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
@@ -82,16 +96,16 @@ export function CompanySelectWithQuickAdd({
           />
           <Button
             type="button"
-            size="sm"
+            size="icon"
             onClick={handleSubmitQuickAdd}
-            disabled={createMutation.isPending || !newName.trim()}
+            disabled={createMutation.isPending || !newName.trim() || isNameTooLong}
             aria-label={t("companies.create")}
           >
-            <Check className="h-4 w-4" aria-hidden="true" />
+            {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Check className="h-4 w-4" aria-hidden="true" />}
           </Button>
           <Button
             type="button"
-            size="sm"
+            size="icon"
             variant="ghost"
             onClick={handleCancel}
             disabled={createMutation.isPending}
@@ -103,7 +117,7 @@ export function CompanySelectWithQuickAdd({
       ) : (
         <div className="flex items-center gap-2">
           <select
-            id="company"
+            id={fieldId}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             className="flex h-10 max-sm:h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -117,7 +131,7 @@ export function CompanySelectWithQuickAdd({
           </select>
           <Button
             type="button"
-            size="sm"
+            size="icon"
             variant="outline"
             onClick={() => setIsAdding(true)}
             title={t("jobs.quickAddCompany")}
@@ -127,6 +141,9 @@ export function CompanySelectWithQuickAdd({
         </div>
       )}
 
+      {isAdding && isNameTooLong && (
+        <p id={`${fieldId}-error`} role="alert" className="text-sm text-destructive">{t("companies.nameTooLong", { max: FIELD_LIMITS.name })}</p>
+      )}
       {hint && !isAdding && (
         <p className="text-xs text-muted-foreground">{hint}</p>
       )}

@@ -113,6 +113,8 @@ func tailoringError(c *gin.Context, err error) {
 	}
 	status, code, message := http.StatusInternalServerError, "INTERNAL_ERROR", "Unable to adapt resume"
 	switch {
+	case errors.Is(err, model.ErrAINoChanges):
+		status, code, message = http.StatusUnprocessableEntity, "AI_NO_CHANGES", "AI proposed no usable changes. Your credits were returned."
 	case errors.Is(err, model.ErrRecognitionRequired):
 		status, code, message = http.StatusConflict, "RECOGNITION_REQUIRED", "Review and confirm the editable copy before adapting it"
 	case errors.Is(err, model.ErrPDFUnreadable):

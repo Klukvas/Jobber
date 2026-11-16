@@ -33,7 +33,7 @@ type ApplyTailoringOutput struct {
 }
 type GenerateCoverLetterInput struct {
 	JobID    string `json:"job_id" jsonschema:"UUID of your saved Job with a description"`
-	ResumeID string `json:"resume_id,omitempty" jsonschema:"Optional UUID of your Builder Resume for candidate context"`
+	ResumeID string `json:"resume_id" jsonschema:"UUID of your Builder Resume containing candidate information"`
 }
 type GenerateCoverLetterOutput struct {
 	CoverLetterID string   `json:"cover_letter_id" jsonschema:"UUID of the created and saved cover letter"`

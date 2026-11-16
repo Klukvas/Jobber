@@ -1,3 +1,4 @@
+import { CoverLetterTextEditor } from "@/features/cover-letter/components/CoverLetterTextEditor";
 import { useTopmostEscape } from "@/shared/hooks/useTopmostEscape";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -119,6 +120,7 @@ export default function CoverLetterEditorPage() {
   const updateFields = useCoverLetterStore((s) => s.updateFields);
   const markDirty = useCoverLetterStore((s) => s.markDirty);
   const setSaveStatus = useCoverLetterStore((s) => s.setSaveStatus);
+  const [mobileMode, setMobileMode] = useState<"edit" | "preview">("edit");
   const [showAI, setShowAI] = useState(false);
   const [showFullPreview, setShowFullPreview] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -317,7 +319,7 @@ export default function CoverLetterEditorPage() {
     <div className="flex h-[calc(100vh-8rem)] flex-col">
       {/* Top bar: back + title + actions */}
       <div className="flex items-center justify-between border-b px-4 py-2">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2">
           <Button
             variant="ghost"
             size="icon"
@@ -327,12 +329,13 @@ export default function CoverLetterEditorPage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <Input
+            aria-label={t("coverLetter.fields.title")}
             value={coverLetter.title}
             onChange={(e) => updateField("title", e.target.value)}
             // The API rejects a longer title, and autosave then failed with
             // nothing but "Save failed".
             maxLength={FIELD_LIMITS.title}
-            className="h-8 w-48 border-transparent bg-transparent text-lg font-semibold hover:border-input focus:border-input sm:w-64"
+            className="h-11 min-w-0 w-full border-transparent bg-transparent text-lg font-semibold hover:border-input focus:border-input sm:w-64"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -382,9 +385,10 @@ export default function CoverLetterEditorPage() {
 
         {/* Font family */}
         <select
+          aria-label={t("coverLetter.fields.fontFamily")}
           value={coverLetter.font_family}
           onChange={(e) => updateField("font_family", e.target.value)}
-          className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+          className="h-11 rounded-md border border-input bg-background px-2 text-sm"
         >
           <optgroup label={t("coverLetter.design.freeFonts")}>
             {FREE_FONTS.map((f) => (
@@ -411,7 +415,7 @@ export default function CoverLetterEditorPage() {
               key={size.value}
               onClick={() => updateFields({ font_size: size.value })}
               className={cn(
-                "border px-2.5 py-1 text-xs font-medium transition-colors first:rounded-l-md last:rounded-r-md",
+                "min-h-11 min-w-11 border px-2.5 py-1 text-xs font-medium transition-colors first:rounded-l-md last:rounded-r-md",
                 (coverLetter.font_size ?? 12) === size.value
                   ? "border-primary bg-primary/10 text-primary-ink"
                   : "border-input hover:bg-accent",
@@ -557,7 +561,13 @@ export default function CoverLetterEditorPage() {
             showAI && isDesktop && "flex-initial w-[calc(100%-320px)]",
           )}
         >
-          <CoverLetterPreview editable />
+          {!isDesktop && (
+            <div className="flex gap-2 border-b bg-background px-4 py-2">
+              <Button variant={mobileMode === "edit" ? "default" : "outline"} onClick={() => setMobileMode("edit")} aria-pressed={mobileMode === "edit"}>{t("coverLetter.editText")}</Button>
+              <Button variant={mobileMode === "preview" ? "default" : "outline"} onClick={() => setMobileMode("preview")} aria-pressed={mobileMode === "preview"}>{t("coverLetter.preview")}</Button>
+            </div>
+          )}
+          {!isDesktop && mobileMode === "edit" ? <CoverLetterTextEditor /> : <CoverLetterPreview editable={isDesktop} />}
         </div>
 
         {/* AI Panel — desktop (>= lg) */}

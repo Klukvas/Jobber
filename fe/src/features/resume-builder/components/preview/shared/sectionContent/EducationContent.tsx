@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { EditableField } from "../../../inline/EditableField";
 import { EditableDateRange } from "../../../inline/EditableDateRange";
 import { EntryWrapper } from "../../../inline/EntryWrapper";
@@ -10,6 +11,7 @@ export function EducationContent({
   sectionColor,
   inputClassName,
 }: SectionContentProps) {
+  const { t } = useTranslation();
   const { resume, updateEducation, educationSection } = setup;
   const effectiveColor = sectionColor ?? setup.color;
   const inputClass = inputClassName ?? "";
@@ -33,7 +35,7 @@ export function EducationContent({
                 <EditableField
                   value={edu.degree}
                   onChange={(v) => updateEducation(edu.id, { degree: v })}
-                  placeholder="Degree"
+                  placeholder={t("resumeBuilder.placeholders.degree")}
                   inputClassName={inputClass}
                   editable={editable}
                 />
@@ -45,7 +47,7 @@ export function EducationContent({
                       onChange={(v) =>
                         updateEducation(edu.id, { field_of_study: v })
                       }
-                      placeholder="Field of Study"
+                      placeholder={t("resumeBuilder.placeholders.fieldOfStudy")}
                       inputClassName={inputClass}
                       editable={editable}
                     />
@@ -58,7 +60,7 @@ export function EducationContent({
                   onChange={(v) =>
                     updateEducation(edu.id, { institution: v })
                   }
-                  placeholder="Institution"
+                  placeholder={t("resumeBuilder.placeholders.institution")}
                   inputClassName={inputClass}
                   editable={editable}
                 />
@@ -67,6 +69,7 @@ export function EducationContent({
                   startDate={edu.start_date}
                   endDate={edu.end_date}
                   isCurrent={edu.is_current}
+                  onRangeChange={(range) => updateEducation(edu.id, range)}
                   onStartDateChange={(v) =>
                     updateEducation(edu.id, { start_date: v })
                   }
@@ -96,7 +99,7 @@ export function EducationContent({
                       onChange={(v) =>
                         updateEducation(edu.id, { degree: v })
                       }
-                      placeholder="Degree"
+                      placeholder={t("resumeBuilder.placeholders.degree")}
                       inputClassName={inputClass}
                       editable={editable}
                     />
@@ -110,7 +113,7 @@ export function EducationContent({
                           onChange={(v) =>
                             updateEducation(edu.id, { field_of_study: v })
                           }
-                          placeholder="Field of Study"
+                          placeholder={t("resumeBuilder.placeholders.fieldOfStudy")}
                           inputClassName={inputClass}
                           editable={editable}
                         />
@@ -122,7 +125,7 @@ export function EducationContent({
                     onChange={(v) =>
                       updateEducation(edu.id, { institution: v })
                     }
-                    placeholder="Institution"
+                    placeholder={t("resumeBuilder.placeholders.institution")}
                     as="p"
                     className={`${config.textSize} ${isModern ? "" : "text-gray-600"}`}
                     style={isModern ? { color: effectiveColor } : undefined}
@@ -134,6 +137,7 @@ export function EducationContent({
                   startDate={edu.start_date}
                   endDate={edu.end_date}
                   isCurrent={edu.is_current}
+                  onRangeChange={(range) => updateEducation(edu.id, range)}
                   onStartDateChange={(v) =>
                     updateEducation(edu.id, { start_date: v })
                   }
@@ -160,7 +164,7 @@ export function EducationContent({
               <EditableField
                 value={edu.gpa}
                 onChange={(v) => updateEducation(edu.id, { gpa: v })}
-                placeholder="3.8"
+                placeholder={t("resumeBuilder.placeholders.gpa")}
                 inputClassName={inputClass}
                 editable={editable}
               />

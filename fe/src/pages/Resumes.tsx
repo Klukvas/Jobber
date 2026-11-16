@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSingleFlightMutation } from "@/shared/hooks/useSingleFlightMutation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
@@ -143,7 +144,7 @@ export default function Resumes() {
     },
   });
 
-  const duplicateBuilderMutation = useMutation({
+  const duplicateBuilderMutation = useSingleFlightMutation({
     mutationFn: (id: string) => resumeBuilderService.duplicate(id),
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -224,7 +225,7 @@ export default function Resumes() {
                 }}
                 disabled={uploadLimitReached}
                 title={uploadLimitTitle}
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex min-h-11 items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Upload className="h-4 w-4" />
                 {t("resumes.uploadResume")}
@@ -238,7 +239,7 @@ export default function Resumes() {
                   builderLimitReached || createBuilderMutation.isPending
                 }
                 title={builderLimitTitle}
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex min-h-11 items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <PenTool className="h-4 w-4" />
                 {t("resumes.buildResume")}
@@ -250,7 +251,7 @@ export default function Resumes() {
                 }}
                 disabled={builderLimitReached}
                 title={builderLimitTitle}
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex min-h-11 items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Import className="h-4 w-4" />
                 {t("resumes.importResume")}
@@ -291,6 +292,7 @@ export default function Resumes() {
                   key={opt.value}
                   variant={kindFilter === opt.value ? "default" : "outline"}
                   aria-pressed={kindFilter === opt.value}
+                  className="min-h-11 min-w-11"
                   size="sm"
                   onClick={() => setKindFilter(opt.value)}
                 >
@@ -366,6 +368,7 @@ export default function Resumes() {
                     key={`built-${item.data.id}`}
                     resume={item.data}
                     limitReached={builderLimitReached}
+                    isDuplicating={duplicateBuilderMutation.isPending && duplicateBuilderMutation.variables === item.data.id}
                     onDuplicate={(id) => duplicateBuilderMutation.mutate(id)}
                     onDelete={(resume) => setDeleteBuilderTarget(resume)}
                     onRename={(resume) => setRenamingBuilder(resume)}

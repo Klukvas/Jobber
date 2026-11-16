@@ -370,3 +370,20 @@ describe("ShareStatsModal", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });
+
+it("sends one create for synchronous double-submit and permits retry after failure", async () => {
+  const { fireEvent, act } = await import("@testing-library/react");
+  let reject: (error: Error) => void = () => {};
+  mockCreate.mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; }));
+  renderModal();
+  const button = screen.getByRole("button", { name: "sharing.createButton" });
+  act(() => { fireEvent.click(button); fireEvent.click(button); });
+  await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
+  expect(button).toBeDisabled();
+  await act(async () => reject(new Error("")));
+  await waitFor(() => expect(screen.getByRole("button", { name: "sharing.createButton" })).toBeEnabled());
+  mockCreate.mockResolvedValueOnce(makeShare());
+  await userEvent.click(screen.getByRole("button", { name: "sharing.createButton" }));
+  expect(await screen.findByText("sharing.linkReady")).toBeInTheDocument();
+  expect(mockCreate).toHaveBeenCalledTimes(2);
+});

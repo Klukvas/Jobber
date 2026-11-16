@@ -20,6 +20,7 @@ import (
 	importService "github.com/andreypavlenko/jobber/modules/jobimport/service"
 	subHandler "github.com/andreypavlenko/jobber/modules/subscriptions/handler"
 	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
+	subService "github.com/andreypavlenko/jobber/modules/subscriptions/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -33,16 +34,64 @@ type creditTransport func(*http.Request) (*http.Response, error)
 func (f creditTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 type guardedAttempt struct {
-	operation  subModel.CreditOperation
-	stage      string
-	dispatched bool
-	settled    bool
+	operation           subModel.CreditOperation
+	stage               string
+	dispatched          bool
+	settled             bool
+	reservedNanodollars int64
+	actualNanodollars   int64
 }
 type guardedLedger struct {
 	*aiLedger
-	attempts    map[string]*guardedAttempt
-	reject      bool
-	rejectStage int
+	attempts       map[string]*guardedAttempt
+	reject         bool
+	rejectStage    int
+	resultOutcomes map[string]bool
+	completeErr    error
+	completeCalls  int
+}
+
+func (l *guardedLedger) CompleteCreditOperation(_ context.Context, op subModel.CreditOperation) error {
+	l.mu.Lock()
+	l.completeCalls++
+	err := l.completeErr
+	l.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	return l.finishResult(op, true)
+}
+func (l *guardedLedger) RejectCreditOperation(_ context.Context, op subModel.CreditOperation) error {
+	return l.finishResult(op, false)
+}
+func (l *guardedLedger) finishResult(op subModel.CreditOperation, success bool) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	actual, found := l.reserved[op.Key]
+	if !found {
+		return nil
+	}
+	if actual != op {
+		return errors.New("result fingerprint mismatch")
+	}
+	if l.resultOutcomes == nil {
+		l.resultOutcomes = map[string]bool{}
+	}
+	if _, done := l.resultOutcomes[op.Key]; done {
+		return nil
+	}
+	l.finished++
+	l.finishedOperations = append(l.finishedOperations, op)
+	l.resultOutcomes[op.Key] = success
+	if !success {
+		l.balance[op.UserID] += op.Credits
+		delete(l.reserved, op.Key)
+	}
+	return nil
+}
+
+func useGuardedCredits(f *fakeAITools, ledger *guardedLedger) {
+	f.credits = subService.NewSubscriptionService(ledger, nil, subService.BillingConfig{})
 }
 
 func (l *guardedLedger) reserveOperation(op subModel.CreditOperation) error {
@@ -73,7 +122,7 @@ func (l *guardedLedger) ReserveCreditAttempt(ctx context.Context, attempt subMod
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	id := uuid.NewString()
-	l.attempts[id] = &guardedAttempt{operation: op, stage: attempt.Stage}
+	l.attempts[id] = &guardedAttempt{operation: op, stage: attempt.Stage, reservedNanodollars: attempt.MaxNanodollars}
 	return id, nil
 }
 func (l *guardedLedger) DispatchCreditAttempt(_ context.Context, id string) error {
@@ -86,10 +135,11 @@ func (l *guardedLedger) DispatchCreditAttempt(_ context.Context, id string) erro
 	l.completed[l.attempts[id].operation.Key] = true
 	return nil
 }
-func (l *guardedLedger) SettleCreditAttempt(_ context.Context, id string, _ int64) error {
+func (l *guardedLedger) SettleCreditAttempt(_ context.Context, id string, actual int64) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.attempts[id].settled = true
+	l.attempts[id].actualNanodollars = actual
 	return nil
 }
 func (l *guardedLedger) ReleaseCreditAttempt(_ context.Context, id string) error {
@@ -129,9 +179,7 @@ func TestCreditScopeRealJobParserWebParity(t *testing.T) {
 	}{
 		{"success", false, false, 98, 1},
 		{"rejected before dispatch refunds", false, true, 100, 0},
-		// Existing web policy retains dispatched liability, even on provider failure.
-		// MCP must not introduce a refund that the web budget guard does not allow.
-		{"provider failure after dispatch retains liability", true, false, 98, 1},
+		{"provider failure refunds user and retains provider attempt", true, false, 100, 1},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -139,6 +187,7 @@ func TestCreditScopeRealJobParserWebParity(t *testing.T) {
 				t.Run(surface, func(t *testing.T) {
 					f := newFakeAITools()
 					store := &guardedLedger{aiLedger: f.ledger, attempts: map[string]*guardedAttempt{}, reject: tc.reject}
+					useGuardedCredits(f, store)
 					previous := http.DefaultTransport
 					calls := 0
 					http.DefaultTransport = creditTransport(func(r *http.Request) (*http.Response, error) { calls++; return providerResponse(t, r, tc.fail), nil })
@@ -236,6 +285,7 @@ func (f creditPATAuthenticator) AuthenticateWithInfo(ctx context.Context, token 
 func TestCreditScopeHTTPMCPChargesAndFinishesOnce(t *testing.T) {
 	f := newFakeAITools()
 	store := &guardedLedger{aiLedger: f.ledger, attempts: map[string]*guardedAttempt{}}
+	useGuardedCredits(f, store)
 	previous := http.DefaultTransport
 	providerCalls := 0
 	http.DefaultTransport = creditTransport(func(r *http.Request) (*http.Response, error) {

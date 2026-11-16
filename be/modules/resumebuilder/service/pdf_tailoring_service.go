@@ -68,6 +68,8 @@ func operationState(op *model.WorkflowOperation, fingerprint string) error {
 
 func operationError(code string) error {
 	switch code {
+	case "AI_NO_CHANGES":
+		return model.ErrAINoChanges
 	case "AI_BUDGET_REACHED":
 		return subModel.ErrAIBudgetReached
 	case "CREDIT_UNAVAILABLE":
@@ -84,6 +86,8 @@ func operationError(code string) error {
 }
 func operationCode(err error) string {
 	switch {
+	case errors.Is(err, model.ErrAINoChanges):
+		return "AI_NO_CHANGES"
 	case errors.Is(err, subModel.ErrAIBudgetReached):
 		return "AI_BUDGET_REACHED"
 	case errors.Is(err, subModel.ErrCreditUnavailable):
@@ -236,6 +240,7 @@ func (s *PDFTailoringService) finishImport(ctx context.Context, op *model.Workfl
 	if err != nil {
 		return nil, err
 	}
+	aiLimit := 0 // Parsed-result finalization restores its existing original grant.
 	var result *model.PDFImportResult
 	err = s.transaction(ctx, op.UserID, func(tx ports.WorkflowTransaction) error {
 		current, err := tx.GetOperation(ctx, op.UserID, "import", op.Key)
@@ -251,6 +256,12 @@ func (s *PDFTailoringService) finishImport(ctx context.Context, op *model.Workfl
 		if current.Status != "parsed" {
 			return operationState(current, op.Fingerprint)
 		}
+		if current.AIReceiptID != "" {
+			if err := tx.ChargeAI(ctx, op.UserID, current.AIReceiptID, aiLimit); err != nil {
+				return err
+			}
+		}
+
 		if _, err := tx.GetTailoringJob(ctx, op.UserID, op.JobID); err != nil {
 			return err
 		}

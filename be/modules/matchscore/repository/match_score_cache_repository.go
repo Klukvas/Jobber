@@ -3,8 +3,11 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
+	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"github.com/andreypavlenko/jobber/modules/matchscore/model"
+	quota "github.com/andreypavlenko/jobber/modules/subscriptions/repository"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -52,8 +55,34 @@ func (r *MatchScoreCacheRepository) Upsert(ctx context.Context, userID, jobID, r
 		DO UPDATE SET result = EXCLUDED.result, cached_at = NOW()
 	`
 
-	_, err = r.pool.Exec(ctx, query, userID, jobID, resumeID, raw)
-	return err
+	op, _, found := ai.CurrentCreditOperation(ctx)
+	if !found || !ai.CreditRequestAdmitted(ctx) {
+		_, err = r.pool.Exec(ctx, query, userID, jobID, resumeID, raw)
+		return err
+	}
+	beginner, ok := r.pool.(interface {
+		Begin(context.Context) (pgx.Tx, error)
+	})
+	if !ok {
+		return fmt.Errorf("match cache requires transactional credit storage")
+	}
+	tx, err := beginner.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin match cache result: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // no-op after commit
+	if _, err := tx.Exec(ctx, query, userID, jobID, resumeID, raw); err != nil {
+		return fmt.Errorf("save match cache result: %w", err)
+	}
+	if err := quota.FinalizeCreditResultInTransaction(ctx, tx, op.UserID, op.Key, true, ""); err != nil {
+		return fmt.Errorf("finalize match cache charge: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit match cache result: %w", err)
+	}
+	ai.MarkCreditResult(ctx)
+	ai.SetDurableCreditContext(ctx)
+	return nil
 }
 
 // InvalidateByJob deletes all cached results for a given job.

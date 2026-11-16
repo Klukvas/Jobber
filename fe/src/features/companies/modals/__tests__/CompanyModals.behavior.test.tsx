@@ -280,3 +280,37 @@ it("persists explicit clears and omits untouched company fields", async () => {
   await user.click(screen.getByRole("button", { name: "common.save" }));
   await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith("co-1", { location: "", notes: "" }));
 });
+
+it("company delete guards same-tick clicks and permits retry after failure", async () => {
+  const { act, fireEvent } = await import("@testing-library/react");
+  let fail: (error: Error) => void = () => {};
+  mockDelete.mockReturnValueOnce(new Promise((_resolve, reject) => { fail = reject; })).mockResolvedValueOnce(undefined);
+  const onOpenChange = vi.fn();
+  renderWithClient(<DeleteCompanyDialog open onOpenChange={onOpenChange} company={company} />);
+  const remove = screen.getByRole("button", { name: "common.delete" });
+  act(() => { fireEvent.click(remove); fireEvent.click(remove); });
+  await waitFor(() => expect(mockDelete).toHaveBeenCalledTimes(1));
+  await act(async () => fail(new Error("retry")));
+  await waitFor(() => expect(remove).not.toBeDisabled());
+  expect(onOpenChange).not.toHaveBeenCalled();
+  fireEvent.click(remove);
+  await waitFor(() => expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false));
+  expect(mockDelete).toHaveBeenCalledTimes(2);
+  expect(mockShowSuccess).toHaveBeenCalledTimes(1);
+});
+
+it("an old company delete cannot dismiss a different company's dialog", async () => {
+  const { act, fireEvent } = await import("@testing-library/react");
+  let finish: () => void = () => {};
+  mockDelete.mockReturnValue(new Promise<void>((resolve) => { finish = resolve; }));
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const onOpenChange = vi.fn();
+  const view = render(<QueryClientProvider client={queryClient}><DeleteCompanyDialog open onOpenChange={onOpenChange} company={company} /></QueryClientProvider>);
+  fireEvent.click(screen.getByRole("button", { name: "common.delete" }));
+  await waitFor(() => expect(mockDelete).toHaveBeenCalledWith(company.id));
+  view.rerender(<QueryClientProvider client={queryClient}><DeleteCompanyDialog open onOpenChange={onOpenChange} company={{ ...company, id: "co-2", name: "Other" }} /></QueryClientProvider>);
+  await act(async () => finish());
+  await waitFor(() => expect(screen.getByRole("button", { name: "common.delete" })).toBeEnabled());
+  expect(onOpenChange).not.toHaveBeenCalled();
+  expect(screen.getByText("companies.deleteConfirm:Other")).toBeInTheDocument();
+});

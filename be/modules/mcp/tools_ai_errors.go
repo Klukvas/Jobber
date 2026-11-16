@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"errors"
+	"github.com/andreypavlenko/jobber/internal/platform/ai"
+	letterModel "github.com/andreypavlenko/jobber/modules/coverletters/model"
 
 	importModel "github.com/andreypavlenko/jobber/modules/jobimport/model"
 	matchModel "github.com/andreypavlenko/jobber/modules/matchscore/model"
@@ -21,6 +23,14 @@ func aiCallError(err error) error {
 }
 func aiFriendlyError(err error) string {
 	switch {
+	case errors.Is(err, rbModel.ErrAINoChanges):
+		return "AI proposed no usable changes. Your credits were returned."
+	case errors.Is(err, letterModel.ErrAIJobDescriptionRequired):
+		return "Save a Job description before generating a cover letter."
+	case errors.Is(err, letterModel.ErrAICandidateSourceRequired):
+		return "Link a resume with candidate information before generating a cover letter."
+	case errors.Is(err, ai.ErrInvalidCoverLetterResponse), errors.Is(err, rbModel.ErrAIInvalidResponse):
+		return "AI suggestions could not be verified. Please try again."
 	case errors.Is(err, errAIUnavailable), errors.Is(err, rbModel.ErrAIUnavailable), errors.Is(err, rbModel.ErrProposalStoreUnavailable), errors.Is(err, importModel.ErrAINotConfigured):
 		return "AI features are not available right now. Please try again later."
 	case errors.Is(err, errPDFUnavailable):

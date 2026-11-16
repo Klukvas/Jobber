@@ -97,6 +97,10 @@ type fixture struct {
 func setup(t *testing.T, maxConns int32) *fixture {
 	t.Helper()
 	dsn := os.Getenv("INTERVIEW_TEST_DATABASE_URL")
+	r3DSN := os.Getenv("R3_TEST_DATABASE_URL")
+	if r3DSN != "" {
+		dsn = r3DSN
+	}
 	subscriptionsDSN := os.Getenv("SUBSCRIPTIONS_TEST_DATABASE_URL")
 	if subscriptionsDSN != "" {
 		dsn = subscriptionsDSN
@@ -106,7 +110,10 @@ func setup(t *testing.T, maxConns int32) *fixture {
 	}
 	cfg, err := pgxpool.ParseConfig(dsn)
 	require.NoError(t, err)
-	if subscriptionsDSN != "" {
+	if r3DSN != "" {
+		require.Equal(t, "jobber_r3_credit_test", cfg.ConnConfig.Database)
+		require.Equal(t, uint16(55495), cfg.ConnConfig.Port)
+	} else if subscriptionsDSN != "" {
 		require.Equal(t, "subscriptions_fixture", cfg.ConnConfig.Database)
 		require.Equal(t, uint16(55439), cfg.ConnConfig.Port)
 		require.Equal(t, "subscriptions_fixture", cfg.ConnConfig.User)
@@ -137,7 +144,7 @@ func setup(t *testing.T, maxConns int32) *fixture {
 	require.NoError(t, err)
 	sort.Strings(files)
 	for _, file := range files {
-		if strings.Contains(file, "000049") {
+		if strings.Contains(file, "000049") || strings.Contains(file, "000059") {
 			continue
 		}
 		raw, e := os.ReadFile(file)
@@ -169,6 +176,10 @@ func setup(t *testing.T, maxConns int32) *fixture {
 	require.NoError(t, err)
 	_, err = pool.Exec(t.Context(), string(raw))
 	require.NoError(t, err)
+	outcome, e := os.ReadFile("../../migrations/000059_ai_result_charges.up.sql")
+	require.NoError(t, e)
+	_, e = pool.Exec(t.Context(), string(outcome))
+	require.NoError(t, e)
 	f.svc = NewService(f.store, f.client, testLimits{pool, -1})
 	return f
 }

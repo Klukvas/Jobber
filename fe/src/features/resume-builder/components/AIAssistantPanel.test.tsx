@@ -90,9 +90,9 @@ describe("AIAssistantPanel", () => {
     });
   });
 
-  it("renders the AI title heading", () => {
+  it("leaves the AI title to its containing shell", () => {
     render(<AIAssistantPanel />);
-    expect(screen.getByText("resumeBuilder.ai.title")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "resumeBuilder.ai.title" })).not.toBeInTheDocument();
   });
 
   it("renders the suggest summary button", () => {

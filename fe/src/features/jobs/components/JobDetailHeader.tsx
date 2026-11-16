@@ -72,7 +72,8 @@ export function JobDetailHeader({
         )}
         <Button
           variant="outline"
-          size="sm"
+          size="icon"
+          className="shrink-0"
           onClick={onToggleFavorite}
           disabled={isTogglingFavorite}
           aria-label={
@@ -89,6 +90,7 @@ export function JobDetailHeader({
           <Button
             variant="outline"
             size="sm"
+            className="min-w-11 shrink-0"
             onClick={onUnarchive}
             disabled={isUnarchiving}
             aria-label={t("jobs.unarchive")}
@@ -100,6 +102,7 @@ export function JobDetailHeader({
           <Button
             variant="outline"
             size="sm"
+            className="min-w-11 shrink-0"
             onClick={onArchive}
             disabled={isArchiving}
             aria-label={t("jobs.archive")}
@@ -111,7 +114,7 @@ export function JobDetailHeader({
         <Button
           variant="outline"
           size="sm"
-          className="text-destructive hover:text-destructive"
+          className="min-w-11 shrink-0 text-destructive hover:text-destructive"
           onClick={onDelete}
           disabled={isDeleting}
           aria-label={t("common.delete")}

@@ -31,3 +31,16 @@
 .mobile-resume-text [data-select-trigger], .mobile-resume-text [data-date-trigger] {
   display: flex; align-items: center; min-height: 44px; padding: 8px 4px;
 }
+
+/* Let the menu participate in fluid layout rather than inherit the label width. */
+.mobile-resume-text [data-select-popover] {
+  position: relative;
+  display: block;
+  left: 0;
+  width: min(18rem, calc(100vw - 5rem));
+  min-width: min(12rem, calc(100vw - 5rem));
+  max-width: calc(100vw - 5rem);
+  white-space: normal;
+  overflow-wrap: normal;
+}
+.mobile-resume-text [data-select-popover] button { white-space: normal; }

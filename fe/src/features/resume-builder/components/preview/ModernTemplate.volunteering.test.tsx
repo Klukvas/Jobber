@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import "@/shared/lib/i18n";
+import i18n from "@/shared/lib/i18n";
 import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
 import type { FullResumeDTO } from "@/shared/types/resume-builder";
 import { ModernTemplate } from "./ModernTemplate";
@@ -102,7 +102,7 @@ describe("Modern volunteering preview", () => {
     const { container } = render(<ModernTemplate />);
 
     expect(screen.getByText("QA Volunteer")).toBeInTheDocument();
-    expect(screen.queryByText("Describe your volunteering...")).not.toBeInTheDocument();
+    expect(screen.queryByText("resumeBuilder.placeholders.volunteeringDescription")).not.toBeInTheDocument();
     expect(container.querySelector("p.whitespace-pre-line")).toBeNull();
   });
 
@@ -116,11 +116,11 @@ describe("Modern volunteering preview", () => {
     });
 
     render(<ModernTemplate editable />);
-    fireEvent.mouseDown(screen.getByRole("textbox", { name: "Describe your volunteering..." }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Describe your volunteering..." }), {
+    fireEvent.mouseDown(screen.getByRole("textbox", { name: i18n.t("resumeBuilder.placeholders.volunteeringDescription") }));
+    fireEvent.change(screen.getByRole("textbox", { name: i18n.t("resumeBuilder.placeholders.volunteeringDescription") }), {
       target: { value: "Updated volunteering\nSecond line" },
     });
-    fireEvent.blur(screen.getByRole("textbox", { name: "Describe your volunteering..." }));
+    fireEvent.blur(screen.getByRole("textbox", { name: i18n.t("resumeBuilder.placeholders.volunteeringDescription") }));
 
     expect(useResumeBuilderStore.getState().resume?.volunteering[0].description).toBe(
       "Updated volunteering\nSecond line",
@@ -139,7 +139,7 @@ describe("Modern volunteering preview", () => {
       </MobileTextEditingContext.Provider>,
     );
 
-    expect(screen.getByRole("textbox", { name: "Describe your volunteering..." }).textContent).toBe(
+    expect(screen.getByRole("textbox", { name: i18n.t("resumeBuilder.placeholders.volunteeringDescription") }).textContent).toBe(
       savedResume.volunteering[0].description,
     );
   });
@@ -157,11 +157,11 @@ describe("Modern volunteering preview", () => {
     });
 
     render(<ModernTemplate editable />);
-    const field = screen.getByRole("textbox", { name: "Describe your volunteering..." });
+    const field = screen.getByRole("textbox", { name: i18n.t("resumeBuilder.placeholders.volunteeringDescription") });
     expect(field.tagName).toBe("P");
     expect(field).not.toHaveClass("text-gray-700");
     fireEvent.mouseDown(field);
-    const textarea = screen.getByRole("textbox", { name: "Describe your volunteering..." });
+    const textarea = screen.getByRole("textbox", { name: i18n.t("resumeBuilder.placeholders.volunteeringDescription") });
     expect(textarea.tagName).toBe("TEXTAREA");
     expect(textarea).toHaveClass("[&:is(textarea)]:text-gray-700");
     fireEvent.change(textarea, { target: { value: "Updated sidebar description" } });

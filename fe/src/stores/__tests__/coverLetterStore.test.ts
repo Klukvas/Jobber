@@ -304,3 +304,31 @@ describe("coverLetterStore", () => {
     });
   });
 });
+
+it("keeps paragraph identities across edits, deletion, undo/redo, loading and AI replacement", () => {
+  const store = useCoverLetterStore.getState();
+  store.setCoverLetter(createMockCoverLetter());
+  useCoverLetterStore.temporal.getState().clear();
+  const originalIds = [...useCoverLetterStore.getState().paragraphIds];
+  store.updateParagraph(1, "Edited");
+  expect(useCoverLetterStore.getState().paragraphIds).toEqual(originalIds);
+  store.removeParagraph(0);
+  expect(useCoverLetterStore.getState().paragraphIds).toEqual([originalIds[1]]);
+  useCoverLetterStore.temporal.getState().undo();
+  expect(useCoverLetterStore.getState().paragraphIds).toEqual(originalIds);
+  useCoverLetterStore.temporal.getState().redo();
+  expect(useCoverLetterStore.getState().paragraphIds).toEqual([originalIds[1]]);
+  store.addParagraph();
+  const addedIds = [...useCoverLetterStore.getState().paragraphIds];
+  useCoverLetterStore.temporal.getState().undo();
+  useCoverLetterStore.temporal.getState().redo();
+  expect(useCoverLetterStore.getState().paragraphIds).toEqual(addedIds);
+  store.updateFields({ paragraphs: ["AI replacement", "Another result"] });
+  const replacementIds = [...useCoverLetterStore.getState().paragraphIds];
+  expect(replacementIds).toHaveLength(2);
+  expect(replacementIds.some((id) => addedIds.includes(id))).toBe(false);
+  useCoverLetterStore.temporal.getState().undo();
+  expect(useCoverLetterStore.getState().paragraphIds).toEqual(addedIds);
+  store.setCoverLetter(createMockCoverLetter({ id: "another-letter" }));
+  expect(useCoverLetterStore.getState().paragraphIds.some((id) => addedIds.includes(id))).toBe(false);
+});

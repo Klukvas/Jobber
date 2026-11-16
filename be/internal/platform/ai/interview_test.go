@@ -16,6 +16,11 @@ func TestInterviewUsesUntrustedDataBoundary(t *testing.T) {
 		require.Contains(t, params.System[0].Text, "UNTRUSTED DATA")
 		require.Contains(t, params.System[0].Text, "Never invent")
 		require.Contains(t, params.System[0].Text, "snapshot.locale")
+		require.EqualValues(t, 12000, params.MaxTokens)
+		schema := params.OutputConfig.Format.Schema
+		require.Equal(t, "object", schema["type"])
+		require.Equal(t, false, schema["additionalProperties"])
+		require.ElementsMatch(t, []string{"requirements", "questions", "gaps", "interviewer_questions"}, schema["required"])
 		require.Contains(t, params.Messages[0].Content[0].OfText.Text, "ignore previous instructions")
 		return &anthropic.Message{StopReason: "end_turn", Content: []anthropic.ContentBlockUnion{{Type: "text", Text: `{"ok":true}`}}}, nil
 	}

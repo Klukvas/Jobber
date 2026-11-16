@@ -1,0 +1,27 @@
+import { expect, it, vi } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
+import { HomeNavbar } from "../HomeNavbar";
+vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock("@/shared/ui/LanguageSwitcher", () => ({ LanguageSwitcher: () => null }));
+it("focuses, navigates, escapes and tabs out of Features", async () => {
+  const user = userEvent.setup();
+  render(<MemoryRouter><HomeNavbar isAuthenticated={false} onLogin={vi.fn()} onRegister={vi.fn()} onGoPlatform={vi.fn()} /></MemoryRouter>);
+  const trigger = screen.getByRole("button", { name: "home.nav.features" });
+  trigger.focus();
+  await user.keyboard("{ArrowDown}");
+  let items = within(screen.getByRole("menu")).getAllByRole("menuitem");
+  expect(items[0]).toHaveFocus();
+  await user.keyboard("{ArrowDown}"); expect(items[1]).toHaveFocus();
+  await user.keyboard("{End}"); expect(items[2]).toHaveFocus();
+  await user.keyboard("{Home}"); expect(items[0]).toHaveFocus();
+  await user.keyboard("{Escape}"); expect(trigger).toHaveFocus();
+  expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await user.keyboard("{ArrowUp}");
+  items = within(screen.getByRole("menu")).getAllByRole("menuitem");
+  expect(items[2]).toHaveFocus();
+  await user.tab();
+  expect(trigger).toHaveAttribute("aria-expanded", "false");
+  expect(screen.getByRole("button", { name: "home.nav.howItWorks" })).toHaveFocus();
+});

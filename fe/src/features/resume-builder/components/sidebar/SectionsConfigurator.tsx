@@ -186,7 +186,7 @@ export function SectionsConfigurator() {
                 className={cn(
                   "flex h-4 w-4 items-center justify-center rounded border transition-colors",
                   visible
-                    ? "border-primary bg-primary text-white"
+                    ? "border-primary bg-primary text-primary-foreground"
                     : "border-border bg-background",
                 )}
               >
@@ -214,7 +214,7 @@ export function SectionsConfigurator() {
                 className={cn(
                   "flex h-4 w-4 items-center justify-center rounded border transition-colors",
                   visible
-                    ? "border-primary bg-primary text-white"
+                    ? "border-primary bg-primary text-primary-foreground"
                     : "border-border bg-background",
                 )}
               >
@@ -233,7 +233,7 @@ export function SectionsConfigurator() {
           className={cn(
             "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
             activeTab === "predefined"
-              ? "bg-primary text-white shadow-sm"
+              ? "bg-primary text-primary-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground",
           )}
         >
@@ -244,7 +244,7 @@ export function SectionsConfigurator() {
           className={cn(
             "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
             activeTab === "custom"
-              ? "bg-primary text-white shadow-sm"
+              ? "bg-primary text-primary-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground",
           )}
         >
@@ -344,9 +344,9 @@ export function SectionsConfigurator() {
                 <button
                   key={entry.section_key}
                   onClick={() => toggleCustomColumn(entry.section_key)}
-                  className="flex w-full items-center gap-1.5 rounded bg-primary/80 px-2 py-1.5 text-left text-[10px] font-medium text-white transition-colors hover:bg-primary/70"
+                  className="flex w-full items-center gap-1.5 rounded bg-primary/80 px-2 py-1.5 text-left text-[10px] font-medium text-primary-foreground transition-colors hover:bg-primary/70"
                 >
-                  <span className="text-[8px] text-white/60">←</span>
+                  <span className="text-[8px] text-primary-foreground">←</span>
                   {t(
                     SECTION_LABEL_KEYS[entry.section_key] ?? entry.section_key,
                   )}

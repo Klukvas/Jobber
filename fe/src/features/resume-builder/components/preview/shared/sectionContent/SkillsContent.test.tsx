@@ -239,7 +239,7 @@ describe("SkillsContent", () => {
           editable={true}
         />,
       );
-      expect(screen.getAllByTestId("field-Skill").length).toBe(2);
+      expect(screen.getAllByTestId("field-resumeBuilder.placeholders.skill").length).toBe(2);
       expect(screen.getAllByTestId("entry-wrapper").length).toBe(2);
     });
   });
@@ -405,7 +405,7 @@ describe("SkillsContent", () => {
           editable={false}
         />,
       );
-      expect(screen.getByTestId("field-Skill name")).toHaveTextContent("React");
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.skill")).toHaveTextContent("React");
       const entry = screen.getByTestId("entry-wrapper");
       expect(entry.textContent).toContain("(");
       expect(entry.textContent).toContain(")");

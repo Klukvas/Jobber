@@ -26,7 +26,7 @@ describe("EditableDateRange", () => {
 
   it("shows 'Present' when isCurrent is true", () => {
     render(<EditableDateRange {...defaultProps} isCurrent={true} />);
-    expect(screen.getByText(/Present/)).toBeInTheDocument();
+    expect(screen.getByText(/resumeBuilder.inline.present/)).toBeInTheDocument();
   });
 
   it("shows custom currentLabel", () => {
@@ -64,6 +64,8 @@ describe("EditableDateRange", () => {
     const startInput = screen.getByDisplayValue("2020-01-15");
     fireEvent.change(startInput, { target: { value: "2021-03-01" } });
 
+    expect(defaultProps.onStartDateChange).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "common.save" }));
     expect(defaultProps.onStartDateChange).toHaveBeenCalledWith("2021-03-01");
   });
 
@@ -76,6 +78,7 @@ describe("EditableDateRange", () => {
     const endInput = screen.getByDisplayValue("2023-06-30");
     fireEvent.change(endInput, { target: { value: "2024-01-01" } });
 
+    await user.click(screen.getByRole("button", { name: "common.save" }));
     expect(defaultProps.onEndDateChange).toHaveBeenCalledWith("2024-01-01");
   });
 
@@ -88,6 +91,7 @@ describe("EditableDateRange", () => {
     const checkbox = screen.getByRole("checkbox");
     await user.click(checkbox);
 
+    await user.click(screen.getByRole("button", { name: "common.save" }));
     expect(defaultProps.onIsCurrentChange).toHaveBeenCalledWith(true);
     expect(defaultProps.onEndDateChange).toHaveBeenCalledWith("");
   });
@@ -96,7 +100,7 @@ describe("EditableDateRange", () => {
     const user = userEvent.setup();
     render(<EditableDateRange {...defaultProps} isCurrent={true} />);
 
-    await user.click(screen.getByText(/Present/));
+    await user.click(screen.getByText(/resumeBuilder.inline.present/));
 
     expect(screen.queryByText("End Date")).not.toBeInTheDocument();
   });
@@ -138,4 +142,29 @@ it("retains a partial date in read-only output", () => {
     />,
   );
   expect(screen.getByText("Jan 2020")).toBeInTheDocument();
+});
+
+it("keeps an invalid pair out of the document and commits a corrected pair atomically", async () => {
+  const user = userEvent.setup();
+  const onRangeChange = vi.fn();
+  render(<EditableDateRange startDate="2025-01-01" endDate="2025-02-01" isCurrent={false} onStartDateChange={vi.fn()} onEndDateChange={vi.fn()} onIsCurrentChange={vi.fn()} onRangeChange={onRangeChange} />);
+  await user.click(screen.getByRole("button"));
+  fireEvent.change(screen.getByLabelText("resumeBuilder.inline.endDate"), { target: { value: "2024-01-01" } });
+  expect(screen.getByRole("alert")).toHaveTextContent("resumeBuilder.inline.invalidDateRange");
+  expect(screen.getByRole("button", { name: "common.save" })).toBeDisabled();
+  expect(onRangeChange).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText("resumeBuilder.inline.endDate"), { target: { value: "2025-01-01" } });
+  await user.click(screen.getByRole("button", { name: "common.save" }));
+  expect(onRangeChange).toHaveBeenCalledExactlyOnceWith({ start_date: "2025-01-01", end_date: "2025-01-01", is_current: false });
+});
+
+it("allows repairing a legacy invalid range using current and clearing end date", async () => {
+  const user = userEvent.setup();
+  const onRangeChange = vi.fn();
+  render(<EditableDateRange startDate="2025-01-01" endDate="2024-01-01" isCurrent={false} onStartDateChange={vi.fn()} onEndDateChange={vi.fn()} onIsCurrentChange={vi.fn()} onRangeChange={onRangeChange} />);
+  await user.click(screen.getByRole("button"));
+  expect(screen.getByRole("button", { name: "common.save" })).toBeDisabled();
+  await user.click(screen.getByRole("checkbox"));
+  await user.click(screen.getByRole("button", { name: "common.save" }));
+  expect(onRangeChange).toHaveBeenCalledExactlyOnceWith({ start_date: "2025-01-01", end_date: "", is_current: true });
 });

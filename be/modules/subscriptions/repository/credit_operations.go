@@ -25,18 +25,24 @@ func ReserveCreditOperationInTransaction(ctx context.Context, tx pgx.Tx, op mode
 	if err := tx.QueryRow(ctx, activeGrant, op.UserID).Scan(&grant, &kind, &granted, &b.PeriodEnd, &used); err != nil {
 		return err
 	}
-	var fp, oldKind, state string
+	var fp, oldKind, state, oldGrant string
 	var credits int
-	err := tx.QueryRow(ctx, `SELECT fingerprint,kind,credits,state FROM ai_credit_operations WHERE user_id=$1 AND operation_key=$2 FOR UPDATE`, op.UserID, op.Key).Scan(&fp, &oldKind, &credits, &state)
+	err := tx.QueryRow(ctx, `SELECT fingerprint,kind,credits,charge_state,grant_id::text FROM ai_credit_operations WHERE user_id=$1 AND operation_key=$2 FOR UPDATE`, op.UserID, op.Key).Scan(&fp, &oldKind, &credits, &state, &oldGrant)
 	if err == nil {
 		if fp != op.Fingerprint || oldKind != op.Kind || credits != op.Credits {
+			return model.ErrAIOperationConflict
+		}
+		if state == "charged" || state == "legacy" {
+			return model.ErrAIOperationConflict
+		}
+		if oldGrant != grant {
 			return model.ErrAIOperationConflict
 		}
 		if state == "released" {
 			if granted-used < op.Credits {
 				return model.ErrCreditUnavailable
 			}
-			_, err = tx.Exec(ctx, `UPDATE ai_credit_operations SET state='reserved',grant_id=$3,created_at=now() WHERE user_id=$1 AND operation_key=$2`, op.UserID, op.Key, grant)
+			_, err = tx.Exec(ctx, `UPDATE ai_credit_operations SET state=CASE WHEN state='released' THEN 'reserved' ELSE state END,charge_state='reserved',charge_reason='',charge_finished_at=NULL,created_at=now() WHERE user_id=$1 AND operation_key=$2`, op.UserID, op.Key)
 			return err
 		}
 		return nil
@@ -78,7 +84,7 @@ func (r *SubscriptionRepository) FinishCreditOperation(ctx context.Context, user
 	if err := lockAIQuota(ctx, tx, user); err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `UPDATE ai_credit_operations SET state='released' WHERE user_id=$1 AND operation_key=$2 AND state='reserved' AND (NOT $3::boolean OR (fingerprint=$4 AND kind=$5 AND credits=$6)) AND NOT EXISTS(SELECT 1 FROM ai_credit_attempts a WHERE a.operation_id=ai_credit_operations.id AND a.state<>'released')`, user, key, bound, operation.Fingerprint, operation.Kind, operation.Credits)
+	_, err = tx.Exec(ctx, `UPDATE ai_credit_operations SET state='released',charge_state='released',charge_reason='not_dispatched',charge_finished_at=now() WHERE user_id=$1 AND operation_key=$2 AND state='reserved' AND (NOT $3::boolean OR (fingerprint=$4 AND kind=$5 AND credits=$6)) AND NOT EXISTS(SELECT 1 FROM ai_credit_attempts a WHERE a.operation_id=ai_credit_operations.id AND a.state<>'released')`, user, key, bound, operation.Fingerprint, operation.Kind, operation.Credits)
 	if err != nil {
 		return err
 	}
@@ -90,7 +96,11 @@ func ContextCreditReservation(ctx context.Context, tx pgx.Tx, user, receipt stri
 	if !ok {
 		return false, nil
 	}
-	return true, ReserveCreditOperationInTransaction(ctx, tx, op)
+	err := ReserveCreditOperationInTransaction(ctx, tx, op)
+	if err == nil {
+		ai.MarkCreditAdmission(ctx)
+	}
+	return true, err
 }
 
 // recoverUndispatchedCredits runs with the provider row and this user's quota
@@ -107,7 +117,11 @@ func recoverUndispatchedCredits(ctx context.Context, tx pgx.Tx, user string) (in
 			return 0, err
 		}
 	}
-	_, err = tx.Exec(ctx, `UPDATE ai_credit_operations o SET state='released' WHERE user_id=$1 AND state='reserved' AND created_at<now()-interval '5 minutes' AND NOT EXISTS(SELECT 1 FROM ai_credit_attempts a WHERE a.operation_id=o.id AND a.state<>'released')`, user)
+	_, err = tx.Exec(ctx, `UPDATE ai_credit_operations o SET state='released',charge_state='released',charge_reason='expired_unsent',charge_finished_at=now() WHERE user_id=$1 AND state='reserved' AND created_at<now()-interval '5 minutes' AND NOT EXISTS(SELECT 1 FROM ai_credit_attempts a WHERE a.operation_id=o.id AND a.state<>'released')`, user)
+	if err != nil {
+		return 0, err
+	}
+	_, err = tx.Exec(ctx, `UPDATE ai_credit_operations SET charge_state='released',charge_reason='result_timeout',charge_finished_at=now() WHERE user_id=$1 AND charge_state='reserved' AND created_at<now()-interval '5 minutes'`, user)
 	return released, err
 }
 func (r *SubscriptionRepository) CreditOperationDispatched(ctx context.Context, user, key string) (bool, error) {
@@ -140,7 +154,7 @@ func (r *SubscriptionRepository) AbortUnsentCreditAttempt(ctx context.Context, i
 	if _, err := tx.Exec(ctx, `UPDATE ai_provider_budget SET allocated_nanodollars=allocated_nanodollars-$1 WHERE provider='anthropic'`, reserved); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `UPDATE ai_credit_operations SET state='released' WHERE id=$1 AND NOT EXISTS(SELECT 1 FROM ai_credit_attempts WHERE operation_id=$1 AND state<>'released')`, operation); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE ai_credit_operations SET state='released',charge_state='released',charge_reason='not_dispatched',charge_finished_at=now() WHERE id=$1 AND NOT EXISTS(SELECT 1 FROM ai_credit_attempts WHERE operation_id=$1 AND state<>'released')`, operation); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

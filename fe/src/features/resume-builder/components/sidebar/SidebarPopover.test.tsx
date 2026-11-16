@@ -34,14 +34,14 @@ describe("SidebarPopover", () => {
 
   it("renders close button", () => {
     render(<SidebarPopover {...defaultProps} />);
-    expect(screen.getByLabelText("Close")).toBeInTheDocument();
+    expect(screen.getByLabelText("common.close")).toBeInTheDocument();
   });
 
   it("calls onClose when close button is clicked", async () => {
     const user = userEvent.setup();
     render(<SidebarPopover {...defaultProps} />);
 
-    await user.click(screen.getByLabelText("Close"));
+    await user.click(screen.getByLabelText("common.close"));
     expect(defaultProps.onClose).toHaveBeenCalledTimes(1);
   });
 

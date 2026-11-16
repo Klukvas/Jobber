@@ -260,14 +260,18 @@ var validStageStatuses = map[string]bool{
 }
 
 // applyStageStatusUpdate folds the request into the stage row: an explicit
-// completed_at wins, completing a stage without one stamps now, and moving back
+// completed_at wins for a new completion, repeating completion keeps its original
+// timestamp, completing a stage without one stamps now, and moving back
 // to a non-final status clears it. Pure — the caller persists the result.
 func applyStageStatusUpdate(stage *model.JobStage, req *model.UpdateStageRequest, now time.Time) {
+	wasCompleted := stage.Status == "completed" && stage.CompletedAt != nil
 	if req.Status != nil {
 		stage.Status = *req.Status
 	}
 
 	switch {
+	case wasCompleted && req.Status != nil && *req.Status == "completed":
+		// Completion is idempotent, including clients that resend a fresh timestamp.
 	case req.CompletedAt != nil:
 		stage.CompletedAt = req.CompletedAt
 	case req.Status != nil && *req.Status == "completed" && stage.CompletedAt == nil:
@@ -308,15 +312,23 @@ func (s *JobService) DeleteStage(ctx context.Context, userID, jobID, stageID str
 	// deleting a row the job still points at). The column moves with it: the
 	// card's stage name comes from current_stage_template_id, and leaving it
 	// behind kept the card on the deleted stage while its timeline had moved
-	// on. With no row left to fall back to the card keeps its column — the
-	// column is NOT NULL, as a new card also sits in one with no history.
-	if state.CurrentStageID != nil && *state.CurrentStageID == stageID {
+	// on. With no eligible row left the card returns to its initial column;
+	// applied_at remains the historical application timestamp.
+	if state.CurrentStageID == nil || *state.CurrentStageID == stageID {
 		replacement, err := s.replacementStage(ctx, tx, jobID, stageID)
 		if err != nil {
 			return err
 		}
+		if replacement.templateID == nil {
+			var initialID string
+			if err := tx.QueryRow(ctx, `SELECT id FROM stage_templates WHERE user_id = $1
+				ORDER BY (kind = 'saved') DESC, "order", created_at, id LIMIT 1 FOR KEY SHARE`, userID).Scan(&initialID); err != nil {
+				return fmt.Errorf("find initial stage template: %w", err)
+			}
+			replacement.templateID = &initialID
+		}
 		if _, err := tx.Exec(ctx,
-			`UPDATE jobs SET current_stage_id = $2, current_stage_template_id = COALESCE($3, current_stage_template_id), updated_at = $4 WHERE id = $1`,
+			`UPDATE jobs SET current_stage_id = $2, current_stage_template_id = $3, updated_at = $4 WHERE id = $1`,
 			jobID, replacement.id, replacement.templateID, time.Now().UTC(),
 		); err != nil {
 			return fmt.Errorf("failed to update job current stage: %w", err)

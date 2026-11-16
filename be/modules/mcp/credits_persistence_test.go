@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 
 	"github.com/andreypavlenko/jobber/internal/platform/ai"
@@ -113,8 +114,9 @@ func (r *creditWorkflow) Get(_ context.Context, owner, id string) (*rbModel.Tail
 
 type creditLetterRepository struct {
 	cvPorts.CoverLetterRepository
-	mu      sync.Mutex
-	letters map[string]*cvModel.CoverLetter
+	mu       sync.Mutex
+	letters  map[string]*cvModel.CoverLetter
+	failSave bool
 }
 
 func (r *creditLetterRepository) Create(_ context.Context, letter *cvModel.CoverLetter) (*cvModel.CoverLetter, error) {
@@ -143,6 +145,9 @@ func (r *creditLetterRepository) GetByID(_ context.Context, owner, id string) (*
 func (r *creditLetterRepository) Update(_ context.Context, letter *cvModel.CoverLetter) (*cvModel.CoverLetter, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.failSave && len(letter.Paragraphs) > 0 {
+		return nil, errors.New("private storage detail")
+	}
 	copy := *letter
 	copy.Paragraphs = append([]string(nil), letter.Paragraphs...)
 	r.letters[copy.ID] = &copy

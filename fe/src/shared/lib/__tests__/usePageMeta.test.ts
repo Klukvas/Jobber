@@ -54,19 +54,19 @@ describe("usePageMeta", () => {
 
   it("sets default title when no options are provided", () => {
     renderHook(() => usePageMeta(), { wrapper });
-    expect(document.title).toBe("Default Title");
+    expect(document.title).toBe("Default Title — Cursopus");
   });
 
   it("sets a literal title when provided", () => {
     renderHook(() => usePageMeta({ title: "My Custom Title" }), { wrapper });
-    expect(document.title).toBe("My Custom Title");
+    expect(document.title).toBe("My Custom Title — Cursopus");
   });
 
   it("sets title from translation key", () => {
     renderHook(() => usePageMeta({ titleKey: "pages.dashboard" }), {
       wrapper,
     });
-    expect(document.title).toBe("Dashboard");
+    expect(document.title).toBe("Dashboard — Cursopus");
   });
 
   it("sets meta description tag", () => {
@@ -78,7 +78,7 @@ describe("usePageMeta", () => {
   it("sets og:title meta tag", () => {
     renderHook(() => usePageMeta({ title: "OG Title" }), { wrapper });
     const meta = document.querySelector('meta[property="og:title"]');
-    expect(meta?.getAttribute("content")).toBe("OG Title");
+    expect(meta?.getAttribute("content")).toBe("OG Title — Cursopus");
   });
 
   it("sets og:description meta tag", () => {
@@ -132,7 +132,7 @@ describe("usePageMeta", () => {
       document
         .querySelector('meta[name="twitter:title"]')
         ?.getAttribute("content"),
-    ).toBe("Tw Title");
+    ).toBe("Tw Title — Cursopus");
     expect(
       document
         .querySelector('meta[name="twitter:description"]')
@@ -162,4 +162,9 @@ describe("usePageMeta", () => {
     const canonical = document.querySelector('link[rel="canonical"]');
     expect(canonical?.getAttribute("href")).toBe("https://cursopus.com/test");
   });
+});
+
+it("does not append a second brand to a public title", () => {
+  renderHook(() => usePageMeta({ title: "Resume builder — Cursopus" }), { wrapper });
+  expect(document.title).toBe("Resume builder — Cursopus");
 });
