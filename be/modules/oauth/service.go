@@ -92,7 +92,7 @@ func (s *Service) Preview(ctx context.Context, userID string, params AuthorizePa
 		return nil, err
 	}
 	// Never emit redirect_to or persist fetched metadata before trusting this callback.
-	if !contains(client.RedirectURIs, params.RedirectURI) {
+	if !redirectAllowed(client.RedirectURIs, params.RedirectURI) {
 		return nil, ErrInvalidRequest
 	}
 	if code := s.authorizationError(params, client); code != "" {

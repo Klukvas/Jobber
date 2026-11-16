@@ -93,12 +93,43 @@ func ValidateRedirectURI(raw string) error {
 	if parsed.Scheme != "http" {
 		return ErrInvalidRequest
 	}
-	host := parsed.Hostname()
-	port, err := strconv.Atoi(parsed.Port())
-	if err != nil || port < 1 || port > 65535 || !(host == "127.0.0.1" || host == "localhost" || host == "::1") {
+	if !isLoopbackHost(parsed.Hostname()) {
 		return ErrInvalidRequest
 	}
+	// Native clients register loopback callbacks without a port (RFC 8252 §7.3).
+	if parsed.Port() != "" {
+		port, err := strconv.Atoi(parsed.Port())
+		if err != nil || port < 1 || port > 65535 {
+			return ErrInvalidRequest
+		}
+	}
 	return nil
+}
+
+func isLoopbackHost(host string) bool {
+	return host == "127.0.0.1" || host == "localhost" || host == "::1"
+}
+
+// redirectAllowed matches registered callbacks exactly, except that an http
+// loopback callback accepts any port: native clients such as Claude Code
+// listen on an ephemeral port and register "http://localhost/callback"
+// (RFC 8252 §7.3). Scheme, host, path and query must still match exactly.
+func redirectAllowed(registered []string, requested string) bool {
+	if contains(registered, requested) {
+		return true
+	}
+	target, err := url.Parse(requested)
+	if err != nil || target.Scheme != "http" || !isLoopbackHost(target.Hostname()) || ValidateRedirectURI(requested) != nil {
+		return false
+	}
+	for _, candidate := range registered {
+		allowed, err := url.Parse(candidate)
+		if err == nil && allowed.Scheme == "http" && allowed.Hostname() == target.Hostname() &&
+			allowed.EscapedPath() == target.EscapedPath() && allowed.RawQuery == target.RawQuery {
+			return true
+		}
+	}
+	return false
 }
 
 // ValidateClient returns a normalized copy; callers retain ownership of input.
