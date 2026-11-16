@@ -35,7 +35,8 @@ func TestValidateRedirectURI(t *testing.T) {
 	}{
 		{callback, true}, {"https://client.test:65536/cb", false}, {"https://chatgpt.com/connector/oauth/id?query=1", true},
 		{"http://127.0.0.1:1234/callback", true}, {"http://localhost:1234/cb", true}, {"http://[::1]:1234/cb", true},
-		{"http://127.0.0.2:1234/cb", false}, {"http://localhost/cb", false}, {"http://localhost:0/cb", false},
+		{"http://127.0.0.2:1234/cb", false}, {"http://localhost/cb", true}, {"http://127.0.0.1/callback", true}, {"http://localhost:0/cb", false},
+		{"http://localhost:abc/cb", false}, {"http://127.0.0.2/cb", false},
 		{"http://localhost:65536/cb", false}, {"http://localhost.evil:123/cb", false}, {"http://example.com:123/cb", false},
 		{"https://example.com/cb#frag", false}, {"https://example.com/cb#", false}, {"https://user@example.com/cb", false},
 		{"javascript:alert(1)", false}, {"//example.com", false}, {"https://", false}, {"https://example.com/" + strings.Repeat("x", 2048), false},
@@ -86,5 +87,29 @@ func TestRandomSecrets(t *testing.T) {
 		require.NotEqual(t, one, two)
 		require.Len(t, hashSecret(one), 64)
 		require.False(t, validSecret(one+"!", prefix))
+	}
+}
+
+func TestRedirectAllowed(t *testing.T) {
+	registered := []string{"http://localhost/callback", "http://127.0.0.1/callback", "https://client.test/cb?x=1"}
+	for _, test := range []struct {
+		requested string
+		allowed   bool
+	}{
+		{"http://localhost/callback", true},
+		{"http://localhost:54321/callback", true},
+		{"http://127.0.0.1:8080/callback", true},
+		{"https://client.test/cb?x=1", true},
+		{"https://client.test:8443/cb?x=1", false},
+		{"http://localhost:54321/callback/extra", false},
+		{"http://localhost:54321/other", false},
+		{"http://localhost:54321/callback?x=1", false},
+		{"http://[::1]:54321/callback", false},
+		{"https://localhost:54321/callback", false},
+		{"http://localhost:0/callback", false},
+		{"http://localhost.evil:54321/callback", false},
+		{"http://user@localhost:54321/callback", false},
+	} {
+		t.Run(test.requested, func(t *testing.T) { require.Equal(t, test.allowed, redirectAllowed(registered, test.requested)) })
 	}
 }

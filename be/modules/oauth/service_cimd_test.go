@@ -114,3 +114,45 @@ func TestCIMDConcurrentFetchLimit(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidClient)
 	require.Len(t, entered, 1)
 }
+
+// The real document Claude Code serves as its client_id: portless loopback
+// callbacks, while the CLI listens on an ephemeral port.
+const claudeCodeMetadataID = "https://claude.ai/oauth/claude-code-client-metadata"
+
+const claudeCodeMetadata = `{"client_id":"https://claude.ai/oauth/claude-code-client-metadata","client_name":"Claude Code","client_uri":"https://claude.ai","redirect_uris":["http://localhost/callback","http://127.0.0.1/callback"],"grant_types":["authorization_code","refresh_token"],"response_types":["code"],"token_endpoint_auth_method":"none"}`
+
+type documentFetcher struct{ body string }
+
+func (f documentFetcher) Fetch(_ context.Context, id string) (*Client, error) {
+	return parseMetadata(id, []byte(f.body))
+}
+
+func TestClaudeCodeMetadataDocumentAuthorizes(t *testing.T) {
+	for _, test := range []struct {
+		redirect string
+		allowed  bool
+	}{
+		{"http://localhost:54321/callback", true},
+		{"http://127.0.0.1:61000/callback", true},
+		{"http://localhost:54321/evil", false},
+		{"https://evil.test/callback", false},
+	} {
+		t.Run(test.redirect, func(t *testing.T) {
+			service, store := newTestService()
+			store.client = nil
+			service.fetcher = documentFetcher{claudeCodeMetadata}
+			params := validAuthorize()
+			params.ClientID, params.RedirectURI = claudeCodeMetadataID, test.redirect
+			preview, err := service.Preview(t.Context(), "user", params)
+			if !test.allowed {
+				require.ErrorIs(t, err, ErrInvalidRequest)
+				require.Zero(t, store.saved)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, preview.Client)
+			require.Equal(t, "Claude Code", preview.Client.Name)
+			require.Equal(t, 1, store.saved)
+		})
+	}
+}
