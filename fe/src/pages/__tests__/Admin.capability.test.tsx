@@ -7,6 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   focusManager,
@@ -86,12 +87,12 @@ let client: QueryClient;
 let unbind: () => void;
 function Nav() {
   const access = useAdminAccess();
-  return access.data?.allowed && !access.isError ? (
+  return access.data?.allowed && access.isFetchedAfterMount && !access.isError ? (
     <nav aria-label="Admin navigation">Admin link</nav>
   ) : null;
 }
 function setup() {
-  render(
+  return render(
     <QueryClientProvider client={client}>
       <Nav />
       <AdminPage />
@@ -150,6 +151,87 @@ function expectNoProtectedData() {
 }
 
 describe("admin capability boundary", () => {
+  it.each([
+    ["persistent navigation", false],
+    ["persistent navigation", true],
+    ["immediate remount", false],
+    ["immediate remount", true],
+  ] as const)(
+    "waits for a post-mount check with %s before applying allowed:%s",
+    async (scenario, allowed) => {
+      const view =
+        scenario === "persistent navigation"
+          ? render(
+              <QueryClientProvider client={client}>
+                <MemoryRouter initialEntries={["/admin"]}>
+                  <Nav />
+                  <Link to="/resumes">Go to resumes</Link>
+                  <Link to="/admin">Go to administration</Link>
+                  <Routes>
+                    <Route path="/admin" element={<AdminPage />} />
+                    <Route path="/resumes" element={<h1>Resumes</h1>} />
+                  </Routes>
+                </MemoryRouter>
+              </QueryClientProvider>,
+            )
+          : setup();
+      await screen.findByRole("button", { name: /Protected name/ });
+      await screen.findByRole("heading", { name: "Registration overview" });
+      const recheck = deferred<{ allowed: boolean }>();
+      vi.mocked(apiClient.get)
+        .mockClear()
+        .mockImplementation((url) =>
+          url === "admin/access"
+            ? recheck.promise
+            : Promise.resolve(url.startsWith("admin/stats?") ? stats : list),
+        );
+
+      if (scenario === "persistent navigation") {
+        fireEvent.click(screen.getByRole("link", { name: "Go to resumes" }));
+        expect(
+          screen.getByRole("heading", { name: "Resumes" }),
+        ).toBeInTheDocument();
+        expect(screen.getByRole("navigation")).toBeInTheDocument();
+        fireEvent.click(
+          screen.getByRole("link", { name: "Go to administration" }),
+        );
+      } else {
+        view.unmount();
+        // Remount synchronously, before gcTime:0 can collect the inactive query.
+        setup();
+        expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+      }
+
+      expect(screen.queryByText("Protected name")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("status", { name: "Checking administrator access" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("heading", { name: "Registration overview" }),
+      ).not.toBeInTheDocument();
+      expect(apiClient.get).toHaveBeenCalledTimes(1);
+      expect(apiClient.get).toHaveBeenCalledWith("admin/access", expect.anything());
+
+      await act(async () => recheck.resolve({ allowed }));
+      if (allowed) {
+        await screen.findByRole("button", { name: /Protected name/ });
+        expect(
+          screen.getByRole("heading", { name: "Registration overview" }),
+        ).toBeInTheDocument();
+        expect(screen.getByRole("navigation")).toBeInTheDocument();
+      } else {
+        await screen.findByRole("heading", {
+          name: "Administrator access required",
+        });
+        expect(screen.queryByText("Protected name")).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole("heading", { name: "Registration overview" }),
+        ).not.toBeInTheDocument();
+        expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+        expectNoProtectedData();
+      }
+    },
+  );
   it.each([0, 60_000])(
     "hides cached navigation and protected data on remount after %s ms until access is rechecked",
     async (elapsed) => {
@@ -214,6 +296,9 @@ describe("admin capability boundary", () => {
     );
     await screen.findByRole("button", { name: /Protected name/ });
     expect(screen.getByRole("navigation")).toBeInTheDocument();
+    expect(
+      vi.mocked(apiClient.get).mock.calls.filter(([url]) => url === "admin/access"),
+    ).toHaveLength(2);
   });
   it.each(["other actor", "same actor relogin"])(
     "clears negative capability after %s",

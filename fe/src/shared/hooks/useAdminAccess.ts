@@ -24,6 +24,7 @@ export function useAdminAccess() {
     // Denials live in the session scope; a remounted surface must prove access again.
     staleTime: 0,
     gcTime: 0,
+    refetchOnMount: "always",
     refetchInterval: scope.denied ? false : 30_000,
     refetchOnWindowFocus: scope.denied ? false : "always",
   });

@@ -249,7 +249,9 @@ export function Sidebar() {
           <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
             {[
               ...navItems,
-              ...(adminAccess.data?.allowed && !adminAccess.isError
+              ...(adminAccess.data?.allowed &&
+              adminAccess.isFetchedAfterMount &&
+              !adminAccess.isError
                 ? [
                     {
                       path: "/app/admin",
