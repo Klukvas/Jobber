@@ -1,4 +1,5 @@
 import { endSession } from "@/shared/lib/session";
+import { adoptSameAccountSession } from "@/shared/lib/sessionGeneration";
 import { apiClient } from "./api";
 import type {
   LoginRequest,
@@ -37,6 +38,11 @@ export const authService = {
 
   async logout(): Promise<void> {
     logoutEpoch += 1;
+    // While this tab still knows its account: if that same account signed in
+    // again in another tab, the logout is still this user's to send. After
+    // endSession the tab could no longer tell. Anything else stays as it is,
+    // so a logout from a tab that is behind is still refused.
+    adoptSameAccountSession();
     endSession();
     return apiClient.post<void>("auth/logout");
   },

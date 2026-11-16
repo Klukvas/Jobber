@@ -572,4 +572,60 @@ describe("session generation across tabs", () => {
     expect(server.jar()).toBe("b");
     expect(two.signedIn()).toBe("b");
   });
+  // A session that expired in one tab is renewed by signing in again there.
+  // The same person's other tabs keep their state, and their own requests may
+  // refresh and replay: the cookies are still that account's.
+  it.each([
+    ["after the broadcast", true],
+    ["before it arrives", false],
+  ])("keeps another tab of the same account signed in when it signs in again (%s)", async (_label, delivered) => {
+    installLocks();
+    const channels = installChannels();
+    const one = await openTab("a");
+    const two = await openTab("a");
+    const server = cookieServer(["jobs"]);
+
+    await one.signIn("a");
+    if (delivered) channels.deliver();
+    const read = two.api.get("jobs");
+    await server.release("jobs", 401);
+    await read;
+
+    expect(two.signedIn()).toBe("a");
+    expect(two.queries.getQueryData(["jobs"])).toEqual(["a's job"]);
+    expect(server.calls).toEqual(["login a", "GET jobs as a", "refresh as a", "GET jobs as a"]);
+    expect(persistedUser()).toBe("a");
+  });
+
+  it("still signs another tab out when a different account signs in", async () => {
+    installLocks();
+    const channels = installChannels();
+    const one = await openTab("a");
+    const two = await openTab("a");
+    const server = cookieServer(["jobs"]);
+
+    await one.signIn("b");
+    const read = two.api.get("jobs").catch((error: unknown) => error);
+    await server.release("jobs", 401);
+    channels.deliver();
+
+    expect(await read).toMatchObject({ name: "AbortError" });
+    expect(server.calls).toEqual(["login b", "GET jobs as b"]);
+    expect(two.signedIn()).toBeUndefined();
+    expect(persistedUser()).toBe("b");
+  });
+  it("a tab that missed the same account signing in again still logs out on the server", async () => {
+    installLocks();
+    installChannels();
+    const one = await openTab("a");
+    const two = await openTab("a");
+    const server = cookieServer();
+
+    await one.signIn("a");
+    await two.auth.logout();
+
+    expect(server.calls).toEqual(["login a", "logout"]);
+    expect(server.jar()).toBeUndefined();
+    expect(two.signedIn()).toBeUndefined();
+  });
 });

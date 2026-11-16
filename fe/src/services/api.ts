@@ -12,11 +12,13 @@ import { sessionSignal } from "@/shared/lib/sessionLifetime";
 import { endSession } from "@/shared/lib/session";
 import {
   type SessionGeneration,
+  isSameAccountSession,
   isSessionGenerationCurrent,
   isTabSessionCurrent,
   sharedSessionGeneration,
   startSessionGeneration,
   syncTabSession,
+  tabAccount,
   tabSessionGeneration,
 } from "@/shared/lib/sessionGeneration";
 import { loginPathFor } from "@/shared/lib/loginReturn";
@@ -63,6 +65,26 @@ function assertSessionCurrent(generation: SessionGeneration | undefined): void {
   throw sessionChanged();
 }
 
+/**
+ * For a refresh and its replay: the session may also have been renewed by the
+ * same account signing in again in another tab. The cookies are still that
+ * account's, so its own request may go ahead.
+ */
+function assertSameAccount(
+  generation: SessionGeneration | undefined,
+  account: string | null | undefined,
+): void {
+  if (generation === undefined || isSameAccountSession(generation, account)) return;
+  syncTabSession();
+  throw sessionChanged();
+}
+
+/** The account a login response signed in, if it says. */
+function signedInAccount(result: unknown): string | null {
+  const id = (result as { user?: { id?: unknown } } | null)?.user?.id;
+  return typeof id === "string" && id ? id : null;
+}
+
 /** File uploads and PDF renders need longer than an ordinary JSON call. */
 const LONG_REQUEST_TIMEOUT_MS = 60_000;
 
@@ -103,6 +125,8 @@ interface RequestContext {
   readonly session?: AbortSignal;
   /** The cross-tab session the request was sent under; absent on public paths. */
   readonly generation?: SessionGeneration;
+  /** The account the tab showed when the request was sent. */
+  readonly account?: string | null;
 }
 
 /**
@@ -183,8 +207,8 @@ class ApiClient {
             lifetime?.throwIfAborted();
             // A 401 for a session another tab has ended is no reason to
             // refresh: the cookies may belong to someone else by now.
-            assertSessionCurrent(context.generation);
-            const refreshed = await this.tryRefreshToken(lifetime ?? sessionSignal(), context.generation);
+            assertSameAccount(context.generation, context.account);
+            const refreshed = await this.tryRefreshToken(lifetime ?? sessionSignal(), context.generation, context.account);
             lifetime?.throwIfAborted();
             if (!refreshed) {
               // The session is over. Everything cached under it goes with it —
@@ -197,7 +221,7 @@ class ApiClient {
 
             // Another tab may have logged out or signed in while the refresh
             // waited: the replay would carry this request's body into it.
-            assertSessionCurrent(context.generation);
+            assertSameAccount(context.generation, context.account);
             return this.retryOnce(request, contextTimeout(options));
           },
         ],
@@ -262,11 +286,15 @@ class ApiClient {
     return crypto.randomUUID();
   }
 
-  private async tryRefreshToken(signal: AbortSignal, generation: SessionGeneration | undefined): Promise<boolean> {
+  private async tryRefreshToken(
+    signal: AbortSignal,
+    generation: SessionGeneration | undefined,
+    account: string | null | undefined,
+  ): Promise<boolean> {
     signal.throwIfAborted();
     const pending = this.refreshPromise;
     if (pending?.signal === signal && pending.generation === generation) return pending.promise;
-    const refresh = { signal, generation, promise: this.doRefreshToken(signal, generation) };
+    const refresh = { signal, generation, promise: this.doRefreshToken(signal, generation, account) };
     this.refreshPromise = refresh;
     try {
       return await refresh.promise;
@@ -275,12 +303,16 @@ class ApiClient {
     }
   }
 
-  private async doRefreshToken(signal: AbortSignal, generation: SessionGeneration | undefined): Promise<boolean> {
+  private async doRefreshToken(
+    signal: AbortSignal,
+    generation: SessionGeneration | undefined,
+    account: string | null | undefined,
+  ): Promise<boolean> {
     try {
       await this.waitForLogout();
       await withAuthCookieLock(async () => {
         signal.throwIfAborted();
-        assertSessionCurrent(generation);
+        assertSameAccount(generation, account);
         await ky.post(`${API_BASE_URL}/auth/refresh`, {
           credentials: "include", signal, retry: 0, timeout: REQUEST_TIMEOUT_MS,
         });
@@ -291,7 +323,7 @@ class ApiClient {
       signal.throwIfAborted();
       // Not a refused refresh: the session moved on, and ending "it" here
       // would sign out whichever session replaced it.
-      assertSessionCurrent(generation);
+      assertSameAccount(generation, account);
       console.error("[ApiClient] token refresh failed:", err instanceof Error ? err.message : "unknown error");
       return false;
     }
@@ -411,7 +443,9 @@ class ApiClient {
       // erase the next session too. Register it before any asynchronous work.
       if (this.logoutRequest) return this.logoutRequest as Promise<T>;
       // Another tab already ended the session this tab is logging out of. The
-      // cookies may belong to a newer sign-in now; leave them alone.
+      // cookies may belong to a newer sign-in now; leave them alone. (A tab
+      // whose account signed in again elsewhere has adopted it by now: on the
+      // broadcast, when shown, or in authService.logout before its state goes.)
       if (!isTabSessionCurrent()) {
         syncTabSession();
         throw sessionChanged();
@@ -455,7 +489,7 @@ class ApiClient {
           // register and refresh leave the session as it was.
           if (path === "auth/login") {
             assertSessionCurrent(generation);
-            startSessionGeneration();
+            startSessionGeneration(signedInAccount(result));
           }
           return result;
         }
@@ -619,6 +653,7 @@ function requestOptions(timeoutMs: number, options: RequestOptions | undefined, 
     context: {
       timeoutMs, session: lifetime,
       generation: isPublic ? undefined : tabSessionGeneration(),
+      account: isPublic ? undefined : tabAccount(),
     } satisfies RequestContext,
   };
 }
