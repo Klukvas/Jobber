@@ -47,6 +47,9 @@ export function Tooltip({
   );
 
   const show = () => {
+    // Focus and hover can both arrive; a second timer would orphan the first,
+    // which unmount cleanup no longer knows about.
+    if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setVisible(true), delayMs);
   };
 
