@@ -8,6 +8,7 @@ import { BrowserMockup } from "@/shared/ui/BrowserMockup";
 import { useAuthStore } from "@/stores/authStore";
 import { FeatureFaq } from "@/features/home/components/FeatureFaq";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
+import { promoScreenshotSrc } from "@/shared/lib/promoScreenshots";
 
 const NS = "featurePages.coverLetters";
 
@@ -76,7 +77,7 @@ export default function FeatureCoverLetters() {
                 height={1600}
                 dark
                 url="cursopus.com/app/cover-letters"
-                src="/screenshots/07_cover_letters.png"
+                src={promoScreenshotSrc("07_cover_letters.png")}
                 alt="Cursopus cover letters"
               />
             </div>
@@ -190,7 +191,7 @@ export default function FeatureCoverLetters() {
                 width={2560}
                 height={1600}
                 url="cursopus.com/app/cover-letters"
-                src="/screenshots/07_cover_letters.png"
+                src={promoScreenshotSrc("07_cover_letters.png")}
                 alt="Cover letters library"
               />
               <div>

@@ -8,6 +8,7 @@ import { BrowserMockup } from "@/shared/ui/BrowserMockup";
 import { useAuthStore } from "@/stores/authStore";
 import { FeatureFaq } from "@/features/home/components/FeatureFaq";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
+import { promoScreenshotSrc } from "@/shared/lib/promoScreenshots";
 
 const NS = "featurePages.resumeBuilder";
 
@@ -76,7 +77,7 @@ export default function FeatureResumeBuilder() {
                 height={1600}
                 dark
                 url="cursopus.com/app/resumes"
-                src="/screenshots/04_resumes.png"
+                src={promoScreenshotSrc("04_resumes.png")}
                 alt="Cursopus resume builder"
               />
             </div>
@@ -117,7 +118,7 @@ export default function FeatureResumeBuilder() {
                 width={2560}
                 height={1600}
                 url="cursopus.com/app/resumes"
-                src="/screenshots/04_resumes.png"
+                src={promoScreenshotSrc("04_resumes.png")}
                 alt="Resume templates"
               />
               <div>
@@ -175,7 +176,7 @@ export default function FeatureResumeBuilder() {
                 <div className="relative h-80 w-full">
                   <div className="absolute left-0 top-4 w-48 overflow-hidden rounded-lg border bg-card shadow-lg">
                     <img
-                      src="/screenshots/04_resumes.png"
+                      src={promoScreenshotSrc("04_resumes.png")}
                       width={2560}
                       height={1600}
                       alt="Resume version 1"
@@ -194,7 +195,7 @@ export default function FeatureResumeBuilder() {
                   </div>
                   <div className="absolute left-16 top-16 w-48 overflow-hidden rounded-lg border bg-card shadow-lg ring-2 ring-primary/30">
                     <img
-                      src="/screenshots/04_resumes.png"
+                      src={promoScreenshotSrc("04_resumes.png")}
                       width={2560}
                       height={1600}
                       alt="Resume version 2"
@@ -213,7 +214,7 @@ export default function FeatureResumeBuilder() {
                   </div>
                   <div className="absolute right-0 top-8 w-48 overflow-hidden rounded-lg border bg-card shadow-lg">
                     <img
-                      src="/screenshots/04_resumes.png"
+                      src={promoScreenshotSrc("04_resumes.png")}
                       width={2560}
                       height={1600}
                       alt="Resume version 3"
