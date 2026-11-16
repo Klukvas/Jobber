@@ -63,6 +63,10 @@ func TestValidateClient(t *testing.T) {
 		{"bad grant", func(c Client) Client { c.GrantTypes = []string{"password"}; return c }, false},
 		{"bad response", func(c Client) Client { c.ResponseTypes = []string{"token"}; return c }, false},
 		{"duplicate grant", func(c Client) Client { c.GrantTypes = []string{"refresh_token", "refresh_token"}; return c }, false},
+		{"extra grant", func(c Client) Client {
+			c.GrantTypes = []string{"authorization_code", "urn:ietf:params:oauth:grant-type:jwt-bearer"}
+			return c
+		}, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := ValidateClient(test.edit(valid))
@@ -75,6 +79,13 @@ func TestValidateClient(t *testing.T) {
 	require.Equal(t, callback, valid.RedirectURIs[0])
 	require.Equal(t, "none", result.AuthMethod)
 	require.Equal(t, []string{"authorization_code", "refresh_token"}, result.GrantTypes)
+
+	extra := valid
+	extra.GrantTypes = []string{"authorization_code", "refresh_token", "urn:ietf:params:oauth:grant-type:jwt-bearer"}
+	result, err = ValidateClient(extra)
+	require.NoError(t, err)
+	require.Equal(t, []string{"authorization_code", "refresh_token"}, result.GrantTypes)
+	require.Len(t, extra.GrantTypes, 3)
 }
 
 func TestRandomSecrets(t *testing.T) {

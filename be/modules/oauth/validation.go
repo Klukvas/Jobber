@@ -152,21 +152,39 @@ func validateClient(input Client, maxRedirects int) (Client, error) {
 			return Client{}, ErrInvalidRedirectURI
 		}
 	}
-	if !subset(input.GrantTypes, "authorization_code", "refresh_token") || !subset(input.ResponseTypes, "code") {
+	grants, ok := supportedGrants(input.GrantTypes)
+	if !ok || !subset(input.ResponseTypes, "code") {
 		return Client{}, ErrInvalidClientMetadata
 	}
 	output := input
 	output.RedirectURIs = append([]string(nil), input.RedirectURIs...)
-	output.GrantTypes = append([]string{}, input.GrantTypes...)
+	output.GrantTypes = grants
 	output.ResponseTypes = append([]string{}, input.ResponseTypes...)
-	if input.GrantTypes == nil {
-		output.GrantTypes = []string{"authorization_code", "refresh_token"}
-	}
 	if input.ResponseTypes == nil {
 		output.ResponseTypes = []string{"code"}
 	}
 	output.AuthMethod = "none"
 	return output, nil
+}
+
+// Clients may list grants this server lacks (claude.ai lists jwt-bearer);
+// RFC 7591 §3.2.1 lets the server register only the ones it supports.
+func supportedGrants(requested []string) ([]string, bool) {
+	if len(requested) == 0 {
+		return []string{"authorization_code", "refresh_token"}, true
+	}
+	seen := make(map[string]bool)
+	grants := []string{}
+	for _, grant := range requested {
+		if seen[grant] {
+			return nil, false
+		}
+		seen[grant] = true
+		if grant == "authorization_code" || grant == "refresh_token" {
+			grants = append(grants, grant)
+		}
+	}
+	return grants, len(grants) > 0
 }
 
 func subset(values []string, allowed ...string) bool {

@@ -121,6 +121,12 @@ const claudeCodeMetadataID = "https://claude.ai/oauth/claude-code-client-metadat
 
 const claudeCodeMetadata = `{"client_id":"https://claude.ai/oauth/claude-code-client-metadata","client_name":"Claude Code","client_uri":"https://claude.ai","redirect_uris":["http://localhost/callback","http://127.0.0.1/callback"],"grant_types":["authorization_code","refresh_token"],"response_types":["code"],"token_endpoint_auth_method":"none"}`
 
+// The real document claude.ai serves for custom connectors; it lists a
+// jwt-bearer grant this server does not support.
+const claudeWebMetadataID = "https://claude.ai/oauth/mcp-oauth-client-metadata"
+
+const claudeWebMetadata = `{"client_id":"https://claude.ai/oauth/mcp-oauth-client-metadata","client_name":"Claude","client_uri":"https://claude.ai","redirect_uris":["https://claude.ai/api/mcp/auth_callback"],"grant_types":["authorization_code","refresh_token","urn:ietf:params:oauth:grant-type:jwt-bearer"],"response_types":["code"],"token_endpoint_auth_method":"none"}`
+
 type documentFetcher struct{ body string }
 
 func (f documentFetcher) Fetch(_ context.Context, id string) (*Client, error) {
@@ -155,4 +161,15 @@ func TestClaudeCodeMetadataDocumentAuthorizes(t *testing.T) {
 			require.Equal(t, 1, store.saved)
 		})
 	}
+}
+
+func TestClaudeWebMetadataDocumentAuthorizes(t *testing.T) {
+	service, store := newTestService()
+	store.client = nil
+	service.fetcher = documentFetcher{claudeWebMetadata}
+	params := validAuthorize()
+	params.ClientID, params.RedirectURI = claudeWebMetadataID, "https://claude.ai/api/mcp/auth_callback"
+	preview, err := service.Preview(t.Context(), "user", params)
+	require.NoError(t, err)
+	require.Equal(t, "Claude", preview.Client.Name)
 }
