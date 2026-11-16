@@ -61,7 +61,7 @@ export function AiAssistantsSection() {
         <CardTitle className="flex flex-wrap items-center gap-2">
           {t("settings.aiAssistants.title")}
           {!isLoading && !isPro && (
-            <span className="rounded border border-primary/30 px-2 py-1 font-mono text-xs text-primary">Pro</span>
+            <span className="rounded border border-primary/30 px-2 py-1 font-mono text-xs text-primary-ink">Pro</span>
           )}
         </CardTitle>
         <CardDescription>{t("settings.aiAssistants.description")}</CardDescription>

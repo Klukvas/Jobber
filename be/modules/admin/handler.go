@@ -53,8 +53,11 @@ func NewHandler(store Store, identities IdentityReader, emails, origins string) 
 	return h
 }
 func (h *Handler) RegisterRoutes(router *gin.RouterGroup, authenticate gin.HandlerFunc) {
-	group := router.Group("/admin", authenticate, h.authorize)
-	group.GET("/access", func(c *gin.Context) { httpPlatform.RespondWithData(c, 200, gin.H{"allowed": true}) })
+	authenticated := router.Group("/admin", func(c *gin.Context) {
+		c.Header("Cache-Control", "no-store")
+	}, authenticate)
+	authenticated.GET("/access", h.access)
+	group := authenticated.Group("", h.authorize)
 	group.GET("/stats", h.stats)
 	group.GET("/users", h.list)
 	group.GET("/users/:id", h.detail)
@@ -67,24 +70,38 @@ func fail(c *gin.Context, status int, code, message string) {
 	httpPlatform.RespondWithError(c, status, code, message)
 	c.Abort()
 }
-func (h *Handler) authorize(c *gin.Context) {
-	c.Header("Cache-Control", "no-store")
+
+// checkAccess aborts only when capability cannot be checked. An authenticated
+// non-administrator is a normal negative result, not an authorization error.
+func (h *Handler) checkAccess(c *gin.Context) bool {
 	id, ok := auth.GetUserID(c)
 	if !ok || id == "" {
 		fail(c, 401, "UNAUTHORIZED", "Authentication required")
-		return
+		return false
 	}
 	// Token email claims and browser-persisted roles are never trusted.
 	user, err := h.identities.GetByID(c.Request.Context(), id)
 	if errors.Is(err, userModel.ErrUserNotFound) {
-		fail(c, 403, "FORBIDDEN", "Administrator access required")
-		return
+		return false
 	}
 	if err != nil {
 		fail(c, 503, "UNAVAILABLE", "Could not verify administrator access")
+		return false
+	}
+	return user != nil && user.ID == id && user.EmailVerified && h.emails[strings.ToLower(strings.TrimSpace(user.Email))]
+}
+func (h *Handler) access(c *gin.Context) {
+	allowed := h.checkAccess(c)
+	if !c.IsAborted() {
+		httpPlatform.RespondWithData(c, 200, gin.H{"allowed": allowed})
+	}
+}
+func (h *Handler) authorize(c *gin.Context) {
+	allowed := h.checkAccess(c)
+	if c.IsAborted() {
 		return
 	}
-	if user == nil || user.ID != id || !user.EmailVerified || !h.emails[strings.ToLower(strings.TrimSpace(user.Email))] {
+	if !allowed {
 		fail(c, 403, "FORBIDDEN", "Administrator access required")
 		return
 	}

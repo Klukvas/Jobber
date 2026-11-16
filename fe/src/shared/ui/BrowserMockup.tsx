@@ -4,11 +4,13 @@ interface BrowserMockupProps {
   readonly url: string;
   readonly src: string;
   readonly alt: string;
+  readonly width?: number;
+  readonly height?: number;
   readonly dark?: boolean;
   readonly className?: string;
 }
 
-export function BrowserMockup({ url, src, alt, dark = false, className }: BrowserMockupProps) {
+export function BrowserMockup({ url, src, alt, width, height, dark = false, className }: BrowserMockupProps) {
   if (dark) {
     return (
       <div className={cn("overflow-hidden rounded-xl border border-white/10 shadow-2xl", className)}>
@@ -20,7 +22,7 @@ export function BrowserMockup({ url, src, alt, dark = false, className }: Browse
             {url}
           </div>
         </div>
-        <img src={src} alt={alt} className="block w-full" loading="lazy" />
+        <img src={src} alt={alt} width={width} height={height} className="block h-auto w-full" loading="lazy" />
       </div>
     );
   }
@@ -35,7 +37,7 @@ export function BrowserMockup({ url, src, alt, dark = false, className }: Browse
           {url}
         </div>
       </div>
-      <img src={src} alt={alt} className="block w-full" loading="lazy" />
+      <img src={src} alt={alt} width={width} height={height} className="block h-auto w-full" loading="lazy" />
     </div>
   );
 }

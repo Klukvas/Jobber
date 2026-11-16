@@ -150,6 +150,97 @@ function expectNoProtectedData() {
 }
 
 describe("admin capability boundary", () => {
+  it.each([0, 60_000])(
+    "hides cached navigation and protected data on remount after %s ms until access is rechecked",
+    async (elapsed) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      setup();
+      await screen.findByRole("button", { name: /Protected name/ });
+      expect(screen.getByRole("navigation")).toBeInTheDocument();
+      const accessKey = adminKeys.access(currentAdminRequest());
+      cleanup();
+      // Let the inactive capability expire while protected queries remain cached.
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      vi.setSystemTime(Date.now() + elapsed);
+      const recheck = deferred<{ allowed: boolean }>();
+      vi.mocked(apiClient.get).mockImplementation((url) =>
+        url === "admin/access"
+          ? recheck.promise
+          : Promise.resolve(url.startsWith("admin/stats?") ? stats : list),
+      );
+      setup();
+      await waitFor(() =>
+        expect(client.getQueryState(accessKey)?.fetchStatus).toBe("fetching"),
+      );
+      expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+      expect(screen.queryByText("Protected name")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("heading", { name: "Registration overview" }),
+      ).not.toBeInTheDocument();
+      await act(async () => recheck.resolve({ allowed: false }));
+      await screen.findByRole("heading", { name: "Administrator access required" });
+      expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+      expect(screen.queryByText("Protected name")).not.toBeInTheDocument();
+      expectNoProtectedData();
+    },
+  );
+  it("keeps a negative capability successful and stops automatic probes until explicit recovery", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    vi.mocked(apiClient.get).mockResolvedValue({ allowed: false });
+    setup();
+    await screen.findByRole("heading", { name: "Administrator access required" });
+    const accessKey = adminKeys.access(currentAdminRequest());
+    await waitFor(() =>
+      expect(client.getQueryState(accessKey)?.status).toBe("success"),
+    );
+    expect(client.getQueryState(accessKey)?.error).toBeNull();
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(90_100);
+    });
+    act(() => focusManager.setFocused(false));
+    act(() => focusManager.setFocused(true));
+    cleanup();
+    setup();
+    await screen.findByRole("heading", { name: "Administrator access required" });
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+    vi.mocked(apiClient.get).mockImplementation(async (url) =>
+      url === "admin/access"
+        ? { allowed: true }
+        : url.startsWith("admin/stats?") ? stats : list,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Check access again" }),
+    );
+    await screen.findByRole("button", { name: /Protected name/ });
+    expect(screen.getByRole("navigation")).toBeInTheDocument();
+  });
+  it.each(["other actor", "same actor relogin"])(
+    "clears negative capability after %s",
+    async (switchKind) => {
+      vi.mocked(apiClient.get).mockResolvedValue({ allowed: false });
+      setup();
+      await screen.findByRole("heading", { name: "Administrator access required" });
+      const oldKey = adminKeys.access(currentAdminRequest());
+      vi.mocked(apiClient.get).mockImplementation(async (url) =>
+        url === "admin/access"
+          ? { allowed: true }
+          : url.startsWith("admin/stats?") ? stats : list,
+      );
+      await act(async () => {
+        if (switchKind === "same actor relogin") {
+          useAuthStore.setState({ user: null, isAuthenticated: false });
+          useAuthStore.setState({ user: actor, isAuthenticated: true });
+        } else useAuthStore.setState({ user: { ...actor, id: "actor-b" } });
+      });
+      await screen.findByRole("button", { name: /Protected name/ });
+      expect(client.getQueryData(oldKey)).toBeUndefined();
+      expect(screen.getByRole("navigation")).toBeInTheDocument();
+      expect(
+        vi.mocked(apiClient.get).mock.calls.filter(([url]) => url === "admin/access"),
+      ).toHaveLength(2);
+    },
+  );
   it("keeps the clicked test-account value when an offline mutation resumes after a detail refresh", async () => {
     setup();
     await selectTarget();

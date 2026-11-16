@@ -9,7 +9,7 @@ export function UpgradeState({ showBadge = false, onClosed }: { showBadge?: bool
   const [open, setOpen] = useState(false);
   return (
     <div className="space-y-3">
-      {showBadge && <span className="inline-block rounded border border-primary/30 px-2 py-1 font-mono text-xs text-primary">Pro</span>}
+      {showBadge && <span className="inline-block rounded border border-primary/30 px-2 py-1 font-mono text-xs text-primary-ink">Pro</span>}
       <p className="text-sm text-muted-foreground">
         {t("settings.aiAssistants.upgradeDescription")}
       </p>

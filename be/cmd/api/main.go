@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -241,13 +242,7 @@ func main() {
 			logger.Fatal("Invalid TRUSTED_PROXIES", zap.Error(err))
 		}
 	}
-	router.Use(sentryPlatform.RecoveryMiddleware(sentryEnabled))
-	router.Use(oauthModule.Privacy())
-	router.Use(httpPlatform.RequestIDMiddleware())
-	router.Use(httpPlatform.LoggerMiddleware(logger))
-	router.Use(oauthModule.PublicCORS())
-	router.Use(httpPlatform.CORSMiddleware(cfg.Server.AllowedOrigins))
-	router.Use(httpPlatform.CanonicalUUIDParams())
+	registerGlobalMiddleware(router, logger, sentryEnabled, cfg.Server.AllowedOrigins)
 
 	// Swagger documentation (available in development)
 	if cfg.Server.Env != "production" {
@@ -867,4 +862,22 @@ func pingHandler(c *gin.Context) {
 // @Router /session [get]
 func sessionHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// registerGlobalMiddleware keeps the production middleware order shared with routing tests.
+func registerGlobalMiddleware(router *gin.Engine, log *logger.Logger, sentryEnabled bool, allowedOrigins string) {
+	// Set this before CORS, UUID validation or any other middleware can abort.
+	router.Use(func(c *gin.Context) {
+		if c.Request.URL.Path == "/api/v1/admin" || strings.HasPrefix(c.Request.URL.Path, "/api/v1/admin/") {
+			c.Header("Cache-Control", "no-store")
+		}
+		c.Next()
+	})
+	router.Use(sentryPlatform.RecoveryMiddleware(sentryEnabled))
+	router.Use(oauthModule.Privacy())
+	router.Use(httpPlatform.RequestIDMiddleware())
+	router.Use(httpPlatform.LoggerMiddleware(log))
+	router.Use(oauthModule.PublicCORS())
+	router.Use(httpPlatform.CORSMiddleware(allowedOrigins))
+	router.Use(httpPlatform.CanonicalUUIDParams())
 }
