@@ -223,8 +223,8 @@ function DetailForm({
           {t("admin.close")}
         </Button>
       </div>
-      <p className="break-all text-xs text-muted-foreground">
-        ID: {user.id} ·{" "}
+      <p className="text-xs text-muted-foreground">
+        <span className="break-all">ID: {user.id}</span> ·{" "}
         {user.email_verified ? t("admin.verified") : t("admin.unverified")}
       </p>
       <div className="space-y-3 rounded-lg border bg-muted/20 p-4">

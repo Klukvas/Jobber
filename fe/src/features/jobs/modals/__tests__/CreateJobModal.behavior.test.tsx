@@ -294,3 +294,20 @@ it("trims the title on the minimal create path", async () => {
   await user.click(screen.getByRole("button", { name: "common.create" }));
   await waitFor(() => expect(mockJobsService.create.mock.calls[0][0].title).toBe("Synthetic title"));
 });
+
+
+it.each(["ftp://localhost/job", "javascript:alert(1)", "file:///etc/passwd", "data:text/html,hello"])("rejects %s before create or edit and describes the URL error", (url) => {
+  const view = render(<CreateJobModal open onOpenChange={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText(/jobs.title_field/), { target: { value: "Role" } });
+  fireEvent.change(screen.getByLabelText(/jobs.url/), { target: { value: url } });
+  expect(screen.getByLabelText(/jobs.url/)).toHaveAttribute("aria-invalid", "true");
+  expect(screen.getByRole("alert")).toHaveTextContent("errors.invalidUrl");
+  const submit = screen.getByRole("button", { name: "common.create" });
+  const form = submit.closest("form");
+  if (form) fireEvent.submit(form);
+  expect(mockJobsService.create).not.toHaveBeenCalled();
+  view.rerender(<CreateJobModal open onOpenChange={vi.fn()} job={makeJob({ url })} />);
+  const editForm = screen.getByRole("button", { name: "common.save" }).closest("form");
+  if (editForm) fireEvent.submit(editForm);
+  expect(mockJobsService.update).not.toHaveBeenCalled();
+});

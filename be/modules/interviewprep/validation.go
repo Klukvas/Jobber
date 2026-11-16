@@ -3,6 +3,7 @@ package interviewprep
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"reflect"
 	"strings"
@@ -10,19 +11,25 @@ import (
 )
 
 func strictJSON(raw []byte, target any) error {
-	if !utf8.Valid(raw) || len(raw) == 0 || len(raw) > 180000 {
-		return ErrInvalidAI
+	if !utf8.Valid(raw) {
+		return invalidInterview("decode", "utf8", "$")
 	}
-	if !requiredFields(raw, reflect.TypeOf(target).Elem()) {
-		return ErrInvalidAI
+	if len(raw) == 0 || len(raw) > 180000 {
+		return invalidInterview("decode", "size", "$")
+	}
+	if !json.Valid(raw) {
+		return invalidInterview("decode", "json", "$")
+	}
+	if err := requiredFieldDiagnostic(raw, reflect.TypeOf(target).Elem(), "$"); err != nil {
+		return err
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
-		return ErrInvalidAI
+		return invalidInterview("decode", "schema", "$")
 	}
 	if decoder.Decode(new(any)) != io.EOF {
-		return ErrInvalidAI
+		return invalidInterview("decode", "trailing_json", "$")
 	}
 	return nil
 }
@@ -52,54 +59,77 @@ func ValidatePlan(raw []byte, facts []Fact) (Plan, error) {
 	if err := strictJSON(raw, &p); err != nil {
 		return p, err
 	}
-	if len(p.Requirements) < 1 || len(p.Requirements) > 15 || len(p.Questions) < 3 || len(p.Questions) > 12 || p.Gaps == nil || len(p.Gaps) > 12 || len(p.InterviewerQuestions) < 1 || len(p.InterviewerQuestions) > 8 {
-		return p, ErrInvalidAI
+	for _, list := range []struct {
+		path            string
+		count, min, max int
+	}{
+		{"$.requirements", len(p.Requirements), 1, 15}, {"$.questions", len(p.Questions), 3, 12},
+		{"$.gaps", len(p.Gaps), 0, 12}, {"$.interviewer_questions", len(p.InterviewerQuestions), 1, 8},
+	} {
+		if list.count < list.min || list.count > list.max {
+			return p, invalidInterview("plan", "count", list.path)
+		}
 	}
-	for _, r := range p.Requirements {
-		if !validText(r.Requirement, 1000, true) || !validText(r.Assessment, 1500, true) || !evidenceValid(r.Evidence, facts) {
-			return p, ErrInvalidAI
+	for i, r := range p.Requirements {
+		path := fmt.Sprintf("$.requirements[%d]", i)
+		if err := interviewTexts(path, []boundedInterviewText{{"requirement", r.Requirement, 1000}, {"assessment", r.Assessment, 1500}}); err != nil {
+			return p, err
+		}
+		if err := interviewEvidence(r.Evidence, facts, path+".evidence"); err != nil {
+			return p, err
 		}
 	}
 	ids := map[string]bool{}
 	kinds := map[string]bool{}
-	for _, q := range p.Questions {
-		if !validText(q.ID, 64, true) || ids[q.ID] || strings.HasPrefix(q.ID, "followup:") || !validText(q.Question, 1500, true) || !validText(q.Purpose, 1000, true) || !validText(q.Advice, 2000, true) || !evidenceValid(q.Evidence, facts) {
-			return p, ErrInvalidAI
+	for i, q := range p.Questions {
+		path := fmt.Sprintf("$.questions[%d]", i)
+		if err := interviewTexts(path, []boundedInterviewText{{"id", q.ID, 64}, {"question", q.Question, 1500}, {"purpose", q.Purpose, 1000}, {"advice", q.Advice, 2000}}); err != nil {
+			return p, err
+		}
+		if ids[q.ID] || strings.HasPrefix(q.ID, "followup:") {
+			return p, invalidInterview("plan", "unique_id", path+".id")
 		}
 		ids[q.ID] = true
-		kinds[q.Kind] = true
 		if q.Kind != "technical" && q.Kind != "behavioral" && q.Kind != "situational" {
-			return p, ErrInvalidAI
+			return p, invalidInterview("plan", "enum", path+".kind")
 		}
+		kinds[q.Kind] = true
 		if q.Difficulty != "easy" && q.Difficulty != "medium" && q.Difficulty != "hard" {
-			return p, ErrInvalidAI
+			return p, invalidInterview("plan", "enum", path+".difficulty")
+		}
+		if err := interviewEvidence(q.Evidence, facts, path+".evidence"); err != nil {
+			return p, err
 		}
 		if q.Kind == "behavioral" && q.STAR == nil {
-			return p, ErrInvalidAI
+			return p, invalidInterview("plan", "required", path+".star")
 		}
 		if q.STAR != nil {
-			if !validText(q.STAR.Situation, 1000, true) || !validText(q.STAR.Task, 1000, true) || !validText(q.STAR.Action, 1000, true) || !validText(q.STAR.Result, 1000, true) {
-				return p, ErrInvalidAI
+			if err := interviewTexts(path+".star", []boundedInterviewText{{"situation", q.STAR.Situation, 1000}, {"task", q.STAR.Task, 1000}, {"action", q.STAR.Action, 1000}, {"result", q.STAR.Result, 1000}}); err != nil {
+				return p, err
 			}
 		}
 	}
 	if !kinds["technical"] || !kinds["behavioral"] || !kinds["situational"] {
-		return p, ErrInvalidAI
+		return p, invalidInterview("plan", "required_kinds", "$.questions")
 	}
-	for _, g := range p.Gaps {
-		if (g.Priority != "high" && g.Priority != "medium" && g.Priority != "low") || !validText(g.Gap, 1000, true) || !validText(g.Action, 1500, true) {
-			return p, ErrInvalidAI
+	for i, g := range p.Gaps {
+		path := fmt.Sprintf("$.gaps[%d]", i)
+		if g.Priority != "high" && g.Priority != "medium" && g.Priority != "low" {
+			return p, invalidInterview("plan", "enum", path+".priority")
+		}
+		if err := interviewTexts(path, []boundedInterviewText{{"gap", g.Gap, 1000}, {"action", g.Action, 1500}}); err != nil {
+			return p, err
 		}
 	}
-	for _, q := range p.InterviewerQuestions {
+	for i, q := range p.InterviewerQuestions {
 		if !validText(q, 1000, true) {
-			return p, ErrInvalidAI
+			return p, invalidInterview("plan", "text", fmt.Sprintf("$.interviewer_questions[%d]", i))
 		}
 	}
 	contexts := compactInput(Snapshot{}, p.Questions, nil).Questions
-	contextRaw, _ := json.Marshal(contexts)
-	if len(contextRaw) > maxQuestionContextBytes {
-		return Plan{}, ErrInvalidAI
+	contextRaw, err := json.Marshal(contexts)
+	if err != nil || len(contextRaw) > maxQuestionContextBytes {
+		return Plan{}, invalidInterview("plan", "context_bytes", "$.questions")
 	}
 	return p, nil
 }
@@ -168,42 +198,4 @@ func reviewFacts(input AIInput) []Fact {
 		}
 	}
 	return facts
-}
-
-func requiredFields(raw []byte, kind reflect.Type) bool {
-	if kind.Kind() == reflect.Pointer {
-		if string(raw) == "null" {
-			return true
-		}
-		return requiredFields(raw, kind.Elem())
-	}
-	switch kind.Kind() {
-	case reflect.Struct:
-		var fields map[string]json.RawMessage
-		if json.Unmarshal(raw, &fields) != nil || fields == nil {
-			return false
-		}
-		for i := 0; i < kind.NumField(); i++ {
-			field := kind.Field(i)
-			name := strings.Split(field.Tag.Get("json"), ",")[0]
-			if name == "-" {
-				continue
-			}
-			child, ok := fields[name]
-			if !ok || !requiredFields(child, field.Type) {
-				return false
-			}
-		}
-	case reflect.Slice:
-		var children []json.RawMessage
-		if json.Unmarshal(raw, &children) != nil {
-			return false
-		}
-		for _, child := range children {
-			if !requiredFields(child, kind.Elem()) {
-				return false
-			}
-		}
-	}
-	return true
 }

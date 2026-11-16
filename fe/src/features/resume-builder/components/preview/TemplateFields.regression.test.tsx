@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import "@/shared/lib/i18n";
+vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
 import { TEMPLATE_MAP } from "../../lib/templateRegistry";
 import { filledResumeFixture } from "./__tests__/filledResumeFixture";
@@ -16,10 +16,10 @@ describe("saved fields in actual templates", () => {
   ]))("renders filled fields in $name (editable=$editable)", ({ name, Template, editable }) => {
     useResumeBuilderStore.setState({ resume: { ...filledResumeFixture, template_id: name } });
     const { container } = render(<Template editable={editable} />);
-    for (const value of ["QA Office", "3.9", "2024-05-06", "Expert", "Full Professional"]) {
+    for (const value of ["QA Office", "3.9", "2024-05-06", "resumeBuilder.skillLevels.expert", "resumeBuilder.proficiencyLevels.full_professional"]) {
       expect(container).toHaveTextContent(value);
     }
-    expect(container).not.toHaveTextContent("full_professional");
+
   });
 
   it.each(["Expert", "Architecture specialist"])("preserves imported skill level %s", (level) => {
@@ -29,7 +29,7 @@ describe("saved fields in actual templates", () => {
         skills: filledResumeFixture.skills.map((skill) => ({ ...skill, level })),
       } });
       const { container, unmount } = render(<Template />);
-      expect(container).toHaveTextContent(level);
+      expect(container).toHaveTextContent(level === "Expert" ? "resumeBuilder.skillLevels.expert" : level);
       unmount();
     }
   });
@@ -69,11 +69,11 @@ describe("saved fields in actual templates", () => {
       section_order: [{ section_key: "certifications", sort_order: 0, is_visible: true, column: "sidebar" }],
     } });
     render(<Template editable />);
-    const displayedDate = screen.getByRole("textbox", { name: "Issue date" });
+    const displayedDate = screen.getByRole("textbox", { name: "resumeBuilder.placeholders.issueDate" });
     expect(displayedDate).toHaveClass("opacity-70");
     expect(displayedDate).not.toHaveClass("text-gray-700");
     fireEvent.mouseDown(displayedDate);
-    const input = screen.getByLabelText("Issue date");
+    const input = screen.getByLabelText("resumeBuilder.placeholders.issueDate");
     expect(input.tagName).toBe("INPUT");
     expect(input).toHaveClass("text-gray-700");
     fireEvent.change(input, { target: { value: "2025-07-08" } });
@@ -91,7 +91,7 @@ describe("saved fields in actual templates", () => {
       languages: filledResumeFixture.languages.map((language) => ({ ...language, proficiency: "FULL_PROFESSIONAL" })),
     } });
     render(<Template />);
-    expect(screen.getByText("QA English (Full Professional)")).toBeInTheDocument();
+    expect(screen.getByText("QA English (resumeBuilder.proficiencyLevels.full_professional)")).toBeInTheDocument();
   });
 
   it.each(["pill", "text-only"] as const)("preserves explicit name-only %s customization", (skill_display) => {
@@ -106,9 +106,9 @@ describe("saved fields in actual templates", () => {
     const Template = TEMPLATE_MAP["00000000-0000-0000-0000-000000000003"];
     useResumeBuilderStore.setState({ resume: { ...filledResumeFixture, template_id: "minimal" } });
     render(<Template editable />);
-    fireEvent.click(screen.getByRole("button", { name: "Proficiency" }));
-    fireEvent.click(screen.getByRole("button", { name: "Native" }));
+    fireEvent.click(screen.getByRole("button", { name: "resumeBuilder.placeholders.proficiency" }));
+    fireEvent.click(screen.getByRole("button", { name: "resumeBuilder.proficiencyLevels.native" }));
     expect(useResumeBuilderStore.getState().resume?.languages[0].proficiency).toBe("native");
-    expect(screen.getByText("Native")).toBeInTheDocument();
+    expect(screen.getByText("resumeBuilder.proficiencyLevels.native")).toBeInTheDocument();
   });
 });

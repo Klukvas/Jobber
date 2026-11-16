@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -39,6 +40,8 @@ type creditScope struct {
 	retry       string
 	durable     bool
 	fingerprint string
+	resultReady bool
+	admitted    bool
 }
 
 var OperationCosts = map[string]int{"tailor": 7, "cover_letter": 5, "match": 5, "resume_import": 7, "autofill_import": 7, "job_parse": 2, "bullet": 2, "summary": 2, "improve": 2, "ats": 3, "interview_plan": 8, "interview_feedback": 3, "interview_summary": 5}
@@ -288,6 +291,7 @@ func (c *AnthropicClient) admitBudgetedMessage(ctx context.Context, params anthr
 	if err != nil {
 		return nil, err
 	}
+	MarkCreditAdmission(ctx)
 	if err = ctx.Err(); err != nil {
 		return nil, errors.Join(err, c.creditStore.ReleaseCreditAttempt(context.WithoutCancel(ctx), id))
 	}
@@ -316,6 +320,10 @@ func (c *AnthropicClient) admitBudgetedMessage(ctx context.Context, params anthr
 	// The source transaction must release its sole pool connection BEFORE any
 	// monetary settlement, block persistence or compensation needs PostgreSQL.
 	callErr = errors.Join(callErr, release())
+	if response != nil {
+		slog.Info("AI provider response", "operation_id", op.Key, "kind", op.Kind, "stage", stage, "model", string(params.Model), "max_tokens", params.MaxTokens, "stop_reason", string(response.StopReason), "input_tokens", response.Usage.InputTokens, "output_tokens", response.Usage.OutputTokens, "response_bytes", len(extractTextFromResponse(response.Content)), "schema_version", 1)
+	}
+
 	if response != nil {
 		actual, usageErr := providerActualCost(params, response, reserve)
 		if usageErr != nil {

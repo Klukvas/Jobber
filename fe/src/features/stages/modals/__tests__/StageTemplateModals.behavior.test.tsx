@@ -433,3 +433,26 @@ describe("stage editing sessions", () => {
     expect(mockShowSuccess).not.toHaveBeenCalled();
   });
 });
+
+it.each(["create", "edit"])("%s validates the 255-code-point boundary before calling the API", async (mode) => {
+  const { fireEvent } = await import("@testing-library/react");
+  mockCreate.mockResolvedValue(template);
+  mockUpdate.mockResolvedValue(template);
+  renderWithClient(mode === "create"
+    ? <CreateStageTemplateModal open onOpenChange={vi.fn()} initialOrder={2} />
+    : <EditStageTemplateModal open onOpenChange={vi.fn()} template={template} />);
+  const input = screen.getByLabelText(mode === "create" ? /stages\.stageName/ : /stages\.name/);
+  fireEvent.change(input, { target: { value: "Ж".repeat(256) } });
+  expect(input).toHaveAttribute("aria-invalid", "true");
+  expect(screen.getByRole("alert")).toHaveTextContent("stages.nameTooLong");
+  const submit = screen.getByRole("button", { name: mode === "create" ? "common.create" : "common.save" });
+  const form = submit.closest("form");
+  if (form) fireEvent.submit(form);
+  expect(mockCreate).not.toHaveBeenCalled();
+  expect(mockUpdate).not.toHaveBeenCalled();
+  fireEvent.change(input, { target: { value: "🌍".repeat(255) } });
+  expect(submit).toBeEnabled();
+  fireEvent.click(submit);
+  await waitFor(() => expect(mode === "create" ? mockCreate : mockUpdate).toHaveBeenCalledTimes(1));
+  expect(input).toHaveAttribute("maxLength", "510");
+});

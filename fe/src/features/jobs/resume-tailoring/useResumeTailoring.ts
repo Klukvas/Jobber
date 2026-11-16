@@ -24,6 +24,7 @@ export function tailoringErrorKey(error: unknown): string {
   if (error.code === "PLAN_LIMIT_REACHED") return "limitReached";
   if (error.status === 429) return "rateLimited";
   if (error.code === "AI_UNAVAILABLE") return "unavailable";
+  if (error.code === "AI_NO_CHANGES") return "noChanges";
   if (error.code === "AI_TIMEOUT" || error.code === "TIMEOUT_ERROR") return "timeout";
   if (error.code === "AI_INVALID_RESPONSE" || error.code === "INVALID_RESPONSE") return "invalidResponse";
   if (error.code === "RECOGNITION_REQUIRED") return "recognitionRequired";
@@ -127,7 +128,7 @@ export function useResumeTailoring(jobId: string) {
       if (mounted.current && token === requestId.current && !abort.signal.aborted) {
         markAIUnavailable(queryClient, error);
         setErrorKey(tailoringErrorKey(error));
-        setTerminalFailure(error instanceof ApiError && ["AI_TIMEOUT", "AI_INVALID_RESPONSE", "AI_REQUEST_FAILED", "OPERATION_INTERRUPTED"].includes(error.code));
+        setTerminalFailure(error instanceof ApiError && ["AI_TIMEOUT", "AI_INVALID_RESPONSE", "AI_NO_CHANGES", "AI_REQUEST_FAILED", "OPERATION_INTERRUPTED"].includes(error.code));
       }
     } finally {
       void queryClient.invalidateQueries({ queryKey: ["subscription"] });

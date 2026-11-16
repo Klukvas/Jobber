@@ -7,11 +7,12 @@ import { Label } from "@/shared/ui/Label";
 import { StageSelector } from "@/features/jobs/components/StageSelector";
 import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { resumeSelectValue } from "@/features/jobs/hooks/useJobDetailMutations";
-import type { JobDTO, ResumeDTO, StageTemplateDTO } from "@/shared/types/api";
+import type { JobDTO, JobStageDTO, ResumeDTO, StageTemplateDTO } from "@/shared/types/api";
 import type { ResumeBuilderDTO } from "@/shared/types/resume-builder";
 
 interface JobPipelineCardProps {
   readonly job: JobDTO;
+  readonly stages: readonly JobStageDTO[];
   readonly templates: readonly StageTemplateDTO[];
   readonly uploadedResumes: readonly ResumeDTO[];
   readonly builderResumes: readonly ResumeBuilderDTO[];
@@ -25,6 +26,7 @@ interface JobPipelineCardProps {
 
 export function JobPipelineCard({
   job,
+  stages,
   templates,
   uploadedResumes,
   builderResumes,
@@ -37,6 +39,7 @@ export function JobPipelineCard({
 }: JobPipelineCardProps) {
   const { t } = useTranslation();
   const dateLocale = useDateLocale();
+  const currentStage = stages.find((stage) => stage.id === job.current_stage_id);
 
   return (
     <Card>
@@ -61,23 +64,25 @@ export function JobPipelineCard({
               <span className="text-sm font-medium">
                 {job.current_stage_name}
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (job.current_stage_id) {
-                    onCompleteStage(job.current_stage_id);
-                  }
-                }}
-                disabled={isCompletingStage}
-              >
-                {isCompletingStage ? (
-                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                ) : (
-                  <CheckCircle className="h-4 w-4 mr-1.5" />
-                )}
-                {t("jobs.complete")}
-              </Button>
+              {currentStage && currentStage.status !== "completed" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (job.current_stage_id) {
+                      onCompleteStage(job.current_stage_id);
+                    }
+                  }}
+                  disabled={isCompletingStage}
+                >
+                  {isCompletingStage ? (
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  ) : (
+                    <CheckCircle className="h-4 w-4 mr-1.5" />
+                  )}
+                  {t("jobs.complete")}
+                </Button>
+              )}
             </div>
           </div>
         )}

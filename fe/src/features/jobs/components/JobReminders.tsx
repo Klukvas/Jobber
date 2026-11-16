@@ -108,31 +108,33 @@ export function JobReminders({ jobId }: JobRemindersProps) {
               >
                 {/* The label is the 44px target on a phone; the 16px box
                     inside stays as drawn. */}
-                <label className="flex shrink-0 cursor-pointer justify-center pt-0.5 max-sm:h-11 max-sm:w-11 max-sm:items-center max-sm:pt-0">
-                  <Checkbox
-                    checked={reminder.is_done}
-                    onCheckedChange={() => toggleMutation.mutate(reminder)}
-                    disabled={toggleMutation.isPending}
-                    aria-labelledby={`reminder-${reminder.id}-message`}
-                  />
+                <label className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-start gap-3">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center">
+                    <Checkbox
+                      checked={reminder.is_done}
+                      onCheckedChange={() => toggleMutation.mutate(reminder)}
+                      disabled={toggleMutation.isPending}
+                      aria-labelledby={`reminder-${reminder.id}-message`}
+                    />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span
+                      id={`reminder-${reminder.id}-message`}
+                      className={`block text-sm whitespace-pre-wrap wrap-anywhere ${
+                        reminder.is_done
+                          ? "text-muted-foreground line-through"
+                          : ""
+                      }`}
+                    >
+                      {reminder.message}
+                    </span>
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      {format(new Date(reminder.remind_at), "PPp", {
+                        locale: dateLocale,
+                      })}
+                    </span>
+                  </span>
                 </label>
-                <div className="min-w-0 flex-1">
-                  <p
-                    id={`reminder-${reminder.id}-message`}
-                    className={`text-sm whitespace-pre-wrap wrap-anywhere ${
-                      reminder.is_done
-                        ? "text-muted-foreground line-through"
-                        : ""
-                    }`}
-                  >
-                    {reminder.message}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {format(new Date(reminder.remind_at), "PPp", {
-                      locale: dateLocale,
-                    })}
-                  </p>
-                </div>
                 <button
                   type="button"
                   onClick={() => deleteMutation.mutate(reminder.id)}

@@ -19,6 +19,7 @@ import (
 func TestAIHandler_Generate_CanonicalisesCoverLetterID(t *testing.T) {
 	const userID = "user-123"
 	const coverLetterID = "00000000-0000-4000-8000-0000000000c1"
+	resumeID := "rb-1"
 
 	for name, form := range idstest.NonCanonicalForms(coverLetterID) {
 		t.Run(name, func(t *testing.T) {
@@ -26,7 +27,7 @@ func TestAIHandler_Generate_CanonicalisesCoverLetterID(t *testing.T) {
 			clRepo := &mockAICoverLetterRepo{
 				GetByIDFunc: func(_ context.Context, id string) (*clModel.CoverLetter, error) {
 					seen = append(seen, id)
-					return &clModel.CoverLetter{ID: id, UserID: userID}, nil
+					return &clModel.CoverLetter{ID: id, UserID: userID, ResumeBuilderID: &resumeID}, nil
 				},
 			}
 			aiClient := &mockCoverLetterAIClient{
@@ -34,7 +35,7 @@ func TestAIHandler_Generate_CanonicalisesCoverLetterID(t *testing.T) {
 					return &ai.CoverLetterContent{Greeting: "Hi", Paragraphs: []string{"Body"}, Closing: "Bye"}, nil
 				},
 			}
-			handler := newTestCoverLetterAIHandler(clRepo, &mockAIResumeBuilderRepo{}, aiClient, &mockAILimitChecker{})
+			handler := newTestCoverLetterAIHandler(clRepo, validAIResumeRepo(), aiClient, &mockAILimitChecker{})
 			router := setupTestRouter()
 			router.POST("/cover-letters/ai/generate", mockAuthMiddleware(userID), handler.Generate)
 

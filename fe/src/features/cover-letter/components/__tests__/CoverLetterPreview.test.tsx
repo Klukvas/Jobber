@@ -38,6 +38,7 @@ vi.mock("@/stores/coverLetterStore", () => ({
   ) =>
     selector({
       coverLetter: mockCoverLetterRef.current,
+      paragraphIds: mockCoverLetterRef.current?.paragraphs.map((_, index) => `test-${index}`) ?? [],
       updateField: mockUpdateFieldFn,
       updateParagraph: mockUpdateParagraphFn,
       addParagraph: mockAddParagraphFn,

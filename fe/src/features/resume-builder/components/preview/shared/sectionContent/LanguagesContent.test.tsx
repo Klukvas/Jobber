@@ -76,7 +76,7 @@ describe("LanguagesContent", () => {
         />,
       );
       expect(screen.getAllByTestId("entry-wrapper").length).toBe(2);
-      expect(screen.getAllByTestId("field-Language").length).toBe(2);
+      expect(screen.getAllByTestId("field-resumeBuilder.placeholders.language").length).toBe(2);
     });
 
     it("shows proficiency in parentheses when editable and proficiency exists", () => {
@@ -101,7 +101,7 @@ describe("LanguagesContent", () => {
         />,
       );
       expect(
-        screen.getByText("English (Native) · Spanish (Professional Working)"),
+        screen.getByText("English (resumeBuilder.proficiencyLevels.native) · Spanish (resumeBuilder.proficiencyLevels.professional_working)"),
       ).toBeInTheDocument();
     });
 
@@ -187,7 +187,7 @@ describe("LanguagesContent", () => {
           editable={false}
         />,
       );
-      expect(screen.getByTestId("field-Language")).toHaveTextContent("English");
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.language")).toHaveTextContent("English");
       expect(screen.getByTestId("select")).toHaveTextContent("native");
     });
 

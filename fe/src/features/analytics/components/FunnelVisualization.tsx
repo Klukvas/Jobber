@@ -72,7 +72,7 @@ export function FunnelVisualization({
     );
   }
 
-  const maxCount = Math.max(...data.stages.map((s) => s.count), 1);
+  const maxCount = Math.max(...data.stages.map((s) => s.count), data.rejected?.total ?? 0, 1);
 
   return (
     <Card>
@@ -119,16 +119,16 @@ export function FunnelVisualization({
                 </div>
                 <div className="h-8 bg-muted rounded-md overflow-hidden">
                   <div
-                    className="h-full bg-primary/80 rounded-md transition-all duration-500 motion-safe:animate-grow-bar flex items-center justify-end pr-2"
+                    className="h-full bg-primary/80 rounded-md transition-all duration-500 motion-safe:animate-grow-bar flex items-center justify-end"
                     style={
                       {
-                        width: `${Math.max(widthPercent, 5)}%`,
-                        "--bar-w": `${Math.max(widthPercent, 5)}%`,
+                        width: `${widthPercent}%`,
+                        "--bar-w": `${widthPercent}%`,
                       } as CSSProperties
                     }
                   >
                     {widthPercent > 15 && (
-                      <span className="text-xs text-primary-foreground font-medium">
+                      <span className="mr-2 text-xs text-primary-foreground font-medium">
                         {stage.count}
                       </span>
                     )}
@@ -176,16 +176,16 @@ export function FunnelVisualization({
             </div>
             <div className="h-8 bg-muted rounded-md overflow-hidden">
               <div
-                className="h-full bg-red-500/70 rounded-md transition-all duration-500 motion-safe:animate-grow-bar flex items-center justify-end pr-2"
+                className="h-full bg-red-500/70 rounded-md transition-all duration-500 motion-safe:animate-grow-bar flex items-center justify-end"
                 style={
                   {
-                    width: `${Math.max((data.rejected.total / maxCount) * 100, 5)}%`,
-                    "--bar-w": `${Math.max((data.rejected.total / maxCount) * 100, 5)}%`,
+                    width: `${(data.rejected.total / maxCount) * 100}%`,
+                    "--bar-w": `${(data.rejected.total / maxCount) * 100}%`,
                   } as CSSProperties
                 }
               >
                 {(data.rejected.total / maxCount) * 100 > 15 && (
-                  <span className="text-xs text-white font-medium">
+                  <span className="mr-2 text-xs text-white font-medium">
                     {data.rejected.total}
                   </span>
                 )}

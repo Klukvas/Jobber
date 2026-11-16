@@ -3,10 +3,13 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/andreypavlenko/jobber/internal/platform/ai"
+	"github.com/andreypavlenko/jobber/modules/coverletters/model"
 	"github.com/andreypavlenko/jobber/modules/coverletters/ports"
 	rbModel "github.com/andreypavlenko/jobber/modules/resumebuilder/model"
 	rbPorts "github.com/andreypavlenko/jobber/modules/resumebuilder/ports"
@@ -37,8 +40,8 @@ func NewAIService(repo ports.CoverLetterRepository, resumeRepo rbPorts.ResumeBui
 
 // Generate generates cover letter content using AI.
 func (s *AIService) Generate(ctx context.Context, userID, coverLetterID, jobDescription string) (*ai.CoverLetterContent, error) {
-	if err := s.limitChecker.CheckLimit(ctx, userID, "ai"); err != nil {
-		return nil, err
+	if strings.TrimSpace(jobDescription) == "" {
+		return nil, model.ErrAIJobDescriptionRequired
 	}
 
 	if err := s.repo.VerifyOwnership(ctx, userID, coverLetterID); err != nil {
@@ -50,21 +53,12 @@ func (s *AIService) Generate(ctx context.Context, userID, coverLetterID, jobDesc
 		return nil, err
 	}
 
-	resumeContext := ""
-	if cl.ResumeBuilderID != nil && *cl.ResumeBuilderID != "" {
-		// VerifyOwnership failure is intentional — user may not own the linked resume.
-		if err := s.resumeRepo.VerifyOwnership(ctx, userID, *cl.ResumeBuilderID); err == nil {
-			resume, err := s.resumeRepo.GetFullResume(ctx, userID, *cl.ResumeBuilderID)
-			if err != nil {
-				slog.Warn("failed to load linked resume for cover letter AI context",
-					"cover_letter_id", coverLetterID,
-					"resume_builder_id", *cl.ResumeBuilderID,
-					"error", err,
-				)
-			} else if resumeContext, err = buildResumeContext(resume); err != nil {
-				return nil, err
-			}
-		}
+	resumeContext, err := s.candidateSource(ctx, userID, cl)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.limitChecker.CheckLimit(ctx, userID, "ai"); err != nil {
+		return nil, err
 	}
 
 	content, err := s.aiClient.GenerateCoverLetter(ctx, cl.CompanyName, cl.RecipientName, cl.RecipientTitle, jobDescription, resumeContext)
@@ -78,10 +72,38 @@ func (s *AIService) Generate(ctx context.Context, userID, coverLetterID, jobDesc
 	return content, nil
 }
 
+func (s *AIService) candidateSource(ctx context.Context, userID string, cl *model.CoverLetter) (string, error) {
+	if cl == nil || cl.ResumeBuilderID == nil || strings.TrimSpace(*cl.ResumeBuilderID) == "" {
+		return "", model.ErrAICandidateSourceRequired
+	}
+	if err := s.resumeRepo.VerifyOwnership(ctx, userID, *cl.ResumeBuilderID); err != nil {
+		if errors.Is(err, rbModel.ErrNotOwner) || errors.Is(err, rbModel.ErrResumeBuilderNotFound) {
+			return "", model.ErrAICandidateSourceRequired
+		}
+		return "", fmt.Errorf("verify cover letter candidate source: %w", err)
+	}
+	resume, err := s.resumeRepo.GetFullResume(ctx, userID, *cl.ResumeBuilderID)
+	if err != nil {
+		if errors.Is(err, rbModel.ErrResumeBuilderNotFound) || errors.Is(err, rbModel.ErrNotOwner) {
+			return "", model.ErrAICandidateSourceRequired
+		}
+		return "", fmt.Errorf("load cover letter candidate source: %w", err)
+	}
+	if resume == nil {
+		return "", model.ErrAICandidateSourceRequired
+	}
+	resumeContext, err := buildResumeContext(resume)
+	if err != nil {
+		return "", err
+	}
+	if !ai.HasCoverLetterCandidateSource(resumeContext) {
+		return "", model.ErrAICandidateSourceRequired
+	}
+	return resumeContext, nil
+}
+
 // buildResumeContext serializes the linked Builder Resume as structured JSON.
-// The grounded cover letter generator only accepts typed experience units as
-// evidence and rejects free-form text, so a plain-text summary here makes every
-// resume-linked generation fail.
+// The grounded generator reads complete typed source entries from this JSON.
 func buildResumeContext(resume *rbModel.FullResumeDTO) (string, error) {
 	data, err := json.Marshal(resume)
 	if err != nil {

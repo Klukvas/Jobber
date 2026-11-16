@@ -204,7 +204,7 @@ export default function ResumeBuilderEditorPage() {
 
   const activePanelContent = (
     <>
-      {activePanel === "ai" && <AIAssistantPanel key={resume.id} />}
+      <div hidden={activePanel !== "ai"}><AIAssistantPanel key={resume.id} /></div>
       {activePanel === "ats" && <ATSCheckerPanel key={resume.id} />}
       {activePanel === "contentLibrary" && (
         <ContentLibraryPanel key={resume.id} />

@@ -70,6 +70,13 @@ func (s *ResumeBuilderService) CreateExperience(ctx context.Context, userID, res
 		SortOrder:       req.SortOrder,
 	}
 
+	if exp.IsCurrent {
+		exp.EndDate = ""
+	}
+	if err := validateSectionDates(exp.StartDate, exp.EndDate); err != nil {
+		return nil, err
+	}
+
 	if err := s.repo.CreateExperience(ctx, exp); err != nil {
 		return nil, err
 	}
@@ -86,6 +93,9 @@ func (s *ResumeBuilderService) UpdateExperience(ctx context.Context, userID, res
 	if err != nil {
 		return nil, err
 	}
+
+	updated := *exp
+	exp = &updated
 
 	if req.Company != nil {
 		exp.Company = *req.Company
@@ -110,6 +120,13 @@ func (s *ResumeBuilderService) UpdateExperience(ctx context.Context, userID, res
 	}
 	if req.SortOrder != nil {
 		exp.SortOrder = *req.SortOrder
+	}
+
+	if exp.IsCurrent {
+		exp.EndDate = ""
+	}
+	if err := validateSectionDates(exp.StartDate, exp.EndDate); err != nil {
+		return nil, err
 	}
 
 	if err := s.repo.UpdateExperience(ctx, exp); err != nil {
@@ -146,6 +163,13 @@ func (s *ResumeBuilderService) CreateEducation(ctx context.Context, userID, resu
 		SortOrder:       req.SortOrder,
 	}
 
+	if edu.IsCurrent {
+		edu.EndDate = ""
+	}
+	if err := validateSectionDates(edu.StartDate, edu.EndDate); err != nil {
+		return nil, err
+	}
+
 	if err := s.repo.CreateEducation(ctx, edu); err != nil {
 		return nil, err
 	}
@@ -162,6 +186,9 @@ func (s *ResumeBuilderService) UpdateEducation(ctx context.Context, userID, resu
 	if err != nil {
 		return nil, err
 	}
+
+	updated := *edu
+	edu = &updated
 
 	if req.Institution != nil {
 		edu.Institution = *req.Institution
@@ -189,6 +216,13 @@ func (s *ResumeBuilderService) UpdateEducation(ctx context.Context, userID, resu
 	}
 	if req.SortOrder != nil {
 		edu.SortOrder = *req.SortOrder
+	}
+
+	if edu.IsCurrent {
+		edu.EndDate = ""
+	}
+	if err := validateSectionDates(edu.StartDate, edu.EndDate); err != nil {
+		return nil, err
 	}
 
 	if err := s.repo.UpdateEducation(ctx, edu); err != nil {

@@ -474,7 +474,8 @@ func (m *mockCoverLetterAIClient) GenerateCoverLetter(ctx context.Context, compa
 }
 
 type mockAILimitChecker struct {
-	CheckLimitFunc func(ctx context.Context, userID, resource string) error
+	CheckLimitFunc    func(ctx context.Context, userID, resource string) error
+	RecordAIUsageFunc func(ctx context.Context, userID string) error
 }
 
 func (m *mockAILimitChecker) CheckLimit(ctx context.Context, userID, resource string) error {
@@ -485,6 +486,9 @@ func (m *mockAILimitChecker) CheckLimit(ctx context.Context, userID, resource st
 }
 
 func (m *mockAILimitChecker) RecordAIUsage(ctx context.Context, userID string) error {
+	if m.RecordAIUsageFunc != nil {
+		return m.RecordAIUsageFunc(ctx, userID)
+	}
 	return nil
 }
 
@@ -509,16 +513,18 @@ func newTestCoverLetterAIHandler(
 
 func TestAIHandler_Generate(t *testing.T) {
 	userID := "user-123"
+	resumeID := "rb-1"
 	validCoverLetterID := "00000000-0000-0000-0000-000000000001"
 
 	t.Run("returns 200 with generated content", func(t *testing.T) {
 		clRepo := &mockAICoverLetterRepo{
 			GetByIDFunc: func(_ context.Context, id string) (*clModel.CoverLetter, error) {
 				return &clModel.CoverLetter{
-					ID:            id,
-					UserID:        userID,
-					CompanyName:   "Acme Corp",
-					RecipientName: "Jane Doe",
+					ID:              id,
+					ResumeBuilderID: &resumeID,
+					UserID:          userID,
+					CompanyName:     "Acme Corp",
+					RecipientName:   "Jane Doe",
 				}, nil
 			},
 		}
@@ -533,7 +539,7 @@ func TestAIHandler_Generate(t *testing.T) {
 			},
 		}
 
-		handler := newTestCoverLetterAIHandler(clRepo, &mockAIResumeBuilderRepo{}, aiClient, &mockAILimitChecker{})
+		handler := newTestCoverLetterAIHandler(clRepo, validAIResumeRepo(), aiClient, &mockAILimitChecker{})
 		router := setupTestRouter()
 		router.POST("/cover-letters/ai/generate", mockAuthMiddleware(userID), handler.Generate)
 
@@ -563,7 +569,7 @@ func TestAIHandler_Generate(t *testing.T) {
 		router := setupTestRouter()
 		router.POST("/cover-letters/ai/generate", handler.Generate) // no auth middleware
 
-		body := `{"cover_letter_id":"` + validCoverLetterID + `"}`
+		body := `{"cover_letter_id":"` + validCoverLetterID + `","job_description":"Engineer"}`
 		req, _ := http.NewRequest(http.MethodPost, "/cover-letters/ai/generate", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
@@ -610,15 +616,17 @@ func TestAIHandler_Generate(t *testing.T) {
 		}
 
 		handler := newTestCoverLetterAIHandler(
-			&mockAICoverLetterRepo{},
-			&mockAIResumeBuilderRepo{},
+			&mockAICoverLetterRepo{GetByIDFunc: func(_ context.Context, id string) (*clModel.CoverLetter, error) {
+				return &clModel.CoverLetter{ID: id, UserID: userID, ResumeBuilderID: &resumeID}, nil
+			}},
+			validAIResumeRepo(),
 			&mockCoverLetterAIClient{},
 			limiter,
 		)
 		router := setupTestRouter()
 		router.POST("/cover-letters/ai/generate", mockAuthMiddleware(userID), handler.Generate)
 
-		body := `{"cover_letter_id":"` + validCoverLetterID + `"}`
+		body := `{"cover_letter_id":"` + validCoverLetterID + `","job_description":"Engineer"}`
 		req, _ := http.NewRequest(http.MethodPost, "/cover-letters/ai/generate", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
@@ -674,7 +682,7 @@ func TestAIHandler_Generate(t *testing.T) {
 		router := setupTestRouter()
 		router.POST("/cover-letters/ai/generate", mockAuthMiddleware(userID), handler.Generate)
 
-		body := `{"cover_letter_id":"` + validCoverLetterID + `"}`
+		body := `{"cover_letter_id":"` + validCoverLetterID + `","job_description":"Engineer"}`
 		req, _ := http.NewRequest(http.MethodPost, "/cover-letters/ai/generate", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
@@ -692,8 +700,9 @@ func TestAIHandler_Generate(t *testing.T) {
 		clRepo := &mockAICoverLetterRepo{
 			GetByIDFunc: func(_ context.Context, id string) (*clModel.CoverLetter, error) {
 				return &clModel.CoverLetter{
-					ID:     id,
-					UserID: userID,
+					ID:              id,
+					ResumeBuilderID: &resumeID,
+					UserID:          userID,
 				}, nil
 			},
 		}
@@ -704,11 +713,11 @@ func TestAIHandler_Generate(t *testing.T) {
 			},
 		}
 
-		handler := newTestCoverLetterAIHandler(clRepo, &mockAIResumeBuilderRepo{}, aiClient, &mockAILimitChecker{})
+		handler := newTestCoverLetterAIHandler(clRepo, validAIResumeRepo(), aiClient, &mockAILimitChecker{})
 		router := setupTestRouter()
 		router.POST("/cover-letters/ai/generate", mockAuthMiddleware(userID), handler.Generate)
 
-		body := `{"cover_letter_id":"` + validCoverLetterID + `"}`
+		body := `{"cover_letter_id":"` + validCoverLetterID + `","job_description":"Engineer"}`
 		req, _ := http.NewRequest(http.MethodPost, "/cover-letters/ai/generate", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
@@ -738,7 +747,7 @@ func TestAIHandler_Generate(t *testing.T) {
 		router := setupTestRouter()
 		router.POST("/cover-letters/ai/generate", mockAuthMiddleware(userID), handler.Generate)
 
-		body := `{"cover_letter_id":"` + validCoverLetterID + `"}`
+		body := `{"cover_letter_id":"` + validCoverLetterID + `","job_description":"Engineer"}`
 		req, _ := http.NewRequest(http.MethodPost, "/cover-letters/ai/generate", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()

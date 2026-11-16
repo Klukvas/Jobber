@@ -113,7 +113,7 @@ export function EditableField({
         placeholder={placeholder}
         aria-label={placeholder}
         className={cn(
-          "w-full border-none bg-blue-50/70 outline-none ring-1 ring-blue-300 rounded px-0.5 -mx-0.5",
+          "w-full border-none bg-blue-50/70 outline-none ring-1 ring-blue-600 rounded px-0.5 -mx-0.5",
           inputClassName ?? className,
         )}
         style={style}
@@ -134,8 +134,8 @@ export function EditableField({
       className={cn(
         className,
         editable &&
-          "cursor-text transition-colors rounded hover:bg-blue-50/50 focus:outline-none focus:ring-1 focus:ring-blue-300",
-        isEmpty && editable && "italic text-gray-400",
+          "cursor-text transition-colors rounded hover:bg-blue-50/50 focus:outline-none focus:ring-1 focus:ring-blue-600",
+        isEmpty && editable && "italic text-gray-600",
       )}
       style={style}
     >

@@ -184,9 +184,9 @@ func TestIntegrationAnalyticsRejectedAndArchiveSemantics(t *testing.T) {
 	assert.Equal(t, 3, overview.TotalApplications, "total spans archived cards too")
 	assert.Equal(t, 2, overview.ActiveApplications)
 	assert.Equal(t, 1, overview.ClosedApplications)
-	assert.Equal(t, 1, overview.RejectedApplications,
-		"the archived rejection is hidden from the metric, like everywhere else")
-	assert.Equal(t, 50.0, overview.ResponseRate, "a rejection is a response; the applied card is not")
+	assert.Equal(t, 2, overview.RejectedApplications,
+		"historical rejection metrics retain archived cards")
+	assert.Equal(t, 66.67, overview.ResponseRate, "both rejections are responses; the applied card is not")
 }
 
 func TestIntegrationAnalyticsSourcesUseKinds(t *testing.T) {

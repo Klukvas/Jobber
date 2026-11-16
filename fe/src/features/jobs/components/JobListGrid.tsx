@@ -4,17 +4,13 @@ import { formatDistanceToNow } from "date-fns";
 import {
   Calendar,
   Clock,
-  GitBranch,
   Link2,
-  MessageSquare,
-  MoreVertical,
-  Trash2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/Card";
 import { CompanyAvatar } from "@/shared/ui/CompanyAvatar";
 import { useDateLocale } from "@/shared/lib/dateFnsLocale";
 import { stageColor } from "@/features/jobs/lib/stageColors";
-import { TOUCH_ICON_TARGET } from "@/shared/lib/touchTargets";
+import { JobListActions } from "./JobListActions";
 import type { JobsListReturnState } from "@/features/jobs/lib/jobsListReturn";
 import type { JobDTO } from "@/shared/types/api";
 
@@ -55,69 +51,23 @@ export function JobListGrid({
         const stage = stageColor(job.current_stage_name, job.is_archived);
         return (
           <div key={job.id} className="relative">
+            <JobListActions
+              job={job}
+              open={openMenuId === job.id}
+              onToggleMenu={onToggleMenu}
+              onAddComment={onAddComment}
+              onAddStage={onAddStage}
+              onDelete={onDelete}
+            />
             <Link to={`/app/jobs/${job.id}`} state={returnState}>
               <Card
                 className={`transition-all hover:shadow-md motion-safe:hover:-translate-y-0.5 h-full group border-l-4 ${stage.border}`}
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-xl font-bold leading-tight mb-2 min-w-0 flex-1 wrap-anywhere">
+                    <CardTitle className="text-xl font-bold leading-tight mb-2 min-w-0 flex-1 pr-12 wrap-anywhere">
                       {job.title}
                     </CardTitle>
-                    <div
-                      className="relative shrink-0"
-                      onClick={(e) => e.preventDefault()}
-                    >
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          onToggleMenu(openMenuId === job.id ? null : job.id);
-                        }}
-                        className={`${TOUCH_ICON_TARGET} rounded-md hover:bg-accent transition-colors text-muted-foreground`}
-                        aria-label={t("jobs.actionsMenu")}
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </button>
-                      {openMenuId === job.id && (
-                        <div className="absolute right-0 mt-1 w-48 bg-popover border rounded-md shadow-lg z-10">
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              onAddComment(job);
-                            }}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
-                          >
-                            <MessageSquare className="h-4 w-4" />
-                            {t("jobs.addComment")}
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              onAddStage(job);
-                            }}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
-                          >
-                            <GitBranch className="h-4 w-4" />
-                            {t("jobs.addStage")}
-                          </button>
-                          <div className="my-1 border-t" role="separator" />
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              onDelete(job);
-                            }}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 text-left"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            {t("jobs.delete")}
-                          </button>
-                        </div>
-                      )}
-                    </div>
                   </div>
 
                   {/* Secondary: company (with monogram) and source.

@@ -92,7 +92,7 @@ describe("OAuth consent through hosted checkout", () => {
     const view = mount("/app/settings?subscription=success");
     expect(screen.getByTestId("location")).toHaveTextContent("/app/settings");
     expect(screen.queryByRole("button", { name: "Allow" })).not.toBeInTheDocument();
-    await waitFor(() => expect(view.client.getQueryState(["subscription"])?.fetchStatus).toBe("idle"));
+    await waitFor(() => expect(view.client.getQueryState(["subscription", "user-1"])?.fetchStatus).toBe("idle"));
     previewBody = { ...preview, plan_allowed: true };
     billing.getSubscription.mockResolvedValue({ plan: "pro" });
     await act(async () => { await view.client.invalidateQueries({ queryKey: ["subscription"] }); });
@@ -102,7 +102,7 @@ describe("OAuth consent through hosted checkout", () => {
     expect(sessionStorage.getItem("oauth_checkout_consent")).toBeNull();
     view.unmount();
     const later = mount("/app/settings?subscription=success");
-    await waitFor(() => expect(later.client.getQueryState(["subscription"])?.fetchStatus).toBe("idle"));
+    await waitFor(() => expect(later.client.getQueryState(["subscription", "user-1"])?.fetchStatus).toBe("idle"));
     expect(screen.getByTestId("location")).toHaveTextContent("/app/settings");
   });
 

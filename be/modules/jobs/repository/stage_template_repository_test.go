@@ -28,9 +28,16 @@ func TestStageTemplateRepository_Create(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
 		tpl := &model.StageTemplate{UserID: "user-123", Name: "Applied", Order: 0, Kind: model.StageKindApplied}
 
+		mock.ExpectBegin()
+		expectPipelineLock(mock)
+		mock.ExpectExec("WITH ordered AS").WithArgs("user-123").WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+		mock.ExpectQuery("SELECT COUNT").WithArgs("user-123").WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(4))
+		mock.ExpectExec(`UPDATE stage_templates SET "order" = "order"`).WithArgs("user-123", tpl.Order, pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 		mock.ExpectExec("INSERT INTO stage_templates").
 			WithArgs(pgxmock.AnyArg(), tpl.UserID, tpl.Name, tpl.Order, string(tpl.Kind), pgxmock.AnyArg(), pgxmock.AnyArg()).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+
+		mock.ExpectCommit()
 
 		err := repo.Create(context.Background(), tpl)
 
@@ -43,9 +50,16 @@ func TestStageTemplateRepository_Create(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
 		tpl := &model.StageTemplate{UserID: "user-123", Name: "Follow-up", Order: 3}
 
+		mock.ExpectBegin()
+		expectPipelineLock(mock)
+		mock.ExpectExec("WITH ordered AS").WithArgs("user-123").WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+		mock.ExpectQuery("SELECT COUNT").WithArgs("user-123").WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(4))
+		mock.ExpectExec(`UPDATE stage_templates SET "order" = "order"`).WithArgs("user-123", tpl.Order, pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 		mock.ExpectExec("INSERT INTO stage_templates").
 			WithArgs(pgxmock.AnyArg(), tpl.UserID, tpl.Name, tpl.Order, string(model.StageKindOther), pgxmock.AnyArg(), pgxmock.AnyArg()).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+
+		mock.ExpectCommit()
 
 		err := repo.Create(context.Background(), tpl)
 
@@ -58,9 +72,16 @@ func TestStageTemplateRepository_Create(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
 		tpl := &model.StageTemplate{UserID: "user-123", Name: "Dup", Order: 0, Kind: model.StageKindOther}
 
+		mock.ExpectBegin()
+		expectPipelineLock(mock)
+		mock.ExpectExec("WITH ordered AS").WithArgs("user-123").WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+		mock.ExpectQuery("SELECT COUNT").WithArgs("user-123").WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(4))
+		mock.ExpectExec(`UPDATE stage_templates SET "order" = "order"`).WithArgs("user-123", tpl.Order, pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 		mock.ExpectExec("INSERT INTO stage_templates").
 			WithArgs(pgxmock.AnyArg(), tpl.UserID, tpl.Name, tpl.Order, string(tpl.Kind), pgxmock.AnyArg(), pgxmock.AnyArg()).
 			WillReturnError(&pgconn.PgError{Code: "23505"})
+
+		mock.ExpectRollback()
 
 		err := repo.Create(context.Background(), tpl)
 
@@ -72,9 +93,16 @@ func TestStageTemplateRepository_Create(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
 		tpl := &model.StageTemplate{UserID: "user-123", Name: "X", Order: 0, Kind: model.StageKindOther}
 
+		mock.ExpectBegin()
+		expectPipelineLock(mock)
+		mock.ExpectExec("WITH ordered AS").WithArgs("user-123").WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+		mock.ExpectQuery("SELECT COUNT").WithArgs("user-123").WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(4))
+		mock.ExpectExec(`UPDATE stage_templates SET "order" = "order"`).WithArgs("user-123", tpl.Order, pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 		mock.ExpectExec("INSERT INTO stage_templates").
 			WithArgs(pgxmock.AnyArg(), tpl.UserID, tpl.Name, tpl.Order, string(tpl.Kind), pgxmock.AnyArg(), pgxmock.AnyArg()).
 			WillReturnError(errDB)
+
+		mock.ExpectRollback()
 
 		err := repo.Create(context.Background(), tpl)
 
@@ -221,12 +249,16 @@ func TestStageTemplateRepository_Update(t *testing.T) {
 
 	t.Run("a rename writes the name and nothing else", func(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
+		mock.ExpectBegin()
+		expectPipelineLock(mock)
 
 		// updated_at ($3) plus name ($4) — "order" and kind are not in the
 		// statement, so a concurrent reorder or reclassification survives.
 		mock.ExpectQuery(`UPDATE stage_templates SET updated_at = \$3, name = \$4\s`).
 			WithArgs("tpl-1", "user-123", pgxmock.AnyArg(), "Onsite loop").
 			WillReturnRows(updatedRow("Onsite loop", 3, "interview"))
+
+		mock.ExpectCommit()
 
 		tpl, err := repo.Update(context.Background(), "user-123", "tpl-1",
 			&model.StageTemplatePatch{Name: strPtr("Onsite loop")})
@@ -240,10 +272,14 @@ func TestStageTemplateRepository_Update(t *testing.T) {
 
 	t.Run("a reclassification writes the kind and nothing else", func(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
+		mock.ExpectBegin()
+		expectPipelineLock(mock)
 
 		mock.ExpectQuery(`UPDATE stage_templates SET updated_at = \$3, kind = \$4\s`).
 			WithArgs("tpl-1", "user-123", pgxmock.AnyArg(), string(model.StageKindResponse)).
 			WillReturnRows(updatedRow("Recruiter ping", 4, "response"))
+
+		mock.ExpectCommit()
 
 		tpl, err := repo.Update(context.Background(), "user-123", "tpl-1",
 			&model.StageTemplatePatch{Kind: kindPtr(model.StageKindResponse)})
@@ -258,7 +294,8 @@ func TestStageTemplateRepository_Update(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
 
 		mock.ExpectBegin()
-		mock.ExpectQuery(`SELECT id FROM stage_templates WHERE user_id = \$1 ORDER BY "order" ASC, created_at ASC FOR UPDATE`).
+		expectPipelineLock(mock)
+		mock.ExpectQuery(`SELECT id FROM stage_templates WHERE user_id = \$1 ORDER BY "order" ASC, created_at ASC, id ASC FOR UPDATE`).
 			WithArgs("user-123").
 			WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow("wishlist").AddRow("applied").AddRow("tpl-1"))
 		for i, id := range []string{"tpl-1", "wishlist", "applied"} {
@@ -288,6 +325,7 @@ func TestStageTemplateRepository_Update(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
 
 		mock.ExpectBegin()
+		expectPipelineLock(mock)
 		mock.ExpectQuery(`SELECT id FROM stage_templates`).
 			WithArgs("user-123").
 			WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow("wishlist"))
@@ -301,10 +339,14 @@ func TestStageTemplateRepository_Update(t *testing.T) {
 
 	t.Run("an empty patch bumps updated_at only", func(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
+		mock.ExpectBegin()
+		expectPipelineLock(mock)
 
 		mock.ExpectQuery(`UPDATE stage_templates SET updated_at = \$3\s`).
 			WithArgs("tpl-1", "user-123", pgxmock.AnyArg()).
 			WillReturnRows(updatedRow("Applied", 1, "applied"))
+
+		mock.ExpectCommit()
 
 		tpl, err := repo.Update(context.Background(), "user-123", "tpl-1", &model.StageTemplatePatch{})
 
@@ -315,10 +357,14 @@ func TestStageTemplateRepository_Update(t *testing.T) {
 
 	t.Run("defaults an unrecognized kind to other", func(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
+		mock.ExpectBegin()
+		expectPipelineLock(mock)
 
 		mock.ExpectQuery("UPDATE stage_templates SET").
 			WithArgs("tpl-1", "user-123", pgxmock.AnyArg(), string(model.StageKindOther)).
 			WillReturnRows(updatedRow("Applied", 1, "other"))
+
+		mock.ExpectCommit()
 
 		tpl, err := repo.Update(context.Background(), "user-123", "tpl-1",
 			&model.StageTemplatePatch{Kind: kindPtr(model.StageKind("ghosted"))})
@@ -330,10 +376,14 @@ func TestStageTemplateRepository_Update(t *testing.T) {
 
 	t.Run("maps unique violation to ErrStageTemplateNameExists", func(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
+		mock.ExpectBegin()
+		expectPipelineLock(mock)
 
 		mock.ExpectQuery("UPDATE stage_templates SET").
 			WithArgs("tpl-1", "user-123", pgxmock.AnyArg(), "Dup").
 			WillReturnError(&pgconn.PgError{Code: "23505"})
+
+		mock.ExpectRollback()
 
 		tpl, err := repo.Update(context.Background(), "user-123", "tpl-1",
 			&model.StageTemplatePatch{Name: strPtr("Dup")})
@@ -345,10 +395,14 @@ func TestStageTemplateRepository_Update(t *testing.T) {
 
 	t.Run("returns not found when no row matches", func(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
+		mock.ExpectBegin()
+		expectPipelineLock(mock)
 
 		mock.ExpectQuery("UPDATE stage_templates SET").
 			WithArgs("nope", "user-123", pgxmock.AnyArg(), "N").
 			WillReturnError(pgx.ErrNoRows)
+
+		mock.ExpectRollback()
 
 		tpl, err := repo.Update(context.Background(), "user-123", "nope",
 			&model.StageTemplatePatch{Name: strPtr("N")})
@@ -360,10 +414,14 @@ func TestStageTemplateRepository_Update(t *testing.T) {
 
 	t.Run("propagates other db error", func(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
+		mock.ExpectBegin()
+		expectPipelineLock(mock)
 
 		mock.ExpectQuery("UPDATE stage_templates SET").
 			WithArgs("tpl-1", "user-123", pgxmock.AnyArg(), "N").
 			WillReturnError(errDB)
+
+		mock.ExpectRollback()
 
 		tpl, err := repo.Update(context.Background(), "user-123", "tpl-1",
 			&model.StageTemplatePatch{Name: strPtr("N")})
@@ -380,6 +438,7 @@ func TestStageTemplateRepository_Reorder(t *testing.T) {
 		ids := []string{"tpl-1", "tpl-2"}
 
 		mock.ExpectBegin()
+		expectPipelineLock(mock)
 		mock.ExpectQuery("SELECT COUNT").
 			WithArgs("user-123").
 			WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(2))
@@ -401,6 +460,7 @@ func TestStageTemplateRepository_Reorder(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
 
 		mock.ExpectBegin()
+		expectPipelineLock(mock)
 		mock.ExpectQuery("SELECT COUNT").
 			WithArgs("user-123").
 			WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(3))
@@ -416,6 +476,7 @@ func TestStageTemplateRepository_Reorder(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
 
 		mock.ExpectBegin()
+		expectPipelineLock(mock)
 		mock.ExpectQuery("SELECT COUNT").
 			WithArgs("user-123").
 			WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(2))
@@ -450,6 +511,7 @@ func TestStageTemplateRepository_Reorder(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
 
 		mock.ExpectBegin()
+		expectPipelineLock(mock)
 		mock.ExpectQuery("SELECT COUNT").
 			WithArgs("user-123").
 			WillReturnError(errDB)
@@ -465,6 +527,7 @@ func TestStageTemplateRepository_Reorder(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
 
 		mock.ExpectBegin()
+		expectPipelineLock(mock)
 		mock.ExpectQuery("SELECT COUNT").
 			WithArgs("user-123").
 			WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
@@ -483,10 +546,15 @@ func TestStageTemplateRepository_Reorder(t *testing.T) {
 func TestStageTemplateRepository_Delete(t *testing.T) {
 	t.Run("deletes template successfully", func(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
+		mock.ExpectBegin()
+		expectPipelineLock(mock)
 
 		mock.ExpectExec("DELETE FROM stage_templates").
 			WithArgs("tpl-1", "user-123").
 			WillReturnResult(pgxmock.NewResult("DELETE", 1))
+
+		mock.ExpectExec("WITH ordered AS").WithArgs("user-123").WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+		mock.ExpectCommit()
 
 		err := repo.Delete(context.Background(), "user-123", "tpl-1")
 
@@ -496,10 +564,14 @@ func TestStageTemplateRepository_Delete(t *testing.T) {
 
 	t.Run("maps foreign key violation to ErrStageTemplateInUse", func(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
+		mock.ExpectBegin()
+		expectPipelineLock(mock)
 
 		mock.ExpectExec("DELETE FROM stage_templates").
 			WithArgs("tpl-1", "user-123").
 			WillReturnError(&pgconn.PgError{Code: "23503"})
+
+		mock.ExpectRollback()
 
 		err := repo.Delete(context.Background(), "user-123", "tpl-1")
 
@@ -509,10 +581,14 @@ func TestStageTemplateRepository_Delete(t *testing.T) {
 
 	t.Run("returns not found when zero rows affected", func(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
+		mock.ExpectBegin()
+		expectPipelineLock(mock)
 
 		mock.ExpectExec("DELETE FROM stage_templates").
 			WithArgs("nope", "user-123").
 			WillReturnResult(pgxmock.NewResult("DELETE", 0))
+
+		mock.ExpectRollback()
 
 		err := repo.Delete(context.Background(), "user-123", "nope")
 
@@ -522,10 +598,14 @@ func TestStageTemplateRepository_Delete(t *testing.T) {
 
 	t.Run("propagates other db error", func(t *testing.T) {
 		repo, mock := newStageTemplateRepo(t)
+		mock.ExpectBegin()
+		expectPipelineLock(mock)
 
 		mock.ExpectExec("DELETE FROM stage_templates").
 			WithArgs("tpl-1", "user-123").
 			WillReturnError(errDB)
+
+		mock.ExpectRollback()
 
 		err := repo.Delete(context.Background(), "user-123", "tpl-1")
 
@@ -559,4 +639,8 @@ func TestMoveToPosition(t *testing.T) {
 
 	_, ok := moveToPosition(ids, "missing", 0)
 	assert.False(t, ok)
+}
+
+func expectPipelineLock(mock pgxmock.PgxPoolIface) {
+	mock.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs("user-123").WillReturnResult(pgxmock.NewResult("SELECT", 1))
 }

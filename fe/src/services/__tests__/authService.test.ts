@@ -20,6 +20,20 @@ describe("authService", () => {
     vi.clearAllMocks();
   });
 
+  it.each(["login", "register"] as const)("rejects a late %s result after logout but permits a fresh attempt", async (action) => {
+    let finish: (value: unknown) => void = () => {};
+    mockApiClient.post.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const pending = authService[action]({ email: "user@example.com", password: "password123" })
+      .catch((error: unknown) => error);
+    mockApiClient.post.mockResolvedValue(undefined);
+    await authService.logout();
+    const response = action === "login" ? { user: { id: "old" } } : { message: "ok" };
+    finish(response);
+    expect(await pending).toMatchObject({ name: "AbortError" });
+    mockApiClient.post.mockResolvedValue(response);
+    await expect(authService[action]({ email: "user@example.com", password: "password123" })).resolves.toEqual(response);
+  });
+
   describe("login", () => {
     it("calls POST auth/login with credentials", async () => {
       const mockResponse = {

@@ -1,5 +1,6 @@
+import { readReturnTo } from "@/shared/lib/loginReturn";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -38,6 +39,7 @@ function ModalContent({
 }: Omit<RegisterModalProps, "open">) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const setAuth = useAuthStore((state) => state.setAuth);
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
   const [code, setCode] = useState("");
@@ -100,7 +102,7 @@ function ModalContent({
       setAuth(data.user);
       onOpenChange(false);
       if (onAuthenticated) onAuthenticated();
-      else navigate("/app");
+      else navigate(readReturnTo(location.search) ?? "/app");
     },
   });
 

@@ -1,3 +1,4 @@
+import { useAuthStore } from "@/stores/authStore";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -30,6 +31,7 @@ function subscriptionRow(overrides: Partial<SubscriptionDTO> = {}) {
 // The real useSubscription over a real client: what is under test is whether a
 // webhook arriving after the request ever reaches the cache.
 async function renderWatch() {
+  useAuthStore.getState().setAuth({ id: "watch-user", name: "Test", email: "test@example.com", locale: "en", created_at: "" });
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });

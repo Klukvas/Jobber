@@ -1,3 +1,5 @@
+import { useAuthStore } from "@/stores/authStore";
+import { useAICreditSettlement } from "@/shared/hooks/useAICreditSettlement";
 import { useLayoutEffect, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -9,11 +11,14 @@ import { Dialog, DialogContent, DialogTitle, DialogFooter } from "@/shared/ui/Di
 
 export function AICreditConfirmation({ originKey }: { readonly originKey?: string }) {
   const { t } = useTranslation();
+  useAICreditSettlement();
+  const userId = useAuthStore((state) => state.user?.id);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   useLayoutEffect(() => () => { aiConsentStore.getSnapshot()?.finish(false); }, [originKey]);
   const pending = useSyncExternalStore(aiConsentStore.subscribe, aiConsentStore.getSnapshot);
   const balance = useQuery({
-    queryKey: ["subscription"], queryFn: subscriptionService.getSubscription,
-    enabled: !!pending, staleTime: 0, retry: false,
+    queryKey: ["subscription", userId], queryFn: ({ signal }) => subscriptionService.getSubscription({ signal }),
+    enabled: !!pending && isAuthenticated && !!userId, staleTime: 0, retry: false,
   });
   if (!pending) return null;
   const cost = balance.data?.credit_costs?.[pending.operation];

@@ -35,7 +35,26 @@ func (r *StageTemplateRepository) Create(ctx context.Context, template *model.St
 	template.CreatedAt = now
 	template.UpdatedAt = now
 
-	_, err := r.pool.Exec(ctx, query, template.ID, template.UserID, template.Name, template.Order, string(template.Kind), template.CreatedAt, template.UpdatedAt)
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin stage create: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if err := lockTemplateUser(ctx, tx, template.UserID); err != nil {
+		return err
+	}
+	if err := normalizeTemplates(ctx, tx, template.UserID); err != nil {
+		return err
+	}
+	var total int
+	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM stage_templates WHERE user_id = $1`, template.UserID).Scan(&total); err != nil {
+		return err
+	}
+	template.Order = max(0, min(template.Order, total))
+	if _, err := tx.Exec(ctx, `UPDATE stage_templates SET "order" = "order" + 1, updated_at = $3 WHERE user_id = $1 AND "order" >= $2`, template.UserID, template.Order, now); err != nil {
+		return fmt.Errorf("open template position: %w", err)
+	}
+	_, err = tx.Exec(ctx, query, template.ID, template.UserID, template.Name, template.Order, string(template.Kind), template.CreatedAt, template.UpdatedAt)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -43,7 +62,7 @@ func (r *StageTemplateRepository) Create(ctx context.Context, template *model.St
 		}
 		return err
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (r *StageTemplateRepository) GetByID(ctx context.Context, userID, templateID string) (*model.StageTemplate, error) {
@@ -82,7 +101,7 @@ func (r *StageTemplateRepository) List(ctx context.Context, userID string, limit
 	query := `
 		SELECT id, user_id, name, "order", kind, created_at, updated_at
 		FROM stage_templates WHERE user_id = $1
-		ORDER BY "order" ASC, created_at ASC
+		ORDER BY "order" ASC, created_at ASC, id ASC
 		LIMIT $2 OFFSET $3
 	`
 
@@ -123,18 +142,19 @@ func (r *StageTemplateRepository) List(ctx context.Context, userID string, limit
 // Column names come from compile-time literals; every value is a bound
 // parameter.
 func (r *StageTemplateRepository) Update(ctx context.Context, userID, templateID string, patch *model.StageTemplatePatch) (*model.StageTemplate, error) {
-	if patch.Order == nil {
-		return updateTemplateFields(ctx, r.pool, userID, templateID, patch)
-	}
-
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin stage move tx: %w", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck // rollback is a no-op after commit
 
-	if err := moveTemplate(ctx, tx, userID, templateID, *patch.Order); err != nil {
+	if err := lockTemplateUser(ctx, tx, userID); err != nil {
 		return nil, err
+	}
+	if patch.Order != nil {
+		if err := moveTemplate(ctx, tx, userID, templateID, *patch.Order); err != nil {
+			return nil, err
+		}
 	}
 
 	fields := *patch
@@ -153,7 +173,7 @@ func (r *StageTemplateRepository) Update(ctx context.Context, userID, templateID
 // position. The rows are locked first so two moves cannot interleave.
 func moveTemplate(ctx context.Context, tx pgx.Tx, userID, templateID string, position int) error {
 	rows, err := tx.Query(ctx,
-		`SELECT id FROM stage_templates WHERE user_id = $1 ORDER BY "order" ASC, created_at ASC FOR UPDATE`,
+		`SELECT id FROM stage_templates WHERE user_id = $1 ORDER BY "order" ASC, created_at ASC, id ASC FOR UPDATE`,
 		userID,
 	)
 	if err != nil {
@@ -270,6 +290,17 @@ func (r *StageTemplateRepository) Reorder(ctx context.Context, userID string, or
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck // rollback is a no-op after commit
 
+	if err := lockTemplateUser(ctx, tx, userID); err != nil {
+		return err
+	}
+	seen := make(map[string]bool, len(orderedIDs))
+	for _, id := range orderedIDs {
+		if seen[id] {
+			return model.ErrReorderMismatch
+		}
+		seen[id] = true
+	}
+
 	// Guard: the list must match the user's stages exactly (count check).
 	var total int
 	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM stage_templates WHERE user_id = $1`, userID).Scan(&total); err != nil {
@@ -297,7 +328,15 @@ func (r *StageTemplateRepository) Reorder(ctx context.Context, userID string, or
 
 func (r *StageTemplateRepository) Delete(ctx context.Context, userID, templateID string) error {
 	query := `DELETE FROM stage_templates WHERE id = $1 AND user_id = $2`
-	result, err := r.pool.Exec(ctx, query, templateID, userID)
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin stage delete: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if err := lockTemplateUser(ctx, tx, userID); err != nil {
+		return err
+	}
+	result, err := tx.Exec(ctx, query, templateID, userID)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
@@ -307,6 +346,30 @@ func (r *StageTemplateRepository) Delete(ctx context.Context, userID, templateID
 	}
 	if result.RowsAffected() == 0 {
 		return model.ErrStageTemplateNotFound
+	}
+	if err := normalizeTemplates(ctx, tx, userID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// The advisory transaction lock also serializes an empty pipeline, where no
+// template row exists to lock. Every template mutation acquires this first.
+func lockTemplateUser(ctx context.Context, tx pgx.Tx, userID string) error {
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, userID); err != nil {
+		return fmt.Errorf("lock user pipeline: %w", err)
+	}
+	return nil
+}
+
+func normalizeTemplates(ctx context.Context, tx pgx.Tx, userID string) error {
+	_, err := tx.Exec(ctx, `WITH ordered AS (
+		SELECT id, ROW_NUMBER() OVER (ORDER BY "order", created_at, id) - 1 AS position
+		FROM stage_templates WHERE user_id = $1
+	) UPDATE stage_templates st SET "order" = ordered.position, updated_at = NOW()
+	FROM ordered WHERE st.id = ordered.id`, userID)
+	if err != nil {
+		return fmt.Errorf("normalize stage templates: %w", err)
 	}
 	return nil
 }

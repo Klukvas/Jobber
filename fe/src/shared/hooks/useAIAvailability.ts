@@ -27,8 +27,18 @@ export function markAIUnavailable(client: QueryClient, error: unknown): void {
   if (isAIUnavailable(error)) client.setQueryData(["features", "ai"], { available: false });
 }
 
+export const AI_ERROR_KEYS: Readonly<Record<string, string>> = {
+  AI_JOB_DESCRIPTION_REQUIRED: "coverLetter.ai.jobDescriptionRequired",
+  AI_CANDIDATE_SOURCE_REQUIRED: "coverLetter.ai.resumeRequired",
+  AI_NO_CHANGES: "common.aiErrors.noChanges",
+  AI_RESULT_SAVE_FAILED: "common.aiErrors.resultSaveFailed",
+  INVALID_DATE_RANGE: "resumeBuilder.errors.invalidDateRange",
+  AI_INVALID_RESPONSE: "ai.invalidResponse",
+};
+
 export function aiErrorKey(error: unknown): string {
   if (error instanceof ApiError) {
+    if (AI_ERROR_KEYS[error.code]) return AI_ERROR_KEYS[error.code];
     if (error.code === "CREDIT_UNAVAILABLE") return "credits.exhausted";
     if (error.code === "AI_BUDGET_REACHED") return "credits.budgetReached";
     if (error.code === "AI_OPERATION_CONFLICT") return "credits.operationConflict";

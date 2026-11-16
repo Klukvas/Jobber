@@ -1,0 +1,122 @@
+{
+  "source": {
+    "id": "d7417c42-37d7-4740-a548-d13859fc0068",
+    "title": "Untitled Resume",
+    "skills": [
+      {
+        "id": "79660758-1155-4bed-87e5-f2702bd978da",
+        "name": "Go, PostgreSQL, REST APIs, Docker, GitHub Actions, Linux",
+        "level": "",
+        "sort_order": 0
+      }
+    ],
+    "spacing": 100,
+    "summary": {
+      "content": "Backend engineer with five years of experience building Go and PostgreSQL services for operational software. At Northstar Systems, developed REST APIs, wrote integration tests, and improved incident investigation using structured logs. Comfortable with Docker, GitHub Actions, Linux, API validation, and database migrations. Collaborate with frontend engineers and support colleagues in English. No professional experience with Kafka or Kubernetes. Seeking a hands-on engineering role focused on reliable systems and clear communication."
+    },
+    "projects": [],
+    "font_size": 12,
+    "languages": [],
+    "created_at": "2026-11-16T12:09:44.215663Z",
+    "educations": [],
+    "margin_top": 40,
+    "text_color": "#111827",
+    "updated_at": "2026-11-16T12:10:52.517455Z",
+    "experiences": [
+      {
+        "id": "24d99051-01c6-426d-86f1-2695ae050e36",
+        "company": "Northstar Systems",
+        "end_date": "",
+        "location": "Remote",
+        "position": "Backend Engineer",
+        "is_current": true,
+        "sort_order": 0,
+        "start_date": "2021-06-01",
+        "description": "Built Go REST APIs for shipment tracking. Wrote PostgreSQL queries and integration tests. Reduced median API latency from 240 ms to 150 ms by indexing slow queries. Added structured logging for incident investigation. Used Docker, GitHub Actions, and Linux. Collaborated with three frontend engineers. No management duties."
+      }
+    ],
+    "font_family": "Georgia",
+    "layout_mode": "single",
+    "margin_left": 40,
+    "template_id": "00000000-0000-0000-0000-000000000001",
+    "margin_right": 40,
+    "volunteering": [],
+    "margin_bottom": 40,
+    "primary_color": "#2563eb",
+    "section_order": [
+      {
+        "column": "main",
+        "is_visible": true,
+        "sort_order": 0,
+        "section_key": "contact"
+      },
+      {
+        "column": "main",
+        "is_visible": true,
+        "sort_order": 1,
+        "section_key": "summary"
+      },
+      {
+        "column": "main",
+        "is_visible": true,
+        "sort_order": 2,
+        "section_key": "experience"
+      },
+      {
+        "column": "main",
+        "is_visible": true,
+        "sort_order": 3,
+        "section_key": "education"
+      },
+      {
+        "column": "main",
+        "is_visible": true,
+        "sort_order": 4,
+        "section_key": "skills"
+      },
+      {
+        "column": "main",
+        "is_visible": true,
+        "sort_order": 5,
+        "section_key": "languages"
+      },
+      {
+        "column": "main",
+        "is_visible": true,
+        "sort_order": 6,
+        "section_key": "certifications"
+      },
+      {
+        "column": "main",
+        "is_visible": true,
+        "sort_order": 7,
+        "section_key": "projects"
+      },
+      {
+        "column": "main",
+        "is_visible": true,
+        "sort_order": 8,
+        "section_key": "volunteering"
+      },
+      {
+        "column": "main",
+        "is_visible": true,
+        "sort_order": 9,
+        "section_key": "custom"
+      }
+    ],
+    "sidebar_width": 35,
+    "skill_display": "",
+    "certifications": [],
+    "custom_sections": []
+  },
+  "job": {
+    "id": "4eec92e9-1449-4260-bb0e-9af01c38edc8",
+    "title": "Senior Backend Engineer — AI QA 3",
+    "company": "Atlas Harbor Labs",
+    "resume_id": "6b2ef112-b6bc-42ff-879a-bc34450b8c41",
+    "updated_at": "2026-11-16T12:26:21.577751Z",
+    "description": "Senior Backend Engineer — Atlas Harbor Labs\nAtlas Harbor Labs builds collaboration tools for logistics teams that coordinate deliveries across Europe. We are hiring a Senior Backend Engineer to improve the reliability of our Go services and the quality of our public APIs. This is a remote position with working hours overlapping Central European time. The successful candidate will work with a small team of engineers, a product manager, and a designer. Our product helps dispatchers understand delivery status, investigate delays, and share clear information with customers.\n\nResponsibilities\nYou will design and maintain HTTP APIs written in Go, review changes with colleagues, and document important engineering decisions. You will work with PostgreSQL to model operational data, write efficient queries, investigate slow requests, and plan safe schema migrations. Our services run in containers, and the team uses GitHub Actions for continuous integration. We expect thoughtful automated tests, readable code, and practical monitoring. You will help define service level objectives and respond to incidents during a rotating business hours support schedule.\n\nYou will also work with React and TypeScript colleagues to agree on clear API contracts. You should be able to explain validation errors and pagination behavior, consider backwards compatibility, and test authorization boundaries. We value engineers who can translate an ambiguous product request into a small sequence of safe changes. You will collaborate directly with customer support to reproduce difficult bugs and communicate progress in plain English. Strong written communication is essential because our team works asynchronously.\n\nRequired experience\nCandidates should have at least four years of professional software engineering experience and two years working with Go. We need production experience with PostgreSQL, REST APIs, unit tests, integration tests, Git, and Linux. You should understand context cancellation, timeouts, concurrency, and graceful shutdown. Experience with Docker and continuous integration is required. You should be comfortable investigating an unfamiliar service using logs and metrics, and you should know how to avoid leaking credentials or personal information into logs. We do not require a particular university degree.\n\nUseful additional skills\nExperience with Redis, event driven systems, Kafka, Kubernetes, OpenTelemetry, or infrastructure as code would be helpful but is not mandatory. We welcome people who have improved an on call process, reduced unnecessary cloud costs, or helped other engineers understand database performance. Please describe what you actually built and the scope of your contribution. We prefer accurate examples over impressive claims without supporting detail. Do not claim experience with tools you have only read about.\n\nHow we work\nEngineers participate in planning, implementation, review, release, and follow up. We use short design documents for larger changes and prefer reversible deployments. Our team values accessibility, inclusive communication, and a sustainable pace. We do not expect overtime or personal projects. We provide a learning budget, flexible working hours, equipment, and paid leave. Salary depends on location and experience and will be discussed transparently during the first conversation. This role has no people management responsibilities.\n\nInterview process\nThe process includes an introductory conversation, a practical discussion about a service you have built, a collaborative debugging exercise, and a final meeting with the team. The technical discussion covers database transactions, API error handling, observability, and testing strategies. There is no unpaid take home project. We will make reasonable accommodations when requested. Please apply with a resume that clearly describes your real experience and a short note about why reliable operational software interests you. Applications are reviewed by humans, and we will explain the next steps before scheduling any interview.",
+    "resume_builder_id": null
+  }
+}

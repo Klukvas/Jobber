@@ -99,7 +99,7 @@ export const createCompanySchema = z.object({
 export type CreateCompanyFormData = z.infer<typeof createCompanySchema>;
 
 export const stageTemplateSchema = z.object({
-  name: z.string().min(1, "errors.required").max(100),
+  name: z.string().trim().min(1, "errors.required").refine((value) => Array.from(value).length <= 255, "stages.nameTooLong"),
   order: z.coerce.number().int().min(0),
 });
 export type StageTemplateFormData = z.infer<typeof stageTemplateSchema>;

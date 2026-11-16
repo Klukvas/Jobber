@@ -106,13 +106,13 @@ describe("EducationContent", () => {
           editable={false}
         />,
       );
-      expect(screen.getByTestId("field-Degree")).toHaveTextContent(
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.degree")).toHaveTextContent(
         "Bachelor of Science",
       );
-      expect(screen.getByTestId("field-Field of Study")).toHaveTextContent(
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.fieldOfStudy")).toHaveTextContent(
         "Computer Science",
       );
-      const heading = screen.getByTestId("field-Degree").closest("p");
+      const heading = screen.getByTestId("field-resumeBuilder.placeholders.degree").closest("p");
       expect(heading!.textContent).toContain(", ");
     });
 
@@ -126,7 +126,7 @@ describe("EducationContent", () => {
         />,
       );
       expect(
-        screen.queryByTestId("field-Field of Study"),
+        screen.queryByTestId("field-resumeBuilder.placeholders.fieldOfStudy"),
       ).not.toBeInTheDocument();
     });
 
@@ -151,7 +151,7 @@ describe("EducationContent", () => {
           editable={false}
         />,
       );
-      expect(screen.getByTestId("field-Institution")).toHaveTextContent("MIT");
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.institution")).toHaveTextContent("MIT");
       expect(screen.getByText(/·/)).toBeInTheDocument();
     });
   });
@@ -170,10 +170,10 @@ describe("EducationContent", () => {
           editable={false}
         />,
       );
-      expect(screen.getByTestId("field-Degree")).toHaveTextContent(
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.degree")).toHaveTextContent(
         "Bachelor of Science",
       );
-      expect(screen.getByTestId("field-Field of Study")).toHaveTextContent(
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.fieldOfStudy")).toHaveTextContent(
         "Computer Science",
       );
       expect(screen.getByText(/in/)).toBeInTheDocument();
@@ -189,7 +189,7 @@ describe("EducationContent", () => {
         />,
       );
       expect(screen.getByText("GPA:")).toBeInTheDocument();
-      expect(screen.getByTestId("field-3.8")).toHaveTextContent("3.9");
+      expect(screen.getByTestId("field-resumeBuilder.placeholders.gpa")).toHaveTextContent("3.9");
     });
 
     it("hides GPA when empty and not editable", () => {
@@ -231,7 +231,7 @@ describe("EducationContent", () => {
           editable={false}
         />,
       );
-      const institution = screen.getByTestId("field-Institution");
+      const institution = screen.getByTestId("field-resumeBuilder.placeholders.institution");
       expect(institution.style.color).toBe("rgb(225, 29, 72)");
     });
 
@@ -245,7 +245,7 @@ describe("EducationContent", () => {
           sectionColor="#3b82f6"
         />,
       );
-      const institution = screen.getByTestId("field-Institution");
+      const institution = screen.getByTestId("field-resumeBuilder.placeholders.institution");
       expect(institution.style.color).toBe("rgb(59, 130, 246)");
     });
 
@@ -258,7 +258,7 @@ describe("EducationContent", () => {
           editable={false}
         />,
       );
-      const institution = screen.getByTestId("field-Institution");
+      const institution = screen.getByTestId("field-resumeBuilder.placeholders.institution");
       expect(institution.className).toContain("text-gray-600");
     });
   });

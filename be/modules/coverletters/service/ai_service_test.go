@@ -429,41 +429,16 @@ func TestAIService_Generate(t *testing.T) {
 	userID := "user-1"
 	coverLetterID := "cl-1"
 
-	t.Run("succeeds without resume context", func(t *testing.T) {
+	t.Run("requires linked resume context", func(t *testing.T) {
 		clRepo := &MockCoverLetterRepository{
 			GetByIDFunc: func(_ context.Context, id string) (*model.CoverLetter, error) {
-				return &model.CoverLetter{
-					ID:             id,
-					UserID:         userID,
-					CompanyName:    "Acme Corp",
-					RecipientName:  "Jane Doe",
-					RecipientTitle: "Hiring Manager",
-				}, nil
+				return &model.CoverLetter{ID: id, UserID: userID}, nil
 			},
 		}
-
-		aiClient := &mockAICoverLetterAIClient{
-			GenerateCoverLetterFunc: func(_ context.Context, companyName, recipientName, recipientTitle, jobDesc, resumeCtx string) (*ai.CoverLetterContent, error) {
-				assert.Equal(t, "Acme Corp", companyName)
-				assert.Equal(t, "Jane Doe", recipientName)
-				assert.Equal(t, "Hiring Manager", recipientTitle)
-				assert.Equal(t, "Software Engineer", jobDesc)
-				assert.Empty(t, resumeCtx)
-				return &ai.CoverLetterContent{
-					Greeting:   "Dear Jane Doe,",
-					Paragraphs: []string{"Paragraph one."},
-					Closing:    "Sincerely,",
-				}, nil
-			},
-		}
-
-		svc := newTestAIService(clRepo, &mockAIResumeBuilderRepo{}, aiClient, &MockLimitChecker{})
-
+		svc := newTestAIService(clRepo, &mockAIResumeBuilderRepo{}, &mockAICoverLetterAIClient{}, &MockLimitChecker{})
 		result, err := svc.Generate(ctx, userID, coverLetterID, "Software Engineer")
-		require.NoError(t, err)
-		assert.Equal(t, "Dear Jane Doe,", result.Greeting)
-		assert.Len(t, result.Paragraphs, 1)
-		assert.Equal(t, "Sincerely,", result.Closing)
+		require.ErrorIs(t, err, model.ErrAICandidateSourceRequired)
+		assert.Nil(t, result)
 	})
 
 	t.Run("succeeds with resume context", func(t *testing.T) {
@@ -534,7 +509,8 @@ func TestAIService_Generate(t *testing.T) {
 			},
 		}
 
-		svc := newTestAIService(&MockCoverLetterRepository{}, &mockAIResumeBuilderRepo{}, &mockAICoverLetterAIClient{}, limiter)
+		clRepo, rbRepo := validAISourceRepos(userID, coverLetterID)
+		svc := newTestAIService(clRepo, rbRepo, &mockAICoverLetterAIClient{}, limiter)
 
 		_, err := svc.Generate(ctx, userID, coverLetterID, "Engineer")
 		assert.ErrorIs(t, err, subModel.ErrLimitReached)

@@ -81,6 +81,7 @@ export function EditableSelect({
 
       {isOpen && (
         <span
+          data-select-popover
           ref={popoverRef}
           onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); setIsOpen(false); } }}
           className="absolute left-0 top-full z-50 mt-1 block min-w-[120px] rounded-md border bg-white py-1 text-gray-700 shadow-lg"

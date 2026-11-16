@@ -1,0 +1,20 @@
+import { act, renderHook } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { expect, it, vi } from "vitest";
+import { useAuthStore } from "@/stores/authStore";
+import { useAICreditSettlement } from "../useAICreditSettlement";
+it("refreshes credit balance for terminal polling outcomes once per status", () => {
+  useAuthStore.getState().setAuth({ id: "credit-user", name: "Test", email: "test@example.com", locale: "en", created_at: "" });
+  const client = new QueryClient();
+  const invalidate = vi.spyOn(client, "invalidateQueries");
+  renderHook(useAICreditSettlement, { wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> });
+  const key = ["interview-prep", "job", "history"];
+  act(() => { client.setQueryData(key, { operations: [{ id: "operation", status: "running" }] }); });
+  expect(invalidate).not.toHaveBeenCalled();
+  act(() => { client.setQueryData(key, { operations: [{ id: "operation", status: "failed" }] }); });
+  expect(invalidate).toHaveBeenCalledExactlyOnceWith({ queryKey: ["subscription"] });
+  act(() => { client.setQueryData(key, { operations: [{ id: "operation", status: "failed" }] }); });
+  expect(invalidate).toHaveBeenCalledTimes(1);
+  act(() => { client.setQueryData(key, { operations: [{ id: "operation", status: "succeeded" }] }); });
+  expect(invalidate).toHaveBeenCalledTimes(2);
+});

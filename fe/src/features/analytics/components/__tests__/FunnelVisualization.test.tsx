@@ -138,3 +138,13 @@ describe("FunnelVisualization — counted totals", () => {
     ).toBeInTheDocument();
   });
 });
+
+it("draws zero and small counts proportionally, including rejected outcomes", () => {
+  const { container } = render(<FunnelVisualization isLoading={false} data={{ stages: [
+    { stage_name: "applied", stage_order: 0, count: 100, conversion_rate: 100, drop_off_rate: 0 },
+    { stage_name: "offer", stage_order: 1, count: 0, conversion_rate: 0, drop_off_rate: 100 },
+    { stage_name: "small", stage_order: 2, count: 1, conversion_rate: 1, drop_off_rate: 99 },
+  ], rejected: { total: 2, by_stage: [] } }} />);
+  const bars = Array.from(container.querySelectorAll<HTMLElement>('[style*="--bar-w"]'));
+  expect(bars.map((bar) => bar.style.width)).toEqual(["100%", "0%", "1%", "2%"]);
+});

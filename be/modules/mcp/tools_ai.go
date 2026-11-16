@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"errors"
+	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"strings"
 
 	cvModel "github.com/andreypavlenko/jobber/modules/coverletters/model"
@@ -27,6 +28,9 @@ func (t *tools) parseJobPage(ctx context.Context, owner string, input ParseJobPa
 		return ParseJobPageOutput{}, err
 	}
 	draft, err := t.ai.Parser.ParseJobPage(ctx, owner, &importModel.ParseJobRequest{PageURL: input.PageURL, PageText: input.PageText})
+	if err == nil {
+		err = t.completeAIResult(ctx)
+	}
 	return ParseJobPageOutput{Draft: draft}, aiCallError(err)
 }
 func (t *tools) tailorResume(ctx context.Context, owner string, input TailorResumeInput) (TailorResumeOutput, error) {
@@ -61,6 +65,9 @@ func (t *tools) tailorResume(ctx context.Context, owner string, input TailorResu
 		return TailorResumeOutput{}, aiCallError(err)
 	}
 	mapped, err := mapTailoringProposal(proposal)
+	if err == nil {
+		err = t.completeAIResult(ctx)
+	}
 	return TailorResumeOutput{Proposal: mapped}, err
 }
 func (t *tools) applyTailoring(ctx context.Context, owner string, input ApplyTailoringInput) (ApplyTailoringOutput, error) {
@@ -84,6 +91,9 @@ func (t *tools) generateCoverLetter(ctx context.Context, owner string, input Gen
 	jobID, err := canonicalID(input.JobID, "job_id")
 	if err != nil {
 		return GenerateCoverLetterOutput{}, err
+	}
+	if input.ResumeID == "" {
+		return GenerateCoverLetterOutput{}, validationError("Link a resume with candidate information before generating a cover letter.")
 	}
 	resumeID := ""
 	if input.ResumeID != "" {
@@ -135,7 +145,13 @@ func (t *tools) generateLetterContent(ctx context.Context, owner, letterID, desc
 	if err != nil {
 		return GenerateCoverLetterOutput{}, aiCallError(err)
 	}
+	ai.MarkCreditResult(ctx)
 	_, err = t.ai.Letters.Update(ctx, owner, letterID, &cvModel.UpdateCoverLetterRequest{Greeting: &content.Greeting, Paragraphs: &content.Paragraphs, Closing: &content.Closing})
+	if err != nil {
+		ai.RejectCreditResult(ctx)
+	} else {
+		err = t.completeAIResult(ctx)
+	}
 	return GenerateCoverLetterOutput{CoverLetterID: letterID, Greeting: content.Greeting, Paragraphs: content.Paragraphs, Closing: content.Closing}, err
 }
 func (t *tools) checkMatch(ctx context.Context, owner string, input CheckMatchInput) (CheckMatchOutput, error) {
@@ -167,5 +183,8 @@ func (t *tools) checkMatch(ctx context.Context, owner string, input CheckMatchIn
 		return CheckMatchOutput{}, err
 	}
 	result, err := t.ai.Matcher.CheckMatch(ctx, owner, request)
+	if err == nil {
+		err = t.completeAIResult(ctx)
+	}
 	return CheckMatchOutput{Match: result}, aiCallError(err)
 }

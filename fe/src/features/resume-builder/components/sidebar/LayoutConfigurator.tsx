@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { useResumeBuilderStore } from "@/stores/resumeBuilderStore";
 import type {
@@ -17,6 +18,7 @@ const PRESET_MODES: { mode: LayoutMode; labelKey: string }[] = [
 ];
 
 export function LayoutConfigurator() {
+  const sliderId = useId();
   const { t } = useTranslation();
   const resume = useResumeBuilderStore((s) => s.resume);
   const updateDesign = useResumeBuilderStore((s) => s.updateDesign);
@@ -90,11 +92,13 @@ export function LayoutConfigurator() {
       {/* Sidebar Width Slider */}
       {isTwoColumn && (
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">
+          <label htmlFor={sliderId} className="text-xs font-medium text-muted-foreground">
             {t("resumeBuilder.layout.sidebarWidth")}: {sidebarWidth}%
           </label>
           <input
+            id={sliderId}
             type="range"
+            aria-valuetext={`${sidebarWidth}%`}
             min={25}
             max={50}
             value={sidebarWidth}

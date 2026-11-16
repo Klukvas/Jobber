@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef } from "react";
-import { NavLink, Link, useNavigate, useLocation } from "react-router-dom";
+import { NavLink, Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useMutation } from "@tanstack/react-query";
 import { useSidebarStore } from "@/stores/sidebarStore";
 import { useAuthStore } from "@/stores/authStore";
-import { endSession } from "@/shared/lib/session";
+import { useLogout } from "@/shared/hooks/useLogout";
 import { LogoMark } from "@/shared/ui/Logo";
 import { useBodyScrollLock } from "@/shared/hooks/useBodyScrollLock";
 import { useDialogFocus } from "@/shared/hooks/useDialogFocus";
@@ -16,7 +15,6 @@ import {
 } from "@/widgets/sidebarDrawer";
 import { useSubscription } from "@/shared/hooks/useSubscription";
 import { useAdminAccess } from "@/shared/hooks/useAdminAccess";
-import { authService } from "@/services/authService";
 import { useOnboardingHighlight } from "@/features/onboarding/useOnboarding";
 import { cn } from "@/shared/lib/utils";
 import {
@@ -94,7 +92,6 @@ function getPlanBadge(
 
 export function Sidebar() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const {
     isExpanded: isDesktopExpanded,
     isMobileOpen,
@@ -134,16 +131,7 @@ export function Sidebar() {
     closeMobile();
   }, [location.pathname, closeMobile]);
 
-  const logoutMutation = useMutation({
-    mutationFn: authService.logout,
-    onSettled: () => {
-      // Not just the auth store: every cached query belongs to the account
-      // that is leaving, and the next sign-in on this tab would otherwise be
-      // served the previous one's rows.
-      endSession();
-      navigate("/");
-    },
-  });
+  const logoutMutation = useLogout();
 
   return (
     <>

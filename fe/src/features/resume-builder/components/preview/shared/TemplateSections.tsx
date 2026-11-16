@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { SectionHeader } from "../../inline/SectionHeader";
 import { SectionDivider } from "../../inline/SectionDivider";
 import { TwoColumnLayout } from "../TwoColumnLayout";
@@ -96,50 +97,50 @@ function getSectionData(key: string, setup: TemplateSetup) {
       return {
         onAdd: setup.experienceSection.handleAdd,
         isEmpty: setup.resume.experiences.length === 0,
-        emptyPlaceholder: "Add work experience",
+        emptyPlaceholder: "resumeBuilder.inline.addExperience",
       };
     case "education":
       return {
         onAdd: setup.educationSection.handleAdd,
         isEmpty: setup.resume.educations.length === 0,
-        emptyPlaceholder: "Add education",
+        emptyPlaceholder: "resumeBuilder.inline.addEducation",
       };
     case "skills":
       return {
         onAdd: setup.skillsSection.handleAdd,
         isEmpty: setup.resume.skills.length === 0,
-        emptyPlaceholder: "Add a skill",
+        emptyPlaceholder: "resumeBuilder.inline.addSkill",
       };
     case "languages":
       return {
         onAdd: setup.languagesSection.handleAdd,
         isEmpty: setup.resume.languages.length === 0,
-        emptyPlaceholder: "Add a language",
+        emptyPlaceholder: "resumeBuilder.inline.addLanguage",
       };
     case "certifications":
       return {
         onAdd: setup.certificationsSection.handleAdd,
         isEmpty: setup.resume.certifications.length === 0,
-        emptyPlaceholder: "Add a certification",
+        emptyPlaceholder: "resumeBuilder.inline.addCertification",
       };
     case "projects":
       return {
         onAdd: setup.projectsSection.handleAdd,
         isEmpty: setup.resume.projects.length === 0,
-        emptyPlaceholder: "Add a project",
+        emptyPlaceholder: "resumeBuilder.inline.addProject",
       };
     case "volunteering":
       return {
         onAdd: setup.volunteeringSection.handleAdd,
         isEmpty: setup.resume.volunteering.length === 0,
-        emptyPlaceholder: "Add volunteering",
+        emptyPlaceholder: "resumeBuilder.inline.addVolunteering",
       };
     case "custom":
     case "custom_sections":
       return {
         onAdd: setup.customSectionsSection.handleAdd,
         isEmpty: setup.resume.custom_sections.length === 0,
-        emptyPlaceholder: "Add a custom section",
+        emptyPlaceholder: "resumeBuilder.inline.addCustomSection",
       };
     default:
       return null;
@@ -290,6 +291,7 @@ export function SectionRenderer({
   sectionColor,
   inputClassName,
 }: SectionRendererProps) {
+  const { t } = useTranslation();
   const config = useConfigWithOverrides(rawConfig);
   const { color, textColor, hideSection, moveSection, canMoveUp, canMoveDown } =
     setup;
@@ -316,7 +318,7 @@ export function SectionRenderer({
       textColor={effectiveTextColor}
       onAdd={data.onAdd}
       isEmpty={data.isEmpty}
-      emptyPlaceholder={data.emptyPlaceholder}
+      emptyPlaceholder={data.emptyPlaceholder ? t(data.emptyPlaceholder) : undefined}
       editable={editable}
       onRemoveSection={() => hideSection(sectionKey)}
       onMoveUp={

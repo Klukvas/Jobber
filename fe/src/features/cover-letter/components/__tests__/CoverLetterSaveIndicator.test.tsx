@@ -44,7 +44,7 @@ describe("CoverLetterSaveIndicator", () => {
     render(<CoverLetterSaveIndicator />);
     const indicator = screen.getByText("coverLetter.saved").closest("span");
     expect(indicator).toBeInTheDocument();
-    expect(indicator?.className).toContain("text-green-600");
+    expect(indicator?.className).toContain("text-green-700");
   });
 
   it("renders error indicator with destructive color", () => {

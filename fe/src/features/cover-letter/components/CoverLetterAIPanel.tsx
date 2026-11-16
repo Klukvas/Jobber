@@ -1,7 +1,13 @@
 import { isAIActionCancelled } from "@/shared/lib/aiCredits";
 import { useAIAvailability, aiErrorKey } from "@/shared/hooks/useAIAvailability";
+import { useTopmostEscape } from "@/shared/hooks/useTopmostEscape";
+import { resumeBuilderService } from "@/services/resumeBuilderService";
+import { resumeQueryKeys } from "@/shared/lib/resumeQueryKeys";
+import { Select } from "@/shared/ui/Select";
+import { flushCoverLetterDocument } from "../lib/coverLetterDocumentSync";
+import { hasCandidateSource } from "../lib/candidateSource";
 import { AIAvailabilityNotice } from "@/shared/ui/AIAvailabilityNotice";
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Sparkles, Loader2, Check, X, Search } from "lucide-react";
@@ -30,6 +36,7 @@ export function CoverLetterAIPanel({ state }: CoverLetterAIPanelProps = {}) {
   const { t } = useTranslation();
   const { unavailable, isChecking, markUnavailable } = useAIAvailability();
   const coverLetter = useCoverLetterStore((s) => s.coverLetter);
+  const updateField = useCoverLetterStore((s) => s.updateField);
   const updateFields = useCoverLetterStore((s) => s.updateFields);
   const { canCreate } = useSubscription();
   const aiLimitReached = !canCreate("ai");
@@ -42,9 +49,19 @@ export function CoverLetterAIPanel({ state }: CoverLetterAIPanelProps = {}) {
     setJobSearch,
     generate,
   } = state ?? ownState;
+  const prefix = useId();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
+  const applyLock = useRef(false);
+  const prepareLock = useRef(false);
   const [isJobDropdownOpen, setIsJobDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  useTopmostEscape(isJobDropdownOpen, dropdownRef, () => setIsJobDropdownOpen(false));
+
+  const { data: resumeList } = useQuery({ queryKey: resumeQueryKeys.builderList(), queryFn: () => resumeBuilderService.list() });
   const { data: jobsData } = useQuery({
     // Status omitted => all non-archived jobs
     queryKey: ["jobs", "non-archived"],
@@ -80,36 +97,56 @@ export function CoverLetterAIPanel({ state }: CoverLetterAIPanelProps = {}) {
     }
   };
 
-  const handleGenerate = () => {
-    if (!coverLetter || unavailable || isChecking || generate.isPending) return;
-    generate.mutate({
-      cover_letter_id: coverLetter.id,
-      job_description: jobDescription || undefined,
-    }, { onError: markUnavailable });
+  const handleGenerate = async () => {
+    if (!coverLetter || unavailable || isChecking || generate.isPending || prepareLock.current) return;
+    if (!jobDescription.trim()) { setValidationError("coverLetter.ai.jobDescriptionRequired"); return; }
+    if (!coverLetter.resume_builder_id) { setValidationError("coverLetter.ai.resumeRequired"); return; }
+    prepareLock.current = true;
+    setIsPreparing(true);
+    setValidationError(null);
+    try {
+      const source = await resumeBuilderService.getById(coverLetter.resume_builder_id);
+      if (!hasCandidateSource(source)) { setValidationError("coverLetter.ai.resumeRequired"); return; }
+      await flushCoverLetterDocument(coverLetter.id);
+      if (useCoverLetterStore.getState().coverLetter?.id !== coverLetter.id) return;
+      generate.mutate({ cover_letter_id: coverLetter.id, job_description: jobDescription.trim() }, { onError: markUnavailable });
+    } catch {
+      setValidationError("coverLetter.ai.sourceUnavailable");
+    } finally {
+      prepareLock.current = false;
+      setIsPreparing(false);
+    }
   };
 
-  const handleApply = () => {
-    if (!generate.data) return;
-    updateFields({
-      greeting: generate.data.greeting,
-      paragraphs: generate.data.paragraphs,
-      closing: generate.data.closing,
-    });
-    generate.reset();
+  const handleApply = async () => {
+    if (!generate.data || !coverLetter || applyLock.current) return;
+    applyLock.current = true;
+    setIsApplying(true);
+    setValidationError(null);
+    try {
+      updateFields({ greeting: generate.data.greeting, paragraphs: generate.data.paragraphs, closing: generate.data.closing });
+      await flushCoverLetterDocument(coverLetter.id);
+      generate.reset();
+    } catch {
+      setValidationError("coverLetter.saveFailed");
+    } finally {
+      applyLock.current = false;
+      setIsApplying(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Sparkles className="h-5 w-5 text-primary-ink" />
-        <h2 className="text-lg font-semibold">{t("coverLetter.ai.title")}</h2>
-      </div>
-
       <AIAvailabilityNotice unavailable={unavailable} />
       {aiLimitReached && <UpgradeBanner resource="ai" />}
 
       <section className="space-y-3">
-        <Label>{t("coverLetter.ai.jobDescription")}</Label>
+        <Label htmlFor={`${prefix}-resume`}>{t("coverLetter.ai.resume")}</Label>
+        <Select id={`${prefix}-resume`} value={coverLetter?.resume_builder_id ?? ""} onChange={(event) => { updateField("resume_builder_id", event.target.value || null); setValidationError(null); }}>
+          <option value="">{t("coverLetter.ai.selectResume")}</option>
+          {(resumeList ?? []).map((resume) => <option key={resume.id} value={resume.id}>{resume.title}</option>)}
+        </Select>
+        <Label htmlFor={`${prefix}-description`}>{t("coverLetter.ai.jobDescription")}</Label>
 
         {jobs.length > 0 && (
           <div className="relative" ref={dropdownRef}>
@@ -117,24 +154,53 @@ export function CoverLetterAIPanel({ state }: CoverLetterAIPanelProps = {}) {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
+                role="combobox"
+                aria-label={t("coverLetter.ai.selectJobPlaceholder")}
+                aria-autocomplete="list"
+                aria-expanded={isJobDropdownOpen}
+                aria-controls={`${prefix}-jobs`}
+                aria-activedescendant={isJobDropdownOpen && filteredJobs[activeIndex] ? `${prefix}-job-${filteredJobs[activeIndex].id}` : undefined}
                 value={jobSearch}
                 onChange={(e) => {
                   setJobSearch(e.target.value);
+                  setActiveIndex(0);
                   setIsJobDropdownOpen(true);
                 }}
-                onFocus={() => setIsJobDropdownOpen(true)}
+                onFocus={() => { setActiveIndex(0); setIsJobDropdownOpen(true); }}
+                onKeyDown={(event) => {
+                  if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+                    event.preventDefault();
+                    setIsJobDropdownOpen(true);
+                    setActiveIndex((current) => {
+                      const last = filteredJobs.length - 1;
+                      const next = event.key === "Home" ? 0 : event.key === "End" ? last : event.key === "ArrowDown" ? Math.min(current + (isJobDropdownOpen ? 1 : 0), last) : Math.max(current - 1, 0);
+                      document.getElementById(`${prefix}-job-${filteredJobs[next]?.id}`)?.scrollIntoView?.({ block: "nearest" });
+                      return Math.max(0, next);
+                    });
+                  }
+                  if (event.key === "Enter" && isJobDropdownOpen) {
+                    event.preventDefault();
+                    const job = filteredJobs[activeIndex];
+                    if (job) handleJobSelect(job.id);
+                  }
+                  if (event.key === "Escape" && isJobDropdownOpen) { event.preventDefault(); event.stopPropagation(); setIsJobDropdownOpen(false); }
+                }}
                 onBlur={() => setIsJobDropdownOpen(false)}
                 placeholder={t("coverLetter.ai.selectJobPlaceholder")}
                 className="w-full rounded-md border border-input bg-background py-2 pl-9 pr-3 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               />
             </div>
-            {isJobDropdownOpen && filteredJobs.length > 0 && (
-              <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-input bg-background py-1 shadow-md">
-                {filteredJobs.map((job) => (
+            {isJobDropdownOpen && (
+              <ul id={`${prefix}-jobs`} role="listbox" aria-label={t("coverLetter.ai.selectJobPlaceholder")} className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-input bg-background py-1 shadow-md">
+                {filteredJobs.map((job, index) => (
                   <li
                     key={job.id}
-                    onMouseDown={() => handleJobSelect(job.id)}
-                    className="cursor-pointer px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
+                    id={`${prefix}-job-${job.id}`}
+                    role="option"
+                    aria-selected={activeIndex === index}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => handleJobSelect(job.id)}
+                    className={`min-h-11 cursor-pointer px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground ${activeIndex === index ? "bg-accent text-accent-foreground" : ""}`}
                   >
                     {job.title}
                     {job.company_name ? ` (${job.company_name})` : ""}
@@ -149,15 +215,20 @@ export function CoverLetterAIPanel({ state }: CoverLetterAIPanelProps = {}) {
         )}
 
         <Textarea
+          id={`${prefix}-description`}
+          aria-invalid={validationError === "coverLetter.ai.jobDescriptionRequired"}
+          aria-describedby={validationError ? `${prefix}-error` : undefined}
+          maxLength={10000}
           value={jobDescription}
           onChange={(e) => setJobDescription(e.target.value)}
           placeholder={t("coverLetter.ai.jobDescriptionPlaceholder")}
           rows={5}
         />
 
+        {validationError && <p id={`${prefix}-error`} role="alert" className="text-sm text-destructive">{t(validationError)}</p>}
         <Button
-          onClick={handleGenerate}
-          disabled={unavailable || isChecking || generate.isPending || !coverLetter || aiLimitReached}
+          onClick={() => void handleGenerate()}
+          disabled={isPreparing || unavailable || isChecking || generate.isPending || !coverLetter || aiLimitReached}
           variant="outline"
           className="w-full"
         >
@@ -197,13 +268,14 @@ export function CoverLetterAIPanel({ state }: CoverLetterAIPanelProps = {}) {
                 <p className="font-medium">{generate.data.closing}</p>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" onClick={handleApply}>
+                <Button size="sm" onClick={() => void handleApply()} disabled={isApplying}>
                   <Check className="h-3.5 w-3.5" />
                   {t("coverLetter.ai.apply")}
                 </Button>
                 <Button
                   size="sm"
                   variant="ghost"
+                  disabled={isApplying}
                   onClick={() => generate.reset()}
                 >
                   <X className="h-3.5 w-3.5" />

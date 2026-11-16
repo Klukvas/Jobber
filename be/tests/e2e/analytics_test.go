@@ -53,7 +53,7 @@ func TestIntegrationAnalyticsFunnel(t *testing.T) {
 		assert.GreaterOrEqual(t, funnel.Stages[0].Count, 1, "the wishlist card reaches Wishlist")
 	})
 
-	t.Run("archived cards are excluded from the funnel", func(t *testing.T) {
+	t.Run("archived cards remain included in the funnel", func(t *testing.T) {
 		cleanupAll(t)
 		userID := seedUser(t, "funnel-archived@example.com", "password123")
 		seedSubscription(t, userID, "free")
@@ -69,7 +69,7 @@ func TestIntegrationAnalyticsFunnel(t *testing.T) {
 		funnel := parseJSON[funnelResponse](t, resp)
 
 		require.Len(t, funnel.Stages, 2)
-		assert.Equal(t, 1, funnel.Stages[1].Count, "the archived card must not count toward Applied")
+		assert.Equal(t, 2, funnel.Stages[1].Count, "both active and archived cards count toward Applied")
 	})
 
 	t.Run("empty funnel for a user with no pipeline", func(t *testing.T) {

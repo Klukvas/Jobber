@@ -1,5 +1,7 @@
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/shared/hooks/useSingleFlightMutation";
+import { useCurrentFormSession } from "@/shared/hooks/useCurrentFormSession";
 import { companiesService } from "@/services/companiesService";
 import {
   showErrorNotification,
@@ -23,13 +25,14 @@ interface DeleteCompanyDialogProps {
   company: CompanyDTO;
 }
 
-export function DeleteCompanyDialog({
+function DeleteCompanyContent({
   open,
   onOpenChange,
   company,
 }: DeleteCompanyDialogProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const isCurrentSession = useCurrentFormSession();
 
   // Fetch related counts when dialog opens
   const { data: relatedCounts } = useQuery({
@@ -38,14 +41,16 @@ export function DeleteCompanyDialog({
     enabled: open,
   });
 
-  const deleteMutation = useMutation({
+  const deleteMutation = useSingleFlightMutation({
     mutationFn: () => companiesService.delete(company.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["companies"] });
+      if (!isCurrentSession()) return;
       showSuccessNotification(t("companies.deleteSuccess"));
       onOpenChange(false);
     },
     onError: (error: Error) => {
+      if (!isCurrentSession()) return;
       showErrorNotification(error.message || t("companies.deleteError"));
     },
   });
@@ -135,4 +140,9 @@ export function DeleteCompanyDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+
+export function DeleteCompanyDialog(props: DeleteCompanyDialogProps) {
+  return <DeleteCompanyContent key={`${props.company.id}-${props.open}`} {...props} />;
 }

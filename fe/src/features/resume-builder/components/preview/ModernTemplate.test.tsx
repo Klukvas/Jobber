@@ -137,7 +137,7 @@ it.each([false, true])(
     render(<ModernTemplate editable={editable} />);
     if (editable) {
       expect(screen.getByText("Contact")).toBeInTheDocument();
-      expect(screen.getByText("email@example.com")).toBeInTheDocument();
+      expect(screen.getByText("resumeBuilder.placeholders.email")).toBeInTheDocument();
     } else {
       expect(screen.queryByText("Contact")).not.toBeInTheDocument();
     }

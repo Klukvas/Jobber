@@ -8,12 +8,36 @@ import ky, {
   TimeoutError,
 } from "ky";
 import type { ErrorResponse } from "@/shared/types/api";
+import { sessionSignal } from "@/shared/lib/sessionLifetime";
 import { endSession } from "@/shared/lib/session";
 import { loginPathFor } from "@/shared/lib/loginReturn";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
 const REQUEST_TIMEOUT_MS = 30_000;
+const AUTH_COOKIE_LOCK = "cursopus-auth-cookies";
+const AUTH_LOCK_WAIT_TIMEOUT_MS = REQUEST_TIMEOUT_MS * 2;
+
+async function withAuthCookieLock<T>(operation: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+  // The browser releases Web Locks when a tab closes or reloads. Browsers
+  // without this API retain the per-client logout barrier below.
+  if (typeof navigator === "undefined" || !navigator.locks?.request) return operation();
+  const waiting = new AbortController();
+  const timer = setTimeout(() => waiting.abort(new DOMException("Auth lock timed out", "TimeoutError")), AUTH_LOCK_WAIT_TIMEOUT_MS);
+  try {
+    return await navigator.locks.request(AUTH_COOKIE_LOCK, {
+      signal: signal ? AbortSignal.any([signal, waiting.signal]) : waiting.signal,
+    }, async () => {
+      clearTimeout(timer);
+      signal?.throwIfAborted();
+      // Keep the lock until the transport settles or ky aborts it on timeout.
+      // Releasing it by racing a timer would leave a late Set-Cookie alive.
+      return operation();
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /** File uploads and PDF renders need longer than an ordinary JSON call. */
 const LONG_REQUEST_TIMEOUT_MS = 60_000;
@@ -52,6 +76,7 @@ export const CLIENT_ERROR_CODES = {
 /** Everything a hook needs to replay a request after a token refresh. */
 interface RequestContext {
   readonly timeoutMs: number;
+  readonly session?: AbortSignal;
 }
 
 /**
@@ -93,7 +118,8 @@ function contextTimeout(options: NormalizedOptions): number {
 
 class ApiClient {
   private client: KyInstance;
-  private refreshPromise: Promise<boolean> | null = null;
+  private refreshPromise: { signal: AbortSignal; promise: Promise<boolean> } | null = null;
+  private logoutRequest: Promise<unknown> | null = null;
 
   constructor() {
     this.client = ky.create({
@@ -117,11 +143,15 @@ class ApiClient {
             const url = new URL(request.url);
             const isAuthEndpoint = url.pathname.includes("/auth/");
 
+            (options.context as Partial<RequestContext>).session?.throwIfAborted();
             if (response.status !== 401 || isAuthEndpoint) {
               return response;
             }
 
-            const refreshed = await this.tryRefreshToken();
+            const lifetime = (options.context as Partial<RequestContext>).session;
+            lifetime?.throwIfAborted();
+            const refreshed = await this.tryRefreshToken(lifetime ?? sessionSignal());
+            lifetime?.throwIfAborted();
             if (!refreshed) {
               // The session is over. Everything cached under it goes with it —
               // a reload would rebuild the cache anyway, but the seconds before
@@ -195,32 +225,32 @@ class ApiClient {
     return crypto.randomUUID();
   }
 
-  private async tryRefreshToken(): Promise<boolean> {
-    // Deduplicate concurrent refresh attempts
-    if (this.refreshPromise) {
-      return this.refreshPromise;
-    }
-
-    this.refreshPromise = this.doRefreshToken();
+  private async tryRefreshToken(signal: AbortSignal): Promise<boolean> {
+    signal.throwIfAborted();
+    if (this.refreshPromise?.signal === signal) return this.refreshPromise.promise;
+    const refresh = { signal, promise: this.doRefreshToken(signal) };
+    this.refreshPromise = refresh;
     try {
-      return await this.refreshPromise;
+      return await refresh.promise;
     } finally {
-      this.refreshPromise = null;
+      if (this.refreshPromise === refresh) this.refreshPromise = null;
     }
   }
 
-  private async doRefreshToken(): Promise<boolean> {
+  private async doRefreshToken(signal: AbortSignal): Promise<boolean> {
     try {
-      // Refresh token is sent automatically via httpOnly cookie
-      await ky.post(`${API_BASE_URL}/auth/refresh`, {
-        credentials: "include",
-      });
+      await this.waitForLogout();
+      await withAuthCookieLock(async () => {
+        signal.throwIfAborted();
+        await ky.post(`${API_BASE_URL}/auth/refresh`, {
+          credentials: "include", signal, retry: 0, timeout: REQUEST_TIMEOUT_MS,
+        });
+      }, signal);
+      signal.throwIfAborted();
       return true;
     } catch (err) {
-      console.error(
-        "[ApiClient] token refresh failed:",
-        err instanceof Error ? err.message : "unknown error",
-      );
+      signal.throwIfAborted();
+      console.error("[ApiClient] token refresh failed:", err instanceof Error ? err.message : "unknown error");
       return false;
     }
   }
@@ -260,6 +290,12 @@ class ApiClient {
         unstructuredResponse = true;
       }
       const creditErrors: Record<string, string> = {
+        AI_JOB_DESCRIPTION_REQUIRED: "coverLetter.ai.jobDescriptionRequired",
+        AI_CANDIDATE_SOURCE_REQUIRED: "coverLetter.ai.resumeRequired",
+        AI_NO_CHANGES: "common.aiErrors.noChanges",
+        AI_RESULT_SAVE_FAILED: "common.aiErrors.resultSaveFailed",
+        INVALID_DATE_RANGE: "resumeBuilder.errors.invalidDateRange",
+        AI_INVALID_RESPONSE: "ai.invalidResponse",
         CREDIT_UNAVAILABLE: "credits.exhausted",
         AI_BUDGET_REACHED: "credits.budgetReached",
         AI_OPERATION_CONFLICT: "credits.operationConflict",
@@ -315,7 +351,7 @@ class ApiClient {
   async get<T>(url: string, options?: RequestOptions): Promise<T> {
     try {
       return await this.client
-        .get(url, requestOptions(REQUEST_TIMEOUT_MS, options))
+        .get(url, requestOptions(REQUEST_TIMEOUT_MS, options, url))
         .json<T>();
     } catch (error) {
       return this.handleError(error, `GET ${operationPath(url)}`);
@@ -327,10 +363,75 @@ class ApiClient {
     data?: unknown,
     options?: RequestOptions,
   ): Promise<T> {
-    const operationKey = await confirmAIAction(url, consentSignal(options));
+    const path = operationPath(url);
+    if (path === "auth/logout") {
+      // Share one logout response: a second late Set-Cookie could otherwise
+      // erase the next session too. Register it before any asynchronous work.
+      if (this.logoutRequest) return this.logoutRequest as Promise<T>;
+      const logout = this.postAuthRequest<T>(url, data, options);
+      this.logoutRequest = logout;
+      try {
+        return await logout;
+      } finally {
+        this.logoutRequest = null;
+      }
+    }
+    if (/^auth\/(login|register|refresh)$/.test(path)) {
+      await this.waitForLogout();
+      return this.postAuthRequest<T>(url, data, options);
+    }
+    return this.postRequest<T>(url, data, options);
+  }
+
+  private async postAuthRequest<T>(url: string, data?: unknown, options?: RequestOptions): Promise<T> {
+    try {
+      return await withAuthCookieLock(async () => {
+        if (operationPath(url) !== "auth/logout") return this.postRequest<T>(url, data, options);
+        // ky's timeout ends at headers. Keep an aborting deadline through body
+        // parsing (including error bodies), so a stalled stream releases the lock.
+        const deadline = new AbortController();
+        const timer = setTimeout(() => deadline.abort(new DOMException("Logout timed out", "TimeoutError")), REQUEST_TIMEOUT_MS);
+        try {
+          return await this.postRequest<T>(url, data, {
+            ...options,
+            signal: options?.signal ? AbortSignal.any([options.signal, deadline.signal]) : deadline.signal,
+          });
+        } catch (error) {
+          deadline.signal.throwIfAborted();
+          throw error;
+        } finally {
+          clearTimeout(timer);
+        }
+      }, options?.signal);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      return this.handleError(error, `POST ${operationPath(url)}`);
+    }
+  }
+
+  private async waitForLogout(): Promise<void> {
+    // Browsers apply Set-Cookie before JS sees the response. Session generation
+    // checks cannot protect a new login from an older logout's cookie deletion.
+    // Wait for the actual request to settle (including ky's abort on timeout),
+    // rather than racing a timer that leaves the cookie-clearing fetch alive.
+    while (this.logoutRequest) {
+      // The logout caller reports failures; a settled failure must allow login.
+      await this.logoutRequest.then(() => undefined, () => undefined);
+    }
+  }
+
+  private async postRequest<T>(
+    url: string,
+    data?: unknown,
+    options?: RequestOptions,
+  ): Promise<T> {
+    const scopedOptions = requestOptions(REQUEST_TIMEOUT_MS, options, url);
+    const operationKey = await confirmAIAction(url, consentSignal({ ...options, signal: scopedOptions.signal }));
+    const timeoutMs = aiAwareTimeout(operationKey, REQUEST_TIMEOUT_MS);
     try {
       return await this.client
-        .post(url, { json: data, ...requestOptions(aiAwareTimeout(operationKey, REQUEST_TIMEOUT_MS), options),
+        .post(url, { json: data, ...scopedOptions, timeout: timeoutMs,
+          context: { ...scopedOptions.context, timeoutMs },
           ...(operationKey ? { headers: { "Idempotency-Key": operationKey }, retry: 0 } : {}),
         })
         .json<T>();
@@ -350,7 +451,7 @@ class ApiClient {
       return await this.client
         .patch(url, {
           json: data,
-          ...requestOptions(REQUEST_TIMEOUT_MS, options),
+          ...requestOptions(REQUEST_TIMEOUT_MS, options, url),
         })
         .json<T>();
     } catch (error) {
@@ -365,7 +466,7 @@ class ApiClient {
   ): Promise<T> {
     try {
       return await this.client
-        .put(url, { json: data, ...requestOptions(REQUEST_TIMEOUT_MS, options) })
+        .put(url, { json: data, ...requestOptions(REQUEST_TIMEOUT_MS, options, url) })
         .json<T>();
     } catch (error) {
       return this.handleError(error, `PUT ${operationPath(url)}`);
@@ -375,7 +476,7 @@ class ApiClient {
   async delete<T>(url: string, options?: RequestOptions): Promise<T> {
     try {
       return await this.client
-        .delete(url, requestOptions(REQUEST_TIMEOUT_MS, options))
+        .delete(url, requestOptions(REQUEST_TIMEOUT_MS, options, url))
         .json<T>();
     } catch (error) {
       return this.handleError(error, `DELETE ${operationPath(url)}`);
@@ -392,7 +493,7 @@ class ApiClient {
     try {
       const response = await this.client.post(url, {
         json: data,
-        ...requestOptions(timeoutMs, options),
+        ...requestOptions(timeoutMs, options, url),
       });
       return await response.blob();
     } catch (error) {
@@ -406,11 +507,12 @@ class ApiClient {
     timeout?: number,
     options?: RequestOptions,
   ): Promise<T> {
-    const operationKey = await confirmAIAction(url, consentSignal(options));
+    const scopedOptions = requestOptions(REQUEST_TIMEOUT_MS, options, url);
+    const operationKey = await confirmAIAction(url, consentSignal({ ...options, signal: scopedOptions.signal }));
     const timeoutMs = aiAwareTimeout(operationKey, LONG_REQUEST_TIMEOUT_MS, timeout);
     try {
       return await this.client
-        .post(url, { body: formData, ...requestOptions(timeoutMs, options),
+        .post(url, { body: formData, ...scopedOptions, timeout: timeoutMs, context: { ...scopedOptions.context, timeoutMs },
           ...(operationKey ? { headers: { "Idempotency-Key": operationKey }, retry: 0 } : {}),
         })
         .json<T>();
@@ -433,11 +535,15 @@ function consentSignal(options?: RequestOptions): AbortSignal | undefined {
  * gives a hook, and without it the replay fell back to the 30s default and cut
  * a 60s upload in half.
  */
-function requestOptions(timeoutMs: number, options?: RequestOptions) {
+function requestOptions(timeoutMs: number, options: RequestOptions | undefined, url: string) {
+  const publicPath = /^(auth\/|public\/|blog(?:\/|$)|features\/|subscription\/checkout-config(?:[?]|$))/;
+  const lifetime = publicPath.test(url) ? undefined : sessionSignal();
+  const signal = lifetime && options?.signal
+    ? AbortSignal.any([lifetime, options.signal])
+    : lifetime ?? options?.signal;
   return {
-    timeout: timeoutMs,
-    signal: options?.signal,
-    context: { timeoutMs } satisfies RequestContext,
+    timeout: timeoutMs, signal,
+    context: { timeoutMs, session: lifetime } satisfies RequestContext,
   };
 }
 

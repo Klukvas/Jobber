@@ -1,7 +1,10 @@
 package interviewprep
 
 import (
+	"context"
 	"encoding/json"
+	"github.com/andreypavlenko/jobber/internal/platform/ai"
+	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
@@ -104,6 +107,84 @@ func TestValidateReview(t *testing.T) {
 			b, _ = json.Marshal(r)
 			_, err := ValidateReview(b, fact, tc.allow)
 			require.Equal(t, tc.want, err == nil)
+		})
+	}
+}
+
+func TestValidatePlanFakeProviderDiagnostics(t *testing.T) {
+	facts := []Fact{{ID: "skills:known", Section: "skills", Text: "Go"}}
+	valid, err := json.Marshal(syntheticPlan(facts))
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		name, old, replacement, stage, rule, path string
+		truncated                                 bool
+	}{
+		{name: "success"},
+		{name: "malformed", old: string(valid), replacement: `{"requirements":`, stage: "interview_decode", rule: "json", path: "$"},
+		{name: "missing", old: `"requirements":`, replacement: `"ignored":`, stage: "interview_decode", rule: "required", path: "$.requirements"},
+		{name: "null array", old: `"evidence":[{"fact_id":"skills:known","quote":"Go"}]`, replacement: `"evidence":null`, stage: "interview_decode", rule: "null", path: "$.requirements[0].evidence"},
+		{name: "null text", old: `"requirement":"Go"`, replacement: `"requirement":null`, stage: "interview_decode", rule: "null", path: "$.requirements[0].requirement"},
+		{name: "wrong type", old: `"requirement":"Go"`, replacement: `"requirement":42`, stage: "interview_decode", rule: "type", path: "$.requirements[0].requirement"},
+		{name: "unknown evidence", old: `"fact_id":"skills:known"`, replacement: `"fact_id":"foreign"`, stage: "interview_plan", rule: "unknown_id", path: "$.requirements[0].evidence[0].fact_id"},
+		{name: "inexact quote", old: `"quote":"Go"`, replacement: `"quote":"Rust"`, stage: "interview_plan", rule: "exact_quote", path: "$.requirements[0].evidence[0].quote"},
+		{name: "enum", old: `"difficulty":"medium"`, replacement: `"difficulty":"extreme"`, stage: "interview_plan", rule: "enum", path: "$.questions[0].difficulty"},
+		{name: "truncated", truncated: true, stage: "interview_transport", rule: "incomplete", path: "$"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := string(valid)
+			if tc.old != "" {
+				body = strings.Replace(body, tc.old, tc.replacement, 1)
+			}
+			client := ai.NewTestClient(func(context.Context, anthropic.MessageNewParams) (*anthropic.Message, error) {
+				stop := anthropic.StopReasonEndTurn
+				if tc.truncated {
+					stop = anthropic.StopReasonMaxTokens
+				}
+				return &anthropic.Message{StopReason: stop, Content: []anthropic.ContentBlockUnion{{Type: "text", Text: body}}}, nil
+			})
+			raw, err := client.Interview(t.Context(), "plan", []byte(`{"snapshot":{"locale":"en"}}`), nil)
+			if err == nil {
+				_, err = ValidatePlan(raw, facts)
+			}
+			if tc.stage == "" {
+				require.NoError(t, err)
+				return
+			}
+			var diagnostic *ai.ResponseValidationError
+			require.ErrorAs(t, err, &diagnostic)
+			require.Equal(t, tc.stage, diagnostic.Stage)
+			require.Equal(t, tc.rule, diagnostic.Rule)
+			require.Equal(t, tc.path, diagnostic.Path)
+			if !tc.truncated {
+				require.ErrorIs(t, err, ErrInvalidAI)
+			}
+			require.NotContains(t, err.Error(), "skills:known")
+		})
+	}
+}
+
+func TestValidatePlanDiagnosticLimits(t *testing.T) {
+	for _, tc := range []struct {
+		name, rule, path string
+		mutate           func(*Plan)
+	}{
+		{name: "evidence count", rule: "count", path: "$.requirements[0].evidence", mutate: func(p *Plan) { p.Requirements[0].Evidence = make([]Evidence, 9) }},
+		{name: "advice length", rule: "text", path: "$.questions[0].advice", mutate: func(p *Plan) { p.Questions[0].Advice = strings.Repeat("я", 2001) }},
+		{name: "duplicate ID", rule: "unique_id", path: "$.questions[1].id", mutate: func(p *Plan) { p.Questions[1].ID = p.Questions[0].ID }},
+		{name: "STAR required", rule: "required", path: "$.questions[1].star", mutate: func(p *Plan) { p.Questions[1].STAR = nil }},
+		{name: "required kinds", rule: "required_kinds", path: "$.questions", mutate: func(p *Plan) { p.Questions[2].Kind = "technical" }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := syntheticPlan(nil)
+			tc.mutate(&p)
+			raw, err := json.Marshal(p)
+			require.NoError(t, err)
+			_, err = ValidatePlan(raw, nil)
+			require.ErrorIs(t, err, ErrInvalidAI)
+			var diagnostic *ai.ResponseValidationError
+			require.ErrorAs(t, err, &diagnostic)
+			require.Equal(t, tc.rule, diagnostic.Rule)
+			require.Equal(t, tc.path, diagnostic.Path)
 		})
 	}
 }

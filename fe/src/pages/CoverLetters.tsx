@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSingleFlightMutation } from "@/shared/hooks/useSingleFlightMutation";
 import { useTranslation, getI18n } from "react-i18next";
 import { Plus, Trash2, FileText, Pencil, Mail, Copy } from "lucide-react";
@@ -71,11 +71,11 @@ export default function CoverLettersPage() {
     },
   });
 
-  const deleteMutation = useMutation({
+  const deleteMutation = useSingleFlightMutation({
     mutationFn: (id: string) => coverLetterService.delete(id),
-    onSuccess: () => {
+    onSuccess: (_data, deletedId) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-      setDeleteTarget(null);
+      setDeleteTarget((current) => current?.id === deletedId ? null : current);
       showSuccessNotification(t("coverLetter.deleted"));
     },
     onError: (error) => {

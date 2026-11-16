@@ -1,3 +1,4 @@
+import { useAuthStore } from "@/stores/authStore";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import React from "react";
@@ -34,6 +35,7 @@ function createWrapper() {
 describe("useSubscription", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useAuthStore.getState().setAuth({ id: "subscription-user", email: "test@example.com", name: "Test", locale: "en", created_at: "" });
   });
 
   it("returns free plan defaults when no subscription data", async () => {
@@ -334,4 +336,12 @@ describe("useSubscription", () => {
       cover_letters: 0,
     });
   });
+});
+
+it("does not request a subscription after logout", async () => {
+  useAuthStore.getState().clearAuth();
+  mockGetSubscription.mockClear();
+  const { result } = renderHook(() => useSubscription(), { wrapper: createWrapper() });
+  expect(result.current.fetchStatus).toBe("idle");
+  expect(mockGetSubscription).not.toHaveBeenCalled();
 });

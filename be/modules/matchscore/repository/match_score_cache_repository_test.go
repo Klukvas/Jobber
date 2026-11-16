@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"github.com/andreypavlenko/jobber/modules/matchscore/model"
 	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v4"
@@ -174,4 +175,50 @@ func TestMatchScoreCacheRepository_InvalidateByResume(t *testing.T) {
 		assert.Error(t, repo.InvalidateByResume(context.Background(), "resume-1"))
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
+}
+
+func TestMatchScoreCacheRepository_AtomicCreditResult(t *testing.T) {
+	for _, scenario := range []string{"success", "save failure", "charge failure", "commit failure"} {
+		t.Run(scenario, func(t *testing.T) {
+			mock, err := pgxmock.NewPool()
+			require.NoError(t, err)
+			defer mock.Close()
+			ctx := ai.CreditContext(context.Background(), func() string { return "user-1" }, "operation-1", "match")
+			ai.MarkCreditAdmission(ctx)
+			mock.ExpectBegin()
+			save := mock.ExpectExec("INSERT INTO match_score_cache").WithArgs("user-1", "job-1", "resume-1", pgxmock.AnyArg())
+			if scenario == "save failure" {
+				save.WillReturnError(assert.AnError)
+				mock.ExpectRollback()
+			} else {
+				save.WillReturnResult(pgxmock.NewResult("INSERT", 1))
+				mock.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs("ai-quota:user-1").WillReturnResult(pgxmock.NewResult("SELECT", 1))
+				charge := mock.ExpectExec("UPDATE ai_credit_operations SET charge_state='charged'").WithArgs("user-1", "operation-1")
+				if scenario == "charge failure" {
+					charge.WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+					mock.ExpectRollback()
+				} else {
+					charge.WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+					if scenario == "commit failure" {
+						mock.ExpectCommit().WillReturnError(assert.AnError)
+						mock.ExpectRollback()
+					} else {
+						mock.ExpectCommit()
+					}
+				}
+			}
+			err = NewMatchScoreCacheRepository(mock).Upsert(ctx, "user-1", "job-1", "resume-1", &model.MatchScoreResponse{OverallScore: 75})
+			_, durable, _ := ai.CurrentCreditOperation(ctx)
+			if scenario == "success" {
+				require.NoError(t, err)
+				assert.True(t, durable)
+				assert.True(t, ai.CreditResultReady(ctx))
+			} else {
+				require.Error(t, err)
+				assert.False(t, durable)
+				assert.False(t, ai.CreditResultReady(ctx))
+			}
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
 }

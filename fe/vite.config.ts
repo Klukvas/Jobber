@@ -5,6 +5,8 @@ import { sentryVitePlugin } from "@sentry/vite-plugin";
 import path from "path";
 import sitemapPlugin from "./plugins/vite-plugin-sitemap";
 
+const devApiOrigin = process.env.CURSOPUS_DEV_API_ORIGIN || "http://localhost:8080";
+
 // Only the Docker build in CI has this. Everywhere else, the test job's build
 // included, there is no upload and therefore no source maps at all.
 const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
@@ -80,8 +82,9 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
+      "/.well-known": { target: devApiOrigin, changeOrigin: true },
       "/api": {
-        target: "http://localhost:8080",
+        target: devApiOrigin,
         changeOrigin: true,
       },
     },

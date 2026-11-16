@@ -109,8 +109,8 @@ vi.mock("@/services/jobsService", () => ({
 }));
 
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => ({
-    data: { items: mockJobsList },
+  useQuery: ({ queryKey }: { queryKey: string[] }) => ({
+    data: queryKey[0] === "jobs" ? { items: mockJobsList } : [],
     isLoading: false,
   }),
   useMutation: () => mockGenerateStateRef.current,
@@ -137,10 +137,10 @@ describe("CoverLetterAIPanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the AI title heading", () => {
+  it("leaves the title to the containing shell", () => {
     render(<CoverLetterAIPanel />);
 
-    expect(screen.getByText("coverLetter.ai.title")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "coverLetter.ai.title" })).not.toBeInTheDocument();
   });
 
   it("renders job description textarea", () => {
@@ -191,17 +191,15 @@ describe("CoverLetterAIPanel", () => {
     );
   });
 
-  it("calls generate mutate when generate button is clicked", async () => {
+  it("rejects an empty job description before generation", async () => {
     const user = userEvent.setup();
     render(<CoverLetterAIPanel />);
 
     const generateBtn = screen.getByText("coverLetter.ai.generate");
     await user.click(generateBtn);
 
-    expect(mockGenerateMutate).toHaveBeenCalledWith({
-      cover_letter_id: "cl-1",
-      job_description: undefined,
-    }, { onError: expect.any(Function) });
+    expect(mockGenerateMutate).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("coverLetter.ai.jobDescriptionRequired");
   });
 });
 

@@ -93,16 +93,14 @@ func (s *TailoringService) generateSnapshot(ctx context.Context, userID, jobID, 
 	defer cancel()
 	suggestions, err := s.client.TailorResume(ctxAI, job.Title+"\n"+job.Company+"\n"+job.Description, string(facts), locale)
 	if err != nil {
+		logTailoringRejection(ctx, proposalID, err)
+	}
+	if err != nil {
 		if errors.Is(err, subModel.ErrAIBudgetReached) || errors.Is(err, subModel.ErrCreditUnavailable) || errors.Is(err, subModel.ErrAIOperationConflict) {
 			return nil, err
 		}
 		if errors.Is(err, ai.ErrInvalidTailoringResponse) {
-			if charge {
-				if usageErr := s.limits.RecordAIUsage(ctx, userID); usageErr != nil {
-					slog.Warn("failed to record tailoring AI usage", "error", usageErr)
-				}
-			}
-			return nil, model.ErrAIInvalidResponse
+			return nil, errors.Join(model.ErrAIInvalidResponse, err)
 		}
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctxAI.Err(), context.DeadlineExceeded) {
 			return nil, model.ErrAITimeout
@@ -110,14 +108,18 @@ func (s *TailoringService) generateSnapshot(ctx context.Context, userID, jobID, 
 		slog.Warn("resume tailoring provider failed", "error", err)
 		return nil, model.ErrAIRequestFailed
 	}
-	// A completed provider call counts even if its output is rejected or Redis fails.
-	if charge {
-		if err := s.limits.RecordAIUsage(ctx, userID); err != nil {
-			slog.Warn("failed to record tailoring AI usage", "user_id", userID, "error", err)
-		}
-	}
 	changes, err := validateTailoringSuggestions(source, suggestions)
 	if err != nil {
+		logTailoringRejection(ctx, proposalID, err)
+		return nil, err
+	}
+	if len(changes) == 0 {
+		rule := "unchanged_plan"
+		if suggestions.Summary == nil && len(suggestions.Experiences) == 0 && suggestions.SkillOrder == nil {
+			rule = "empty_plan"
+		}
+		err := ai.InvalidResponse(model.ErrAINoChanges, "tailoring_result", rule, "$")
+		logTailoringRejection(ctx, proposalID, err)
 		return nil, err
 	}
 	proposal := &model.TailoringProposal{
@@ -127,6 +129,11 @@ func (s *TailoringService) generateSnapshot(ctx context.Context, userID, jobID, 
 	}
 	if err := s.store.Save(ctx, proposal); err != nil {
 		return nil, err
+	}
+	if charge {
+		if err := s.limits.RecordAIUsage(ctx, userID); err != nil {
+			return nil, err
+		}
 	}
 	return &proposal.TailoringProposalDTO, nil
 }
@@ -367,4 +374,12 @@ func hashApplyRequest(req *model.ApplyTailoringRequest) string {
 		Title string
 		IDs   []string
 	}{strings.TrimSpace(req.Title), ids})
+}
+
+func logTailoringRejection(ctx context.Context, proposal string, err error) {
+	var diagnostic *ai.ResponseValidationError
+	if errors.As(err, &diagnostic) {
+		op, _, _ := ai.CurrentCreditOperation(ctx)
+		slog.Warn("tailoring response rejected", "proposal_id", proposal, "operation_id", op.Key, "stage", diagnostic.Stage, "rule", diagnostic.Rule, "path", diagnostic.Path, "schema_version", 1)
+	}
 }

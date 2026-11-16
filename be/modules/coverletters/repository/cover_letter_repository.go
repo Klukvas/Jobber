@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"fmt"
+	"github.com/andreypavlenko/jobber/internal/platform/ai"
+	quota "github.com/andreypavlenko/jobber/modules/subscriptions/repository"
 
 	"github.com/andreypavlenko/jobber/modules/coverletters/model"
 	"github.com/jackc/pgx/v5"
@@ -111,13 +113,32 @@ func (r *CoverLetterRepository) List(ctx context.Context, userID string) ([]*mod
 
 // Update updates a cover letter.
 func (r *CoverLetterRepository) Update(ctx context.Context, cl *model.CoverLetter) (*model.CoverLetter, error) {
+	q := r.pool
+	var resultTx pgx.Tx
+	op, _, credit := ai.CurrentCreditOperation(ctx)
+	if credit && ai.CreditResultReady(ctx) {
+		beginner, ok := r.pool.(interface {
+			Begin(context.Context) (pgx.Tx, error)
+		})
+		if !ok {
+			return nil, fmt.Errorf("cover letter result requires a transaction")
+		}
+		var err error
+		resultTx, err = beginner.Begin(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer resultTx.Rollback(ctx)
+		q = resultTx
+	}
+
 	query := `UPDATE cover_letters SET
 		title = $1, resume_builder_id = $2, job_id = $3, template = $4, recipient_name = $5,
 		recipient_title = $6, company_name = $7, company_address = $8,
 		greeting = $9, paragraphs = $10, closing = $11, font_family = $12, font_size = $13, primary_color = $14
 		WHERE id = $15 AND user_id = $16 RETURNING updated_at`
 
-	err := r.pool.QueryRow(ctx, query,
+	err := q.QueryRow(ctx, query,
 		cl.Title, cl.ResumeBuilderID, cl.JobID, cl.Template, cl.RecipientName,
 		cl.RecipientTitle, cl.CompanyName, cl.CompanyAddress,
 		cl.Greeting, cl.Paragraphs, cl.Closing, cl.FontFamily, cl.FontSize, cl.PrimaryColor,
@@ -130,6 +151,15 @@ func (r *CoverLetterRepository) Update(ctx context.Context, cl *model.CoverLette
 		return nil, fmt.Errorf("failed to update cover letter: %w", err)
 	}
 
+	if resultTx != nil {
+		if err := quota.FinalizeCreditResultInTransaction(ctx, resultTx, op.UserID, op.Key, true, ""); err != nil {
+			return nil, err
+		}
+		if err := resultTx.Commit(ctx); err != nil {
+			return nil, err
+		}
+		ai.SetDurableCreditContext(ctx)
+	}
 	return cl, nil
 }
 

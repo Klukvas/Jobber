@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"github.com/andreypavlenko/jobber/modules/resumebuilder/model"
 	"github.com/andreypavlenko/jobber/modules/resumebuilder/ports"
 	subModel "github.com/andreypavlenko/jobber/modules/subscriptions/model"
+	quota "github.com/andreypavlenko/jobber/modules/subscriptions/repository"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -20,12 +22,30 @@ func (r *ResumeBuilderRepository) GetTailoringJob(ctx context.Context, userID, j
 }
 
 func (r *ResumeBuilderRepository) RunResumeCreationTransaction(ctx context.Context, userID string, limit int, fn func(ports.ResumeBuilderRepository) error) error {
-	return r.RunTailoringTransaction(ctx, userID, func(tx ports.TailoringTransaction) error {
+	charged := false
+	err := r.RunTailoringTransaction(ctx, userID, func(tx ports.TailoringTransaction) error {
 		if err := tx.CheckResumeBuilderCapacity(ctx, userID, limit); err != nil {
 			return err
 		}
-		return fn(tx)
+		if err := fn(tx); err != nil {
+			return err
+		}
+		if op, _, found := ai.CurrentCreditOperation(ctx); found && ai.CreditRequestAdmitted(ctx) {
+			if err := quota.FinalizeCreditResultInTransaction(ctx, tx.(*tailoringTransaction).tx, op.UserID, op.Key, true, ""); err != nil {
+				return fmt.Errorf("finalize imported resume charge: %w", err)
+			}
+			charged = true
+		}
+		return nil
 	})
+	if err != nil {
+		ai.RejectCreditResult(ctx)
+		return err
+	}
+	if charged {
+		ai.SetDurableCreditContext(ctx)
+	}
+	return nil
 }
 
 func (r *tailoringTransaction) CheckResumeBuilderCapacity(ctx context.Context, userID string, limit int) error {
@@ -72,7 +92,7 @@ func (r *ResumeBuilderRepository) RunTailoringTransaction(ctx context.Context, u
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, "resume-tailoring:"+userID); err != nil {
 		return fmt.Errorf("lock tailoring user: %w", err)
 	}
-	txRepo := &ResumeBuilderRepository{pool: r.pool, q: tx}
+	txRepo := &ResumeBuilderRepository{pool: r.pool, q: tx, tx: tx}
 	lockedRepo := &tailoringTransaction{ResumeBuilderRepository: txRepo}
 	if err := fn(lockedRepo); err != nil {
 		return err

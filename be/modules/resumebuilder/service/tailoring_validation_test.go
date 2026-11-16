@@ -1,11 +1,13 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
 	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"github.com/andreypavlenko/jobber/modules/resumebuilder/model"
+	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -123,6 +125,87 @@ func TestTailoringMetricPairs(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				require.ErrorIs(t, err, model.ErrAIInvalidResponse)
+			}
+		})
+	}
+}
+
+func TestTailoringSummaryExperienceEvidenceProjection(t *testing.T) {
+	_, repo, _, _, _ := tailoringFixture(t)
+	exp := repo.source.Experiences[0]
+	exp.StartDate, exp.EndDate = "2020-01", "2023-12"
+	facts, err := json.Marshal(repo.source)
+	require.NoError(t, err)
+	calls := 0
+	client := ai.NewTestClient(func(context.Context, anthropic.MessageNewParams) (*anthropic.Message, error) {
+		calls++
+		return &anthropic.Message{StopReason: "end_turn", Content: []anthropic.ContentBlockUnion{{Type: "text", Text: `{"summary":{"fact_ids":["e0f0"],"reason":"Relevant experience"},"experiences":[],"skill_order":null}`}}}, nil
+	})
+	suggestions, err := client.TailorResume(t.Context(), "Backend engineer", string(facts), "en")
+	require.NoError(t, err)
+	context := ai.GroundedExperienceContext(exp.Position, exp.Company, exp.StartDate, exp.EndDate, exp.Description)
+	require.Equal(t, context, suggestions.Summary.Evidence[0].Quote)
+	changes, err := validateTailoringSuggestions(repo.source, suggestions)
+	require.NoError(t, err)
+	require.Len(t, changes, 1)
+	require.Equal(t, context, changes[0].Evidence[0].Quote)
+	require.Equal(t, 1, calls)
+}
+
+func TestTailoringSingleSkillNoOpDoesNotRejectValidSummary(t *testing.T) {
+	_, repo, _, _, _ := tailoringFixture(t)
+	repo.source.Skills = repo.source.Skills[:1]
+	facts, err := json.Marshal(repo.source)
+	require.NoError(t, err)
+	client := ai.NewTestClient(func(context.Context, anthropic.MessageNewParams) (*anthropic.Message, error) {
+		return &anthropic.Message{StopReason: "end_turn", Content: []anthropic.ContentBlockUnion{{Type: "text", Text: `{"summary":{"fact_ids":["e0f0"],"reason":"Relevant experience"},"experiences":[],"skill_order":{"skill_ids":["k0"],"reason":"Prioritize relevant skill"}}`}}}, nil
+	})
+	suggestions, err := client.TailorResume(t.Context(), "Backend engineer", string(facts), "en")
+	require.NoError(t, err)
+	changes, err := validateTailoringSuggestions(repo.source, suggestions)
+	require.NoError(t, err)
+	require.Len(t, changes, 1)
+	require.Equal(t, "summary", changes[0].Kind)
+	suggestions.SkillOrder.SkillIDs[0] = "foreign"
+	_, err = validateTailoringSuggestions(repo.source, suggestions)
+	require.ErrorIs(t, err, model.ErrAIInvalidResponse)
+}
+
+func TestTailoringExperienceEvidenceRemainsDescriptionOnly(t *testing.T) {
+	for _, tc := range []struct {
+		name              string
+		metadata, foreign bool
+	}{
+		{name: "description accepted"}, {name: "context rejected", metadata: true}, {name: "foreign ID rejected", foreign: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, repo, _, client, _ := tailoringFixture(t)
+			exp := repo.source.Experiences[0]
+			quote := exp.Description
+			if tc.metadata {
+				quote = ai.GroundedExperienceContext(exp.Position, exp.Company, exp.StartDate, exp.EndDate, exp.Description)
+			}
+			id := exp.ID
+			if tc.foreign {
+				id = "foreign"
+			}
+			client.result.Summary = nil
+			client.result.Experiences = []ai.TailoringTextSuggestion{{ExperienceID: exp.ID, After: "Led a backend engineering team of 5.", Reason: "Highlight supported experience", Evidence: []ai.TailoringEvidence{{Section: "experience", EntryID: id, Quote: quote}}}}
+			_, err := validateTailoringSuggestions(repo.source, client.result)
+			if !tc.metadata && !tc.foreign {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorIs(t, err, model.ErrAIInvalidResponse)
+			var diagnostic *ai.ResponseValidationError
+			require.ErrorAs(t, err, &diagnostic)
+			require.Equal(t, "tailoring_validation", diagnostic.Stage)
+			if tc.metadata {
+				require.Equal(t, "exact_quote", diagnostic.Rule)
+				require.Equal(t, "$.experiences[0].evidence[0].quote", diagnostic.Path)
+			} else {
+				require.Equal(t, "mismatched_source", diagnostic.Rule)
+				require.Equal(t, "$.experiences[0].evidence[0].entry_id", diagnostic.Path)
 			}
 		})
 	}

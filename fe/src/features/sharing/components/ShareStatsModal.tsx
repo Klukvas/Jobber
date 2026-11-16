@@ -1,3 +1,4 @@
+import { useSingleFlightMutation } from "@/shared/hooks/useSingleFlightMutation";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -67,7 +68,7 @@ export function ShareStatsModal({
     enabled: open,
   });
 
-  const createMutation = useMutation({
+  const createMutation = useSingleFlightMutation({
     mutationFn: () => sharingService.create(),
     onSuccess: (share) => {
       setCreatedShare(share);

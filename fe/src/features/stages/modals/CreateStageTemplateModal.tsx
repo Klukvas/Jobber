@@ -45,6 +45,7 @@ function CreateStageForm({
   const queryClient = useQueryClient();
   const isCurrentSession = useCurrentFormSession();
   const [name, setName] = useState("");
+  const isNameTooLong = Array.from(name.trim()).length > FIELD_LIMITS.name;
   const [order, setOrder] = useState(
     initialOrder !== undefined ? String(initialOrder + 1) : "",
   );
@@ -75,7 +76,7 @@ function CreateStageForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim() && Number(order) >= 1 && !createMutation.isPending) {
+    if (name.trim() && !isNameTooLong && Number.isInteger(Number(order)) && Number(order) >= 1 && !createMutation.isPending) {
       createMutation.mutate({
         name: name.trim(),
         order: Number(order) - 1,
@@ -98,12 +99,15 @@ function CreateStageForm({
               <Label htmlFor="name">{`${t("stages.stageName")} *`}</Label>
               <Input
                 id="name"
-                maxLength={FIELD_LIMITS.name}
+                maxLength={FIELD_LIMITS.name * 2}
+                aria-invalid={isNameTooLong}
+                aria-describedby={isNameTooLong ? "name-error" : undefined}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={t("stages.stageNamePlaceholder")}
                 required
               />
+              {isNameTooLong && <p id="name-error" role="alert" className="text-sm text-destructive">{t("stages.nameTooLong", { max: FIELD_LIMITS.name })}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="order">{`${t("stages.order")} *`}</Label>
@@ -148,7 +152,7 @@ function CreateStageForm({
             </Button>
             <Button
               type="submit"
-              disabled={createMutation.isPending || !name.trim() || !order || Number(order) < 1}
+              disabled={createMutation.isPending || !name.trim() || isNameTooLong || !order || !Number.isInteger(Number(order)) || Number(order) < 1}
             >
               {createMutation.isPending ? (
                 <>

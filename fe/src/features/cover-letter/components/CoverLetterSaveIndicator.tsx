@@ -23,7 +23,7 @@ export function CoverLetterSaveIndicator({
       );
     case "saved":
       return (
-        <span className="flex items-center gap-1.5 text-sm text-green-600">
+        <span className="flex items-center gap-1.5 text-sm text-green-700 dark:text-green-400">
           <Check className="h-3.5 w-3.5" />
           {t("coverLetter.saved")}
         </span>

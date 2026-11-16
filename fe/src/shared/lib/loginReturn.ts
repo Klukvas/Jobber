@@ -1,26 +1,42 @@
-/**
- * Where to send someone after they sign in, carried on the login URL.
- *
- * A protected page that finds no session used to send its visitor to the
- * landing page, with no login form and no memory of where they were going.
- * The login URL now names the page instead, and the login form goes back to
- * it. Only in-app paths are accepted: the value comes from the address bar, so
- * anything else (another origin, `//host`) would be an open redirect.
- */
+/** Safe destinations carried through the three auth routes. */
 export const RETURN_PARAM = "next";
+const CLOSE_PARAM = "returnTo";
+export type AuthPath = "/login" | "/register" | "/forgot-password";
 
-const IN_APP_PATH = /^\/app(?:[/?#]|$)/;
-
-function isInAppPath(value: string | null | undefined): value is string {
-  return typeof value === "string" && IN_APP_PATH.test(value);
+function safePath(value: string | null | undefined): value is string {
+  if (!value || !value.startsWith("/") || value.startsWith("//") || (value.includes("\\") || Array.from(value).some((char) => char.charCodeAt(0) <= 32 || char.charCodeAt(0) === 127))) return false;
+  try {
+    const url = new URL(value, "https://cursopus.local");
+    return url.origin === "https://cursopus.local";
+  } catch { return false; }
 }
 
-export function loginPathFor(returnTo?: string | null): string {
-  if (!isInAppPath(returnTo)) return "/login";
-  return `/login?${RETURN_PARAM}=${encodeURIComponent(returnTo)}`;
+function isInAppPath(value: string | null | undefined): value is string {
+  return safePath(value) && /^\/app(?:\/|$)/.test(new URL(value, "https://cursopus.local").pathname);
 }
 
 export function readReturnTo(search: string): string | null {
   const value = new URLSearchParams(search).get(RETURN_PARAM);
   return isInAppPath(value) ? value : null;
+}
+
+/** Closing returns only to public reading context, independently of post-login next. */
+export function readAuthCloseReturn(search: string): string {
+  const value = new URLSearchParams(search).get(CLOSE_PARAM);
+  if (!safePath(value)) return "/";
+  const pathname = new URL(value, "https://cursopus.local").pathname;
+  return pathname === "/" || /^\/features\/(applications|resume-builder|cover-letters)\/?$/.test(pathname) ? value : "/";
+}
+
+export function authPathFor(path: AuthPath, search = "", closeReturn?: string): string {
+  const params = new URLSearchParams();
+  const next = readReturnTo(search);
+  if (next) params.set(RETURN_PARAM, next);
+  const returnTo = readAuthCloseReturn(closeReturn ? `?${CLOSE_PARAM}=${encodeURIComponent(closeReturn)}` : search);
+  if (returnTo !== "/") params.set(CLOSE_PARAM, returnTo);
+  return path + (params.size ? `?${params}` : "");
+}
+
+export function loginPathFor(returnTo?: string | null): string {
+  return authPathFor("/login", isInAppPath(returnTo) ? `?next=${encodeURIComponent(returnTo)}` : "");
 }

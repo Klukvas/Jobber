@@ -6,11 +6,13 @@ import (
 )
 
 var (
-	ErrCoverLetterNotFound = errors.New("cover letter not found")
-	ErrNotAuthorized       = errors.New("not authorized")
-	ErrInvalidFont         = errors.New("invalid font family")
-	ErrInvalidColor        = errors.New("invalid color format")
-	ErrInvalidFontSize     = errors.New("font size must be between 8 and 18")
+	ErrCoverLetterNotFound       = errors.New("cover letter not found")
+	ErrNotAuthorized             = errors.New("not authorized")
+	ErrInvalidFont               = errors.New("invalid font family")
+	ErrInvalidColor              = errors.New("invalid color format")
+	ErrInvalidFontSize           = errors.New("font size must be between 8 and 18")
+	ErrAIJobDescriptionRequired  = errors.New("job description is required for cover letter generation")
+	ErrAICandidateSourceRequired = errors.New("candidate source is required for cover letter generation")
 )
 
 // CoverLetter represents a cover letter record.

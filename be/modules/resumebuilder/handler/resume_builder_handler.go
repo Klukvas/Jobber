@@ -182,7 +182,7 @@ func (h *ResumeBuilderHandler) handleError(c *gin.Context, err error) {
 		statusCode = http.StatusNotFound
 	case model.CodeNotOwner:
 		statusCode = http.StatusForbidden
-	case model.CodeInvalidTemplate, model.CodeInvalidSpacing, model.CodeInvalidColor,
+	case model.CodeInvalidDateRange, model.CodeInvalidTemplate, model.CodeInvalidSpacing, model.CodeInvalidColor,
 		model.CodeInvalidFont, model.CodeInvalidSectionKey, model.CodeInvalidSkillDisplay,
 		model.CodeInvalidMargin, model.CodeInvalidSidebarWidth, model.CodeInvalidFontSize,
 		model.CodeInvalidLayoutMode, model.CodeInvalidColumnValue:

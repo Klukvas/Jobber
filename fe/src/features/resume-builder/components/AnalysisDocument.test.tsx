@@ -193,7 +193,7 @@ it("never applies late bullets from A to an experience in B", async () => {
   const reply = deferred<unknown>();
   vi.mocked(apiClient.post).mockReturnValue(reply.promise);
   mount("ai");
-  await userEvent.selectOptions(screen.getByRole("combobox"), "exp-1");
+  await userEvent.selectOptions(screen.getByRole("combobox", { name: "resumeBuilder.ai.suggestBullets" }), "exp-1");
   await userEvent.click(
     screen.getByRole("button", { name: "resumeBuilder.ai.suggestBullets" }),
   );
@@ -246,7 +246,7 @@ it("keeps the selected experience when its CREATE receives a server ID during fl
         id: entry.id === "temp-exp" ? "server-exp" : entry.id,
       })),
     }));
-  vi.mocked(flushResumeDocument).mockImplementation(async () => {
+  vi.mocked(flushResumeDocument).mockImplementationOnce(async () => {
     useResumeBuilderStore
       .getState()
       .setResume(
@@ -260,12 +260,12 @@ it("keeps the selected experience when its CREATE receives a server ID during fl
     bullets: ["Current suggestion"],
   });
   mount("ai");
-  await userEvent.selectOptions(screen.getByRole("combobox"), "temp-exp");
+  await userEvent.selectOptions(screen.getByRole("combobox", { name: "resumeBuilder.ai.suggestBullets" }), "temp-exp");
   await userEvent.click(
     screen.getByRole("button", { name: "resumeBuilder.ai.suggestBullets" }),
   );
   await screen.findByText("Current suggestion");
-  expect(screen.getByRole("combobox")).toHaveValue("server-exp");
+  expect(screen.getByRole("combobox", { name: "resumeBuilder.ai.suggestBullets" })).toHaveValue("server-exp");
   await userEvent.click(
     screen.getByRole("button", { name: "resumeBuilder.ai.apply" }),
   );
@@ -279,3 +279,74 @@ vi.mock("@/shared/hooks/useAIAvailability", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/shared/hooks/useAIAvailability")>(),
   useAIAvailability: () => ({ unavailable: false, isChecking: false, markUnavailable: vi.fn() }),
 }));
+
+it("applies improved text to the selected summary, retains it after save failure and retries without another AI call", async () => {
+  vi.clearAllMocks();
+  useResumeBuilderStore.getState().setResume(createMockResume({ id: "A", summary: { content: "Original summary" } }));
+  useResumeBuilderStore.temporal.getState().clear();
+  vi.mocked(flushResumeDocument).mockResolvedValue(undefined);
+  vi.mocked(apiClient.post).mockResolvedValue({ improved: "Improved summary" });
+  mount("ai");
+  await userEvent.selectOptions(screen.getByRole("combobox", { name: "resumeBuilder.ai.target" }), "summary");
+  expect(screen.getByLabelText("resumeBuilder.ai.improveText")).toHaveValue("Original summary");
+  await userEvent.click(screen.getByRole("button", { name: "resumeBuilder.ai.improveText" }));
+  await screen.findByText("Improved summary");
+  vi.mocked(flushResumeDocument).mockRejectedValueOnce(new Error("offline"));
+  await userEvent.click(screen.getByRole("button", { name: "resumeBuilder.ai.apply" }));
+  expect(useResumeBuilderStore.getState().resume?.summary?.content).toBe("Improved summary");
+  await screen.findByText("resumeBuilder.ai.applySaveError");
+  expect(screen.getByText("Improved summary")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "resumeBuilder.ai.copy" })).toBeEnabled();
+  await userEvent.click(screen.getByRole("button", { name: "resumeBuilder.ai.apply" }));
+  await waitFor(() => expect(screen.queryByText("Improved summary")).not.toBeInTheDocument());
+  expect(apiClient.post).toHaveBeenCalledTimes(1);
+  act(() => useResumeBuilderStore.temporal.getState().undo());
+  expect(useResumeBuilderStore.getState().resume?.summary?.content).toBe("Original summary");
+});
+
+it("keeps an improved result copyable but cannot apply it to a deleted experience", async () => {
+  vi.clearAllMocks();
+  const experience = { id: "exp-1", position: "Engineer", company: "Acme", location: "", description: "Source", start_date: "", end_date: "", is_current: false, sort_order: 0 };
+  useResumeBuilderStore.getState().setResume(createMockResume({ id: "A", experiences: [experience] }));
+  vi.mocked(flushResumeDocument).mockResolvedValue(undefined);
+  vi.mocked(apiClient.post).mockResolvedValue({ improved: "Improved experience" });
+  mount("ai");
+  await userEvent.selectOptions(screen.getByRole("combobox", { name: "resumeBuilder.ai.target" }), "experience:exp-1");
+  await userEvent.click(screen.getByRole("button", { name: "resumeBuilder.ai.improveText" }));
+  await screen.findByText("Improved experience");
+  act(() => useResumeBuilderStore.getState().removeExperience("exp-1"));
+  expect(screen.getByRole("button", { name: "resumeBuilder.ai.apply" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "resumeBuilder.ai.copy" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "resumeBuilder.ai.dismiss" })).toBeEnabled();
+});
+
+it("applies improved text to the same new experience after its delayed CREATE adopts a server ID", async () => {
+  vi.clearAllMocks();
+  const experience = { id: "temp-exp", position: "Engineer", company: "Acme", location: "", description: "Source", start_date: "", end_date: "", is_current: false, sort_order: 0 };
+  const document = createMockResume({ id: "A", experiences: [experience] });
+  useResumeBuilderStore.getState().setResume(document);
+  const create = deferred<void>();
+  const alias = vi.spyOn(sectionPersistence, "resolveResumeSectionIds").mockImplementation((snapshot) => ({
+    ...snapshot,
+    experiences: snapshot.experiences.map((entry) => ({ ...entry, id: entry.id === "temp-exp" ? "server-exp" : entry.id })),
+  }));
+  vi.mocked(flushResumeDocument).mockImplementationOnce(async () => {
+    await create.promise;
+    useResumeBuilderStore.getState().setResume({ ...document, experiences: [{ ...experience, id: "server-exp" }] });
+  }).mockResolvedValue(undefined);
+  vi.mocked(apiClient.post).mockResolvedValue({ improved: "Improved experience" });
+  mount("ai");
+  await userEvent.selectOptions(screen.getByRole("combobox", { name: "resumeBuilder.ai.target" }), "experience:temp-exp");
+  await userEvent.click(screen.getByRole("button", { name: "resumeBuilder.ai.improveText" }));
+  expect(apiClient.post).not.toHaveBeenCalled();
+  await act(async () => create.resolve());
+  await screen.findByText("Improved experience");
+  expect(screen.getByRole("button", { name: "resumeBuilder.ai.apply" })).toBeEnabled();
+  expect(screen.getByRole("combobox", { name: "resumeBuilder.ai.target" })).toHaveValue("experience:server-exp");
+  await userEvent.click(screen.getByRole("button", { name: "resumeBuilder.ai.apply" }));
+  await waitFor(() => expect(screen.queryByText("Improved experience")).not.toBeInTheDocument());
+  expect(useResumeBuilderStore.getState().resume?.experiences).toEqual([{ ...experience, id: "server-exp", description: "Improved experience" }]);
+  expect(flushResumeDocument).toHaveBeenCalledTimes(2);
+  expect(apiClient.post).toHaveBeenCalledTimes(1);
+  alias.mockRestore();
+});

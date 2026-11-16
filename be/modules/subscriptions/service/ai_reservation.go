@@ -19,6 +19,28 @@ type reservationScope struct {
 	commitAttempted bool
 }
 
+// CompleteAIRequest is called before publishing a synchronous successful result.
+// Stored workflows additionally commit their result and charge in one transaction.
+func (s *SubscriptionService) CompleteAIRequest(ctx context.Context) error {
+	op, durable, found := ai.CurrentCreditOperation(ctx)
+	if !found || durable || !ai.CreditRequestAdmitted(ctx) {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		ai.RejectCreditResult(ctx)
+		return err
+	}
+	ai.MarkCreditResult(ctx)
+	if ledger, ok := s.repo.(interface {
+		CompleteCreditOperation(context.Context, model.CreditOperation) error
+	}); ok {
+		commit, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+		defer cancel()
+		return ledger.CompleteCreditOperation(commit, op)
+	}
+	return nil
+}
+
 // AIRequestContext tracks an atomic quota reservation through legacy AI service
 // calls. Install once per HTTP request; it carries no user content.
 func AIRequestContext(ctx context.Context) context.Context {
@@ -89,6 +111,27 @@ func (s *SubscriptionService) consumeScopedAI(ctx context.Context, owner, usageT
 // FinishAIRequest releases reservations for rejected inputs, ownership failures,
 // and unsuccessful legacy calls. Interview operations own their separate receipt.
 func (s *SubscriptionService) FinishAIRequest(ctx context.Context) {
+	if ledger, ok := s.repo.(interface {
+		CompleteCreditOperation(context.Context, model.CreditOperation) error
+		RejectCreditOperation(context.Context, model.CreditOperation) error
+	}); ok {
+		op, durable, found := ai.CurrentCreditOperation(ctx)
+		if !found || durable || !ai.CreditRequestAdmitted(ctx) {
+			return
+		}
+		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+		defer cancel()
+		var err error
+		if ai.CreditResultReady(ctx) {
+			err = ledger.CompleteCreditOperation(cleanup, op)
+		} else {
+			err = ledger.RejectCreditOperation(cleanup, op)
+		}
+		if err != nil {
+			slog.Error("finish ai result charge failed", "operation_id", op.Key, "outcome", "save_failed")
+		}
+		return
+	}
 	if ledger, ok := s.repo.(interface {
 		FinishCreditOperation(context.Context, string, string, ...model.CreditOperation) error
 	}); ok {

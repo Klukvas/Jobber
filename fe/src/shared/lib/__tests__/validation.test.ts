@@ -427,12 +427,18 @@ describe("validation schemas", () => {
       expect(result.success).toBe(false);
     });
 
-    it("rejects name exceeding 100 characters", () => {
+    it("rejects name exceeding 255 code points", () => {
       const result = stageTemplateSchema.safeParse({
-        name: "x".repeat(101),
+        name: "x".repeat(256),
         order: 1,
       });
       expect(result.success).toBe(false);
     });
   });
+});
+
+it("trims stage names and counts Unicode code points like the API", () => {
+  expect(stageTemplateSchema.parse({ name: `  ${"😀".repeat(255)}  `, order: 0 }).name).toBe("😀".repeat(255));
+  expect(stageTemplateSchema.safeParse({ name: " ", order: 0 }).success).toBe(false);
+  expect(stageTemplateSchema.safeParse({ name: "я".repeat(256), order: 0 }).success).toBe(false);
 });

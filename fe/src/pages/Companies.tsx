@@ -311,7 +311,7 @@ export default function Companies() {
                                     e.stopPropagation();
                                     handleEdit(company);
                                   }}
-                                  className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
+                                  className="flex min-h-11 items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left"
                                 >
                                   <Edit className="h-4 w-4" />
                                   {t("common.edit")}
@@ -322,7 +322,7 @@ export default function Companies() {
                                     e.stopPropagation();
                                     handleDelete(company);
                                   }}
-                                  className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left text-destructive"
+                                  className="flex min-h-11 items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent text-left text-destructive"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                   {t("common.delete")}
@@ -334,9 +334,9 @@ export default function Companies() {
                       </div>
 
                       {company.location && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <MapPin className="h-4 w-4" />
-                          <span>{company.location}</span>
+                        <div className="flex min-w-0 items-start gap-2 text-sm text-muted-foreground">
+                          <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+                          <span className="min-w-0 wrap-anywhere">{company.location}</span>
                         </div>
                       )}
                     </CardHeader>

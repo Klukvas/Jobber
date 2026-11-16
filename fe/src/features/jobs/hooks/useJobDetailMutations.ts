@@ -212,10 +212,11 @@ export function useJobDetailMutations({
     },
   });
 
-  const deleteMutation = useMutation({
+  const deleteMutation = useSingleFlightMutation({
     mutationFn: () => jobsService.delete(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
       showSuccessNotification(t("jobs.deleteSuccess"));
       navigate("/app/jobs");
     },
@@ -226,11 +227,10 @@ export function useJobDetailMutations({
 
   // Completes the current stage straight from the Pipeline block (the same
   // action as the Complete button on that stage down in the Timeline)
-  const completeCurrentStageMutation = useMutation({
+  const completeCurrentStageMutation = useSingleFlightMutation({
     mutationFn: (stageId: string) =>
       jobsService.updateStage(id!, stageId, {
         status: "completed",
-        completed_at: new Date().toISOString(),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["job", id] });

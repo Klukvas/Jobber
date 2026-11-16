@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/shared/hooks/useSingleFlightMutation";
 import type { JobStageDTO, CommentDTO } from "@/shared/types/api";
 import { jobsService } from "@/services/jobsService";
 import { showErrorNotification } from "@/shared/lib/notifications";
@@ -56,22 +57,22 @@ export function Timeline({ stages, jobId, stageComments }: TimelineProps) {
     name: string;
   } | null>(null);
 
-  const completeStage = useMutation({
+  const completeStage = useSingleFlightMutation({
     mutationFn: (stageId: string) =>
       jobsService.updateStage(jobId, stageId, {
         status: "completed",
-        completed_at: new Date().toISOString(),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["job-stages", jobId] });
       queryClient.invalidateQueries({ queryKey: ["job", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
     },
     onError: () => {
       showErrorNotification(t("jobs.stageStatusUpdateError"));
     },
   });
 
-  const deleteStage = useMutation({
+  const deleteStage = useSingleFlightMutation({
     mutationFn: (stageId: string) => jobsService.deleteStage(jobId, stageId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["job-stages", jobId] });
@@ -173,7 +174,7 @@ export function Timeline({ stages, jobId, stageComments }: TimelineProps) {
                 <MessageSquare className="h-6 w-6 text-blue-500" />
               </div>
 
-              <div className="flex-1 pb-6">
+              <div className="min-w-0 flex-1 pb-6">
                 <div className="rounded-lg border bg-muted/50 p-4">
                   {relatedStage && (
                     <p className="text-xs text-muted-foreground mb-2">
@@ -221,10 +222,10 @@ export function Timeline({ stages, jobId, stageComments }: TimelineProps) {
             </div>
 
             {/* Content */}
-            <div className="flex-1 pb-6">
+            <div className="min-w-0 flex-1 pb-6">
               <div className="flex items-center justify-between">
-                <h4 className="font-semibold">{stage.stage_name}</h4>
-                <div className="flex gap-2">
+                <h4 className="min-w-0 wrap-anywhere font-semibold">{stage.stage_name}</h4>
+                <div className="flex shrink-0 gap-2">
                   {isActive && !isCompleted && (
                     <Button
                       size="sm"
@@ -238,7 +239,8 @@ export function Timeline({ stages, jobId, stageComments }: TimelineProps) {
                   )}
                   <div className="relative">
                     <Button
-                      size="sm"
+                      size="icon"
+                      className="shrink-0"
                       variant="ghost"
                       onClick={() =>
                         setMenuOpen(menuOpen === stage.id ? null : stage.id)
@@ -252,7 +254,7 @@ export function Timeline({ stages, jobId, stageComments }: TimelineProps) {
                         <div className="py-1">
                           <button
                             onClick={() => handleChangeStatus(stage)}
-                            className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-accent"
+                            className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-sm hover:bg-accent"
                           >
                             <Edit className="h-4 w-4" />
                             {t("jobs.changeStatus")}
@@ -261,7 +263,7 @@ export function Timeline({ stages, jobId, stageComments }: TimelineProps) {
                             onClick={() =>
                               handleAddComment(stage.id, stage.stage_name)
                             }
-                            className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-accent"
+                            className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-sm hover:bg-accent"
                           >
                             <MessageSquare className="h-4 w-4" />
                             {t("jobs.addComment")}
@@ -275,7 +277,7 @@ export function Timeline({ stages, jobId, stageComments }: TimelineProps) {
                                 });
                                 setMenuOpen(null);
                               }}
-                              className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-accent"
+                              className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-sm hover:bg-accent"
                             >
                               <CalendarPlus className="h-4 w-4" />
                               {t("jobs.schedule.button")}
@@ -283,7 +285,7 @@ export function Timeline({ stages, jobId, stageComments }: TimelineProps) {
                           )}
                           <button
                             onClick={() => handleDeleteClick(stage)}
-                            className="flex w-full items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-accent"
+                            className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-accent"
                           >
                             <Trash2 className="h-4 w-4" />
                             {t("common.delete")}

@@ -1,3 +1,4 @@
+import { FIELD_LIMITS } from "@/shared/lib/fieldLimits";
 import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -49,6 +50,7 @@ function EditStageForm({ template, onOpenChange }: {
     return () => { active.current = false; };
   }, []);
   const [name, setName] = useState(template.name);
+  const isNameTooLong = Array.from(name.trim()).length > FIELD_LIMITS.name;
   const [order, setOrder] = useState(String(template.order + 1));
   const [kind, setKind] = useState<StageKind>(stageKindOf(template));
 
@@ -76,7 +78,7 @@ function EditStageForm({ template, onOpenChange }: {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim() && Number(order) >= 1 && !updateMutation.isPending) {
+    if (name.trim() && !isNameTooLong && Number.isInteger(Number(order)) && Number(order) >= 1 && !updateMutation.isPending) {
       updateMutation.mutate({
         name: name.trim(),
         order: Number(order) - 1,
@@ -99,10 +101,14 @@ function EditStageForm({ template, onOpenChange }: {
               <Label htmlFor="edit-name">{t("stages.name")} *</Label>
               <Input
                 id="edit-name"
+                maxLength={FIELD_LIMITS.name * 2}
+                aria-invalid={isNameTooLong}
+                aria-describedby={isNameTooLong ? "edit-name-error" : undefined}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
               />
+              {isNameTooLong && <p id="edit-name-error" role="alert" className="text-sm text-destructive">{t("stages.nameTooLong", { max: FIELD_LIMITS.name })}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-order">{t("stages.order")} *</Label>
@@ -143,7 +149,7 @@ function EditStageForm({ template, onOpenChange }: {
             </Button>
             <Button
               type="submit"
-              disabled={updateMutation.isPending || !name.trim() || !order || Number(order) < 1}
+              disabled={updateMutation.isPending || !name.trim() || isNameTooLong || !order || !Number.isInteger(Number(order)) || Number(order) < 1}
             >
               {updateMutation.isPending ? (
                 <>

@@ -1,3 +1,4 @@
+import { endSession } from "@/shared/lib/session";
 import { apiClient } from "./api";
 import type {
   LoginRequest,
@@ -12,13 +13,22 @@ import type {
   ResetPasswordRequest,
 } from "@/shared/types/api";
 
+// Local to this tab: logout invalidates even sign-ins that began while signed out.
+let logoutEpoch = 0;
+
 export const authService = {
   async login(data: LoginRequest): Promise<LoginResponse> {
-    return apiClient.post<LoginResponse>("auth/login", data);
+    const epoch = logoutEpoch;
+    const response = await apiClient.post<LoginResponse>("auth/login", data);
+    if (epoch !== logoutEpoch) throw new DOMException("Session ended", "AbortError");
+    return response;
   },
 
   async register(data: RegisterRequest): Promise<RegisterResponse> {
-    return apiClient.post<RegisterResponse>("auth/register", data);
+    const epoch = logoutEpoch;
+    const response = await apiClient.post<RegisterResponse>("auth/register", data);
+    if (epoch !== logoutEpoch) throw new DOMException("Session ended", "AbortError");
+    return response;
   },
 
   async refresh(data: RefreshRequest): Promise<AuthTokens> {
@@ -26,6 +36,8 @@ export const authService = {
   },
 
   async logout(): Promise<void> {
+    logoutEpoch += 1;
+    endSession();
     return apiClient.post<void>("auth/logout");
   },
 

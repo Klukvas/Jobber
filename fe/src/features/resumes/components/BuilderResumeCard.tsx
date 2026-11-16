@@ -11,6 +11,7 @@ import type { ResumeBuilderDTO } from "@/shared/types/resume-builder";
 interface BuilderResumeCardProps {
   readonly resume: ResumeBuilderDTO;
   readonly limitReached: boolean;
+  readonly isDuplicating?: boolean;
   readonly onDuplicate: (id: string) => void;
   readonly onDelete: (resume: ResumeBuilderDTO) => void;
   readonly onRename?: (resume: ResumeBuilderDTO) => void;
@@ -19,6 +20,7 @@ interface BuilderResumeCardProps {
 export function BuilderResumeCard({
   resume,
   limitReached,
+  isDuplicating = false,
   onDuplicate,
   onDelete,
   onRename,
@@ -86,7 +88,8 @@ export function BuilderResumeCard({
               variant="ghost"
               size="icon"
               className="h-8 w-8"
-              disabled={limitReached}
+              disabled={limitReached || isDuplicating}
+              aria-busy={isDuplicating}
               onClick={(e) => {
                 e.stopPropagation();
                 onDuplicate(resume.id);

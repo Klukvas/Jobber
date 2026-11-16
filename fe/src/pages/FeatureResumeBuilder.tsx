@@ -1,4 +1,5 @@
-import { useNavigate } from "react-router-dom";
+import { authPathFor } from "@/shared/lib/loginReturn";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, CheckCircle } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
@@ -18,6 +19,7 @@ const FEATURE2_POINTS = ["point1", "point2", "point3"] as const;
 export default function FeatureResumeBuilder() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   usePageMeta({
@@ -29,7 +31,7 @@ export default function FeatureResumeBuilder() {
     if (isAuthenticated) {
       navigate("/app/resumes");
     } else {
-      navigate("/register");
+      navigate(authPathFor("/register", "", location.pathname + location.search + location.hash));
     }
   };
 
@@ -38,8 +40,8 @@ export default function FeatureResumeBuilder() {
       <HomeNavbar
         darkHero
         isAuthenticated={isAuthenticated}
-        onLogin={() => navigate("/login")}
-        onRegister={() => navigate("/register")}
+        onLogin={() => navigate(authPathFor("/login", "", location.pathname + location.search + location.hash))}
+        onRegister={() => navigate(authPathFor("/register", "", location.pathname + location.search + location.hash))}
         onGoPlatform={() => navigate("/app/resumes")}
       />
 

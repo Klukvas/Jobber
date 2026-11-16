@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { EditableField } from "../inline/EditableField";
 import { SectionDivider } from "../inline/SectionDivider";
 import { EMPTY_CONTACT } from "../inline/constants";
@@ -14,6 +15,7 @@ interface ModernTemplateProps {
 const WHITE_INPUT_CLASS = "text-white placeholder:text-white/60";
 
 export function ModernTemplate({ editable = false }: ModernTemplateProps) {
+  const { t } = useTranslation();
   const setup = useTemplateSetup();
   if (!setup) return null;
 
@@ -56,7 +58,7 @@ export function ModernTemplate({ editable = false }: ModernTemplateProps) {
               onChange={(v) =>
                 updateContact({ ...(contact ?? EMPTY_CONTACT), email: v })
               }
-              placeholder="email@example.com"
+              placeholder={t("resumeBuilder.placeholders.email")}
               as="p"
               type="email"
               inputClassName={inputClass}
@@ -69,7 +71,7 @@ export function ModernTemplate({ editable = false }: ModernTemplateProps) {
               onChange={(v) =>
                 updateContact({ ...(contact ?? EMPTY_CONTACT), phone: v })
               }
-              placeholder="+1 (555) 123-4567"
+              placeholder={t("resumeBuilder.placeholders.phone")}
               as="p"
               type="tel"
               inputClassName={inputClass}
@@ -82,7 +84,7 @@ export function ModernTemplate({ editable = false }: ModernTemplateProps) {
               onChange={(v) =>
                 updateContact({ ...(contact ?? EMPTY_CONTACT), location: v })
               }
-              placeholder="City, Country"
+              placeholder={t("resumeBuilder.placeholders.location")}
               as="p"
               inputClassName={inputClass}
               editable={editable}
@@ -94,7 +96,7 @@ export function ModernTemplate({ editable = false }: ModernTemplateProps) {
               onChange={(v) =>
                 updateContact({ ...(contact ?? EMPTY_CONTACT), website: v })
               }
-              placeholder="website.com"
+              placeholder={t("resumeBuilder.placeholders.website")}
               as="p"
               type="url"
               inputClassName={inputClass}
@@ -107,7 +109,7 @@ export function ModernTemplate({ editable = false }: ModernTemplateProps) {
               onChange={(v) =>
                 updateContact({ ...(contact ?? EMPTY_CONTACT), linkedin: v })
               }
-              placeholder="linkedin.com/in/you"
+              placeholder={t("resumeBuilder.placeholders.linkedin")}
               as="p"
               inputClassName={inputClass}
               editable={editable}
@@ -119,7 +121,7 @@ export function ModernTemplate({ editable = false }: ModernTemplateProps) {
               onChange={(v) =>
                 updateContact({ ...(contact ?? EMPTY_CONTACT), github: v })
               }
-              placeholder="github.com/you"
+              placeholder={t("resumeBuilder.placeholders.github")}
               as="p"
               inputClassName={inputClass}
               editable={editable}
@@ -141,7 +143,7 @@ export function ModernTemplate({ editable = false }: ModernTemplateProps) {
             onChange={(v) =>
               updateContact({ ...(contact ?? EMPTY_CONTACT), full_name: v })
             }
-            placeholder="Your Name"
+            placeholder={t("resumeBuilder.placeholders.fullName")}
             as="h1"
             className="text-xl font-bold leading-tight"
             style={{ color: textColor }}
@@ -192,7 +194,7 @@ export function ModernTemplate({ editable = false }: ModernTemplateProps) {
               onChange={(v) =>
                 updateContact({ ...(contact ?? EMPTY_CONTACT), full_name: v })
               }
-              placeholder="Your Name"
+              placeholder={t("resumeBuilder.placeholders.fullName")}
               as="h1"
               className="text-xl font-bold leading-tight"
               inputClassName={WHITE_INPUT_CLASS}

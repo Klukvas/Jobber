@@ -1,7 +1,7 @@
+import { useSingleFlightMutation } from "@/shared/hooks/useSingleFlightMutation";
 import { useState, useEffect } from "react";
 import {
   useQuery,
-  useMutation,
   useQueryClient,
   keepPreviousData,
 } from "@tanstack/react-query";
@@ -255,10 +255,11 @@ export default function JobsPage() {
     setOpenMenuId(null);
   };
 
-  const deleteMutation = useMutation({
+  const deleteMutation = useSingleFlightMutation({
     mutationFn: (id: string) => jobsService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
       showSuccessNotification(t("jobs.deleteSuccess"));
       setJobToDelete(null);
       // Deleting the only card on this page would leave an empty page behind.
@@ -364,11 +365,13 @@ export default function JobsPage() {
       </div>
 
       {showExtBanner && (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3 dark:border-cyan-800 dark:bg-cyan-950">
-          <Chrome className="h-5 w-5 shrink-0 text-cyan-600 dark:text-cyan-400" />
-          <p className="flex-1 text-sm text-cyan-800 dark:text-cyan-200">
-            {t("jobs.extensionBanner")}
-          </p>
+        <div className="relative flex flex-col items-start gap-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3 dark:border-cyan-800 dark:bg-cyan-950 sm:flex-row sm:items-center sm:pr-16">
+          <div className="flex min-w-0 items-start gap-3 pr-12 sm:flex-1 sm:pr-0">
+            <Chrome className="mt-0.5 h-5 w-5 shrink-0 text-cyan-600 dark:text-cyan-400" />
+            <p className="min-w-0 text-sm text-cyan-800 dark:text-cyan-200">
+              {t("jobs.extensionBanner")}
+            </p>
+          </div>
           <a
             href="https://chromewebstore.google.com/detail/jobber-smart-job-saver/koegfmmcpedfgnjnohcaieecdoflmlab"
             target="_blank"
@@ -382,7 +385,7 @@ export default function JobsPage() {
               setShowExtBanner(false);
               localStorage.setItem(EXTENSION_BANNER_KEY, "true");
             }}
-            className={`${TOUCH_ICON_TARGET} shrink-0 rounded-md text-cyan-600 transition-colors hover:bg-cyan-100 dark:text-cyan-400 dark:hover:bg-cyan-900`}
+            className={`${TOUCH_ICON_TARGET} absolute right-2 top-2 shrink-0 rounded-md text-cyan-600 transition-colors hover:bg-cyan-100 dark:text-cyan-400 dark:hover:bg-cyan-900`}
             aria-label={t("common.close")}
           >
             <X className="h-4 w-4" />

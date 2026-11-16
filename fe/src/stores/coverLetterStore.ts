@@ -13,6 +13,7 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 interface CoverLetterState {
   coverLetter: CoverLetterDTO | null;
+  paragraphIds: string[];
   saveStatus: SaveStatus;
   isDirty: boolean;
 
@@ -58,11 +59,21 @@ export const useCoverLetterStore = create<CoverLetterState>()(
   temporal(
     (set) => ({
       coverLetter: null,
+      paragraphIds: [],
       saveStatus: "idle",
       isDirty: false,
 
       setCoverLetter: (coverLetter) =>
-        set({ coverLetter, isDirty: false, saveStatus: "idle" }),
+        set((state) => ({
+          coverLetter,
+          paragraphIds: state.coverLetter?.id === coverLetter.id &&
+            state.coverLetter.paragraphs.length === coverLetter.paragraphs.length &&
+            state.coverLetter.paragraphs.every((text, index) => text === coverLetter.paragraphs[index])
+              ? state.paragraphIds
+              : coverLetter.paragraphs.map(() => crypto.randomUUID()),
+          isDirty: false,
+          saveStatus: "idle",
+        })),
 
       setSaveStatus: (saveStatus) => set({ saveStatus }),
 
@@ -75,6 +86,9 @@ export const useCoverLetterStore = create<CoverLetterState>()(
           if (!state.coverLetter) return state;
           return {
             coverLetter: { ...state.coverLetter, [key]: value },
+            ...(key === "paragraphs" ? {
+              paragraphIds: (value as string[]).map(() => crypto.randomUUID()),
+            } : {}),
             isDirty: true,
           };
         }),
@@ -84,6 +98,9 @@ export const useCoverLetterStore = create<CoverLetterState>()(
           if (!state.coverLetter) return state;
           return {
             coverLetter: { ...state.coverLetter, ...updates },
+            ...(updates.paragraphs ? {
+              paragraphIds: updates.paragraphs.map(() => crypto.randomUUID()),
+            } : {}),
             isDirty: true,
           };
         }),
@@ -96,6 +113,7 @@ export const useCoverLetterStore = create<CoverLetterState>()(
               ...state.coverLetter,
               paragraphs: [...state.coverLetter.paragraphs, ""],
             },
+            paragraphIds: [...state.paragraphIds, crypto.randomUUID()],
             isDirty: true,
           };
         }),
@@ -120,12 +138,13 @@ export const useCoverLetterStore = create<CoverLetterState>()(
           );
           return {
             coverLetter: { ...state.coverLetter, paragraphs },
+            paragraphIds: state.paragraphIds.filter((_, i) => i !== index),
             isDirty: true,
           };
         }),
     }),
     {
-      partialize: (state) => ({ coverLetter: state.coverLetter }),
+      partialize: (state) => ({ coverLetter: state.coverLetter, paragraphIds: state.paragraphIds }),
       limit: 50,
       equality: (pastState, currentState) =>
         pastState.coverLetter === currentState.coverLetter,

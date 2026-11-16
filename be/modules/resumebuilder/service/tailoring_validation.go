@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"unicode"
@@ -18,13 +19,17 @@ var errNoTailoringChange = errors.New("unchanged tailoring suggestion")
 var tailoringNumbers = regexp.MustCompile(`[0-9]+(?:[.,][0-9]+)?`)
 var tailoringMetricPairs = regexp.MustCompile(`[\p{Sc}]\s*[+-]?[0-9]+(?:[.,][0-9]+)?|[+-]?[0-9]+(?:[.,][0-9]+)?\s*[%‰‱\p{Sc}]`)
 
+func invalidTailoring(rule, path string) error {
+	return ai.InvalidResponse(model.ErrAIInvalidResponse, "tailoring_validation", rule, path)
+}
+
 func validateTailoringSuggestions(source *model.FullResumeDTO, suggestions *ai.ResumeTailoringSuggestions) ([]model.TailoringChange, error) {
 	if suggestions != nil && suggestions.Summary != nil && !tailoringVisible(source, "summary") {
-		return nil, model.ErrAIInvalidResponse
+		return nil, invalidTailoring("hidden_section", "$.summary")
 	}
 	source = visibleTailoringSource(source)
 	if suggestions == nil || len(suggestions.Experiences) > len(source.Experiences) {
-		return nil, model.ErrAIInvalidResponse
+		return nil, invalidTailoring("count", "$.experiences")
 	}
 	changes := make([]model.TailoringChange, 0, len(suggestions.Experiences)+2)
 	if suggestion := suggestions.Summary; suggestion != nil {
@@ -45,10 +50,10 @@ func validateTailoringSuggestions(source *model.FullResumeDTO, suggestions *ai.R
 		byID[exp.ID] = exp
 	}
 	seen := make(map[string]bool)
-	for _, suggestion := range suggestions.Experiences {
+	for i, suggestion := range suggestions.Experiences {
 		exp, ok := byID[suggestion.ExperienceID]
 		if !ok || seen[exp.ID] {
-			return nil, model.ErrAIInvalidResponse
+			return nil, invalidTailoring("unknown_or_duplicate_id", fmt.Sprintf("$.experiences[%d].experience_id", i))
 		}
 		seen[exp.ID] = true
 		change, err := validateTailoringText(source, "experience", exp.ID, exp.Description, &suggestion, 10000)
@@ -56,6 +61,10 @@ func validateTailoringSuggestions(source *model.FullResumeDTO, suggestions *ai.R
 			continue
 		}
 		if err != nil {
+			var diagnostic *ai.ResponseValidationError
+			if errors.As(err, &diagnostic) {
+				return nil, ai.InvalidResponse(model.ErrAIInvalidResponse, diagnostic.Stage, diagnostic.Rule, fmt.Sprintf("$.experiences[%d]", i)+strings.TrimPrefix(diagnostic.Path, "$.experience"))
+			}
 			return nil, err
 		}
 		change.ExperienceID = exp.ID
@@ -81,14 +90,17 @@ func validateTailoringText(source *model.FullResumeDTO, kind, entryID, before st
 		return model.TailoringChange{}, errNoTailoringChange
 	}
 	if after == "" || !utf8.ValidString(after) || utf8.RuneCountInString(after) > maxLen || strings.ContainsRune(after, '\x00') {
-		return model.TailoringChange{}, model.ErrAIInvalidResponse
+		return model.TailoringChange{}, invalidTailoring("text", "$."+kind+".after")
 	}
 	if kind == "summary" && suggestion.ExperienceID != "" {
-		return model.TailoringChange{}, model.ErrAIInvalidResponse
+		return model.TailoringChange{}, invalidTailoring("unexpected_id", "$.summary.experience_id")
 	}
 	evidence, err := validateTailoringEvidence(source, suggestion.Evidence, kind, entryID)
-	if err != nil || !validTailoringReason(suggestion.Reason) {
-		return model.TailoringChange{}, model.ErrAIInvalidResponse
+	if err != nil {
+		return model.TailoringChange{}, err
+	}
+	if !validTailoringReason(suggestion.Reason) {
+		return model.TailoringChange{}, invalidTailoring("text", "$."+kind+".reason")
 	}
 	// Metrics are especially easy for a model to fabricate. Every numeric token
 	// must already occur in the cited source evidence, never merely in the Job.
@@ -100,7 +112,7 @@ func validateTailoringText(source *model.FullResumeDTO, kind, entryID, before st
 	}
 	for _, number := range tailoringNumbers.FindAllString(after, -1) {
 		if !numbers[number] {
-			return model.TailoringChange{}, model.ErrAIInvalidResponse
+			return model.TailoringChange{}, invalidTailoring("unsupported_number", "$."+kind+".after")
 		}
 	}
 	metricPairs := make(map[string]bool)
@@ -111,7 +123,7 @@ func validateTailoringText(source *model.FullResumeDTO, kind, entryID, before st
 	}
 	for _, pair := range tailoringMetricPairs.FindAllString(after, -1) {
 		if !metricPairs[normalizeTailoringMetric(pair)] {
-			return model.TailoringChange{}, model.ErrAIInvalidResponse
+			return model.TailoringChange{}, invalidTailoring("unsupported_metric", "$."+kind+".after")
 		}
 	}
 	return model.TailoringChange{ID: uuid.NewString(), Kind: kind, Reason: strings.TrimSpace(suggestion.Reason), Evidence: evidence, Before: tailoringJSON(before), After: tailoringJSON(after)}, nil
@@ -132,23 +144,27 @@ func validTailoringReason(reason string) bool {
 
 func validateTailoringEvidence(source *model.FullResumeDTO, items []ai.TailoringEvidence, kind, entryID string) ([]model.TailoringEvidence, error) {
 	if len(items) == 0 || len(items) > 20 {
-		return nil, model.ErrAIInvalidResponse
+		return nil, invalidTailoring("count", "$."+kind+".evidence")
 	}
 	result := make([]model.TailoringEvidence, 0, len(items))
-	for _, item := range items {
-		if strings.TrimSpace(item.Quote) == "" || utf8.RuneCountInString(item.Quote) > 10000 {
-			return nil, model.ErrAIInvalidResponse
+	for i, item := range items {
+		path := fmt.Sprintf("$.%s.evidence[%d]", kind, i)
+		if strings.TrimSpace(item.Quote) == "" || !utf8.ValidString(item.Quote) || strings.ContainsRune(item.Quote, '\x00') || utf8.RuneCountInString(item.Quote) > 10000 {
+			return nil, invalidTailoring("text", path+".quote")
 		}
 		text := ""
+		found := false
 		switch item.Section {
 		case "summary":
 			if item.EntryID == "" && source.Summary != nil {
 				text = source.Summary.Content
+				found = true
 			}
 		case "experience":
 			for _, exp := range source.Experiences {
 				if exp.ID == item.EntryID {
 					text = exp.Description
+					found = true
 					// A summary may carry one complete, deterministic same-entry context.
 					// Experience edits retain the original verbatim-description rule.
 					if kind == "summary" && item.Quote == ai.GroundedExperienceContext(exp.Position, exp.Company, exp.StartDate, exp.EndDate, exp.Description) {
@@ -160,19 +176,23 @@ func validateTailoringEvidence(source *model.FullResumeDTO, items []ai.Tailoring
 			for _, skill := range source.Skills {
 				if skill.ID == item.EntryID {
 					text = skill.Name
+					found = true
 				}
 			}
 		default:
-			return nil, model.ErrAIInvalidResponse
+			return nil, invalidTailoring("enum", path+".section")
 		}
 		if kind == "experience" && (item.Section != "experience" || item.EntryID != entryID) {
-			return nil, model.ErrAIInvalidResponse
+			return nil, invalidTailoring("mismatched_source", path+".entry_id")
 		}
 		if kind == "skill_order" && item.Section != "skills" {
-			return nil, model.ErrAIInvalidResponse
+			return nil, invalidTailoring("mismatched_source", path+".section")
+		}
+		if !found {
+			return nil, invalidTailoring("unknown_id", path+".entry_id")
 		}
 		if !strings.Contains(text, item.Quote) {
-			return nil, model.ErrAIInvalidResponse
+			return nil, invalidTailoring("exact_quote", path+".quote")
 		}
 		result = append(result, model.TailoringEvidence{Section: item.Section, EntryID: item.EntryID, Quote: item.Quote})
 	}
@@ -180,8 +200,11 @@ func validateTailoringEvidence(source *model.FullResumeDTO, items []ai.Tailoring
 }
 
 func validateTailoringSkillOrder(source *model.FullResumeDTO, suggestion *ai.TailoringSkillSuggestion) (model.TailoringChange, error) {
-	if len(suggestion.SkillIDs) != len(source.Skills) || len(source.Skills) < 2 || !validTailoringReason(suggestion.Reason) {
-		return model.TailoringChange{}, model.ErrAIInvalidResponse
+	if len(suggestion.SkillIDs) != len(source.Skills) {
+		return model.TailoringChange{}, invalidTailoring("count", "$.skill_order.skill_ids")
+	}
+	if !validTailoringReason(suggestion.Reason) {
+		return model.TailoringChange{}, invalidTailoring("text", "$.skill_order.reason")
 	}
 	evidence, err := validateTailoringEvidence(source, suggestion.Evidence, "skill_order", "")
 	if err != nil {
@@ -198,7 +221,7 @@ func validateTailoringSkillOrder(source *model.FullResumeDTO, suggestion *ai.Tai
 	for i, id := range suggestion.SkillIDs {
 		skill, ok := byID[id]
 		if !ok {
-			return model.TailoringChange{}, model.ErrAIInvalidResponse
+			return model.TailoringChange{}, invalidTailoring("unknown_or_duplicate_id", fmt.Sprintf("$.skill_order.skill_ids[%d]", i))
 		}
 		delete(byID, id)
 		after = append(after, model.TailoringSkillRef{ID: id, Name: skill.Name})

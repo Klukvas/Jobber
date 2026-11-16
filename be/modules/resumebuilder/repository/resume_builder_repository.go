@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/andreypavlenko/jobber/internal/platform/ai"
 	"github.com/andreypavlenko/jobber/modules/resumebuilder/model"
 	"github.com/andreypavlenko/jobber/modules/resumebuilder/ports"
 	"github.com/google/uuid"
@@ -25,6 +26,7 @@ type dbQuerier interface {
 type ResumeBuilderRepository struct {
 	pool PgxPool
 	q    dbQuerier
+	tx   pgx.Tx
 }
 
 // NewResumeBuilderRepository creates a new ResumeBuilderRepository.
@@ -37,15 +39,21 @@ func NewResumeBuilderRepository(pool *pgxpool.Pool) *ResumeBuilderRepository {
 func (r *ResumeBuilderRepository) RunInTransaction(ctx context.Context, fn func(txRepo ports.ResumeBuilderRepository) error) error {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
+		ai.RejectCreditResult(ctx)
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
-	txRepo := &ResumeBuilderRepository{pool: r.pool, q: tx}
+	txRepo := &ResumeBuilderRepository{pool: r.pool, q: tx, tx: tx}
 	if err := fn(txRepo); err != nil {
+		ai.RejectCreditResult(ctx)
 		return err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		ai.RejectCreditResult(ctx)
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+	return nil
 }
 
 func (r *ResumeBuilderRepository) Create(ctx context.Context, rb *model.ResumeBuilder) error {
@@ -171,6 +179,11 @@ func (r *ResumeBuilderRepository) VerifyOwnership(ctx context.Context, userID, r
 }
 
 func (r *ResumeBuilderRepository) GetFullResume(ctx context.Context, userID, id string) (*model.FullResumeDTO, error) {
+	// A transaction must read its own writes on its existing connection. A
+	// second acquisition also deadlocks when the pool has only one connection.
+	if r.tx != nil {
+		return r.loadFullResume(ctx, userID, id)
+	}
 	// Acquire a single connection for the duration of this call.
 	// The previous implementation launched ~11 concurrent goroutines via errgroup,
 	// each acquiring its own pool connection. On the resume editor (re-renders per

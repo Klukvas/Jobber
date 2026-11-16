@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { EditableField } from "../inline/EditableField";
 import { EMPTY_CONTACT } from "../inline/constants";
 import { useTemplateSetup } from "./shared/useTemplateSetup";
@@ -9,6 +10,7 @@ interface CreativeTemplateProps {
 }
 
 export function CreativeTemplate({ editable = false }: CreativeTemplateProps) {
+  const { t } = useTranslation();
   const setup = useTemplateSetup();
   if (!setup) return null;
 
@@ -40,7 +42,7 @@ export function CreativeTemplate({ editable = false }: CreativeTemplateProps) {
             onChange={(v) =>
               updateContact({ ...(contact ?? EMPTY_CONTACT), full_name: v })
             }
-            placeholder="Your Name"
+            placeholder={t("resumeBuilder.placeholders.fullName")}
             as="h1"
             className="text-xl font-bold"
             style={{ color: textColor }}
@@ -53,7 +55,7 @@ export function CreativeTemplate({ editable = false }: CreativeTemplateProps) {
                 onChange={(v) =>
                   updateContact({ ...(contact ?? EMPTY_CONTACT), email: v })
                 }
-                placeholder="email@example.com"
+                placeholder={t("resumeBuilder.placeholders.email")}
                 type="email"
                 editable={editable}
               />
@@ -64,7 +66,7 @@ export function CreativeTemplate({ editable = false }: CreativeTemplateProps) {
                 onChange={(v) =>
                   updateContact({ ...(contact ?? EMPTY_CONTACT), phone: v })
                 }
-                placeholder="+1 (555) 123-4567"
+                placeholder={t("resumeBuilder.placeholders.phone")}
                 type="tel"
                 editable={editable}
               />
@@ -75,7 +77,7 @@ export function CreativeTemplate({ editable = false }: CreativeTemplateProps) {
                 onChange={(v) =>
                   updateContact({ ...(contact ?? EMPTY_CONTACT), location: v })
                 }
-                placeholder="City, Country"
+                placeholder={t("resumeBuilder.placeholders.location")}
                 editable={editable}
               />
             )}
@@ -85,7 +87,7 @@ export function CreativeTemplate({ editable = false }: CreativeTemplateProps) {
                 onChange={(v) =>
                   updateContact({ ...(contact ?? EMPTY_CONTACT), website: v })
                 }
-                placeholder="website.com"
+                placeholder={t("resumeBuilder.placeholders.website")}
                 type="url"
                 editable={editable}
               />
@@ -96,7 +98,7 @@ export function CreativeTemplate({ editable = false }: CreativeTemplateProps) {
                 onChange={(v) =>
                   updateContact({ ...(contact ?? EMPTY_CONTACT), linkedin: v })
                 }
-                placeholder="linkedin.com/in/you"
+                placeholder={t("resumeBuilder.placeholders.linkedin")}
                 editable={editable}
               />
             )}
@@ -106,7 +108,7 @@ export function CreativeTemplate({ editable = false }: CreativeTemplateProps) {
                 onChange={(v) =>
                   updateContact({ ...(contact ?? EMPTY_CONTACT), github: v })
                 }
-                placeholder="github.com/you"
+                placeholder={t("resumeBuilder.placeholders.github")}
                 editable={editable}
               />
             )}

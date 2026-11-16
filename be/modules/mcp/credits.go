@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/andreypavlenko/jobber/internal/platform/ai"
 
 	subHandler "github.com/andreypavlenko/jobber/modules/subscriptions/handler"
 	"github.com/google/uuid"
@@ -18,6 +19,17 @@ var errAIProvider = errors.New("AI could not complete this request. Please try a
 type AICredits interface {
 	CheckLimit(context.Context, string, string) error
 	FinishAIRequest(context.Context)
+}
+
+func (t *tools) completeAIResult(ctx context.Context) error {
+	ai.MarkCreditResult(ctx)
+	if credits, ok := t.ai.Credits.(interface{ CompleteAIRequest(context.Context) error }); ok {
+		if err := credits.CompleteAIRequest(ctx); err != nil {
+			ai.RejectCreditResult(ctx)
+			return err
+		}
+	}
+	return nil
 }
 
 // Each invocation gets its own receipt, including calls sharing an MCP request.

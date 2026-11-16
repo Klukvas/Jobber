@@ -52,7 +52,7 @@ describe("SaveIndicator", () => {
     Object.assign(mockState, { saveStatus: "saved" });
     render(<SaveIndicator />);
     const indicator = screen.getByText("resumeBuilder.saved").closest("span");
-    expect(indicator?.className).toContain("text-green-600");
+    expect(indicator?.className).toContain("text-green-700");
   });
 
   it("applies destructive color for error status", () => {

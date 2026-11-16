@@ -15,8 +15,8 @@ it("uses the existing inline fields and Escape while leaving saved design untouc
   const user = userEvent.setup();
   const original = useResumeBuilderStore.getState().resume;
   render(<MobileTextEditor />);
-  await user.click(screen.getByRole("textbox", { name: "Your Name" }));
-  const input = screen.getByRole("textbox", { name: "Your Name" });
+  await user.click(screen.getByRole("textbox", { name: "resumeBuilder.placeholders.fullName" }));
+  const input = screen.getByRole("textbox", { name: "resumeBuilder.placeholders.fullName" });
   await user.clear(input); await user.type(input, "Synthetic draft");
   expect(useResumeBuilderStore.getState().resume?.contact?.full_name).toBe("Synthetic draft");
   await user.keyboard("{Escape}");

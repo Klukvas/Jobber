@@ -61,3 +61,68 @@ func TestTailorResumeBoundsInput(t *testing.T) {
 	_, err := client.TailorResume(t.Context(), strings.Repeat("a", 90000)+"\x00", strings.Repeat("b", 90000), "en")
 	require.ErrorIs(t, err, ErrInvalidTailoringResponse)
 }
+
+func TestTailorResumeFakeProviderDiagnostics(t *testing.T) {
+	source := `{"experiences":[{"id":"owned","position":"Engineer","company":"Acme","description":"Maintained 10 services and improved performance 20%."},{"id":"other","description":"Built Rust APIs."}],"skills":[]}`
+	valid := `{"summary":null,"experiences":[{"experience_id":"e0","fact_ids":["e0f0"],"after":"Maintained 10 services and improved performance 20%."}],"skill_order":null}`
+	for _, tc := range []struct {
+		name, body, old, replacement, stage, rule, path string
+		truncated, unsupported                          bool
+	}{
+		{name: "success"},
+		{name: "malformed", body: `{"summary":`, stage: "tailoring_decode", rule: "json", path: "$"},
+		{name: "missing", body: `{"summary":null,"experiences":[]}`, stage: "tailoring_decode", rule: "required", path: "$.skill_order"},
+		{name: "null array", old: `"experiences":[{"experience_id":"e0","fact_ids":["e0f0"],"after":"Maintained 10 services and improved performance 20%."}]`, replacement: `"experiences":null`, stage: "tailoring_decode", rule: "null", path: "$.experiences"},
+		{name: "null fact IDs", old: `"fact_ids":["e0f0"]`, replacement: `"fact_ids":null`, stage: "tailoring_decode", rule: "null", path: "$.experiences[0].fact_ids"},
+		{name: "null text", old: `"after":"Maintained 10 services and improved performance 20%."`, replacement: `"after":null`, stage: "tailoring_decode", rule: "null", path: "$.experiences[0].after"},
+		{name: "missing after", body: `{"summary":null,"experiences":[{"experience_id":"e0","fact_ids":["e0f0"]}],"skill_order":null}`, stage: "tailoring_decode", rule: "required", path: "$.experiences[0].after"},
+		{name: "wrong ID", old: `"experience_id":"e0"`, replacement: `"experience_id":"foreign"`, stage: "tailoring_resolve", rule: "unknown_or_duplicate_id", path: "$.experiences[0].experience_id"},
+		{name: "wrong evidence", old: `"fact_ids":["e0f0"]`, replacement: `"fact_ids":["e1f0"]`, stage: "tailoring_resolve", rule: "unknown_duplicate_or_mismatched_fact", path: "$.experiences[0].fact_ids"},
+		{name: "invented number", old: `"after":"Maintained 10 services and improved performance 20%."`, replacement: `"after":"Maintained 99 services."`, stage: "tailoring_claims", rule: "unsupported_number", path: "$.experiences[0].after"},
+		{name: "moved metric", old: `"after":"Maintained 10 services and improved performance 20%."`, replacement: `"after":"Improved performance 10%."`, stage: "tailoring_claims", rule: "unsupported_metric", path: "$.experiences[0].after"},
+		{name: "unsupported claim", old: `"after":"Maintained 10 services and improved performance 20%."`, replacement: `"after":"Led engineering teams."`, unsupported: true, stage: "tailoring_claims", rule: "unsupported_assertion", path: "$.experiences"},
+		{name: "truncated", truncated: true, stage: "tailoring_transport", rule: "incomplete", path: "$"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := valid
+			if tc.body != "" {
+				body = tc.body
+			}
+			if tc.old != "" {
+				body = strings.Replace(body, tc.old, tc.replacement, 1)
+			}
+			calls := 0
+			client := newTestClient(func(context.Context, anthropic.MessageNewParams) (*anthropic.Message, error) {
+				calls++
+				text := body
+				if calls == 2 {
+					text = `{"supported":false,"unsupported_claims":["Unsupported ownership"]}`
+				}
+				response := mockResponse(text)
+				response.StopReason = anthropic.StopReasonEndTurn
+				if tc.truncated {
+					response.StopReason = anthropic.StopReasonMaxTokens
+				}
+				return response, nil
+			})
+			_, err := client.TailorResume(t.Context(), "Backend engineer", source, "en")
+			if tc.stage == "" {
+				require.NoError(t, err)
+				require.Equal(t, 1, calls)
+				return
+			}
+			require.ErrorIs(t, err, ErrInvalidTailoringResponse)
+			var diagnostic *ResponseValidationError
+			require.ErrorAs(t, err, &diagnostic)
+			require.Equal(t, tc.stage, diagnostic.Stage)
+			require.Equal(t, tc.rule, diagnostic.Rule)
+			require.Equal(t, tc.path, diagnostic.Path)
+			require.NotContains(t, err.Error(), "Acme")
+			if tc.unsupported {
+				require.Equal(t, 2, calls)
+			} else {
+				require.Equal(t, 1, calls)
+			}
+		})
+	}
+}

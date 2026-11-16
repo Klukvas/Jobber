@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { format } from "date-fns";
 import { useDateLocale } from "@/shared/lib/dateFnsLocale";
+import { useSingleFlightMutation } from "@/shared/hooks/useSingleFlightMutation";
 import { stageTemplatesService } from "@/services/stageTemplatesService";
 import { Button } from "@/shared/ui/Button";
 import {
@@ -86,10 +87,11 @@ export default function StageTemplates() {
     queryFn: () => stageTemplatesService.list({ limit: 100, offset: 0 }),
   });
 
-  const deleteMutation = useMutation({
+  const deleteMutation = useSingleFlightMutation({
     mutationFn: stageTemplatesService.delete,
-    onSuccess: () => {
+    onSuccess: (_data, deletedId) => {
       queryClient.invalidateQueries({ queryKey: ["stage-templates"] });
+      setDeletingTemplate((current) => current?.id === deletedId ? null : current);
       showSuccessNotification(t("stages.deleteSuccess"));
     },
     onError: (error: Error) => {
@@ -127,9 +129,7 @@ export default function StageTemplates() {
 
   const confirmDelete = () => {
     if (deletingTemplate) {
-      deleteMutation.mutate(deletingTemplate.id, {
-        onSettled: () => setDeletingTemplate(null),
-      });
+      deleteMutation.mutate(deletingTemplate.id);
     }
   };
 

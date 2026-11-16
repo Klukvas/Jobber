@@ -15,6 +15,7 @@
 
 @layer base {
   :root {
+    color-scheme: light;
     /* The landing page's own background, named once so the wrapper below and
        the body class above cannot drift apart. */
     --landing-background: 220 35% 7%;
@@ -39,12 +40,13 @@
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
     --border: 220 13% 90%;
-    --input: 220 13% 90%;
+    --input: 215 16% 53%;
     --ring: 83 78% 36%;
     --radius: 0.5rem;
   }
 
   .dark {
+    color-scheme: dark;
     --background: 220 35% 7%;
     --foreground: 210 40% 96%;
     --card: 221 39% 11%;
@@ -66,7 +68,7 @@
     --destructive: 0 84% 62%;
     --destructive-foreground: 220 35% 7%;
     --border: 220 15% 15%;
-    --input: 222 30% 16%;
+    --input: 215 16% 50%;
     --ring: 83 78% 55%;
   }
 }
@@ -471,3 +473,9 @@
     font-size: 16px !important;
   }
 }
+
+/* Document date editors remain white in either application theme. */
+[data-date-popover] { color-scheme: light; color: #111827; }
+
+/* Sonner's small error copy needs AA contrast on its light pink fill. */
+[data-sonner-toaster][data-sonner-theme="light"] { --error-text: #b91c1c; }
