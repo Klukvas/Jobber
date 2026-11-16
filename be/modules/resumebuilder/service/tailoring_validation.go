@@ -149,6 +149,11 @@ func validateTailoringEvidence(source *model.FullResumeDTO, items []ai.Tailoring
 			for _, exp := range source.Experiences {
 				if exp.ID == item.EntryID {
 					text = exp.Description
+					// A summary may carry one complete, deterministic same-entry context.
+					// Experience edits retain the original verbatim-description rule.
+					if kind == "summary" && item.Quote == ai.GroundedExperienceContext(exp.Position, exp.Company, exp.StartDate, exp.EndDate, exp.Description) {
+						text = item.Quote
+					}
 				}
 			}
 		case "skills":
