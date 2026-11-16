@@ -8,6 +8,7 @@ import { BrowserMockup } from "@/shared/ui/BrowserMockup";
 import { FeatureFaq } from "@/features/home/components/FeatureFaq";
 import { useAuthStore } from "@/stores/authStore";
 import { usePageMeta } from "@/shared/lib/usePageMeta";
+import { promoScreenshotSrc } from "@/shared/lib/promoScreenshots";
 
 const NS = "featurePages.applications";
 
@@ -77,7 +78,7 @@ export default function FeatureApplications() {
                 height={1600}
                 dark
                 url="cursopus.com/app/jobs"
-                src="/screenshots/01_applications_list.png"
+                src={promoScreenshotSrc("01_applications_list.png")}
                 alt="Cursopus applications list"
               />
             </div>
@@ -118,7 +119,7 @@ export default function FeatureApplications() {
                 width={2560}
                 height={1600}
                 url="cursopus.com/app/jobs"
-                src="/screenshots/01_applications_list.png"
+                src={promoScreenshotSrc("01_applications_list.png")}
                 alt="Applications list view"
               />
               <div>
@@ -175,7 +176,7 @@ export default function FeatureApplications() {
                 width={2560}
                 height={1600}
                 url="cursopus.com/app/analytics"
-                src="/screenshots/09_analytics_top.png"
+                src={promoScreenshotSrc("09_analytics_top.png")}
                 alt="Analytics dashboard"
               />
             </div>
