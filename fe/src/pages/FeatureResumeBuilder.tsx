@@ -72,6 +72,8 @@ export default function FeatureResumeBuilder() {
               <p className="mb-3 text-center text-xs text-slate-400">{t("home.hero.demo")}</p>
               <div className="absolute inset-x-0 -bottom-8 h-40 bg-gradient-to-t from-background to-transparent" />
               <BrowserMockup
+                width={2560}
+                height={1600}
                 dark
                 url="cursopus.com/app/resumes"
                 src="/screenshots/04_resumes.png"
@@ -112,6 +114,8 @@ export default function FeatureResumeBuilder() {
           <div className="mx-auto max-w-6xl px-4">
             <div className="grid items-center gap-16 lg:grid-cols-2">
               <BrowserMockup
+                width={2560}
+                height={1600}
                 url="cursopus.com/app/resumes"
                 src="/screenshots/04_resumes.png"
                 alt="Resume templates"
@@ -172,6 +176,8 @@ export default function FeatureResumeBuilder() {
                   <div className="absolute left-0 top-4 w-48 overflow-hidden rounded-lg border bg-card shadow-lg">
                     <img
                       src="/screenshots/04_resumes.png"
+                      width={2560}
+                      height={1600}
                       alt="Resume version 1"
                       className="block w-full"
                       loading="lazy"
@@ -189,6 +195,8 @@ export default function FeatureResumeBuilder() {
                   <div className="absolute left-16 top-16 w-48 overflow-hidden rounded-lg border bg-card shadow-lg ring-2 ring-primary/30">
                     <img
                       src="/screenshots/04_resumes.png"
+                      width={2560}
+                      height={1600}
                       alt="Resume version 2"
                       className="block w-full"
                       loading="lazy"
@@ -206,6 +214,8 @@ export default function FeatureResumeBuilder() {
                   <div className="absolute right-0 top-8 w-48 overflow-hidden rounded-lg border bg-card shadow-lg">
                     <img
                       src="/screenshots/04_resumes.png"
+                      width={2560}
+                      height={1600}
                       alt="Resume version 3"
                       className="block w-full"
                       loading="lazy"

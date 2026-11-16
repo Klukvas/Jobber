@@ -6,11 +6,16 @@ import { Sidebar } from "../Sidebar";
 import { useSidebarStore } from "@/stores/sidebarStore";
 import i18n from "@/shared/lib/i18n";
 
-const permission = vi.hoisted(() => ({ allowed: false, isError: false }));
+const permission = vi.hoisted(() => ({
+  allowed: false,
+  isError: false,
+  isFetchedAfterMount: true,
+}));
 vi.mock("@/shared/hooks/useAdminAccess", () => ({
   useAdminAccess: () => ({
     data: { allowed: permission.allowed },
     isError: permission.isError,
+    isFetchedAfterMount: permission.isFetchedAfterMount,
   }),
 }));
 vi.mock("@/shared/hooks/useSubscription", () => ({
@@ -23,6 +28,7 @@ beforeEach(async () => {
   await i18n.changeLanguage("en");
   permission.allowed = false;
   permission.isError = false;
+  permission.isFetchedAfterMount = true;
   useSidebarStore.setState({ isExpanded: true, isMobileOpen: false });
 });
 afterEach(cleanup);
@@ -61,6 +67,14 @@ it("includes admin navigation in the same mobile drawer", () => {
 it("removes a cached admin link after verification fails", () => {
   permission.allowed = true;
   permission.isError = true;
+  mount();
+  expect(
+    screen.queryByRole("link", { name: "Administration" }),
+  ).not.toBeInTheDocument();
+});
+it("hides a cached positive result until verification finishes after mount", () => {
+  permission.allowed = true;
+  permission.isFetchedAfterMount = false;
   mount();
   expect(
     screen.queryByRole("link", { name: "Administration" }),

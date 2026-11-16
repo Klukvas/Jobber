@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -241,13 +242,7 @@ func main() {
 			logger.Fatal("Invalid TRUSTED_PROXIES", zap.Error(err))
 		}
 	}
-	router.Use(sentryPlatform.RecoveryMiddleware(sentryEnabled))
-	router.Use(oauthModule.Privacy())
-	router.Use(httpPlatform.RequestIDMiddleware())
-	router.Use(httpPlatform.LoggerMiddleware(logger))
-	router.Use(oauthModule.PublicCORS())
-	router.Use(httpPlatform.CORSMiddleware(cfg.Server.AllowedOrigins))
-	router.Use(httpPlatform.CanonicalUUIDParams())
+	registerGlobalMiddleware(router, logger, sentryEnabled, cfg.Server.AllowedOrigins)
 
 	// Swagger documentation (available in development)
 	if cfg.Server.Env != "production" {
@@ -780,7 +775,7 @@ func main() {
 	// Create HTTP server
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%s", cfg.Server.Port),
-		Handler: router,
+		Handler: withAdminNoStore(router),
 	}
 
 	// Start server in a goroutine
@@ -867,4 +862,25 @@ func pingHandler(c *gin.Context) {
 // @Router /session [get]
 func sessionHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// withAdminNoStore runs outside Gin so its automatic redirects also cannot be cached.
+func withAdminNoStore(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/admin" || strings.HasPrefix(r.URL.Path, "/api/v1/admin/") {
+			w.Header().Set("Cache-Control", "no-store")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// registerGlobalMiddleware keeps the production middleware order shared with routing tests.
+func registerGlobalMiddleware(router *gin.Engine, log *logger.Logger, sentryEnabled bool, allowedOrigins string) {
+	router.Use(sentryPlatform.RecoveryMiddleware(sentryEnabled))
+	router.Use(oauthModule.Privacy())
+	router.Use(httpPlatform.RequestIDMiddleware())
+	router.Use(httpPlatform.LoggerMiddleware(log))
+	router.Use(oauthModule.PublicCORS())
+	router.Use(httpPlatform.CORSMiddleware(allowedOrigins))
+	router.Use(httpPlatform.CanonicalUUIDParams())
 }

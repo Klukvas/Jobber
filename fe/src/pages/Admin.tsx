@@ -14,7 +14,8 @@ export default function AdminPage() {
   const { t } = useTranslation();
   const access = useAdminAccess();
   const scope = useAdminScope();
-  if (access.isPending)
+  // A shared observer (Sidebar) can keep an earlier positive result alive.
+  if (access.isPending || (access.data?.allowed && !access.isFetchedAfterMount))
     return (
       <div
         role="status"

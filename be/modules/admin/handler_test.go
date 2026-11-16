@@ -94,8 +94,53 @@ func request(r http.Handler, token, method, path, body, contentType, origin stri
 	r.ServeHTTP(w, req)
 	return w
 }
+func TestAdminAccessCapability(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		user    *userModel.User
+		emails  string
+		err     error
+		want    int
+		allowed bool
+	}{
+		{"normalized admin", &userModel.User{ID: testUser, Email: " ADMIN@Example.COM ", EmailVerified: true}, " , admin@example.com, ", nil, 200, true},
+		{"ordinary user", &userModel.User{ID: testUser, Email: "other@example.com", EmailVerified: true}, "admin@example.com", nil, 200, false},
+		{"empty allowlist", &userModel.User{ID: testUser, Email: "admin@example.com", EmailVerified: true}, "", nil, 200, false},
+		{"unverified", &userModel.User{ID: testUser, Email: "admin@example.com"}, "admin@example.com", nil, 200, false},
+		{"deleted", nil, "admin@example.com", userModel.ErrUserNotFound, 200, false},
+		{"nil identity", nil, "admin@example.com", nil, 200, false},
+		{"different identity", &userModel.User{ID: testGrant, Email: "admin@example.com", EmailVerified: true}, "admin@example.com", nil, 200, false},
+		{"database failure", nil, "admin@example.com", errors.New("password=must-not-leak"), 503, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store := &storeStub{}
+			r, token := testRouter(identityStub{test.user, test.err}, test.emails, store)
+			w := request(r, token, "GET", "/access", "", "", "")
+			require.Equal(t, test.want, w.Code, w.Body.String())
+			require.Equal(t, "no-store", w.Header().Get("Cache-Control"))
+			require.NotContains(t, w.Body.String(), "must-not-leak")
+			require.Zero(t, store.calls)
+			if test.want == 200 {
+				var data map[string]bool
+				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &data))
+				require.Equal(t, map[string]bool{"allowed": test.allowed}, data)
+			}
+		})
+	}
+	t.Run("authentication required", func(t *testing.T) {
+		store := &storeStub{}
+		r, _ := testRouter(identityStub{}, "admin@example.com", store)
+		for _, token := range []string{"", "invalid-session"} {
+			w := request(r, token, "GET", "/access", "", "", "")
+			require.Equal(t, 401, w.Code)
+			require.Equal(t, "no-store", w.Header().Get("Cache-Control"))
+		}
+		require.Zero(t, store.calls)
+	})
+}
+
 func TestAdminAuthorizationEveryEndpoint(t *testing.T) {
-	routes := []struct{ method, path, body string }{{"GET", "/stats", ""}, {"PATCH", "/users/" + testUser + "/test-account", `{"is_test":true}`}, {"GET", "/access", ""}, {"GET", "/users", ""}, {"GET", "/users/" + testUser, ""}, {"PATCH", "/users/" + testUser, `{"name":"Safe","locale":"en"}`}, {"POST", "/users/" + testUser + "/manual-access", `{"id":"` + testGrant + `","days":30,"reason":"support"}`}, {"POST", "/users/" + testUser + "/manual-access/" + testGrant + "/revoke", `{"reason":"support"}`}}
+	routes := []struct{ method, path, body string }{{"GET", "/stats", ""}, {"PATCH", "/users/" + testUser + "/test-account", `{"is_test":true}`}, {"GET", "/users", ""}, {"GET", "/users/" + testUser, ""}, {"PATCH", "/users/" + testUser, `{"name":"Safe","locale":"en"}`}, {"POST", "/users/" + testUser + "/manual-access", `{"id":"` + testGrant + `","days":30,"reason":"support"}`}, {"POST", "/users/" + testUser + "/manual-access/" + testGrant + "/revoke", `{"reason":"support"}`}}
 	for _, test := range []struct {
 		name, email, config string
 		verified            bool

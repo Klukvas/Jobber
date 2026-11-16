@@ -19,12 +19,14 @@ export function useAdminAccess() {
   const query = useQuery({
     queryKey: adminKeys.access(scope),
     queryFn: ({ signal }) => adminService.access(signal),
-    enabled: !!scope.actor,
+    enabled: !!scope.actor && !scope.denied,
     retry: false,
+    // Denials live in the session scope; a remounted surface must prove access again.
     staleTime: 0,
     gcTime: 0,
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: "always",
+    refetchOnMount: "always",
+    refetchInterval: scope.denied ? false : 30_000,
+    refetchOnWindowFocus: scope.denied ? false : "always",
   });
   return scope.denied || !scope.actor
     ? { ...query, data: { allowed: false }, isPending: false }

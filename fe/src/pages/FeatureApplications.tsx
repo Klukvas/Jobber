@@ -73,8 +73,10 @@ export default function FeatureApplications() {
               <p className="mb-3 text-center text-xs text-slate-400">{t("home.hero.demo")}</p>
               <div className="absolute inset-x-0 -bottom-8 h-40 bg-gradient-to-t from-background to-transparent" />
               <BrowserMockup
+                width={2560}
+                height={1600}
                 dark
-                url="cursopus.com/app/applications"
+                url="cursopus.com/app/jobs"
                 src="/screenshots/01_applications_list.png"
                 alt="Cursopus applications list"
               />
@@ -113,7 +115,9 @@ export default function FeatureApplications() {
           <div className="mx-auto max-w-6xl px-4">
             <div className="grid items-center gap-16 lg:grid-cols-2">
               <BrowserMockup
-                url="cursopus.com/app/applications"
+                width={2560}
+                height={1600}
+                url="cursopus.com/app/jobs"
                 src="/screenshots/01_applications_list.png"
                 alt="Applications list view"
               />
@@ -168,6 +172,8 @@ export default function FeatureApplications() {
                 </ul>
               </div>
               <BrowserMockup
+                width={2560}
+                height={1600}
                 url="cursopus.com/app/analytics"
                 src="/screenshots/09_analytics_top.png"
                 alt="Analytics dashboard"
