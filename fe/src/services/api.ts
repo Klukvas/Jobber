@@ -444,8 +444,8 @@ class ApiClient {
       if (this.logoutRequest) return this.logoutRequest as Promise<T>;
       // Another tab already ended the session this tab is logging out of. The
       // cookies may belong to a newer sign-in now; leave them alone. (A tab
-      // that saw the same account sign in again has already adopted it on the
-      // broadcast or when shown, so it is current here.)
+      // whose account signed in again elsewhere has adopted it by now: on the
+      // broadcast, when shown, or in authService.logout before its state goes.)
       if (!isTabSessionCurrent()) {
         syncTabSession();
         throw sessionChanged();

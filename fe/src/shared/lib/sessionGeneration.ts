@@ -163,6 +163,19 @@ export function syncTabSession(): void {
   }
 }
 
+/**
+ * Adopts the shared generation only if it is this tab's own account signing in
+ * again; any other change is left for syncTabSession. Lets a tab that missed
+ * that broadcast still act for its user (a logout, say) without also adopting
+ * a logout or another account's sign-in it has not dealt with.
+ */
+export function adoptSameAccountSession(): void {
+  const shared = sharedSessionGeneration();
+  if (shared === tabGeneration) return;
+  const incoming = accountOfGeneration(shared);
+  if (incoming && incoming === readTabAccount()) tabGeneration = shared;
+}
+
 /** Runs when another tab logs out or signs in another account, before this tab adopts it. */
 export function onSessionReplaced(listener: () => void): () => void {
   listeners.add(listener);

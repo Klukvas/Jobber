@@ -614,4 +614,18 @@ describe("session generation across tabs", () => {
     expect(two.signedIn()).toBeUndefined();
     expect(persistedUser()).toBe("b");
   });
+  it("a tab that missed the same account signing in again still logs out on the server", async () => {
+    installLocks();
+    installChannels();
+    const one = await openTab("a");
+    const two = await openTab("a");
+    const server = cookieServer();
+
+    await one.signIn("a");
+    await two.auth.logout();
+
+    expect(server.calls).toEqual(["login a", "logout"]);
+    expect(server.jar()).toBeUndefined();
+    expect(two.signedIn()).toBeUndefined();
+  });
 });
