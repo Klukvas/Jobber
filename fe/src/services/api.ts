@@ -10,6 +10,15 @@ import ky, {
 import type { ErrorResponse } from "@/shared/types/api";
 import { sessionSignal } from "@/shared/lib/sessionLifetime";
 import { endSession } from "@/shared/lib/session";
+import {
+  type SessionGeneration,
+  isSessionGenerationCurrent,
+  isTabSessionCurrent,
+  sharedSessionGeneration,
+  startSessionGeneration,
+  syncTabSession,
+  tabSessionGeneration,
+} from "@/shared/lib/sessionGeneration";
 import { loginPathFor } from "@/shared/lib/loginReturn";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
@@ -37,6 +46,21 @@ async function withAuthCookieLock<T>(operation: () => Promise<T>, signal?: Abort
   } finally {
     clearTimeout(timer);
   }
+}
+
+function sessionChanged(): DOMException {
+  return new DOMException("Session changed", "AbortError");
+}
+
+/**
+ * Stops work that belongs to a session another tab has since ended or
+ * replaced. This tab is signed out too: its state belongs to that session.
+ * `undefined` is a public request, which belongs to no session.
+ */
+function assertSessionCurrent(generation: SessionGeneration | undefined): void {
+  if (generation === undefined || isSessionGenerationCurrent(generation)) return;
+  syncTabSession();
+  throw sessionChanged();
 }
 
 /** File uploads and PDF renders need longer than an ordinary JSON call. */
@@ -77,6 +101,8 @@ export const CLIENT_ERROR_CODES = {
 interface RequestContext {
   readonly timeoutMs: number;
   readonly session?: AbortSignal;
+  /** The cross-tab session the request was sent under; absent on public paths. */
+  readonly generation?: SessionGeneration;
 }
 
 /**
@@ -118,7 +144,11 @@ function contextTimeout(options: NormalizedOptions): number {
 
 class ApiClient {
   private client: KyInstance;
-  private refreshPromise: { signal: AbortSignal; promise: Promise<boolean> } | null = null;
+  private refreshPromise: {
+    signal: AbortSignal;
+    generation: SessionGeneration | undefined;
+    promise: Promise<boolean>;
+  } | null = null;
   private logoutRequest: Promise<unknown> | null = null;
 
   constructor() {
@@ -143,14 +173,18 @@ class ApiClient {
             const url = new URL(request.url);
             const isAuthEndpoint = url.pathname.includes("/auth/");
 
-            (options.context as Partial<RequestContext>).session?.throwIfAborted();
+            const context = options.context as Partial<RequestContext>;
+            context.session?.throwIfAborted();
             if (response.status !== 401 || isAuthEndpoint) {
               return response;
             }
 
-            const lifetime = (options.context as Partial<RequestContext>).session;
+            const lifetime = context.session;
             lifetime?.throwIfAborted();
-            const refreshed = await this.tryRefreshToken(lifetime ?? sessionSignal());
+            // A 401 for a session another tab has ended is no reason to
+            // refresh: the cookies may belong to someone else by now.
+            assertSessionCurrent(context.generation);
+            const refreshed = await this.tryRefreshToken(lifetime ?? sessionSignal(), context.generation);
             lifetime?.throwIfAborted();
             if (!refreshed) {
               // The session is over. Everything cached under it goes with it —
@@ -161,6 +195,9 @@ class ApiClient {
               return response;
             }
 
+            // Another tab may have logged out or signed in while the refresh
+            // waited: the replay would carry this request's body into it.
+            assertSessionCurrent(context.generation);
             return this.retryOnce(request, contextTimeout(options));
           },
         ],
@@ -225,10 +262,11 @@ class ApiClient {
     return crypto.randomUUID();
   }
 
-  private async tryRefreshToken(signal: AbortSignal): Promise<boolean> {
+  private async tryRefreshToken(signal: AbortSignal, generation: SessionGeneration | undefined): Promise<boolean> {
     signal.throwIfAborted();
-    if (this.refreshPromise?.signal === signal) return this.refreshPromise.promise;
-    const refresh = { signal, promise: this.doRefreshToken(signal) };
+    const pending = this.refreshPromise;
+    if (pending?.signal === signal && pending.generation === generation) return pending.promise;
+    const refresh = { signal, generation, promise: this.doRefreshToken(signal, generation) };
     this.refreshPromise = refresh;
     try {
       return await refresh.promise;
@@ -237,11 +275,12 @@ class ApiClient {
     }
   }
 
-  private async doRefreshToken(signal: AbortSignal): Promise<boolean> {
+  private async doRefreshToken(signal: AbortSignal, generation: SessionGeneration | undefined): Promise<boolean> {
     try {
       await this.waitForLogout();
       await withAuthCookieLock(async () => {
         signal.throwIfAborted();
+        assertSessionCurrent(generation);
         await ky.post(`${API_BASE_URL}/auth/refresh`, {
           credentials: "include", signal, retry: 0, timeout: REQUEST_TIMEOUT_MS,
         });
@@ -250,6 +289,9 @@ class ApiClient {
       return true;
     } catch (err) {
       signal.throwIfAborted();
+      // Not a refused refresh: the session moved on, and ending "it" here
+      // would sign out whichever session replaced it.
+      assertSessionCurrent(generation);
       console.error("[ApiClient] token refresh failed:", err instanceof Error ? err.message : "unknown error");
       return false;
     }
@@ -368,7 +410,15 @@ class ApiClient {
       // Share one logout response: a second late Set-Cookie could otherwise
       // erase the next session too. Register it before any asynchronous work.
       if (this.logoutRequest) return this.logoutRequest as Promise<T>;
-      const logout = this.postAuthRequest<T>(url, data, options);
+      // Another tab already ended the session this tab is logging out of. The
+      // cookies may belong to a newer sign-in now; leave them alone.
+      if (!isTabSessionCurrent()) {
+        syncTabSession();
+        throw sessionChanged();
+      }
+      // A new generation at once: sign-ins and refreshes started before this
+      // logout, in any tab, must not land after it.
+      const logout = this.postAuthRequest<T>(url, data, options, startSessionGeneration());
       this.logoutRequest = logout;
       try {
         return await logout;
@@ -377,16 +427,38 @@ class ApiClient {
       }
     }
     if (/^auth\/(login|register|refresh)$/.test(path)) {
+      // These start from whatever session is current, even if this tab has
+      // not caught up with it yet; a logout or sign-in after this point wins.
+      const generation = sharedSessionGeneration();
       await this.waitForLogout();
-      return this.postAuthRequest<T>(url, data, options);
+      return this.postAuthRequest<T>(url, data, options, generation);
     }
     return this.postRequest<T>(url, data, options);
   }
 
-  private async postAuthRequest<T>(url: string, data?: unknown, options?: RequestOptions): Promise<T> {
+  private async postAuthRequest<T>(
+    url: string,
+    data: unknown,
+    options: RequestOptions | undefined,
+    generation: SessionGeneration,
+  ): Promise<T> {
+    const path = operationPath(url);
     try {
       return await withAuthCookieLock(async () => {
-        if (operationPath(url) !== "auth/logout") return this.postRequest<T>(url, data, options);
+        // Checked once the lock is held, right before sending: whoever held it
+        // last may have logged out or signed in another account.
+        assertSessionCurrent(generation);
+        if (path !== "auth/logout") {
+          const result = await this.postRequest<T>(url, data, options);
+          // Still inside the lock, so the next queued operation in any tab
+          // already sees the new session. Only login sets session cookies;
+          // register and refresh leave the session as it was.
+          if (path === "auth/login") {
+            assertSessionCurrent(generation);
+            startSessionGeneration();
+          }
+          return result;
+        }
         // ky's timeout ends at headers. Keep an aborting deadline through body
         // parsing (including error bodies), so a stalled stream releases the lock.
         const deadline = new AbortController();
@@ -405,7 +477,7 @@ class ApiClient {
       }, options?.signal);
     } catch (error) {
       if (error instanceof ApiError) throw error;
-      return this.handleError(error, `POST ${operationPath(url)}`);
+      return this.handleError(error, `POST ${path}`);
     }
   }
 
@@ -537,13 +609,17 @@ function consentSignal(options?: RequestOptions): AbortSignal | undefined {
  */
 function requestOptions(timeoutMs: number, options: RequestOptions | undefined, url: string) {
   const publicPath = /^(auth\/|public\/|blog(?:\/|$)|features\/|subscription\/checkout-config(?:[?]|$))/;
-  const lifetime = publicPath.test(url) ? undefined : sessionSignal();
+  const isPublic = publicPath.test(url);
+  const lifetime = isPublic ? undefined : sessionSignal();
   const signal = lifetime && options?.signal
     ? AbortSignal.any([lifetime, options.signal])
     : lifetime ?? options?.signal;
   return {
     timeout: timeoutMs, signal,
-    context: { timeoutMs, session: lifetime } satisfies RequestContext,
+    context: {
+      timeoutMs, session: lifetime,
+      generation: isPublic ? undefined : tabSessionGeneration(),
+    } satisfies RequestContext,
   };
 }
 

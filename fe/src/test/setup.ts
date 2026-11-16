@@ -15,3 +15,8 @@ if (typeof window !== "undefined" && !window.matchMedia) {
     dispatchEvent: () => false,
   });
 }
+
+// Node's BroadcastChannel reaches every module instance in the worker, left
+// over from earlier tests too, and keeps the worker alive. Tests that model
+// several tabs install their own channel.
+Reflect.deleteProperty(globalThis, "BroadcastChannel");

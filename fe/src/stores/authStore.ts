@@ -1,6 +1,7 @@
 import { changeSessionLifetime } from "@/shared/lib/sessionLifetime";
+import { isTabSessionCurrent } from "@/shared/lib/sessionGeneration";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 
 interface User {
   id: string;
@@ -8,6 +9,23 @@ interface User {
   name: string;
   locale: string;
   created_at: string;
+}
+
+/**
+ * `jobber-auth` is shared by every tab. A tab that another tab has signed out
+ * or switched still clears its own state, but must not write that over the
+ * entry the newer session saved.
+ */
+function currentSessionOnly(storage: Storage): StateStorage {
+  return {
+    getItem: (name) => storage.getItem(name),
+    setItem: (name, value) => {
+      if (isTabSessionCurrent()) storage.setItem(name, value);
+    },
+    removeItem: (name) => {
+      if (isTabSessionCurrent()) storage.removeItem(name);
+    },
+  };
 }
 
 interface AuthState {
@@ -40,6 +58,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "jobber-auth",
+      storage: createJSONStorage(() => currentSessionOnly(localStorage)),
       partialize: (state) => ({
         user: state.user,
         isAuthenticated: state.isAuthenticated,
