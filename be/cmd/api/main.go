@@ -775,7 +775,7 @@ func main() {
 	// Create HTTP server
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%s", cfg.Server.Port),
-		Handler: router,
+		Handler: withAdminNoStore(router),
 	}
 
 	// Start server in a goroutine
@@ -864,15 +864,18 @@ func sessionHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
+// withAdminNoStore runs outside Gin so its automatic redirects also cannot be cached.
+func withAdminNoStore(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/admin" || strings.HasPrefix(r.URL.Path, "/api/v1/admin/") {
+			w.Header().Set("Cache-Control", "no-store")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // registerGlobalMiddleware keeps the production middleware order shared with routing tests.
 func registerGlobalMiddleware(router *gin.Engine, log *logger.Logger, sentryEnabled bool, allowedOrigins string) {
-	// Set this before CORS, UUID validation or any other middleware can abort.
-	router.Use(func(c *gin.Context) {
-		if c.Request.URL.Path == "/api/v1/admin" || strings.HasPrefix(c.Request.URL.Path, "/api/v1/admin/") {
-			c.Header("Cache-Control", "no-store")
-		}
-		c.Next()
-	})
 	router.Use(sentryPlatform.RecoveryMiddleware(sentryEnabled))
 	router.Use(oauthModule.Privacy())
 	router.Use(httpPlatform.RequestIDMiddleware())
