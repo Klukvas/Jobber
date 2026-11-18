@@ -91,7 +91,10 @@ describe("HeroSection", () => {
     expect(screen.getByText("jobs.tailoring.review")).toBeInTheDocument();
     expect(screen.getByText("Staff Engineer — Vercel")).toBeInTheDocument();
     expect(screen.getAllByText("jobs.tailoring.before")).toHaveLength(2);
-    expect(screen.getAllByText("jobs.tailoring.after")).toHaveLength(2);
+    expect(screen.getAllByText("home.showcase.proposedEyebrow")).toHaveLength(
+      2,
+    );
+    expect(screen.getAllByText("home.showcase.proposedTitle")).toHaveLength(2);
     expect(screen.getAllByText("jobs.tailoring.reason")).toHaveLength(2);
     expect(screen.getByText("home.showcase.summaryBefore")).toBeInTheDocument();
     expect(screen.getByText("home.showcase.summaryAfter")).toBeInTheDocument();

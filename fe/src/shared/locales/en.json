@@ -1204,7 +1204,9 @@
       "summaryReason": "The posting lists React and TypeScript. Both already appear in this resume.",
       "experienceBefore": "Led the design system used by three product teams.",
       "experienceAfter": "Led the design system used by three product teams, including its component APIs.",
-      "experienceReason": "The role asks for design-system work. This bullet already describes that work."
+      "experienceReason": "The role asks for design-system work. This bullet already describes that work.",
+      "proposedEyebrow": "We propose",
+      "proposedTitle": "Improved version"
     }
   },
   "onboarding": {

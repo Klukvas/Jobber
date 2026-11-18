@@ -44,7 +44,7 @@ function CheckMark({ checked }: { checked: boolean }) {
     <span
       className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[3px] border ${
         checked
-          ? "border-lime-400 bg-lime-400 text-slate-950"
+          ? "hero-review-check border-lime-400 bg-lime-400 text-slate-950"
           : "border-white/25 bg-transparent"
       }`}
     >
@@ -59,12 +59,13 @@ function ReviewChangeCard({
   beforeKey,
   afterKey,
   reasonKey,
-}: (typeof SAMPLE_CHANGES)[number]) {
+  index,
+}: (typeof SAMPLE_CHANGES)[number] & { readonly index: number }) {
   const { t } = useTranslation();
 
   return (
     <article
-      className={`min-w-0 rounded-lg border ${
+      className={`hero-review-card hero-review-card-${index + 1} min-w-0 rounded-lg border ${
         checked
           ? "border-lime-400/40 bg-lime-400/[0.05]"
           : "border-white/[0.07] bg-muted/40"
@@ -85,11 +86,18 @@ function ReviewChangeCard({
             {t(beforeKey)}
           </p>
         </div>
-        <div className="min-w-0 p-3">
-          <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-200">
-            {t("jobs.tailoring.after")}
+        <div
+          className={`hero-review-proposed min-w-0 p-3 ${checked ? "hero-review-after" : ""}`}
+        >
+          <p className="mb-1.5 flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full bg-lime-400 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-950">
+              {t("home.showcase.proposedEyebrow")}
+            </span>
+            <span className="text-[10px] font-medium uppercase tracking-wide text-lime-300">
+              {t("home.showcase.proposedTitle")}
+            </span>
           </p>
-          <p className="break-words text-[11px] leading-snug text-slate-100">
+          <p className="break-words text-[11px] font-medium leading-snug text-slate-50">
             {t(afterKey)}
           </p>
         </div>
@@ -130,8 +138,8 @@ function StaticReview() {
         {t("jobs.tailoring.selectAll")}
       </div>
       <div className="flex flex-col gap-2.5">
-        {SAMPLE_CHANGES.map((change) => (
-          <ReviewChangeCard key={change.id} {...change} />
+        {SAMPLE_CHANGES.map((change, index) => (
+          <ReviewChangeCard key={change.id} index={index} {...change} />
         ))}
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] pt-3">

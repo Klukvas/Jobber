@@ -211,6 +211,39 @@
   animation: heroCaretBlink 1.1s step-start infinite;
 }
 
+/* Review mock: suggestions arrive, then the kept one is marked and its wording flashes once. */
+@keyframes heroReviewIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.hero-review-card {
+  animation: heroReviewIn 0.45s ease both;
+}
+.hero-review-card-1 { animation-delay: 0.55s; }
+.hero-review-card-2 { animation-delay: 0.85s; }
+
+@keyframes heroReviewCheck {
+  0% { transform: scale(0.4); }
+  65% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.hero-review-check {
+  animation: heroReviewCheck 0.4s ease 1.2s both;
+}
+
+.hero-review-proposed {
+  background-color: rgb(163 230 53 / 0.08);
+}
+
+@keyframes heroReviewAfter {
+  0% { background-color: rgb(163 230 53 / 0.08); }
+  35% { background-color: rgb(163 230 53 / 0.2); }
+  100% { background-color: rgb(163 230 53 / 0.08); }
+}
+.hero-review-after {
+  animation: heroReviewAfter 1.5s ease 1.35s both;
+}
+
 /* ── Scroll-driven landing animations ─────────────────── */
 
 /* Sections fade up once they enter the viewport (see Reveal.tsx) */
@@ -255,7 +288,10 @@
     opacity: 1;
   }
   .landing-pulse-dot,
-  .hero-caret {
+  .hero-caret,
+  .hero-review-card,
+  .hero-review-check,
+  .hero-review-after {
     animation: none;
   }
   .landing-reveal,
