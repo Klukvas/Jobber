@@ -127,6 +127,23 @@ func TestParseJobPage(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestMatchResumeToJob(t *testing.T) {
+	t.Run("compares the two documents", func(t *testing.T) {
+		client := newTestClient(func(_ context.Context, params anthropic.MessageNewParams) (*anthropic.Message, error) {
+			prompt := params.System[0].Text
+			assert.Contains(t, prompt, "what the job text requests and what the resume text contains")
+			assert.Contains(t, prompt, "not found in the resume")
+			assert.Contains(t, prompt, "Do not judge the person")
+			for _, name := range []string{"Technical Skills", "Experience Level", "Education", "Industry Fit", "Soft Skills"} {
+				assert.Contains(t, prompt, name)
+			}
+			assert.NotContains(t, prompt, "Culture Fit")
+			return mockResponse(`{"overall_score":1,"summary":"compared","categories":[],"missing_keywords":[],"strengths":[]}`), nil
+		})
+
+		_, err := client.MatchResumeToJob(context.Background(), "Go Engineer", "Build APIs in Go", "base64pdf")
+		require.NoError(t, err)
+	})
+
 	t.Run("success", func(t *testing.T) {
 		client := newTestClient(func(_ context.Context, _ anthropic.MessageNewParams) (*anthropic.Message, error) {
 			resp := MatchResult{

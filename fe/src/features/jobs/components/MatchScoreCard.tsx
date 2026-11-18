@@ -24,6 +24,22 @@ function getCircleColor(score: number): string {
   return "border-red-500 text-red-600";
 }
 
+const CATEGORY_LABEL_KEYS: Readonly<Record<string, string>> = {
+  "Technical Skills": "jobs.matchScore.categoryTechnicalSkills",
+  "Experience Level": "jobs.matchScore.categoryExperienceLevel",
+  Education: "jobs.matchScore.categoryEducation",
+  "Industry Fit": "jobs.matchScore.categoryIndustryFit",
+  "Soft Skills": "jobs.matchScore.categorySoftSkills",
+};
+
+function categoryLabel(
+  name: string,
+  translate: (key: string) => string,
+): string {
+  const key = CATEGORY_LABEL_KEYS[name];
+  return key ? translate(key) : name;
+}
+
 export function MatchScoreCard({ data }: MatchScoreCardProps) {
   const { t } = useTranslation();
 
@@ -45,14 +61,19 @@ export function MatchScoreCard({ data }: MatchScoreCardProps) {
         {/* Categories */}
         {data.categories.length > 0 && (
           <div>
-            <h4 className="text-sm font-semibold mb-3">
+            <h4 className="text-sm font-semibold mb-1">
               {t("jobs.matchScore.categories")}
             </h4>
+            <p className="mb-3 text-xs text-muted-foreground">
+              {t("jobs.matchScore.categoryHint")}
+            </p>
             <div className="space-y-3">
               {data.categories.map((category) => (
                 <div key={category.name}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span>{category.name}</span>
+                  <div className="flex justify-between text-sm mb-1 gap-3">
+                    <span className="min-w-0">
+                      {categoryLabel(category.name, t)}
+                    </span>
                     <span className={getScoreColor(category.score)}>
                       {category.score}%
                     </span>
@@ -91,7 +112,7 @@ export function MatchScoreCard({ data }: MatchScoreCardProps) {
           </div>
         )}
 
-        {/* Missing Keywords */}
+        {/* Terms the job requests that the resume text does not contain */}
         {data.missing_keywords.length > 0 && (
           <div>
             <h4 className="text-sm font-semibold mb-2">
