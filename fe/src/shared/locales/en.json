@@ -998,10 +998,10 @@
       "faq": "FAQ"
     },
     "hero": {
-      "badge": "Job tracker with AI match scores",
-      "titleStart": "Your job search, finally ",
-      "titleAccent": "under control_",
-      "subtitle": "A personal workspace to track jobs you find, tailor resumes and draft cover letters with AI. Cursopus is an application tracker, not a job board or recruiting service.",
+      "badge": "Resume edits you review",
+      "titleStart": "AI proposes the edits. ",
+      "titleAccent": "You choose what stays_",
+      "subtitle": "Each suggestion shows the original line, the proposed wording, and the reason. You mark what to save. Cursopus is an application tracker, not a job board or recruiting service.",
       "cta": "Start for free",
       "ctaSecondary": "See how it works",
       "ctaGoPlatform": "Go to Platform",
@@ -1192,23 +1192,12 @@
       "status": "Status"
     },
     "showcase": {
-      "board": "cursopus — board",
-      "applied": "Applied",
-      "interview": "Interview",
-      "offer": "Offer",
-      "offerBadge": "🎉 Offer",
-      "match": "{{score}}% match",
-      "remote": "Remote",
-      "hybrid": "Hybrid",
-      "tomorrowAt": "Tomorrow {{time}}",
-      "tomorrowAtComma": "Tomorrow, {{time}}",
-      "matchScore": "AI Match Score",
-      "skills": "Skills",
-      "experience": "Experience",
-      "pipeline": "Pipeline · 30 days",
-      "responseRate": "Response rate",
-      "reminder": "Reminder",
-      "reminderTitle": "Linear — Interview"
+      "summaryBefore": "Frontend engineer building product interfaces.",
+      "summaryAfter": "Frontend engineer building product interfaces in React and TypeScript.",
+      "summaryReason": "The posting lists React and TypeScript. Both already appear in this resume.",
+      "experienceBefore": "Led the design system used by three product teams.",
+      "experienceAfter": "Led the design system used by three product teams, including its component APIs.",
+      "experienceReason": "The role asks for design-system work. This bullet already describes that work."
     }
   },
   "onboarding": {

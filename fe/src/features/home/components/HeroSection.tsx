@@ -25,10 +25,10 @@ export function HeroSection({
   const accentText = t("home.hero.titleAccent").replace(/_+$/, "");
 
   return (
-    <section className="landing-grid landing-hero-glow relative flex min-h-[88vh] items-center overflow-hidden px-6 pb-24 pt-28 lg:pt-24">
-      <div className="relative mx-auto grid w-full max-w-[1180px] items-center gap-y-20 lg:grid-cols-[1.02fr_0.98fr] lg:gap-x-12">
+    <section className="landing-grid landing-hero-glow relative flex min-h-[88vh] items-center overflow-hidden px-6 pb-16 pt-28 lg:pb-24 lg:pt-24">
+      <div className="relative mx-auto grid w-full max-w-[1180px] items-center gap-y-14 lg:grid-cols-[1.02fr_0.98fr] lg:gap-x-12">
         {/* Copy */}
-        <div className="flex flex-col items-start text-left">
+        <div className="flex min-w-0 flex-col items-start text-left">
           <div className="landing-fade-up mb-7 inline-flex items-center gap-1.5 rounded-full border border-lime-400/20 bg-lime-400/[0.07] px-2.5 py-1 font-mono text-[11px] font-medium uppercase tracking-wider text-lime-400">
             <span className="landing-pulse-dot h-[5px] w-[5px] rounded-full bg-lime-400" />
             {t("home.hero.badge")}

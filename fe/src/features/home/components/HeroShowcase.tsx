@@ -1,452 +1,205 @@
-import type { CSSProperties, ReactNode } from "react";
-import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Bell, Sparkles, TrendingUp } from "lucide-react";
-import { useScrollY } from "@/shared/hooks/useScrollY";
+import { Check } from "lucide-react";
 
-// Decorative demo mirroring real platform widgets: JobKanbanBoard,
-// MatchScoreCard, FunnelVisualization and JobReminders. It is aria-hidden,
-// but it is still read: its labels follow the page language, while company
-// names, roles and tech stay as they would in the real product.
+// Paths under fe/public for a short recording of the resume-review screen.
+// Leave this empty to keep the static mock. A .mp4 or .webm plays inline;
+// a .gif or still image is shown as a picture. Example:
+// "/landing/hero-review.mp4"
+const HERO_REVIEW_MEDIA_SOURCES: readonly string[] = [];
 
-type BadgeVariant = "lime" | "sky" | "gray" | "teal" | "amber";
-
-const BADGE_STYLES: Record<BadgeVariant, string> = {
-  lime: "bg-lime-400/[0.08] text-lime-400 border-lime-400/[0.18]",
-  sky: "bg-sky-400/[0.08] text-sky-400 border-sky-400/[0.18]",
-  gray: "bg-white/[0.04] text-slate-400 border-white/[0.07]",
-  teal: "bg-teal-400/[0.08] text-teal-400 border-teal-400/[0.18]",
-  amber: "bg-amber-400/[0.08] text-amber-400 border-amber-400/[0.18]",
-};
-
-const MATCH_SCORE = 87;
-const RING_RADIUS = 30;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
-const MATCH_CATEGORIES = [
-  { key: "skills", score: 92, delaySec: 1.15 },
-  { key: "experience", score: 81, delaySec: 1.3 },
-] as const;
-
-const FUNNEL_ROWS = [
-  { key: "applied", count: 12, widthPercent: 100, barClass: "bg-lime-400/80" },
+const SAMPLE_CHANGES = [
   {
-    key: "interview",
-    count: 6,
-    widthPercent: 50,
-    barClass: "bg-lime-400/50",
+    id: "summary",
+    kindKey: "jobs.tailoring.summary",
+    checked: true,
+    beforeKey: "home.showcase.summaryBefore",
+    afterKey: "home.showcase.summaryAfter",
+    reasonKey: "home.showcase.summaryReason",
   },
-  { key: "offer", count: 2, widthPercent: 17, barClass: "bg-teal-400/80" },
+  {
+    id: "experience",
+    kindKey: "jobs.tailoring.experience",
+    checked: false,
+    beforeKey: "home.showcase.experienceBefore",
+    afterKey: "home.showcase.experienceAfter",
+    reasonKey: "home.showcase.experienceReason",
+  },
 ] as const;
 
 const prefersReducedMotion = () =>
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-function useCountUp(target: number, durationMs: number, delayMs: number) {
-  const [value, setValue] = useState(() =>
-    prefersReducedMotion() ? target : 0,
-  );
-
-  useEffect(() => {
-    if (prefersReducedMotion()) return;
-    let frame = 0;
-    const timer = setTimeout(() => {
-      const start = performance.now();
-      const tick = (now: number) => {
-        const progress = Math.min((now - start) / durationMs, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        setValue(Math.round(eased * target));
-        if (progress < 1) frame = requestAnimationFrame(tick);
-      };
-      frame = requestAnimationFrame(tick);
-    }, delayMs);
-    return () => {
-      clearTimeout(timer);
-      cancelAnimationFrame(frame);
-    };
-  }, [target, durationMs, delayMs]);
-
-  return value;
+function mediaKind(src: string): "video" | "image" {
+  return /\.(mp4|webm)(?:\?.*)?$/i.test(src) ? "video" : "image";
 }
 
-function KanbanDemoCard({
-  company,
-  role,
-  badges,
-  highlighted,
-}: {
-  company: string;
-  role: string;
-  badges: ReadonlyArray<{ text: string; variant: BadgeVariant }>;
-  highlighted?: boolean;
-}) {
+function isAnimatedMedia(src: string) {
+  return /\.(mp4|webm|gif)(?:\?.*)?$/i.test(src);
+}
+
+function CheckMark({ checked }: { checked: boolean }) {
   return (
-    <div
-      className={`rounded-lg border bg-muted p-2.5 ${
-        highlighted ? "border-lime-400/25" : "border-white/[0.07]"
+    <span
+      className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[3px] border ${
+        checked
+          ? "border-lime-400 bg-lime-400 text-slate-950"
+          : "border-white/25 bg-transparent"
       }`}
     >
-      <div className="mb-0.5 font-mono text-[9px] text-slate-500">
-        {company}
+      {checked ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : null}
+    </span>
+  );
+}
+
+function ReviewChangeCard({
+  kindKey,
+  checked,
+  beforeKey,
+  afterKey,
+  reasonKey,
+}: (typeof SAMPLE_CHANGES)[number]) {
+  const { t } = useTranslation();
+
+  return (
+    <article
+      className={`min-w-0 rounded-lg border ${
+        checked
+          ? "border-lime-400/40 bg-lime-400/[0.05]"
+          : "border-white/[0.07] bg-muted/40"
+      }`}
+    >
+      <div className="flex items-center gap-2.5 border-b border-white/[0.06] px-3 py-2.5">
+        <CheckMark checked={checked} />
+        <span className="min-w-0 text-[12px] font-semibold text-slate-100">
+          {t(kindKey)}
+        </span>
       </div>
-      <div className="mb-1.5 text-[12px] font-semibold leading-snug text-slate-100">
-        {role}
+      <div className="grid min-w-0 grid-cols-1 divide-y divide-white/[0.06] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+        <div className="min-w-0 p-3">
+          <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+            {t("jobs.tailoring.before")}
+          </p>
+          <p className="break-words text-[11px] leading-snug text-slate-400">
+            {t(beforeKey)}
+          </p>
+        </div>
+        <div className="min-w-0 p-3">
+          <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-200">
+            {t("jobs.tailoring.after")}
+          </p>
+          <p className="break-words text-[11px] leading-snug text-slate-100">
+            {t(afterKey)}
+          </p>
+        </div>
       </div>
-      <div className="flex flex-wrap gap-1">
-        {badges.map((badge) => (
-          <span
-            key={badge.text}
-            className={`rounded border px-1.5 py-px font-mono text-[9px] font-medium ${BADGE_STYLES[badge.variant]}`}
-          >
-            {badge.text}
-          </span>
+      <p className="border-t border-white/[0.06] px-3 py-2.5 text-[11px] leading-snug text-slate-400">
+        <span className="font-medium text-slate-300">
+          {t("jobs.tailoring.reason")}{" "}
+        </span>
+        {t(reasonKey)}
+      </p>
+    </article>
+  );
+}
+
+function StaticReview() {
+  const { t } = useTranslation();
+
+  return (
+    <div className="rounded-2xl border border-white/[0.07] bg-card/90 p-4 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8)] backdrop-blur">
+      <div className="mb-3 flex items-center justify-between border-b border-white/[0.06] pb-3">
+        <div className="flex gap-1.5" aria-hidden="true">
+          <span className="h-2.5 w-2.5 rounded-full bg-white/[0.08]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-white/[0.08]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-white/[0.08]" />
+        </div>
+        <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600">
+          {t("jobs.tailoring.review")}
+        </span>
+      </div>
+      <p className="text-[13px] font-semibold leading-snug text-slate-100">
+        Staff Engineer — Vercel
+      </p>
+      <p className="mb-3 mt-1 text-[11px] leading-snug text-slate-500">
+        {t("jobs.tailoring.reviewHint")}
+      </p>
+      <div className="mb-3 flex items-center gap-2 text-[11px] text-slate-400">
+        <CheckMark checked={false} />
+        {t("jobs.tailoring.selectAll")}
+      </div>
+      <div className="flex flex-col gap-2.5">
+        {SAMPLE_CHANGES.map((change) => (
+          <ReviewChangeCard key={change.id} {...change} />
         ))}
       </div>
-    </div>
-  );
-}
-
-function KanbanColumn({
-  title,
-  restCount,
-  movedCount,
-  children,
-}: {
-  title: string;
-  restCount: number;
-  movedCount: number;
-  children: ReactNode;
-}) {
-  return (
-    <div>
-      <div className="mb-2.5 flex items-center justify-between font-mono text-[10px] font-medium uppercase tracking-wider text-slate-500">
-        {title}
-        <span className="relative h-[18px] w-[18px]">
-          <span className="hero-count-rest absolute inset-0 flex items-center justify-center rounded bg-muted text-[10px] text-slate-400">
-            {restCount}
-          </span>
-          <span className="hero-count-moved absolute inset-0 flex items-center justify-center rounded bg-muted text-[10px] text-slate-400">
-            {movedCount}
-          </span>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] pt-3">
+        <p className="text-[11px] text-slate-500">
+          {t("jobs.tailoring.selected", {
+            count: 1,
+            total: SAMPLE_CHANGES.length,
+          })}
+        </p>
+        <span className="rounded-md bg-lime-400 px-2.5 py-1 text-[11px] font-semibold text-slate-950">
+          {t("jobs.tailoring.saveCopy")}
         </span>
       </div>
-      <div className="flex flex-col">{children}</div>
     </div>
   );
 }
 
-function WidgetLabel({ icon, text }: { icon: ReactNode; text: string }) {
-  return (
-    <div className="mb-2.5 flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-wider text-slate-500">
-      {icon}
-      {text}
-    </div>
-  );
-}
+function ReviewRecording({ src }: { src: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <StaticReview />;
 
-function MatchScoreWidget() {
-  const { t } = useTranslation();
-  const score = useCountUp(MATCH_SCORE, 1300, 700);
+  const frame =
+    "block h-auto max-h-[640px] w-full rounded-2xl border border-white/[0.07] bg-card object-contain shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8)]";
 
-  return (
-    <div className="rounded-xl border border-white/[0.08] bg-card p-3.5 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.7)]">
-      <WidgetLabel
-        icon={<Sparkles className="h-3 w-3 text-lime-400" />}
-        text={t("home.showcase.matchScore")}
+  if (mediaKind(src) === "video") {
+    return (
+      <video
+        className={frame}
+        src={src}
+        autoPlay
+        muted
+        loop
+        playsInline
+        onError={() => setFailed(true)}
       />
-      <div className="flex items-center gap-3">
-        <div className="relative h-[68px] w-[68px] shrink-0">
-          <svg viewBox="0 0 72 72" className="h-full w-full -rotate-90">
-            <circle
-              cx="36"
-              cy="36"
-              r={RING_RADIUS}
-              fill="none"
-              stroke="hsl(222 30% 16%)"
-              strokeWidth="6"
-            />
-            <circle
-              cx="36"
-              cy="36"
-              r={RING_RADIUS}
-              fill="none"
-              stroke="#a3e635"
-              strokeWidth="6"
-              strokeLinecap="round"
-              strokeDasharray={RING_CIRCUMFERENCE}
-              strokeDashoffset={RING_CIRCUMFERENCE * (1 - MATCH_SCORE / 100)}
-              className="hero-ring-arc"
-              style={
-                {
-                  "--ring-circumference": `${RING_CIRCUMFERENCE}`,
-                } as CSSProperties
-              }
-            />
-          </svg>
-          <span className="absolute inset-0 flex items-center justify-center text-[15px] font-bold text-lime-400">
-            {score}%
-          </span>
-        </div>
-        <div className="flex-1 space-y-2">
-          {MATCH_CATEGORIES.map((category) => (
-            <div key={category.key}>
-              <div className="mb-1 flex justify-between text-[10px] text-slate-400">
-                <span>{t(`home.showcase.${category.key}`)}</span>
-                <span className="text-lime-400">{category.score}%</span>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-lime-400/80 motion-safe:animate-grow-bar"
-                  style={
-                    {
-                      width: `${category.score}%`,
-                      "--bar-w": `${category.score}%`,
-                      animationDelay: `${category.delaySec}s`,
-                      animationFillMode: "backwards",
-                    } as CSSProperties
-                  }
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="mt-2.5 flex flex-wrap gap-1">
-        <span
-          className={`rounded border px-1.5 py-px font-mono text-[9px] ${BADGE_STYLES.lime}`}
-        >
-          React ✓
-        </span>
-        <span
-          className={`rounded border px-1.5 py-px font-mono text-[9px] ${BADGE_STYLES.lime}`}
-        >
-          TypeScript ✓
-        </span>
-        <span
-          className={`rounded border px-1.5 py-px font-mono text-[9px] ${BADGE_STYLES.amber}`}
-        >
-          + GraphQL
-        </span>
-      </div>
-    </div>
-  );
-}
+    );
+  }
 
-function FunnelWidget() {
-  const { t } = useTranslation();
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-card p-3.5 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.7)]">
-      <WidgetLabel
-        icon={<TrendingUp className="h-3 w-3 text-lime-400" />}
-        text={t("home.showcase.pipeline")}
-      />
-      <div className="space-y-2">
-        {FUNNEL_ROWS.map((row, index) => (
-          <div key={row.key}>
-            <div className="mb-1 flex justify-between text-[10px] text-slate-400">
-              <span>{t(`home.showcase.${row.key}`)}</span>
-              <span>{row.count}</span>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-              <div
-                className={`h-full rounded-full motion-safe:animate-grow-bar ${row.barClass}`}
-                style={
-                  {
-                    width: `${row.widthPercent}%`,
-                    "--bar-w": `${row.widthPercent}%`,
-                    animationDelay: `${1.2 + index * 0.15}s`,
-                    animationFillMode: "backwards",
-                  } as CSSProperties
-                }
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="mt-2.5 flex justify-between border-t border-white/[0.06] pt-2 font-mono text-[10px]">
-        <span className="text-slate-500">
-          {t("home.showcase.responseRate")}
-        </span>
-        <span className="text-lime-400">42% ↑</span>
-      </div>
-    </div>
+    <img className={frame} src={src} alt="" onError={() => setFailed(true)} />
   );
 }
 
-function ReminderToast() {
-  const { t } = useTranslation();
-  return (
-    <div className="flex items-center gap-2.5 rounded-xl border border-amber-400/20 bg-card/95 p-3 shadow-[0_16px_40px_-16px_rgba(0,0,0,0.8)] backdrop-blur">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-400/10 text-amber-400">
-        <Bell className="h-4 w-4" />
-      </span>
-      <div className="min-w-0">
-        <div className="font-mono text-[9px] uppercase tracking-wider text-amber-400/90">
-          {t("home.showcase.reminder")}
-        </div>
-        <div className="truncate text-[12px] font-semibold text-slate-100">
-          {t("home.showcase.reminderTitle")}
-        </div>
-        <div className="text-[10px] text-slate-500">
-          {t("home.showcase.tomorrowAtComma", { time: "14:00" })}
-        </div>
-      </div>
-    </div>
-  );
+function ReviewFrame({ children }: { children: ReactNode }) {
+  return <div data-hero-review="static">{children}</div>;
 }
-
-// Hero is on screen for roughly the first ~900px of scroll; beyond that
-// the parallax layers are off-screen and re-renders would be wasted.
-const PARALLAX_SCROLL_RANGE = 900;
 
 export function HeroShowcase() {
-  const { t } = useTranslation();
-  const matchBadge = {
-    text: t("home.showcase.match", { score: MATCH_SCORE }),
-    variant: "lime",
-  } as const;
   const [reduceMotion] = useState(prefersReducedMotion);
-  const scrollY = useScrollY(PARALLAX_SCROLL_RANGE);
-  const drift = reduceMotion ? 0 : scrollY;
-  // Positive factor lags behind the scroll (background), negative rises
-  // ahead of it (foreground) — the speed difference creates the depth.
-  const parallaxLayer = (factor: number): CSSProperties => ({
-    transform: `translate3d(0, ${(drift * factor).toFixed(1)}px, 0)`,
-  });
+  const src = HERO_REVIEW_MEDIA_SOURCES.find((item) => item.length > 0);
+  const recordingSrc =
+    src !== undefined && !(reduceMotion && isAnimatedMedia(src)) ? src : null;
 
   return (
     <div
-      className="landing-fade-up landing-fade-up-3 relative mx-auto w-full max-w-[560px]"
+      className="landing-fade-up landing-fade-up-3 relative mx-auto w-full min-w-0 max-w-[560px]"
       aria-hidden="true"
+      data-hero-media-slot="resume-review"
     >
-      {/* Main kanban window */}
-      <div
-        className="rounded-2xl border border-white/[0.07] bg-card/90 p-4 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8)] backdrop-blur"
-        style={parallaxLayer(0.05)}
-      >
-        <div className="mb-3.5 flex items-center justify-between border-b border-white/[0.06] pb-3">
-          <div className="flex gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-white/[0.08]" />
-            <span className="h-2.5 w-2.5 rounded-full bg-white/[0.08]" />
-            <span className="h-2.5 w-2.5 rounded-full bg-white/[0.08]" />
-          </div>
-          <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600">
-            {t("home.showcase.board")}
-          </span>
+      {recordingSrc ? (
+        <div data-hero-review="media">
+          <ReviewRecording src={recordingSrc} />
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <KanbanColumn
-            title={t("home.showcase.applied")}
-            restCount={3}
-            movedCount={2}
-          >
-            <div className="relative mb-2">
-              {/* Drop placeholder revealed while the card is mid-flight */}
-              <div className="absolute inset-0 rounded-lg border border-dashed border-white/10 bg-white/[0.02]" />
-              <div className="hero-card-leave rounded-lg">
-                <KanbanDemoCard
-                  company="Vercel"
-                  role="Staff Engineer"
-                  badges={[matchBadge]}
-                  highlighted
-                />
-              </div>
-            </div>
-            <div className="mb-2">
-              <KanbanDemoCard
-                company="Stripe"
-                role="Senior Frontend Engineer"
-                badges={[
-                  { text: t("home.showcase.remote"), variant: "sky" },
-                  { text: "$180k", variant: "gray" },
-                ]}
-              />
-            </div>
-            <KanbanDemoCard
-              company="Notion"
-              role="Full-Stack Engineer"
-              badges={[{ text: t("home.showcase.hybrid"), variant: "sky" }]}
-            />
-          </KanbanColumn>
-          <KanbanColumn
-            title={t("home.showcase.interview")}
-            restCount={1}
-            movedCount={2}
-          >
-            <div className="hero-card-arrive rounded-lg">
-              <KanbanDemoCard
-                company="Vercel"
-                role="Staff Engineer"
-                badges={[matchBadge]}
-                highlighted
-              />
-            </div>
-            <KanbanDemoCard
-              company="Linear"
-              role="Product Engineer"
-              badges={[
-                {
-                  text: t("home.showcase.tomorrowAt", { time: "14:00" }),
-                  variant: "amber",
-                },
-              ]}
-            />
-          </KanbanColumn>
-          <div className="hidden sm:block">
-            <KanbanColumn
-              title={t("home.showcase.offer")}
-              restCount={1}
-              movedCount={1}
-            >
-              <KanbanDemoCard
-                company="Railway"
-                role="Infrastructure Engineer"
-                badges={[{ text: t("home.showcase.offerBadge"), variant: "teal" }]}
-              />
-            </KanbanColumn>
-          </div>
-        </div>
-      </div>
-
-      {/* Overlapping satellites — placed over quiet zones of the board
-          so they never cover the animated columns or their counters.
-          Outer div: position + scroll parallax; inner div: CSS float
-          animation (they must not share a transform). */}
-      <div
-        className="absolute -bottom-16 right-0 z-20 w-[188px] sm:bottom-auto sm:top-[152px] sm:-right-12 sm:w-[204px]"
-        style={parallaxLayer(-0.09)}
-      >
-        <div
-          className="hero-float"
-          style={{ "--hero-tilt": "2.5deg" } as CSSProperties}
-        >
-          <MatchScoreWidget />
-        </div>
-      </div>
-      <div
-        className="absolute -bottom-24 left-0 z-20 hidden w-[212px] sm:-left-12 sm:block"
-        style={parallaxLayer(-0.06)}
-      >
-        <div
-          className="hero-float"
-          style={
-            {
-              "--hero-tilt": "-2deg",
-              "--hero-float-delay": "1.2s",
-            } as CSSProperties
-          }
-        >
-          <FunnelWidget />
-        </div>
-      </div>
-      <div
-        className="absolute -top-10 left-6 z-30 w-[212px]"
-        style={parallaxLayer(-0.075)}
-      >
-        <div className="hero-toast-in">
-          <ReminderToast />
-        </div>
-      </div>
+      ) : (
+        <ReviewFrame>
+          <StaticReview />
+        </ReviewFrame>
+      )}
     </div>
   );
 }

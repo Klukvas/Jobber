@@ -86,19 +86,26 @@ describe("HeroSection", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders kanban preview cards", () => {
+  it("renders the resume review preview instead of the board", () => {
     render(<HeroSection {...defaultProps} />);
-    expect(screen.getByText("Stripe")).toBeInTheDocument();
-    expect(screen.getByText("Senior Frontend Engineer")).toBeInTheDocument();
-    // The moving card is intentionally rendered in both columns —
-    // the arrival twin makes the kanban drop animation loop seamless.
-    expect(screen.getAllByText("home.showcase.match")).toHaveLength(2);
+    expect(screen.getByText("jobs.tailoring.review")).toBeInTheDocument();
+    expect(screen.getByText("Staff Engineer — Vercel")).toBeInTheDocument();
+    expect(screen.getAllByText("jobs.tailoring.before")).toHaveLength(2);
+    expect(screen.getAllByText("jobs.tailoring.after")).toHaveLength(2);
+    expect(screen.getAllByText("jobs.tailoring.reason")).toHaveLength(2);
+    expect(screen.getByText("home.showcase.summaryBefore")).toBeInTheDocument();
+    expect(screen.getByText("home.showcase.summaryAfter")).toBeInTheDocument();
+    expect(screen.getByText("home.showcase.summaryReason")).toBeInTheDocument();
+    expect(screen.queryByText("Stripe")).not.toBeInTheDocument();
+    expect(screen.queryByText("home.showcase.board")).not.toBeInTheDocument();
   });
 
-  it("renders match score and pipeline widgets", () => {
-    render(<HeroSection {...defaultProps} />);
-    expect(screen.getByText("home.showcase.matchScore")).toBeInTheDocument();
-    expect(screen.getByText("home.showcase.pipeline")).toBeInTheDocument();
-    expect(screen.getByText("home.showcase.responseRate")).toBeInTheDocument();
+  it("shows the static review until a recording is configured", () => {
+    const { container } = render(<HeroSection {...defaultProps} />);
+    expect(
+      container.querySelector("[data-hero-media-slot='resume-review']"),
+    ).toBeTruthy();
+    expect(container.querySelector("[data-hero-review='static']")).toBeTruthy();
+    expect(container.querySelector("video")).toBeNull();
   });
 });
