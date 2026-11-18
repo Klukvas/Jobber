@@ -275,3 +275,121 @@ for(const uploaded of [false,true])test(`pending ${uploaded?'paid uploaded':'bui
     assert.equal(profileCalls().length,uploaded?2:1);assert.equal(profileCalls().filter(call=>call.options.method==='POST').length,uploaded?1:0);assert.equal(f.notices.length,uploaded?1:0);
   }finally{f.dom.window.close()}
 });
+
+test('capture note explains the one-time page read and stays dismissed',async()=>{
+  const f=await fixture();try{
+    const note=f.dom.window.document.getElementById('capture-notice');
+    assert.equal(note.classList.contains('hidden'),false);
+    assert.match(note.textContent,/visible text/);
+    assert.match(note.textContent,/URL of the current tab/);
+    assert.match(note.textContent,/extension icon/);
+    assert.match(note.textContent,/Alt\+Shift\+S/);
+    assert.match(note.textContent,/your name if you are signed in/);
+    assert.match(note.textContent,/job markup/);
+    assert.match(note.textContent,/page text is not sent/);
+    f.click('btn-dismiss-capture-notice');await tick();
+    assert.equal(note.classList.contains('hidden'),true);
+    assert.equal(f.engine.local.captureNoticeDismissed,true);
+  }finally{f.dom.window.close()}
+  const again=await fixture({stored:{accessToken:'synthetic',refreshToken:'synthetic',authSessionId:'session-a',captureNoticeDismissed:true}});
+  try{assert.equal(again.dom.window.document.getElementById('capture-notice').classList.contains('hidden'),true)}
+  finally{again.dom.window.close()}
+});
+
+test('empty or thin description on a long page warns, and a short page does not',async()=>{
+  const f=await fixture();try{
+    const doc=f.dom.window.document,warning=()=>doc.getElementById('description-warning');
+    const parse=text=>vm.runInContext(`parseWithData({text:${JSON.stringify(text)},url:'https://jobs.example.invalid'})`,f.context);
+    const respond=description=>{f.held.parse={promise:Promise.resolve(Response.json({title:'Parsed fixture',description,url:'https://jobs.example.invalid'}))}};
+    const long='x'.repeat(2000);
+    respond('   ');await parse(long);
+    assert.equal(warning().classList.contains('hidden'),false);
+    assert.match(warning().textContent.replace(/\s+/g,' '),/The description looks incomplete\. Wait for the page to load and try again/);
+    respond('Apply');await parse(long);
+    assert.equal(warning().classList.contains('hidden'),false);
+    respond('x'.repeat(39));await parse(long);
+    assert.equal(warning().classList.contains('hidden'),false);
+    respond('x'.repeat(40));await parse(long);
+    assert.equal(warning().classList.contains('hidden'),true);
+    respond('');await parse('x'.repeat(799));
+    assert.equal(warning().classList.contains('hidden'),true);
+    respond('');await parse('x'.repeat(800));
+    assert.equal(warning().classList.contains('hidden'),false);
+    respond('A'.repeat(200));await parse(long);
+    assert.equal(warning().classList.contains('hidden'),true);
+  }finally{f.dom.window.close()}
+});
+
+test('retry reads the active tab again',async()=>{
+  const f=await fixture();try{
+    const doc=f.dom.window.document,long='y'.repeat(2000);
+    f.held.parse={promise:Promise.resolve(Response.json({title:'Thin role',description:'',url:'https://jobs.example.invalid'}))};
+    await vm.runInContext(`parseWithData({text:${JSON.stringify(long)},url:'https://jobs.example.invalid'})`,f.context);
+    assert.equal(doc.getElementById('description-warning').classList.contains('hidden'),false);
+    f.context.chrome.permissions={request:async()=>true};
+    f.engine.workerChrome.scripting.executeScript=async()=>[{result:{text:long,url:'https://jobs.example.invalid/retry'}}];
+    f.held.parse={promise:Promise.resolve(Response.json({title:'Retried role',description:'B'.repeat(200),url:'https://jobs.example.invalid/retry'}))};
+    f.click('btn-retry-parse');
+    for(let i=0;i<8;i++){await tick();if(doc.getElementById('preview-title').value==='Retried role')break}
+    assert.equal(doc.getElementById('preview-title').value,'Retried role');
+    assert.equal(doc.getElementById('preview-description').value,'B'.repeat(200));
+    assert.equal(doc.getElementById('description-warning').classList.contains('hidden'),true);
+    assert.equal(doc.getElementById('save-preview').classList.contains('hidden'),false);
+  }finally{f.dom.window.close()}
+});
+
+test('job markup fills the preview without a parse request or credit confirmation',async()=>{
+  const f=await fixture();try{
+    const secret='Visible name of the signed-in user '+('x'.repeat(1000));
+    f.context.markupPage={text:secret,url:'https://jobs.example.invalid/role',jobPosting:{title:'Staff Engineer',company:'Example',location:'Remote, US',salary:'USD 120000-150000 YEAR',description:'Build APIs.'}};
+    await vm.runInContext('parseWithData(markupPage)',f.context);
+    const doc=f.dom.window.document;
+    assert.equal(doc.getElementById('preview-title').value,'Staff Engineer');
+    assert.equal(doc.getElementById('preview-company').value,'Example');
+    assert.equal(doc.getElementById('preview-location').value,'Remote, US');
+    assert.equal(doc.getElementById('preview-salary').value,'USD 120000-150000 YEAR');
+    assert.equal(doc.getElementById('preview-description').value,'Build APIs.');
+    assert.equal(doc.getElementById('preview-url').value,'https://jobs.example.invalid/role');
+    assert.equal(doc.getElementById('preview-source').value,'jobs.example.invalid');
+    assert.equal(doc.getElementById('preview-origin').textContent,'From the page markup');
+    assert.equal(doc.getElementById('preview-origin').classList.contains('hidden'),false);
+    assert.equal(doc.getElementById('description-warning').classList.contains('hidden'),true);
+    assert.equal(doc.getElementById('save-preview').classList.contains('hidden'),false);
+    assert.equal(f.notices.length,0);
+    assert.equal(f.calls.filter(call=>call.url.endsWith('/jobs/parse')).length,0);
+    assert.equal(f.calls.some(call=>call.options?.headers?.['Idempotency-Key']),false);
+    assert.equal(f.calls.some(call=>JSON.stringify(call.options?.body||'').includes('Visible name')),false);
+  }finally{f.dom.window.close()}
+});
+
+test('shortcut capture with markup and empty page text fills the preview without reading again',async()=>{
+  const f=await fixture();try{
+    const secret='Visible name of the signed-in user';
+    await f.engine.storage.session.set({pendingParse:{timestamp:Date.now(),sessionId:f.engine.local.authSessionId,pageData:{text:'',url:'https://jobs.example.invalid/role',jobPosting:{title:'Captured role',company:'Example',location:'Remote',salary:'USD 100000',description:'Captured description '+secret}}}});
+    await tick();await tick();await tick();
+    const doc=f.dom.window.document;
+    assert.equal(doc.getElementById('preview-title').value,'Captured role');
+    assert.equal(doc.getElementById('preview-description').value,'Captured description '+secret);
+    assert.equal(doc.getElementById('preview-origin').textContent,'From the page markup');
+    assert.equal(doc.getElementById('save-preview').classList.contains('hidden'),false);
+    assert.equal(f.notices.length,0);
+    assert.equal(f.calls.filter(call=>call.url.endsWith('/jobs/parse')).length,0);
+    assert.equal(f.engine.session.pendingParse,undefined);
+  }finally{f.dom.window.close()}
+});
+
+test('markup without a description still uses the model and labels the preview',async()=>{
+  const f=await fixture();try{
+    f.held.parse={promise:Promise.resolve(Response.json({title:'Model role',company_name:'Model Co',source:'Example',description:'Model description',url:'https://jobs.example.invalid/role'}))};
+    f.context.partialPage={text:'Page text long enough to parse with the model.',url:'https://jobs.example.invalid/role',jobPosting:{title:'Title only'}};
+    await vm.runInContext('parseWithData(partialPage)',f.context);
+    const doc=f.dom.window.document;
+    assert.equal(doc.getElementById('preview-title').value,'Model role');
+    assert.equal(doc.getElementById('preview-salary').value,'');
+    assert.equal(doc.getElementById('preview-origin').textContent,'Recognized by AI');
+    assert.equal(f.notices.length,1);
+    const parseCalls=f.calls.filter(call=>call.url.endsWith('/jobs/parse'));
+    assert.equal(parseCalls.length,1);
+    assert.match(parseCalls[0].options.body,/Page text long enough/);
+  }finally{f.dom.window.close()}
+});

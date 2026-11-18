@@ -97,10 +97,7 @@ async function openSidePanelWithPageData(tab) {
   try {
     const [result] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: () => ({
-        text: document.body.innerText.trim().substring(0, 50000),
-        url: location.href,
-      }),
+      func: readJobPage,
     });
     pageData = result.result;
   } catch (err) {
@@ -161,16 +158,152 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return false;
 });
 
+// Reads the active page. A complete JobPosting is returned as text fields and
+// the visible page text is left empty, so that text is not sent to the model.
+function readJobPage() {
+  const PAGE_TEXT_LIMIT = 50000;
+
+  function textValue(value) {
+    return typeof value === "string" ? value.trim() : "";
+  }
+
+  function htmlToText(value) {
+    if (typeof value !== "string" || !value) return "";
+    let html = value.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ");
+    html = html.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ");
+    html = html.replace(/<\s*br\s*\/?\s*>/gi, "\n");
+    html = html.replace(/<\/\s*(?:p|div|li|h[1-6]|tr|blockquote|section|article)\s*>/gi, "\n");
+    html = html.replace(/<\s*\/?\s*[a-zA-Z][^>]*>/g, "");
+    const character = (code) => {
+      if (!(code > 0 && code < 1114112) || (code >= 0xD800 && code <= 0xDFFF)) return "";
+      return String.fromCodePoint(code);
+    };
+    html = html.replace(/&#(\d+);/g, (_, digits) => character(Number(digits)));
+    html = html.replace(/&#x([0-9a-f]+);/gi, (_, digits) => character(parseInt(digits, 16)));
+    html = html.replace(/&nbsp;/gi, " ");
+    html = html.replace(/&quot;/gi, '"');
+    html = html.replace(/&#0*39;|&apos;/gi, "'");
+    html = html.replace(/&lt;/gi, "<");
+    html = html.replace(/&gt;/gi, ">");
+    html = html.replace(/&amp;/gi, "&");
+    return html.replace(/[ \t]+\n/g, "\n").replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  function descriptionText(value) {
+    if (Array.isArray(value)) return value.map(descriptionText).filter(Boolean).join("\n\n").slice(0, PAGE_TEXT_LIMIT);
+    return htmlToText(value).slice(0, PAGE_TEXT_LIMIT);
+  }
+
+  function isJobPosting(type) {
+    const values = Array.isArray(type) ? type : [type];
+    return values.some((item) => {
+      if (typeof item !== "string") return false;
+      const token = item.trim().split(/[/#]/).pop();
+      return token.toLowerCase() === "jobposting";
+    });
+  }
+
+  function collect(node, found) {
+    if (!node || typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      for (const item of node) collect(item, found);
+      return;
+    }
+    if (isJobPosting(node["@type"])) found.push(node);
+    if (node["@graph"]) collect(node["@graph"], found);
+  }
+
+  function organizationName(org) {
+    if (typeof org === "string") return org.trim();
+    if (Array.isArray(org)) {
+      for (const item of org) {
+        const name = organizationName(item);
+        if (name) return name;
+      }
+      return "";
+    }
+    if (org && typeof org === "object") return textValue(org.name);
+    return "";
+  }
+
+  function placeText(place) {
+    if (typeof place === "string") return place.trim();
+    if (Array.isArray(place)) return place.map(placeText).filter(Boolean).join("; ");
+    if (!place || typeof place !== "object") return "";
+    if (typeof place.address === "string") return place.address.trim();
+    const address = place.address && typeof place.address === "object" ? place.address : place;
+    const country = address.addressCountry;
+    const countryText = country && typeof country === "object" ? textValue(country.name) : textValue(country);
+    const parts = [textValue(address.addressLocality), textValue(address.addressRegion), countryText].filter(Boolean);
+    if (parts.length) return parts.join(", ");
+    return textValue(place.name);
+  }
+
+  function salaryText(salary) {
+    if (typeof salary === "string") return salary.trim();
+    if (typeof salary === "number" && Number.isFinite(salary)) return String(salary);
+    if (Array.isArray(salary)) return salary.map(salaryText).filter(Boolean).join(", ");
+    if (!salary || typeof salary !== "object") return "";
+    const currency = textValue(salary.currency);
+    const value = salary.value;
+    let amount = "";
+    let unit = textValue(salary.unitText);
+    if (typeof value === "number" && Number.isFinite(value)) amount = String(value);
+    else if (typeof value === "string") amount = value.trim();
+    else if (value && typeof value === "object") {
+      unit = unit || textValue(value.unitText);
+      const min = value.minValue;
+      const max = value.maxValue;
+      const hasMin = min != null && min !== "";
+      const hasMax = max != null && max !== "";
+      if (hasMin && hasMax) amount = `${min}\u2013${max}`;
+      else if (hasMin) amount = String(min);
+      else if (value.value != null && value.value !== "") amount = String(value.value);
+    }
+    return [currency, amount, unit].filter(Boolean).join(" ");
+  }
+
+  function jobPostingFromBlocks(blocks) {
+    const found = [];
+    for (const block of blocks) {
+      const raw = typeof block === "string" ? block.trim() : "";
+      if (!raw) continue;
+      try {
+        collect(JSON.parse(raw), found);
+      } catch {
+        // One invalid JSON block does not discard the other blocks.
+      }
+    }
+    for (const posting of found) {
+      const title = textValue(posting.title);
+      const description = descriptionText(posting.description);
+      if (!title || !description) continue;
+      return {
+        title,
+        company: organizationName(posting.hiringOrganization),
+        location: placeText(posting.jobLocation),
+        salary: salaryText(posting.baseSalary),
+        description,
+      };
+    }
+    return null;
+  }
+
+  const blocks = [];
+  const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+  for (const script of scripts) blocks.push(script.textContent || "");
+  const jobPosting = jobPostingFromBlocks(blocks);
+  const text = jobPosting ? "" : (document.body?.innerText || "").trim().substring(0, PAGE_TEXT_LIMIT);
+  return { text, url: location.href, jobPosting };
+}
+
 // ── Page Text Extraction ───────────────────────────────
 
 async function extractPageText(tabId) {
   try {
     const [result] = await chrome.scripting.executeScript({
       target: { tabId },
-      func: () => ({
-        text: document.body.innerText.trim().substring(0, 50000),
-        url: location.href,
-      }),
+      func: readJobPage,
     });
     return result.result;
   } catch {

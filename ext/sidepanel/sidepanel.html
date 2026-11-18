@@ -6,6 +6,19 @@
     <link rel="stylesheet" href="sidepanel.css" />
   </head>
   <body>
+    <div id="capture-notice" class="notice hidden" role="note">
+      <p>
+        The visible text and the URL of the current tab are sent to Cursopus
+        only when you click the extension icon or press
+        <kbd>Alt+Shift+S</kbd>.
+        That text can include your name if you are signed in on the site.
+        On a page with job markup, the page text is not sent.
+      </p>
+      <button type="button" class="btn btn-secondary" id="btn-dismiss-capture-notice">
+        Got it
+      </button>
+    </div>
+
     <!-- Login View -->
     <div id="view-login" class="view">
       <div class="header">
@@ -82,6 +95,7 @@
         </div>
 
         <div id="save-preview" class="hidden">
+          <p id="preview-origin" class="preview-origin hidden"></p>
           <form id="save-form">
             <div class="field">
               <label for="preview-title">Job Title</label>
@@ -120,6 +134,15 @@
             <div class="field">
               <label for="preview-description">Description</label>
               <textarea id="preview-description" rows="6"></textarea>
+              <div id="description-warning" class="warning hidden">
+                <p>
+                  The description looks incomplete. Wait for the page to load
+                  and try again.
+                </p>
+                <button type="button" class="btn btn-secondary" id="btn-retry-parse">
+                  Try again
+                </button>
+              </div>
             </div>
             <div id="duplicate-warning" class="warning hidden">
               This job URL was already imported.
