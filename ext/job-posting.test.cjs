@@ -83,6 +83,17 @@ test("invalid JSON in one block does not hide a later JobPosting", () => {
   assert.equal(page.text, "");
 });
 
+test("a lone surrogate character reference does not fail the page read", () => {
+  const page = read([JSON.stringify({
+    "@type": "JobPosting",
+    title: "Role",
+    description: "Before &#55296; after &#xD800; done",
+  })]);
+  assert.equal(page.jobPosting.title, "Role");
+  assert.equal(page.jobPosting.description, "Before after done");
+  assert.equal(page.text, "");
+});
+
 test("a JobPosting without a title or description keeps the page text for the model", () => {
   const body = "Visible page text for the fallback path.";
   for (const posting of [

@@ -311,7 +311,8 @@ async function checkPendingParse() {
     if (pendingRecheck) { pendingRecheck = false; void checkPendingParse(); }
   }
   if (!pending || !JobberAPI.isLoggedIn() || JobberAPI.sessionId() !== session) return false;
-  if (pending.pageData?.text) await parseWithData(pending.pageData);
+  // A complete JobPosting capture leaves text empty so the page text is not sent.
+  if (pending.pageData?.text || pending.pageData?.jobPosting) await parseWithData(pending.pageData);
   else await parseCurrentPage();
   return true;
 }

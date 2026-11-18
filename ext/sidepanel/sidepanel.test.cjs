@@ -362,6 +362,22 @@ test('job markup fills the preview without a parse request or credit confirmatio
   }finally{f.dom.window.close()}
 });
 
+test('shortcut capture with markup and empty page text fills the preview without reading again',async()=>{
+  const f=await fixture();try{
+    const secret='Visible name of the signed-in user';
+    await f.engine.storage.session.set({pendingParse:{timestamp:Date.now(),sessionId:f.engine.local.authSessionId,pageData:{text:'',url:'https://jobs.example.invalid/role',jobPosting:{title:'Captured role',company:'Example',location:'Remote',salary:'USD 100000',description:'Captured description '+secret}}}});
+    await tick();await tick();await tick();
+    const doc=f.dom.window.document;
+    assert.equal(doc.getElementById('preview-title').value,'Captured role');
+    assert.equal(doc.getElementById('preview-description').value,'Captured description '+secret);
+    assert.equal(doc.getElementById('preview-origin').textContent,'From the page markup');
+    assert.equal(doc.getElementById('save-preview').classList.contains('hidden'),false);
+    assert.equal(f.notices.length,0);
+    assert.equal(f.calls.filter(call=>call.url.endsWith('/jobs/parse')).length,0);
+    assert.equal(f.engine.session.pendingParse,undefined);
+  }finally{f.dom.window.close()}
+});
+
 test('markup without a description still uses the model and labels the preview',async()=>{
   const f=await fixture();try{
     f.held.parse={promise:Promise.resolve(Response.json({title:'Model role',company_name:'Model Co',source:'Example',description:'Model description',url:'https://jobs.example.invalid/role'}))};

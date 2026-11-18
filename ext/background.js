@@ -174,14 +174,12 @@ function readJobPage() {
     html = html.replace(/<\s*br\s*\/?\s*>/gi, "\n");
     html = html.replace(/<\/\s*(?:p|div|li|h[1-6]|tr|blockquote|section|article)\s*>/gi, "\n");
     html = html.replace(/<\s*\/?\s*[a-zA-Z][^>]*>/g, "");
-    html = html.replace(/&#(\d+);/g, (_, digits) => {
-      const code = Number(digits);
-      return code > 0 && code < 1114112 ? String.fromCodePoint(code) : "";
-    });
-    html = html.replace(/&#x([0-9a-f]+);/gi, (_, digits) => {
-      const code = parseInt(digits, 16);
-      return code > 0 && code < 1114112 ? String.fromCodePoint(code) : "";
-    });
+    const character = (code) => {
+      if (!(code > 0 && code < 1114112) || (code >= 0xD800 && code <= 0xDFFF)) return "";
+      return String.fromCodePoint(code);
+    };
+    html = html.replace(/&#(\d+);/g, (_, digits) => character(Number(digits)));
+    html = html.replace(/&#x([0-9a-f]+);/gi, (_, digits) => character(parseInt(digits, 16)));
     html = html.replace(/&nbsp;/gi, " ");
     html = html.replace(/&quot;/gi, '"');
     html = html.replace(/&#0*39;|&apos;/gi, "'");
