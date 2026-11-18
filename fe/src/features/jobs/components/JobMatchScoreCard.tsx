@@ -36,6 +36,9 @@ export function JobMatchScoreCard({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {t("jobs.matchScore.compareDocuments")}
+          </p>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1 space-y-2">
               <Label htmlFor="resume-select">{t("jobs.selectResume")}</Label>

@@ -243,17 +243,18 @@ type MatchResult struct {
 
 // MatchResumeToJob analyzes how well a resume PDF matches a job posting.
 func (c *AnthropicClient) MatchResumeToJob(ctx context.Context, jobTitle, jobDescription, resumePDFBase64 string) (*MatchResult, error) {
-	systemPrompt := `You are an expert resume-job matching analyst. Analyze the provided resume (PDF) against the job posting and return a detailed match assessment.
+	systemPrompt := `You compare two documents: a job posting and a resume. Report what the job text requests and what the resume text contains. Do not judge the person.
 
 Return ONLY valid JSON with these fields:
-- "overall_score" (int, 0-100): overall match percentage
+- "overall_score" (int, 0-100): how much of what the job requests appears in the resume text
 - "categories" (array of objects): each with "name" (string), "score" (int, 0-100), "details" (string)
-  Categories should include: "Technical Skills", "Experience Level", "Education", "Industry Fit", "Soft Skills"
-- "missing_keywords" (array of strings): important keywords/skills from the job that are missing in the resume
-- "strengths" (array of strings): areas where the resume strongly matches the job
-- "summary" (string): 2-3 sentence executive summary of the match
+  Use these names exactly: "Technical Skills", "Experience Level", "Education", "Industry Fit", "Soft Skills"
+  In details, say what the job posting requests and what the resume text contains. When the resume text does not mention something the job requests, write "not found in the resume". Do not write that the person lacks a skill, is unqualified, or has no experience.
+- "missing_keywords" (array of strings): terms the job requests that were not found in the resume
+- "strengths" (array of strings): terms or themes present in both the job and the resume
+- "summary" (string): 2-3 sentences comparing the two documents. Use "not found in the resume" when the job requests something the resume text does not mention.
 
-Be objective and precise. Do not include any text outside the JSON object.` + antiInjectionClause
+Stay with the two texts. Do not include any text outside the JSON object.` + antiInjectionClause
 
 	sanitizedDesc := sanitizeForLLM(jobDescription, maxJobDescriptionLength)
 	jobText := fmt.Sprintf("Job Title: %s\n\nJob Description:\n%s", jobTitle, sanitizedDesc)

@@ -10,7 +10,9 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-function makeData(overrides: Partial<MatchScoreResponse> = {}): MatchScoreResponse {
+function makeData(
+  overrides: Partial<MatchScoreResponse> = {},
+): MatchScoreResponse {
   return {
     overall_score: 82,
     categories: [],
@@ -26,7 +28,32 @@ describe("MatchScoreCard", () => {
   it("renders the overall score", () => {
     render(<MatchScoreCard data={makeData({ overall_score: 82 })} />);
     expect(screen.getByText("82%")).toBeInTheDocument();
-    expect(screen.getByText("jobs.matchScore.overallScore")).toBeInTheDocument();
+    expect(
+      screen.getByText("jobs.matchScore.overallScore"),
+    ).toBeInTheDocument();
+  });
+
+  it("labels known categories as a comparison of the two documents", () => {
+    render(
+      <MatchScoreCard
+        data={makeData({
+          categories: [
+            {
+              name: "Technical Skills",
+              score: 40,
+              details: "The job asks for Go. Go was not found in the resume.",
+            },
+          ],
+        })}
+      />,
+    );
+    expect(
+      screen.getByText("jobs.matchScore.categoryTechnicalSkills"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("jobs.matchScore.categoryHint"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Technical Skills")).not.toBeInTheDocument();
   });
 
   it("renders categories with names, scores and details", () => {
