@@ -11,10 +11,10 @@ interface AiHighlightSectionProps {
 
 const SCORE_ROWS = [
   { key: "technicalSkills", value: 95, accent: true },
-  { key: "experience", value: 88, accent: true },
-  { key: "keywords", value: 91, accent: false },
-  { key: "cultureFit", value: 78, accent: false },
-  { key: "seniority", value: 97, accent: true },
+  { key: "experienceLevel", value: 88, accent: true },
+  { key: "education", value: 91, accent: false },
+  { key: "industryFit", value: 84, accent: true },
+  { key: "softSkills", value: 86, accent: false },
 ] as const;
 
 const MISSING_KEYWORDS = ["MySQL", "Vitess", "distributed SQL"] as const;
@@ -58,7 +58,9 @@ export function AiHighlightSection({
               ref={scoreCardRef}
               className="rounded-xl border border-white/[0.07] bg-muted p-6"
             >
-              <p className="mb-3 font-mono text-[11px] text-slate-500">{t("home.ai.example")}</p>
+              <p className="mb-3 font-mono text-[11px] text-slate-500">
+                {t("home.ai.example")}
+              </p>
               {/* Header */}
               <div className="mb-5 flex items-center justify-between">
                 <span className="text-sm font-bold text-slate-100">

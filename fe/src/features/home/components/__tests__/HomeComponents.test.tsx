@@ -50,7 +50,9 @@ describe("FeaturesSection", () => {
     render(<FeaturesSection />);
     expect(screen.getByText("home.features.kanban.title")).toBeInTheDocument();
     expect(screen.getByText("home.features.aiMatch.title")).toBeInTheDocument();
-    expect(screen.getByText("home.features.aiAssistants.title")).toBeInTheDocument();
+    expect(
+      screen.getByText("home.features.aiAssistants.title"),
+    ).toBeInTheDocument();
     expect(screen.getByText("home.features.resume.title")).toBeInTheDocument();
     expect(
       screen.getByText("home.features.jobImport.title"),
@@ -269,8 +271,16 @@ describe("SocialProofBar", () => {
 
   it("renders product capabilities without implying company endorsements", () => {
     render(<SocialProofBar />);
-    for (const name of ["applications", "resumeBuilder", "coverLetters", "stages", "analytics"]) {
-      expect(screen.getAllByText(`home.features.${name}.title`)).toHaveLength(2);
+    for (const name of [
+      "applications",
+      "resumeBuilder",
+      "coverLetters",
+      "stages",
+      "analytics",
+    ]) {
+      expect(screen.getAllByText(`home.features.${name}.title`)).toHaveLength(
+        2,
+      );
     }
     expect(screen.queryByText("Google")).not.toBeInTheDocument();
     expect(screen.queryByText("Meta")).not.toBeInTheDocument();
@@ -301,11 +311,20 @@ describe("AiHighlightSection", () => {
     expect(screen.getByText("92%")).toBeInTheDocument();
   });
 
-  it("renders score bars with progress", () => {
+  it("renders the categories the match check actually returns", () => {
     render(<AiHighlightSection {...defaultProps} />);
     const progressBars = screen.getAllByRole("progressbar");
-    expect(progressBars.length).toBe(5);
+    expect(progressBars.map((bar) => bar.getAttribute("aria-label"))).toEqual([
+      "home.ai.technicalSkills",
+      "home.ai.experienceLevel",
+      "home.ai.education",
+      "home.ai.industryFit",
+      "home.ai.softSkills",
+    ]);
     expect(progressBars[0]).toHaveAttribute("aria-valuenow", "95");
+    expect(screen.queryByText("home.ai.cultureFit")).not.toBeInTheDocument();
+    expect(screen.queryByText("home.ai.keywords")).not.toBeInTheDocument();
+    expect(screen.queryByText("home.ai.seniority")).not.toBeInTheDocument();
   });
 
   it("renders missing keywords", () => {
@@ -357,9 +376,15 @@ describe("JsonLd", () => {
     expect(script).toBeTruthy();
     expect(script?.getAttribute("type")).toBe("application/ld+json");
     const schema = JSON.parse(script?.textContent ?? "[]");
-    expect(schema[0].offers).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: "Free", price: "0" }),
-      expect.objectContaining({ name: "Pro", price: "24", priceCurrency: "USD" }),
-    ]));
+    expect(schema[0].offers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "Free", price: "0" }),
+        expect.objectContaining({
+          name: "Pro",
+          price: "24",
+          priceCurrency: "USD",
+        }),
+      ]),
+    );
   });
 });
