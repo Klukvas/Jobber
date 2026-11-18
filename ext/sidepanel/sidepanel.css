@@ -243,6 +243,31 @@ body {
   font-size: 12px;
 }
 
+.warning p,
+.notice p {
+  margin: 0 0 8px;
+  line-height: 1.45;
+}
+
+.notice {
+  margin: 12px;
+  padding: 10px;
+  background: #f0f4ff;
+  border: 1px solid #c5d0f6;
+  border-radius: 6px;
+  color: #243056;
+  font-size: 12px;
+}
+
+.notice kbd,
+.warning kbd {
+  background: #e9ecef;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 11px;
+}
+
 /* Usage Bar */
 .usage-bar {
   margin-top: 12px;

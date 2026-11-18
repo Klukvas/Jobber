@@ -34,6 +34,15 @@ const previewLocation = document.getElementById("preview-location");
 const previewSource = document.getElementById("preview-source");
 const previewUrl = document.getElementById("preview-url");
 const previewDescription = document.getElementById("preview-description");
+const descriptionWarning = document.getElementById("description-warning");
+const btnRetryParse = document.getElementById("btn-retry-parse");
+const captureNotice = document.getElementById("capture-notice");
+const btnDismissCaptureNotice = document.getElementById("btn-dismiss-capture-notice");
+const CAPTURE_NOTICE_KEY = "captureNoticeDismissed";
+// A short posting is a short page. Warn only when the captured page is long
+// and the parsed description is empty, or a few leftover words beside that page.
+const LONG_PAGE_CHARS = 800;
+const THIN_DESCRIPTION_CHARS = 40;
 const btnSave = document.getElementById("btn-save");
 const btnBack = document.getElementById("btn-back");
 const saveError = document.getElementById("save-error");
@@ -189,8 +198,36 @@ document.getElementById("btn-toggle-password").addEventListener("click", () => {
 
 // ── Init ───────────────────────────────────────────────
 
+function descriptionLooksIncomplete(description, pageText) {
+  const pageLength = (pageText || "").trim().length;
+  if (pageLength < LONG_PAGE_CHARS) return false;
+  const descriptionLength = (description || "").trim().length;
+  if (descriptionLength === 0) return true;
+  return descriptionLength < THIN_DESCRIPTION_CHARS && descriptionLength * 25 < pageLength;
+}
+
+async function showCaptureNoticeOnce() {
+  try {
+    const stored = await chrome.storage.local.get(CAPTURE_NOTICE_KEY);
+    if (stored[CAPTURE_NOTICE_KEY]) return;
+    captureNotice.classList.remove("hidden");
+  } catch {
+    // The panel still works if the dismissal flag cannot be read.
+  }
+}
+
+btnDismissCaptureNotice.addEventListener("click", async () => {
+  captureNotice.classList.add("hidden");
+  try {
+    await chrome.storage.local.set({ [CAPTURE_NOTICE_KEY]: true });
+  } catch {
+    // Hidden for this open even if the dismissal cannot be stored.
+  }
+});
+
 async function init() {
   listenForPendingParse();
+  await showCaptureNoticeOnce();
   const isLoggedIn = await JobberAPI.init();
   if (isLoggedIn) {
     showMainView();
@@ -410,6 +447,10 @@ async function parseWithData(pageData, request = beginParse()) {
     previewSource.value = parsed.source || "";
     previewUrl.value = parsed.url || pageData.url;
     previewDescription.value = parsed.description || "";
+    descriptionWarning.classList.toggle(
+      "hidden",
+      !descriptionLooksIncomplete(previewDescription.value, pageData.text),
+    );
     hideError(saveError);
 
     const isDuplicate = await JobberAPI.isUrlImported(previewUrl.value);
@@ -454,6 +495,22 @@ btnParse.addEventListener("click", async () => {
     return;
   }
   // A fresh grant makes the tab's URL visible — refresh the shown hostname.
+  updateCurrentUrl();
+  parseCurrentPage();
+});
+
+btnRetryParse.addEventListener("click", async () => {
+  hideError(saveError);
+  try {
+    const granted = await requestHostAccess();
+    if (!granted) {
+      showError(saveError, "Grant access to this page to parse it.");
+      return;
+    }
+  } catch {
+    showError(saveError, "Cannot read this page. Try a job posting page.");
+    return;
+  }
   updateCurrentUrl();
   parseCurrentPage();
 });

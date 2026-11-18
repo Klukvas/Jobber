@@ -275,3 +275,62 @@ for(const uploaded of [false,true])test(`pending ${uploaded?'paid uploaded':'bui
     assert.equal(profileCalls().length,uploaded?2:1);assert.equal(profileCalls().filter(call=>call.options.method==='POST').length,uploaded?1:0);assert.equal(f.notices.length,uploaded?1:0);
   }finally{f.dom.window.close()}
 });
+
+test('capture note explains the one-time page read and stays dismissed',async()=>{
+  const f=await fixture();try{
+    const note=f.dom.window.document.getElementById('capture-notice');
+    assert.equal(note.classList.contains('hidden'),false);
+    assert.match(note.textContent,/visible text/);
+    assert.match(note.textContent,/URL of the current tab/);
+    assert.match(note.textContent,/extension icon/);
+    assert.match(note.textContent,/Alt\+Shift\+S/);
+    f.click('btn-dismiss-capture-notice');await tick();
+    assert.equal(note.classList.contains('hidden'),true);
+    assert.equal(f.engine.local.captureNoticeDismissed,true);
+  }finally{f.dom.window.close()}
+  const again=await fixture({stored:{accessToken:'synthetic',refreshToken:'synthetic',authSessionId:'session-a',captureNoticeDismissed:true}});
+  try{assert.equal(again.dom.window.document.getElementById('capture-notice').classList.contains('hidden'),true)}
+  finally{again.dom.window.close()}
+});
+
+test('empty or thin description on a long page warns, and a short page does not',async()=>{
+  const f=await fixture();try{
+    const doc=f.dom.window.document,warning=()=>doc.getElementById('description-warning');
+    const parse=text=>vm.runInContext(`parseWithData({text:${JSON.stringify(text)},url:'https://jobs.example.invalid'})`,f.context);
+    const respond=description=>{f.held.parse={promise:Promise.resolve(Response.json({title:'Parsed fixture',description,url:'https://jobs.example.invalid'}))}};
+    const long='x'.repeat(2000);
+    respond('   ');await parse(long);
+    assert.equal(warning().classList.contains('hidden'),false);
+    assert.match(warning().textContent.replace(/\s+/g,' '),/The description looks incomplete\. Wait for the page to load and try again/);
+    respond('Apply');await parse(long);
+    assert.equal(warning().classList.contains('hidden'),false);
+    respond('x'.repeat(39));await parse(long);
+    assert.equal(warning().classList.contains('hidden'),false);
+    respond('x'.repeat(40));await parse(long);
+    assert.equal(warning().classList.contains('hidden'),true);
+    respond('');await parse('x'.repeat(799));
+    assert.equal(warning().classList.contains('hidden'),true);
+    respond('');await parse('x'.repeat(800));
+    assert.equal(warning().classList.contains('hidden'),false);
+    respond('A'.repeat(200));await parse(long);
+    assert.equal(warning().classList.contains('hidden'),true);
+  }finally{f.dom.window.close()}
+});
+
+test('retry reads the active tab again',async()=>{
+  const f=await fixture();try{
+    const doc=f.dom.window.document,long='y'.repeat(2000);
+    f.held.parse={promise:Promise.resolve(Response.json({title:'Thin role',description:'',url:'https://jobs.example.invalid'}))};
+    await vm.runInContext(`parseWithData({text:${JSON.stringify(long)},url:'https://jobs.example.invalid'})`,f.context);
+    assert.equal(doc.getElementById('description-warning').classList.contains('hidden'),false);
+    f.context.chrome.permissions={request:async()=>true};
+    f.engine.workerChrome.scripting.executeScript=async()=>[{result:{text:long,url:'https://jobs.example.invalid/retry'}}];
+    f.held.parse={promise:Promise.resolve(Response.json({title:'Retried role',description:'B'.repeat(200),url:'https://jobs.example.invalid/retry'}))};
+    f.click('btn-retry-parse');
+    for(let i=0;i<8;i++){await tick();if(doc.getElementById('preview-title').value==='Retried role')break}
+    assert.equal(doc.getElementById('preview-title').value,'Retried role');
+    assert.equal(doc.getElementById('preview-description').value,'B'.repeat(200));
+    assert.equal(doc.getElementById('description-warning').classList.contains('hidden'),true);
+    assert.equal(doc.getElementById('save-preview').classList.contains('hidden'),false);
+  }finally{f.dom.window.close()}
+});
