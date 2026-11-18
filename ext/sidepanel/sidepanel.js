@@ -34,6 +34,9 @@ const previewLocation = document.getElementById("preview-location");
 const previewSource = document.getElementById("preview-source");
 const previewUrl = document.getElementById("preview-url");
 const previewDescription = document.getElementById("preview-description");
+const previewOrigin = document.getElementById("preview-origin");
+const ORIGIN_MARKUP = "From the page markup";
+const ORIGIN_AI = "Recognized by AI";
 const descriptionWarning = document.getElementById("description-warning");
 const btnRetryParse = document.getElementById("btn-retry-parse");
 const captureNotice = document.getElementById("capture-notice");
@@ -429,28 +432,71 @@ async function parseCurrentPage() {
   }
 }
 
+function markupPreview(job) {
+  if (!job || typeof job !== "object") return null;
+  const title = typeof job.title === "string" ? job.title.trim() : "";
+  const description = typeof job.description === "string" ? job.description.trim() : "";
+  if (!title || !description) return null;
+  const text = (value) => (typeof value === "string" ? value.trim() : "");
+  return {
+    title,
+    company: text(job.company),
+    location: text(job.location),
+    salary: text(job.salary),
+    description,
+  };
+}
+
+function hostFromUrl(url) {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
+}
+
+function showPreviewOrigin(label) {
+  previewOrigin.textContent = label;
+  previewOrigin.classList.remove("hidden");
+}
+
 async function parseWithData(pageData, request = beginParse()) {
   showSaveState("loading");
 
   try {
-    if (!pageData?.text || pageData.text.length < 10) {
-      throw new Error("Not enough text on this page to parse");
+    const markup = markupPreview(pageData?.jobPosting);
+    if (markup) {
+      if (!isCurrentParse(request)) return;
+      previewTitle.value = markup.title;
+      previewCompany.value = markup.company;
+      previewSalary.value = markup.salary;
+      previewLocation.value = markup.location;
+      previewSource.value = hostFromUrl(pageData.url);
+      previewUrl.value = pageData.url || "";
+      previewDescription.value = markup.description;
+      descriptionWarning.classList.add("hidden");
+      showPreviewOrigin(ORIGIN_MARKUP);
+    } else {
+      if (!pageData?.text || pageData.text.length < 10) {
+        throw new Error("Not enough text on this page to parse");
+      }
+
+      const parsed = await JobberAPI.parseJob(pageData.text, pageData.url, { consentSignal: request.signal });
+      if (!isCurrentParse(request)) return;
+
+      previewTitle.value = parsed.title || "";
+      previewCompany.value = parsed.company_name || "";
+      previewSalary.value = "";
+      previewLocation.value = "";
+      previewSource.value = parsed.source || "";
+      previewUrl.value = parsed.url || pageData.url;
+      previewDescription.value = parsed.description || "";
+      descriptionWarning.classList.toggle(
+        "hidden",
+        !descriptionLooksIncomplete(previewDescription.value, pageData.text),
+      );
+      showPreviewOrigin(ORIGIN_AI);
     }
-
-    const parsed = await JobberAPI.parseJob(pageData.text, pageData.url, { consentSignal: request.signal });
-    if (!isCurrentParse(request)) return;
-
-    previewTitle.value = parsed.title || "";
-    previewCompany.value = parsed.company_name || "";
-    previewSalary.value = "";
-    previewLocation.value = "";
-    previewSource.value = parsed.source || "";
-    previewUrl.value = parsed.url || pageData.url;
-    previewDescription.value = parsed.description || "";
-    descriptionWarning.classList.toggle(
-      "hidden",
-      !descriptionLooksIncomplete(previewDescription.value, pageData.text),
-    );
     hideError(saveError);
 
     const isDuplicate = await JobberAPI.isUrlImported(previewUrl.value);

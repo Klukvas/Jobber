@@ -342,6 +342,13 @@ body {
   line-height: 1.4;
 }
 
+.preview-origin {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4361ee;
+}
+
 .match-score-ring {
   flex-shrink: 0;
   width: 56px;

@@ -11,6 +11,8 @@
         The visible text and the URL of the current tab are sent to Cursopus
         only when you click the extension icon or press
         <kbd>Alt+Shift+S</kbd>.
+        That text can include your name if you are signed in on the site.
+        On a page with job markup, the page text is not sent.
       </p>
       <button type="button" class="btn btn-secondary" id="btn-dismiss-capture-notice">
         Got it
@@ -93,6 +95,7 @@
         </div>
 
         <div id="save-preview" class="hidden">
+          <p id="preview-origin" class="preview-origin hidden"></p>
           <form id="save-form">
             <div class="field">
               <label for="preview-title">Job Title</label>

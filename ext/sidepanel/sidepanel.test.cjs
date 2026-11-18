@@ -284,6 +284,9 @@ test('capture note explains the one-time page read and stays dismissed',async()=
     assert.match(note.textContent,/URL of the current tab/);
     assert.match(note.textContent,/extension icon/);
     assert.match(note.textContent,/Alt\+Shift\+S/);
+    assert.match(note.textContent,/your name if you are signed in/);
+    assert.match(note.textContent,/job markup/);
+    assert.match(note.textContent,/page text is not sent/);
     f.click('btn-dismiss-capture-notice');await tick();
     assert.equal(note.classList.contains('hidden'),true);
     assert.equal(f.engine.local.captureNoticeDismissed,true);
@@ -332,5 +335,45 @@ test('retry reads the active tab again',async()=>{
     assert.equal(doc.getElementById('preview-description').value,'B'.repeat(200));
     assert.equal(doc.getElementById('description-warning').classList.contains('hidden'),true);
     assert.equal(doc.getElementById('save-preview').classList.contains('hidden'),false);
+  }finally{f.dom.window.close()}
+});
+
+test('job markup fills the preview without a parse request or credit confirmation',async()=>{
+  const f=await fixture();try{
+    const secret='Visible name of the signed-in user '+('x'.repeat(1000));
+    f.context.markupPage={text:secret,url:'https://jobs.example.invalid/role',jobPosting:{title:'Staff Engineer',company:'Example',location:'Remote, US',salary:'USD 120000-150000 YEAR',description:'Build APIs.'}};
+    await vm.runInContext('parseWithData(markupPage)',f.context);
+    const doc=f.dom.window.document;
+    assert.equal(doc.getElementById('preview-title').value,'Staff Engineer');
+    assert.equal(doc.getElementById('preview-company').value,'Example');
+    assert.equal(doc.getElementById('preview-location').value,'Remote, US');
+    assert.equal(doc.getElementById('preview-salary').value,'USD 120000-150000 YEAR');
+    assert.equal(doc.getElementById('preview-description').value,'Build APIs.');
+    assert.equal(doc.getElementById('preview-url').value,'https://jobs.example.invalid/role');
+    assert.equal(doc.getElementById('preview-source').value,'jobs.example.invalid');
+    assert.equal(doc.getElementById('preview-origin').textContent,'From the page markup');
+    assert.equal(doc.getElementById('preview-origin').classList.contains('hidden'),false);
+    assert.equal(doc.getElementById('description-warning').classList.contains('hidden'),true);
+    assert.equal(doc.getElementById('save-preview').classList.contains('hidden'),false);
+    assert.equal(f.notices.length,0);
+    assert.equal(f.calls.filter(call=>call.url.endsWith('/jobs/parse')).length,0);
+    assert.equal(f.calls.some(call=>call.options?.headers?.['Idempotency-Key']),false);
+    assert.equal(f.calls.some(call=>JSON.stringify(call.options?.body||'').includes('Visible name')),false);
+  }finally{f.dom.window.close()}
+});
+
+test('markup without a description still uses the model and labels the preview',async()=>{
+  const f=await fixture();try{
+    f.held.parse={promise:Promise.resolve(Response.json({title:'Model role',company_name:'Model Co',source:'Example',description:'Model description',url:'https://jobs.example.invalid/role'}))};
+    f.context.partialPage={text:'Page text long enough to parse with the model.',url:'https://jobs.example.invalid/role',jobPosting:{title:'Title only'}};
+    await vm.runInContext('parseWithData(partialPage)',f.context);
+    const doc=f.dom.window.document;
+    assert.equal(doc.getElementById('preview-title').value,'Model role');
+    assert.equal(doc.getElementById('preview-salary').value,'');
+    assert.equal(doc.getElementById('preview-origin').textContent,'Recognized by AI');
+    assert.equal(f.notices.length,1);
+    const parseCalls=f.calls.filter(call=>call.url.endsWith('/jobs/parse'));
+    assert.equal(parseCalls.length,1);
+    assert.match(parseCalls[0].options.body,/Page text long enough/);
   }finally{f.dom.window.close()}
 });
