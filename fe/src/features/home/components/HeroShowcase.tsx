@@ -90,7 +90,7 @@ function ReviewChangeCard({
           className={`hero-review-proposed min-w-0 p-3 ${checked ? "hero-review-after" : ""}`}
         >
           <p className="mb-1.5 flex flex-wrap items-center gap-1.5">
-            <span className="rounded-full bg-lime-400 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-950">
+            <span className="rounded-full bg-lime-400 px-1.5 py-0.5 text-[9px] font-semibold text-slate-950">
               {t("home.showcase.proposedEyebrow")}
             </span>
             <span className="text-[10px] font-medium uppercase tracking-wide text-lime-300">
