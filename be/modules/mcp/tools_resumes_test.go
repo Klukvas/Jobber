@@ -20,8 +20,8 @@ func TestResumeToolsList(t *testing.T) {
 		}
 		found = append(found, tool.Name)
 		require.NotNil(t, tool.Annotations)
-		require.False(t, *tool.Annotations.DestructiveHint)
 		readOnly := tool.Name != "update_resume_section" && tool.Name != "restore_resume_snapshot"
+		require.Equal(t, !readOnly, *tool.Annotations.DestructiveHint)
 		require.Equal(t, readOnly, tool.Annotations.ReadOnlyHint)
 		require.Equal(t, readOnly, tool.Annotations.IdempotentHint)
 		assertFieldDescriptions(t, tool.InputSchema)

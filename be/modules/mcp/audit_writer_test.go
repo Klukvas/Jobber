@@ -45,7 +45,7 @@ func TestAuditWriterBoundedBurstDoesNotDelayTools(t *testing.T) {
 		require.Equal(t, int64(AuditWorkerCount), active.Load())
 		server := sdk.NewServer(&sdk.Implementation{Name: "audit-burst", Version: "1"}, nil)
 		handlers := &tools{audit: writer, logger: zap.NewNop()}
-		register(server, handlers, "audit_probe", "test", true, true,
+		register(server, handlers, "audit_probe", "Audit probe", "test", true, true,
 			func(context.Context, string, auditProbeInput) (auditProbeInput, error) {
 				return auditProbeInput{Text: "ok"}, nil
 			})

@@ -35,7 +35,7 @@ func TestAIToolsListAndAnnotations(t *testing.T) {
 		}
 		found++
 		require.False(t, tool.Annotations.ReadOnlyHint)
-		require.False(t, *tool.Annotations.DestructiveHint)
+		require.True(t, *tool.Annotations.DestructiveHint)
 		require.False(t, *tool.Annotations.OpenWorldHint)
 		require.Equal(t, tool.Name == "apply_tailoring" || tool.Name == "get_resume_pdf_link", tool.Annotations.IdempotentHint)
 		if tool.Name == "parse_job_page" || tool.Name == "tailor_resume" || tool.Name == "generate_cover_letter" {

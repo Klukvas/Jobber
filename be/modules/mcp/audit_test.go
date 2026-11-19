@@ -48,7 +48,7 @@ func auditProbeServer(t *testing.T, recorder AuditRecorder, logger *zap.Logger, 
 	for _, option := range options {
 		option(handlers)
 	}
-	register(server, handlers, "audit_probe", "test", true, true, handle)
+	register(server, handlers, "audit_probe", "Audit probe", "test", true, true, handle)
 	server.AddReceivingMiddleware(handlers.auditMiddleware)
 	return server
 }
