@@ -31,6 +31,7 @@ const STATIC_ROUTES = [
   "/privacy",
   "/terms",
   "/refund",
+  "/docs/mcp",
   "/features/applications",
   "/features/resume-builder",
   "/features/cover-letters",
