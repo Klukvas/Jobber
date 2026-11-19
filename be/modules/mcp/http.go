@@ -60,6 +60,7 @@ func RegisterRoutes(router *gin.Engine, server *sdk.Server, tokens TokenAuthenti
 func registerHTTP(router *gin.Engine, server *sdk.Server, tokens TokenAuthenticator, paid PaidPlanChecker, config httpConfig, logger *zap.Logger) {
 	transport := sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return server }, &sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
 	handler := auth.RequireBearerToken(cachedVerifier, &auth.RequireBearerTokenOptions{AllowMissingExpiration: true, Scopes: []string{"mcp"}})(transport)
+	router.GET(glamaClaimPath, serveGlamaClaim)
 	for _, method := range []string{http.MethodPost, http.MethodGet, http.MethodDelete} {
 		router.Handle(method, "/api/mcp", redactAuditRequest, bearerChallenge(config.issuer), requireOrigin(config.allowedOrigins), config.ipLimiter, authenticatePAT(tokens), requirePaid(paid, logger), config.userLimiter, capBody(), gin.WrapH(handler))
 	}
