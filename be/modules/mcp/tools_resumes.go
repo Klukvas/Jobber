@@ -16,11 +16,11 @@ func WithResumeTools(dependencies ResumeTools) ServerOption {
 }
 
 func registerResumeTools(server *sdk.Server, handlers *tools) {
-	register(server, handlers, "list_resumes", "List Builder Resumes and read-only Uploaded Resume references. Only Builder Resumes can be edited.", true, true, handlers.listResumes)
-	register(server, handlers, "get_resume", "Read a full structured Builder Resume and section entry IDs before editing.", true, true, handlers.getResume)
-	register(server, handlers, "update_resume_section", "Edit one Builder Resume section. Contact/summary upsert replaces all fields; list updates patch supplied fields. Saves an undo snapshot before writing (at most one per 30-minute window). Use list_resume_snapshots and restore_resume_snapshot to undo. No deletes or reordering.", false, false, handlers.updateResumeSection, resumeSectionInputSchema())
-	register(server, handlers, "list_resume_snapshots", "List saved versions of a Builder Resume. Pass a snapshot ID to restore_resume_snapshot to undo edits.", true, true, handlers.listResumeSnapshots)
-	register(server, handlers, "restore_resume_snapshot", "Restore a saved Builder Resume version. The restore itself saves the current version first and can also be undone through list_resume_snapshots and restore_resume_snapshot.", false, false, handlers.restoreResumeSnapshot)
+	register(server, handlers, "list_resumes", "List resumes", "List Builder Resumes and read-only Uploaded Resume references. Only Builder Resumes can be edited.", true, true, handlers.listResumes)
+	register(server, handlers, "get_resume", "Get a resume", "Read a full structured Builder Resume and section entry IDs before editing.", true, true, handlers.getResume)
+	register(server, handlers, "update_resume_section", "Edit a resume section", "Edit one Builder Resume section. Contact/summary upsert replaces all fields; list updates patch supplied fields. Saves an undo snapshot before writing (at most one per 30-minute window). Use list_resume_snapshots and restore_resume_snapshot to undo. No deletes or reordering.", false, false, handlers.updateResumeSection, resumeSectionInputSchema())
+	register(server, handlers, "list_resume_snapshots", "List resume versions", "List saved versions of a Builder Resume. Pass a snapshot ID to restore_resume_snapshot to undo edits.", true, true, handlers.listResumeSnapshots)
+	register(server, handlers, "restore_resume_snapshot", "Restore a resume version", "Restore a saved Builder Resume version. The restore itself saves the current version first and can also be undone through list_resume_snapshots and restore_resume_snapshot.", false, false, handlers.restoreResumeSnapshot)
 }
 
 func (t *tools) listResumes(ctx context.Context, userID string, _ ListResumesInput) (ListResumesOutput, error) {
