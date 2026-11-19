@@ -16,6 +16,7 @@ import BlogPostPage from "@/pages/BlogPost";
 import PrivacyPage from "@/pages/Privacy";
 import TermsPage from "@/pages/Terms";
 import RefundPage from "@/pages/Refund";
+import McpDocsPage from "@/pages/McpDocs";
 import FeatureApplicationsPage from "@/pages/FeatureApplications";
 import FeatureResumeBuilderPage from "@/pages/FeatureResumeBuilder";
 import FeatureCoverLettersPage from "@/pages/FeatureCoverLetters";
@@ -133,6 +134,14 @@ export const routes: RouteObject[] = [
       {
         path: "refund",
         element: <RefundPage />,
+      },
+      {
+        path: "docs",
+        element: <Navigate to="/docs/mcp" replace />,
+      },
+      {
+        path: "docs/mcp",
+        element: <McpDocsPage />,
       },
       {
         path: "features",

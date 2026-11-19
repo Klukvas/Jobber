@@ -19,6 +19,7 @@ application stages, and analytics.
 - Resume builder: https://cursopus.com/features/resume-builder
 - Cover letters: https://cursopus.com/features/cover-letters
 - Blog: https://cursopus.com/blog
+- MCP connector for AI assistants (Pro plan): https://cursopus.com/docs/mcp
 
 ## Plans and AI use
 - Free: 25 tracked jobs, 1 uploaded resume, 2 builder resumes, 1 cover letter and 30 AI credits once per account.

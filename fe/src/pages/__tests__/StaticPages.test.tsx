@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import Privacy from "../Privacy";
 import Terms from "../Terms";
 import Refund from "../Refund";
+import McpDocs from "../McpDocs";
 import NotFound from "../NotFound";
 
 vi.mock("react-i18next", () => ({
@@ -91,6 +92,29 @@ describe("Refund", () => {
   it("shows back to home link", () => {
     render(<Refund />);
     expect(screen.getAllByText("common.backToHome").length).toBeGreaterThan(0);
+  });
+});
+
+describe("McpDocs", () => {
+  it("documents every tool and marks which ones change data", () => {
+    render(<McpDocs />);
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(17);
+    expect(rows.filter((row) => row.textContent?.includes("Read only"))).toHaveLength(6);
+    expect(rows.filter((row) => row.textContent?.includes("Write, asks first"))).toHaveLength(11);
+  });
+
+  it("states the server address and the plan it needs", () => {
+    const { container } = render(<McpDocs />);
+    expect(container.textContent).toContain("https://cursopus.com/api/mcp");
+    expect(container.textContent).toContain("Pro plan");
+    expect(container.textContent).toContain("There is no delete tool");
+  });
+
+  it("links to the privacy policy and support", () => {
+    render(<McpDocs />);
+    expect(screen.getAllByRole("link", { name: "Privacy Policy" })[0]).toHaveAttribute("href", "/privacy");
+    expect(screen.getByRole("link", { name: "support@cursopus.com" })).toHaveAttribute("href", "mailto:support@cursopus.com");
   });
 });
 

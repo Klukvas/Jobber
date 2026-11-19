@@ -212,6 +212,12 @@ function buildEntries(
       priority: "0.3",
       lastmod: buildDate,
     },
+    {
+      loc: `${siteUrl}/docs/mcp`,
+      changefreq: "monthly",
+      priority: "0.5",
+      lastmod: buildDate,
+    },
   ];
 }
 
