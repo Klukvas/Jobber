@@ -1232,7 +1232,44 @@
       "experienceAfter": "Вёл дизайн-систему для трёх продуктовых команд, включая API компонентов.",
       "experienceReason": "Вакансия просит опыт с дизайн-системами. Этот пункт уже описывает такую работу.",
       "proposedEyebrow": "Предложено",
-      "proposedTitle": "Улучшенная версия"
+      "proposedTitle": "Улучшенная версия",
+      "framesLabel": "Кадры продукта",
+      "frames": {
+        "edits": "Правки",
+        "check": "Проверка",
+        "builder": "Конструктор",
+        "stages": "Этапы"
+      },
+      "check": {
+        "label": "Проверка резюме",
+        "title": "Подсказки для проверки",
+        "item1": "Разделы читаются по отдельности",
+        "item2": "React и TypeScript уже есть в этом резюме",
+        "item3": "Формулировки без обещания результата",
+        "note": "Подсказки приблизительные. Они не подтверждают совместимость с ATS и не обещают собеседование."
+      },
+      "builder": {
+        "label": "Конструктор",
+        "name": "Мария Соколова",
+        "role": "Frontend engineer",
+        "experience": "Опыт",
+        "experienceLine": "Интерфейсы продуктов на React и TypeScript.",
+        "skills": "Навыки",
+        "skillReact": "React",
+        "skillTypeScript": "TypeScript",
+        "template": "Шаблон Modern",
+        "export": "Экспорт PDF"
+      },
+      "stages": {
+        "label": "Этапы",
+        "saved": "Сохранено",
+        "applied": "Отклик",
+        "interview": "Интервью",
+        "offer": "Оффер",
+        "savedJob": "Linear",
+        "appliedJob": "Vercel",
+        "interviewJob": "Notion"
+      }
     }
   },
   "onboarding": {

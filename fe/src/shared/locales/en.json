@@ -1206,7 +1206,44 @@
       "experienceAfter": "Led the design system used by three product teams, including its component APIs.",
       "experienceReason": "The role asks for design-system work. This bullet already describes that work.",
       "proposedEyebrow": "Proposed",
-      "proposedTitle": "Improved version"
+      "proposedTitle": "Improved version",
+      "framesLabel": "Product frames",
+      "frames": {
+        "edits": "Edits",
+        "check": "Check",
+        "builder": "Builder",
+        "stages": "Stages"
+      },
+      "check": {
+        "label": "Resume check",
+        "title": "Hints to review",
+        "item1": "Sections stay easy to scan",
+        "item2": "React and TypeScript already appear in this resume",
+        "item3": "Wording stays factual",
+        "note": "Hints are approximate. They do not confirm ATS compatibility or promise an interview."
+      },
+      "builder": {
+        "label": "Resume builder",
+        "name": "Maria Sokolova",
+        "role": "Frontend engineer",
+        "experience": "Experience",
+        "experienceLine": "Product interfaces in React and TypeScript.",
+        "skills": "Skills",
+        "skillReact": "React",
+        "skillTypeScript": "TypeScript",
+        "template": "Modern template",
+        "export": "Export PDF"
+      },
+      "stages": {
+        "label": "Stages",
+        "saved": "Saved",
+        "applied": "Applied",
+        "interview": "Interview",
+        "offer": "Offer",
+        "savedJob": "Linear",
+        "appliedJob": "Vercel",
+        "interviewJob": "Notion"
+      }
     }
   },
   "onboarding": {

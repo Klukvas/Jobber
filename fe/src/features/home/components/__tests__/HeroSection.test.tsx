@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { HeroSection } from "../HeroSection";
+import { HERO_FRAME_MS } from "../HeroShowcase";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -87,20 +88,20 @@ describe("HeroSection", () => {
   });
 
   it("renders the resume review preview instead of the board", () => {
-    render(<HeroSection {...defaultProps} />);
-    expect(screen.getByText("jobs.tailoring.review")).toBeInTheDocument();
-    expect(screen.getByText("Staff Engineer — Vercel")).toBeInTheDocument();
-    expect(screen.getAllByText("jobs.tailoring.before")).toHaveLength(2);
-    expect(screen.getAllByText("home.showcase.proposedEyebrow")).toHaveLength(
-      2,
-    );
-    expect(screen.getAllByText("home.showcase.proposedTitle")).toHaveLength(2);
-    expect(screen.getAllByText("jobs.tailoring.reason")).toHaveLength(2);
-    expect(screen.getByText("home.showcase.summaryBefore")).toBeInTheDocument();
-    expect(screen.getByText("home.showcase.summaryAfter")).toBeInTheDocument();
-    expect(screen.getByText("home.showcase.summaryReason")).toBeInTheDocument();
-    expect(screen.queryByText("Stripe")).not.toBeInTheDocument();
-    expect(screen.queryByText("home.showcase.board")).not.toBeInTheDocument();
+    const { container } = render(<HeroSection {...defaultProps} />);
+    const preview = activeFrame(container);
+    expect(preview).toHaveTextContent("jobs.tailoring.review");
+    expect(preview).toHaveTextContent("Staff Engineer — Vercel");
+    expect(preview.querySelectorAll("article")).toHaveLength(2);
+    expect(preview).toHaveTextContent("jobs.tailoring.before");
+    expect(preview).toHaveTextContent("home.showcase.proposedEyebrow");
+    expect(preview).toHaveTextContent("home.showcase.proposedTitle");
+    expect(preview).toHaveTextContent("jobs.tailoring.reason");
+    expect(preview).toHaveTextContent("home.showcase.summaryBefore");
+    expect(preview).toHaveTextContent("home.showcase.summaryAfter");
+    expect(preview).toHaveTextContent("home.showcase.summaryReason");
+    expect(preview).not.toHaveTextContent("Stripe");
+    expect(preview).not.toHaveTextContent("home.showcase.board");
   });
 
   it("shows the static review until a recording is configured", () => {
@@ -111,4 +112,172 @@ describe("HeroSection", () => {
     expect(container.querySelector("[data-hero-review='static']")).toBeTruthy();
     expect(container.querySelector("video")).toBeNull();
   });
+
+  it("switches the right-hand frame from the tabs", () => {
+    const { container } = render(<HeroSection {...defaultProps} />);
+    expect(activeFrame(container)).toHaveAttribute("data-hero-frame", "edits");
+
+    fireEvent.click(
+      screen.getByRole("tab", { name: "home.showcase.frames.check" }),
+    );
+    expect(activeFrame(container)).toHaveAttribute("data-hero-frame", "check");
+    expect(activeFrame(container)).toHaveTextContent(
+      "home.showcase.check.note",
+    );
+
+    fireEvent.click(
+      screen.getByRole("tab", { name: "home.showcase.frames.builder" }),
+    );
+    expect(activeFrame(container)).toHaveAttribute(
+      "data-hero-frame",
+      "builder",
+    );
+    expect(activeFrame(container)).toHaveTextContent(
+      "home.showcase.builder.export",
+    );
+
+    fireEvent.click(
+      screen.getByRole("tab", { name: "home.showcase.frames.stages" }),
+    );
+    expect(activeFrame(container)).toHaveAttribute("data-hero-frame", "stages");
+    expect(activeFrame(container)).toHaveTextContent(
+      "home.showcase.stages.offer",
+    );
+    expect(screen.queryByText("Stripe")).not.toBeInTheDocument();
+  });
+
+  it("advances the right-hand frame on a timer and pauses while hovered", () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = render(<HeroSection {...defaultProps} />);
+      act(() => {
+        vi.advanceTimersByTime(HERO_FRAME_MS);
+      });
+      expect(activeFrame(container)).toHaveAttribute(
+        "data-hero-frame",
+        "check",
+      );
+
+      const slot = container.querySelector(
+        "[data-hero-media-slot='resume-review']",
+      )!;
+      fireEvent.mouseEnter(slot);
+      act(() => {
+        vi.advanceTimersByTime(HERO_FRAME_MS);
+      });
+      expect(activeFrame(container)).toHaveAttribute(
+        "data-hero-frame",
+        "check",
+      );
+
+      fireEvent.mouseLeave(slot);
+      act(() => {
+        vi.advanceTimersByTime(HERO_FRAME_MS);
+      });
+      expect(activeFrame(container)).toHaveAttribute(
+        "data-hero-frame",
+        "builder",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps advancing after a pointer click once the pointer leaves", () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = render(<HeroSection {...defaultProps} />);
+      const slot = container.querySelector(
+        "[data-hero-media-slot='resume-review']",
+      )!;
+      const check = screen.getByRole("tab", {
+        name: "home.showcase.frames.check",
+      });
+      fireEvent.mouseEnter(slot);
+      fireEvent.pointerDown(check);
+      fireEvent.focus(check);
+      fireEvent.click(check);
+      fireEvent.pointerUp(check);
+      expect(activeFrame(container)).toHaveAttribute(
+        "data-hero-frame",
+        "check",
+      );
+
+      fireEvent.mouseLeave(slot);
+      act(() => {
+        vi.advanceTimersByTime(HERO_FRAME_MS);
+      });
+      expect(activeFrame(container)).toHaveAttribute(
+        "data-hero-frame",
+        "builder",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("pauses while a tab has keyboard focus and resumes when focus leaves", () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = render(<HeroSection {...defaultProps} />);
+      const edits = screen.getByRole("tab", {
+        name: "home.showcase.frames.edits",
+      });
+      fireEvent.focus(edits);
+      act(() => {
+        vi.advanceTimersByTime(HERO_FRAME_MS);
+      });
+      expect(activeFrame(container)).toHaveAttribute(
+        "data-hero-frame",
+        "edits",
+      );
+
+      fireEvent.blur(edits);
+      act(() => {
+        vi.advanceTimersByTime(HERO_FRAME_MS);
+      });
+      expect(activeFrame(container)).toHaveAttribute(
+        "data-hero-frame",
+        "check",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not auto-advance when reduced motion is requested", () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes("prefers-reduced-motion"),
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
+    vi.useFakeTimers();
+    try {
+      const { container } = render(<HeroSection {...defaultProps} />);
+      act(() => {
+        vi.advanceTimersByTime(HERO_FRAME_MS * HERO_FRAMES_GUARD);
+      });
+      expect(activeFrame(container)).toHaveAttribute(
+        "data-hero-frame",
+        "edits",
+      );
+    } finally {
+      vi.useRealTimers();
+      window.matchMedia = original;
+    }
+  });
 });
+
+const HERO_FRAMES_GUARD = 4;
+
+function activeFrame(container: HTMLElement) {
+  const panel = container.querySelector("[data-active='true']");
+  if (!panel) throw new Error("expected an active hero frame");
+  return panel;
+}
